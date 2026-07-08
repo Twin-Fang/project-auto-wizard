@@ -223,6 +223,103 @@ def _parse_markdown_heuristic(md_content: str) -> dict:
     return {k: v for k, v in detected.items() if v.get('items')}
 
 
+# ------------------------ 3단계 규칙 기반 폴백 파서 ------------------------
+
+_TIER1_RE = re.compile(r'^.+?\s:\s*(feat|fix|chore|docs|refactor|test)\s*:\s*(.+)$')
+_TIER2_RE = re.compile(
+    r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?!?:\s*(.+)$'
+)
+_TIER2_BUCKET_MAP = {
+    'feat': 'feat',
+    'fix': 'fix',
+    'chore': 'chore',
+    'docs': 'docs',
+    'refactor': 'refactor',
+    'test': 'test',
+    'perf': 'chore',
+    'style': 'chore',
+    'build': 'chore',
+    'ci': 'chore',
+}
+
+_FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
+
+
+def classify_commits(lines: list[str]) -> dict:
+    """
+    커밋 제목 목록을 3단계 규칙으로 분류.
+
+    1단계: projectops 컨벤션 — "제목 : type : 내용 [URL]"
+    2단계: Conventional Commits — "type(scope)!: 내용"
+           (perf/style/build/ci → chore 버킷으로 매핑)
+    3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식)
+
+    제외 대상 (매칭 전에 걸러냄): [skip ci] 포함 줄, "Merge "로 시작하는 줄, 빈 줄.
+    """
+    classified: dict[str, list[str]] = {key: [] for key in _FALLBACK_BUCKET_KEYS}
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        if '[skip ci]' in line:
+            continue
+        if line.startswith('Merge '):
+            continue
+
+        tier1 = _TIER1_RE.match(line)
+        if tier1:
+            commit_type, desc = tier1.group(1), tier1.group(2).strip()
+            title = line.split(':', 1)[0].strip()
+            classified[commit_type].append(f"{title} — {desc}")
+            continue
+
+        tier2 = _TIER2_RE.match(line)
+        if tier2:
+            commit_type, _scope, desc = tier2.group(1), tier2.group(2), tier2.group(3)
+            bucket = _TIER2_BUCKET_MAP[commit_type]
+            classified[bucket].append(desc.strip())
+            continue
+
+        classified['changes'].append(line)
+
+    return classified
+
+
+_FALLBACK_SECTION_TITLES = {
+    'feat': '### ✨ 기능',
+    'fix': '### 🐛 수정',
+    'docs': '### 📝 문서',
+    'refactor': '### ♻️ 리팩토링',
+    'test': '### ✅ 테스트',
+}
+
+
+def render_fallback_md(classified: dict, version: str) -> str:
+    """분류된 커밋 딕셔너리를 마크다운 릴리즈 노트로 렌더링."""
+    lines: list[str] = [f"## [{version}]", ""]
+
+    for bucket_key in ('feat', 'fix', 'docs', 'refactor', 'test'):
+        items = classified.get(bucket_key) or []
+        if not items:
+            continue
+        lines.append(_FALLBACK_SECTION_TITLES[bucket_key])
+        for item in items:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    chore_items = list(classified.get('chore') or [])
+    changes_items = list(classified.get('changes') or [])
+    merged = chore_items + changes_items
+    if merged:
+        lines.append("### 🔧 변경사항")
+        for item in merged:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 # ------------------------ 서브커맨드 구현부 ------------------------
 
 def cmd_update_from_summary() -> int:
