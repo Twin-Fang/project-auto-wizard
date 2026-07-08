@@ -1,0 +1,192 @@
+# ===================================================================
+# PROJECT-COMMON-VERSION-CONTROL.yaml
+# Safety-net automatic version bump
+# ===================================================================
+#
+# [Safety net] Only when a direct push (one that did not go through a
+# release PR) lands on {{MAIN_BRANCH}} (production), this workflow bumps
+# the patch version and syncs every version file.
+#
+# Normal releases ({{DEVELOP_BRANCH}} -> {{MAIN_BRANCH}} PR) get their
+# version confirmed by AUTO-CHANGELOG-CONTROL before the merge. The merge
+# commit carries the release-confirm pattern "chore(release):" and the
+# push includes a version.yml change, so this workflow skips via its guard.
+#
+# In trunk-based mode (metadata.template.branches.mode: trunk-based)
+# RELEASE-PUBLISH owns version bumping, so this safety net is skipped
+# entirely to avoid double increments.
+#
+# Release-confirm pattern: "chore(release):" — keep in sync with
+# PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-RELEASE-PUBLISH.
+# ===================================================================
+
+name: PROJECT-VERSION-CONTROL
+
+# Prevent concurrent version bumps
+concurrency:
+  group: version-increment
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: ["{{MAIN_BRANCH}}"]
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'CHANGELOG.json'
+      - 'version.yml'  # prevent infinite loop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version-bump:
+    name: Safety-net version bump
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          ref: "{{MAIN_BRANCH}}"
+
+      - name: Release merge / mode guard
+        id: release_guard
+        run: |
+          SKIP="false"
+
+          # trunk-based mode: RELEASE-PUBLISH owns versioning — skip safety net
+          MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"^\s*mode:\s*\"?([A-Za-z-]+)", t, re.M); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
+          if [ "$MODE" = "trunk-based" ]; then
+            SKIP="true"
+            echo "trunk-based mode detected — RELEASE-PUBLISH owns version bumping, skipping"
+          fi
+
+          # release-confirm pattern: the merge commit of a release PR
+          HEAD_MSG=$(git log -1 --pretty=%B)
+          if echo "$HEAD_MSG" | grep -q "chore(release):"; then
+            SKIP="true"
+            echo "release-confirm commit detected (chore(release):) — skipping safety-net bump"
+          fi
+
+          # release merge detection: the release push includes a version.yml change
+          BEFORE="${{ github.event.before }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            RANGE="HEAD^..HEAD"
+          else
+            RANGE="$BEFORE..HEAD"
+          fi
+          if git diff --name-only $RANGE 2>/dev/null | grep -qx "version.yml"; then
+            SKIP="true"
+            echo "release merge detected (push contains a version.yml change) — skipping safety-net bump"
+          fi
+
+          echo "skip=$SKIP" >> $GITHUB_OUTPUT
+          if [ "$SKIP" = "false" ]; then
+            echo "direct push to {{MAIN_BRANCH}} detected — running safety-net version bump"
+          fi
+
+      - name: Read current version
+        id: current_version
+        if: steps.release_guard.outputs.skip != 'true'
+        run: |
+          CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "failed to read current version"
+            exit 1
+          fi
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "current version: $CURRENT_VERSION"
+
+      - name: Bump patch version and sync
+        id: version
+        if: steps.release_guard.outputs.skip != 'true'
+        run: |
+          NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
+          if [ -z "$NEW_VERSION" ]; then
+            echo "version bump failed"
+            exit 1
+          fi
+          python3 .github/scripts/version_manager.py sync
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "new version: $NEW_VERSION"
+
+      - name: Read project type
+        id: project_info
+        if: steps.release_guard.outputs.skip != 'true'
+        run: |
+          if [ -f "version.yml" ]; then
+            PROJECT_TYPE=$(grep "^project_type:" version.yml | sed 's/project_type: *"\([^"]*\)".*/\1/' || echo "unknown")
+            PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ' || echo "")
+            if [ -z "$PROJECT_TYPES" ]; then
+              PROJECT_TYPES="$PROJECT_TYPE"
+            fi
+            echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
+            echo "project_types=$PROJECT_TYPES" >> $GITHUB_OUTPUT
+            echo "project type: $PROJECT_TYPE (types: $PROJECT_TYPES)"
+          else
+            echo "project_type=unknown" >> $GITHUB_OUTPUT
+            echo "project_types=unknown" >> $GITHUB_OUTPUT
+            echo "version.yml not found"
+          fi
+
+      - name: Commit and push changes
+        if: steps.release_guard.outputs.skip != 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add -A
+
+          if git diff --staged --quiet; then
+            echo "no changes to commit (already in sync)"
+          else
+            NEW_VERSION="${{ steps.version.outputs.new_version }}"
+            COMMIT_MSG="chore(version): bump to v${NEW_VERSION} [skip ci]"
+
+            if git commit -m "$COMMIT_MSG"; then
+              # Race-condition guard: pull-rebase then push (up to 3 retries)
+              MAX_RETRIES=3
+              RETRY_COUNT=0
+              PUSH_SUCCESS=false
+
+              while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                echo "push attempt $RETRY_COUNT/$MAX_RETRIES..."
+
+                if git push origin HEAD:{{MAIN_BRANCH}}; then
+                  PUSH_SUCCESS=true
+                  echo "version bump commit pushed"
+                  break
+                else
+                  echo "push failed, syncing with remote..."
+                  if git pull --rebase origin {{MAIN_BRANCH}}; then
+                    echo "rebase ok, retrying push..."
+                  else
+                    echo "rebase failed, manual conflict resolution required"
+                    git rebase --abort 2>/dev/null || true
+                    exit 1
+                  fi
+                fi
+              done
+
+              if [ "$PUSH_SUCCESS" = false ]; then
+                echo "push failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            else
+              echo "commit failed"
+              exit 1
+            fi
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "version-control workflow finished"
+          echo "  skipped (release merge / trunk-based): ${{ steps.release_guard.outputs.skip }}"
+          echo "  previous version: ${{ steps.current_version.outputs.current_version }}"
+          echo "  new version: ${{ steps.version.outputs.new_version }}"
+          echo "  branch: ${{ github.ref_name }}"
