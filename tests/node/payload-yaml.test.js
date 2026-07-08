@@ -75,3 +75,35 @@ test("AUTO-CHANGELOG-CONTROL polls PR body 10 times x 30s (5 minutes)", () => {
   assert.ok(body.includes("POLL_INTERVAL=30"));
   assert.ok(body.includes("5 minutes"));
 });
+
+// ---------------------------------------------------------------
+// RELEASE-PUBLISH: tag + GitHub Release, dual-mode (Task 9)
+// ---------------------------------------------------------------
+const releasePath = join(
+  "payload/workflows/common",
+  "PROJECT-COMMON-RELEASE-PUBLISH.yaml"
+);
+
+test("RELEASE-PUBLISH exists in payload", () => {
+  assert.ok(files.includes(releasePath), `${releasePath} missing`);
+});
+
+test("RELEASE-PUBLISH creates a GitHub Release", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("gh release create"));
+});
+
+test("RELEASE-PUBLISH supports trunk-based mode", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("trunk-based"));
+});
+
+test("RELEASE-PUBLISH guards against [skip ci] commits", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("contains(github.event.head_commit.message, '[skip ci]')"));
+});
+
+test("RELEASE-PUBLISH merges GitHub generate-notes into the release notes", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("generate-notes"));
+});
