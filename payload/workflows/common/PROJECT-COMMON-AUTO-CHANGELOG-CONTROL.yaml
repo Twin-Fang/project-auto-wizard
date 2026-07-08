@@ -34,11 +34,13 @@ concurrency:
   group: auto-changelog-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
+# No workflow_dispatch: this pipeline needs a live PR context and would be
+# a dead lever without one. The manual recovery path is
+# PROJECT-RELEASE-PUBLISH's workflow_dispatch.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: ["{{MAIN_BRANCH}}"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -48,10 +50,13 @@ permissions:
 jobs:
   changelog-and-merge:
     name: Version confirm + changelog + automerge
-    # Guard: only release PRs whose head is the develop branch enter the
-    # pipeline (protects accidental feature PRs opened against production).
+    # Guard: only release PRs whose head is the develop branch of THIS
+    # repository enter the pipeline (protects against accidental feature
+    # PRs opened against production and against fork PRs with a spoofed
+    # "develop" head ref).
     if: >-
       github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == '{{DEVELOP_BRANCH}}'
     runs-on: ubuntu-latest
     steps:
@@ -70,7 +75,9 @@ jobs:
       - name: Read coderabbit option from version.yml
         id: options
         run: |
-          CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"^\s*coderabbit:\s*\"?(true|false)", t, re.M); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          # scoped to the metadata: -> template: -> options: chain so an
+          # unrelated "coderabbit:" key can never hijack the value
+          CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?coderabbit:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "coderabbit=$CODERABBIT" >> $GITHUB_OUTPUT
           echo "coderabbit option: $CODERABBIT"
 
@@ -88,14 +95,14 @@ jobs:
                                 "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}" | \
                                 jq -r '.body // ""')
             if [ -n "$CURRENT_BODY" ] && [ "$CURRENT_BODY" != "null" ]; then
-              echo "[try $attempt] body length=$(echo -n "$CURRENT_BODY" | wc -c)"
+              echo "[try $attempt] body length=$(printf '%s' "$CURRENT_BODY" | wc -c)"
               break
             fi
             echo "[try $attempt] body empty — possible replication lag, retrying"
             sleep 2
           done
 
-          if echo "$CURRENT_BODY" | grep -q "Summary by CodeRabbit"; then
+          if printf '%s\n' "$CURRENT_BODY" | grep -q "Summary by CodeRabbit"; then
             # Protection: a summary already exists — never wipe it, never re-request
             echo "Summary by CodeRabbit already present — skipping request"
             echo "already_found=true" >> $GITHUB_OUTPUT
@@ -136,9 +143,9 @@ jobs:
                            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}" | \
                            jq -r '.body // ""')
 
-            if [ -n "$PR_BODY" ] && [ "$PR_BODY" != "null" ] && echo "$PR_BODY" | grep -q "Summary by CodeRabbit"; then
+            if [ -n "$PR_BODY" ] && [ "$PR_BODY" != "null" ] && printf '%s\n' "$PR_BODY" | grep -q "Summary by CodeRabbit"; then
               echo "CodeRabbit summary found"
-              echo "$PR_BODY" > pr_body.md
+              printf '%s\n' "$PR_BODY" > pr_body.md
               FOUND=true
               break
             fi
@@ -158,14 +165,23 @@ jobs:
       - name: Confirm release version (patch +1 and sync)
         id: bump
         run: |
-          NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
-          if [ -z "$NEW_VERSION" ]; then
-            echo "version bump failed"
-            exit 1
+          # Idempotency: if the PR head is already this workflow's own
+          # version-confirm commit (re-run / synchronize retrigger), do not
+          # bump a second time — reuse the confirmed version.
+          HEAD_MSG=$(git log -1 --pretty=%s)
+          if printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): confirm v.* \[skip ci\]"; then
+            NEW_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+            echo "version already confirmed by a previous run — reusing $NEW_VERSION (no re-increment)"
+          else
+            NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
+            if [ -z "$NEW_VERSION" ]; then
+              echo "version bump failed"
+              exit 1
+            fi
+            python3 .github/scripts/version_manager.py sync
+            echo "release version confirmed: $NEW_VERSION"
           fi
-          python3 .github/scripts/version_manager.py sync
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "release version confirmed: $NEW_VERSION"
 
       - name: Generate summary with the AI engine chain (fallback path)
         if: steps.options.outputs.coderabbit != 'true' || steps.poll.outputs.summary_found != 'true'
@@ -196,11 +212,12 @@ jobs:
 
       - name: Update CHANGELOG from summary
         run: |
-          PROJECT_TYPE=$(grep "^project_type:" version.yml | sed 's/project_type: *"\([^"]*\)".*/\1/' || echo "unknown")
-          PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ' || echo "")
-          if [ -z "$PROJECT_TYPES" ]; then
-            PROJECT_TYPES="$PROJECT_TYPE"
-          fi
+          # note: `grep | sed || echo default` never fires the default (the
+          # pipeline exits with sed's 0) — default via ${var:-} instead
+          PROJECT_TYPE=$(grep "^project_type:" version.yml 2>/dev/null | sed 's/project_type: *"\([^"]*\)".*/\1/')
+          PROJECT_TYPE=${PROJECT_TYPE:-unknown}
+          PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ')
+          PROJECT_TYPES=${PROJECT_TYPES:-$PROJECT_TYPE}
 
           export VERSION="${{ steps.bump.outputs.new_version }}"
           export PROJECT_TYPE PROJECT_TYPES
@@ -272,7 +289,15 @@ jobs:
 
           if gh pr merge "$PR_NUMBER" --auto --merge --subject "$SUBJECT"; then
             echo "automerge enabled: $SUBJECT"
+          elif gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT"; then
+            echo "automerge unavailable — merged directly: $SUBJECT"
           else
-            echo "automerge unavailable (auto-merge disabled on the repo?) — merging directly"
-            gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT"
+            # Both attempts failed — diagnose instead of pretending success.
+            ALLOW_MERGE_COMMIT=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_merge_commit' 2>/dev/null || echo "unknown")
+            if [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
+              echo "::error::이 레포는 merge commit이 비활성화되어 있습니다 — Settings에서 'Allow merge commits'를 켜세요; 릴리스 감지는 merge commit subject를 사용합니다"
+            else
+              echo "::error::PR merge failed (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
+            fi
+            exit 1
           fi

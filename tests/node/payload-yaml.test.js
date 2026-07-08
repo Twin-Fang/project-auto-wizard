@@ -14,8 +14,12 @@ test("no hardcoded branch literals outside placeholders", () => {
   for (const f of files) {
     const body = readFileSync(f, "utf8");
     for (const line of body.split("\n")) {
-      if (line.includes("{{MAIN_BRANCH}}") || line.includes("{{DEVELOP_BRANCH}}")) continue;
-      if (/branches:.*["'\[]\s*(develop|main|master)\b|head\.ref\s*==\s*'(develop|main)'/.test(line))
+      // strip placeholder tokens, then scan the remainder — a line may
+      // legitimately contain a placeholder AND an illegal hardcoded branch
+      const stripped = line
+        .replaceAll("{{MAIN_BRANCH}}", "")
+        .replaceAll("{{DEVELOP_BRANCH}}", "");
+      if (/branches:.*["'\[]\s*(develop|main|master)\b|head\.ref\s*==\s*'(develop|main)'/.test(stripped))
         assert.fail(`${f}: hardcoded branch → use placeholder: ${line}`);
     }
   }

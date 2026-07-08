@@ -34,6 +34,12 @@
 # - SHOW_DATE: whether to append the date (true/false, default: true)
 #   * true:  v1.0.0 (2025-08-16)
 #   * false: v1.0.0
+#
+# Note (safety-net path): on a direct push to {{MAIN_BRANCH}} this
+# workflow reads the pre-bump version — PROJECT-VERSION-CONTROL bumps
+# afterwards with a [skip ci] commit that does not re-trigger this
+# workflow, so the README stays one version behind until the next
+# release/push. Run this workflow manually (workflow_dispatch) to catch up.
 # ===================================================================
 
 name: README VERSION UPDATE
@@ -72,16 +78,34 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
+      - name: Check README.md exists
+        id: precheck
+        run: |
+          if [ -f README.md ]; then
+            echo "readme_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "readme_exists=false" >> $GITHUB_OUTPUT
+            echo "README.md not found — nothing to update, skipping"
+          fi
+
       - name: Read latest version via version_manager.py
         id: version_info
+        if: steps.precheck.outputs.readme_exists == 'true'
         run: |
           LATEST_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+          # Guard: an empty version must never reach the README rewrite —
+          # it would commit a corrupted "v (date)" line.
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "failed to read the current version"
+            exit 1
+          fi
           RELEASE_DATE=$(date '+%Y-%m-%d')
 
           echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "release_date=$RELEASE_DATE" >> $GITHUB_OUTPUT
 
       - name: Update version line in README.md
+        if: steps.precheck.outputs.readme_exists == 'true'
         run: |
           LATEST_VERSION="${{ steps.version_info.outputs.latest_version }}"
           RELEASE_DATE="${{ steps.version_info.outputs.release_date }}"
@@ -190,7 +214,7 @@ jobs:
             # ---------------------------------------------------------
             # Extract the header part (up to the colon)
             # ---------------------------------------------------------
-            HEADER_PART=$(echo "$VERSION_LINE" | sed 's/\(.*:\).*/\1 /')
+            HEADER_PART=$(printf '%s\n' "$VERSION_LINE" | sed 's/\(.*:\).*/\1 /')
 
             if [ -z "$HEADER_PART" ] || [[ "$HEADER_PART" == "$VERSION_LINE" ]]; then
               print_error_message "header extraction failed - no colon (:) found" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
@@ -202,7 +226,12 @@ jobs:
             # ---------------------------------------------------------
             NEW_LINE="${HEADER_PART}${VERSION_TEXT}"
 
-            if ! sed -i "${LINE_NUMBER}s|.*|${NEW_LINE}|" README.md 2>/tmp/sed_error.log; then
+            # Escape sed replacement metacharacters (backslash, & and the
+            # | delimiter) coming from README content so they cannot inject
+            # into the replacement expression
+            ESCAPED_LINE=$(printf '%s' "$NEW_LINE" | sed 's/[&\\|]/\\&/g')
+
+            if ! sed -i "${LINE_NUMBER}s|.*|${ESCAPED_LINE}|" README.md 2>/tmp/sed_error.log; then
               SED_ERROR=$(cat /tmp/sed_error.log 2>/dev/null || echo "unknown sed error")
               print_error_message "sed command failed - $SED_ERROR" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
               exit 1
@@ -220,6 +249,7 @@ jobs:
           fi
 
       - name: Commit and push changes
+        if: steps.precheck.outputs.readme_exists == 'true'
         run: |
           git add README.md
 
