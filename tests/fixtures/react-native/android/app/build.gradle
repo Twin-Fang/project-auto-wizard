@@ -1,0 +1,9 @@
+apply plugin: "com.android.application"
+
+android {
+    defaultConfig {
+        applicationId "com.example.app"
+        versionCode 1
+        versionName "0.0.1"
+    }
+}
