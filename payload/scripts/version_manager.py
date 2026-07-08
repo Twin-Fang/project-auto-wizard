@@ -39,10 +39,42 @@ SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def log(message):
-    """Non-value logging output. Goes to stdout but never as the last line
-    (callers only care about the last line), mirroring the bash script's
-    log_* helpers (which write to stderr) closely enough for CI purposes."""
+    """Non-value logging output, written to stderr (mirroring the bash
+    script's log_* helpers). stdout is reserved for the value contract:
+    its last line is always the command's result."""
     print(message, file=sys.stderr)
+
+
+# ===================================================================
+# Newline-preserving file I/O
+# ===================================================================
+
+def _detect_eol(raw):
+    """Return the dominant line ending of raw text ("\r\n" or "\n")."""
+    crlf = raw.count("\r\n")
+    lf = raw.count("\n") - crlf
+    return "\r\n" if crlf > lf else "\n"
+
+
+def read_file(path):
+    """Read a text file with newlines normalized to \\n for regex processing.
+    The original dominant line ending is re-applied by write_file()."""
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        return f.read().replace("\r\n", "\n")
+
+
+def write_file(path, text):
+    """Write text preserving the dominant line ending of the existing file
+    on disk (LF stays LF, CRLF stays CRLF — never platform-dependent)."""
+    p = Path(path)
+    eol = "\n"
+    if p.is_file():
+        with open(p, "r", encoding="utf-8", newline="") as f:
+            eol = _detect_eol(f.read())
+    if eol != "\n":
+        text = text.replace("\n", eol)
+    with open(p, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
 
 
 # ===================================================================
@@ -60,11 +92,11 @@ def require_version_yml():
 
 
 def read_text():
-    return _version_yml_path().read_text(encoding="utf-8")
+    return read_file(_version_yml_path())
 
 
 def write_text(text):
-    _version_yml_path().write_text(text, encoding="utf-8")
+    write_file(_version_yml_path(), text)
 
 
 def read_scalar_key(key, default=None):
@@ -275,10 +307,10 @@ def sync_spring(path_dir, new_version):
         log(f"WARNING: spring: no build.gradle(.kts) found under {path_dir} — skipping")
         return
     for gradle_file in candidates:
-        text = gradle_file.read_text(encoding="utf-8")
+        text = read_file(gradle_file)
         new_text = re.sub(r"version\s*=\s*'[^']*'", f"version = '{new_version}'", text)
         new_text = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{new_version}"', new_text)
-        gradle_file.write_text(new_text, encoding="utf-8")
+        write_file(gradle_file, new_text)
         log(f"updated: {gradle_file}")
 
 
@@ -287,14 +319,14 @@ def sync_flutter(path_dir, new_version, version_code):
     if not target.is_file():
         log(f"WARNING: flutter: {target} not found — skipping")
         return
-    text = target.read_text(encoding="utf-8")
+    text = read_file(target)
     full_version = f"{new_version}+{version_code}"
     pattern = re.compile(r'^(version:)[ \t]*.*$', re.MULTILINE)
     if pattern.search(text):
         new_text = pattern.sub(r'\1 ' + full_version, text, count=1)
     else:
         new_text = text.rstrip("\n") + f"\nversion: {full_version}\n"
-    target.write_text(new_text, encoding="utf-8")
+    write_file(target, new_text)
     log(f"updated: {target}")
 
 
@@ -303,7 +335,7 @@ def sync_json_version(target, new_version, key_path):
         log(f"WARNING: {target} not found — skipping")
         return
     try:
-        data = json.loads(target.read_text(encoding="utf-8"))
+        data = json.loads(read_file(target))
     except json.JSONDecodeError as e:
         log(f"WARNING: {target} invalid JSON ({e}) — skipping")
         return
@@ -311,7 +343,7 @@ def sync_json_version(target, new_version, key_path):
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
     node[key_path[-1]] = new_version
-    target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    write_file(target, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     log(f"updated: {target}")
 
 
@@ -320,9 +352,9 @@ def sync_python(path_dir, new_version):
     if not target.is_file():
         log(f"WARNING: python: {target} not found — skipping")
         return
-    text = target.read_text(encoding="utf-8")
+    text = read_file(target)
     new_text = re.sub(r'^version\s*=\s*"[^"]*"', f'version = "{new_version}"', text, count=1, flags=re.MULTILINE)
-    target.write_text(new_text, encoding="utf-8")
+    write_file(target, new_text)
     log(f"updated: {target}")
 
 
@@ -331,14 +363,14 @@ def sync_react_native(path_dir, new_version):
     found_plist = False
     if ios_dir.is_dir():
         for plist_file in ios_dir.rglob("Info.plist"):
-            text = plist_file.read_text(encoding="utf-8")
+            text = read_file(plist_file)
             if "CFBundleShortVersionString" in text:
                 new_text = re.sub(
                     r'(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)',
                     r'\g<1>' + new_version + r'\g<2>',
                     text,
                 )
-                plist_file.write_text(new_text, encoding="utf-8")
+                write_file(plist_file, new_text)
                 log(f"updated: {plist_file}")
                 found_plist = True
     else:
@@ -346,39 +378,15 @@ def sync_react_native(path_dir, new_version):
 
     gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
     if gradle_file.is_file():
-        text = gradle_file.read_text(encoding="utf-8")
+        text = read_file(gradle_file)
         new_text = re.sub(r'versionName\s+"[^"]*"', f'versionName "{new_version}"', text)
-        gradle_file.write_text(new_text, encoding="utf-8")
+        write_file(gradle_file, new_text)
         log(f"updated: {gradle_file}")
     else:
         log(f"WARNING: react-native: {gradle_file} not found — skipping")
 
     if not found_plist and not gradle_file.is_file():
         log(f"WARNING: react-native: no target files found under {path_dir}")
-
-
-def sync_react_native_versioncode(path_dir, version_code):
-    gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
-    if not gradle_file.is_file():
-        return
-    text = gradle_file.read_text(encoding="utf-8")
-    new_text = re.sub(r'versionCode\s+\d+', f'versionCode {version_code}', text)
-    gradle_file.write_text(new_text, encoding="utf-8")
-
-
-def sync_expo(path_dir, new_version):
-    target = Path(path_dir) / "app.json"
-    if not target.is_file():
-        log(f"WARNING: react-native-expo: {target} not found — skipping")
-        return
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        log(f"WARNING: {target} invalid JSON ({e}) — skipping")
-        return
-    data.setdefault("expo", {})["version"] = new_version
-    target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    log(f"updated: {target}")
 
 
 def sync_for_type(project_type, new_version, version_code_getter):
@@ -394,7 +402,7 @@ def sync_for_type(project_type, new_version, version_code_getter):
     elif project_type == "react-native":
         sync_react_native(path_dir, new_version)
     elif project_type == "react-native-expo":
-        sync_expo(path_dir, new_version)
+        sync_json_version(Path(path_dir) / "app.json", new_version, ["expo", "version"])
     elif project_type == "basic":
         pass
     else:

@@ -1,6 +1,7 @@
 {
   "name": "example-react-app",
   "version": "0.0.1",
+  "description": "한국어 설명 픽스처",
   "private": true,
   "dependencies": {
     "react": "^18.0.0"

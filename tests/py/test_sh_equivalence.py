@@ -64,6 +64,8 @@ class TestShEquivalence(unittest.TestCase):
     def _dual_tmp(self, fixture_name):
         sh_tmp = tempfile.mkdtemp(prefix="sh_")
         py_tmp = tempfile.mkdtemp(prefix="py_")
+        self.addCleanup(shutil.rmtree, sh_tmp, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, py_tmp, ignore_errors=True)
         shutil.copytree(FIXTURES / fixture_name, sh_tmp, dirs_exist_ok=True)
         shutil.copytree(FIXTURES / fixture_name, py_tmp, dirs_exist_ok=True)
         return sh_tmp, py_tmp
