@@ -1,0 +1,36 @@
+{
+  "name": "project-auto-wizard",
+  "version": "0.1.0",
+  "description": "One command DevOps: npx wizard that installs GitHub-native AI Release Automation into any project",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "project-auto-wizard": "bin/project-auto-wizard.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "payload/"
+  ],
+  "scripts": {
+    "test": "npm run test:node && npm run test:py",
+    "test:node": "node --test tests/node/",
+    "test:py": "python -m unittest discover -s tests/py -v"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Twin-Fang/project-auto-wizard.git"
+  },
+  "keywords": [
+    "devops",
+    "automation",
+    "github-actions",
+    "cli",
+    "release-automation",
+    "changelog",
+    "wizard"
+  ]
+}
