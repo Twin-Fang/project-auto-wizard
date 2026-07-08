@@ -229,7 +229,11 @@ def _parse_markdown_heuristic(md_content: str) -> dict:
 
 # ------------------------ 3단계 규칙 기반 폴백 파서 ------------------------
 
-_TIER1_RE = re.compile(r'^.+?\s:\s*(feat|fix|chore|docs|refactor|test)\s*:\s*(.+)$')
+# 1단계 패턴은 제목도 같은 정규식에서 캡처한다 — " : type : " 마커(타입 앞 콜론에
+# 반드시 공백 선행)가 유일한 구분자이므로, 제목 안의 맨몸 콜론("v1:2" 등)에서
+# 잘리지 않는다. 별도 split 재수행 금지.
+_TIER1_RE = re.compile(r'^(.+?)\s:\s*(feat|fix|chore|docs|refactor|test)\s*:\s*(.+)$')
+_TRAILING_URL_RE = re.compile(r'\s*https?://\S+$')
 _TIER2_RE = re.compile(
     r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?!?:\s*(.+)$'
 )
@@ -271,10 +275,17 @@ def classify_commits(lines: list[str]) -> dict:
         if line.startswith('Merge '):
             continue
 
+        # 1단계가 2단계보다 먼저다 — 트레이드오프: "제목 : feat : 내용" 형식은
+        # "feat: ..." Conventional Commits와 겹칠 수 없지만(타입 앞에 제목 필수),
+        # 제목이 있는 줄에 " : type : "가 우연히 들어가면 tier-2 해석 기회 없이
+        # tier-1로 확정된다. projectops 컨벤션 레포에서는 이것이 의도된 우선순위다.
         tier1 = _TIER1_RE.match(line)
         if tier1:
-            commit_type, desc = tier1.group(1), tier1.group(2).strip()
-            title = line.split(':', 1)[0].strip()
+            title = tier1.group(1).strip()
+            commit_type = tier1.group(2)
+            desc = tier1.group(3).strip()
+            # 커밋 말미의 이슈 URL은 릴리즈 노트 렌더링에서 노이즈 — 제거.
+            desc = _TRAILING_URL_RE.sub('', desc).strip()
             classified[commit_type].append(f"{title} — {desc}")
             continue
 
@@ -563,11 +574,19 @@ _AI_DEFAULT_BASE_URL = "https://models.github.ai/inference"
 _AI_DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
-def _build_ai_prompt(commit_lines: list[str], pr_title: str | None) -> str:
-    """AI에게 보낼 한국어 릴리즈 요약 프롬프트를 구성."""
+def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str) -> str:
+    """AI에게 보낼 한국어 릴리즈 요약 프롬프트를 구성.
+
+    요청하는 출력 형식은 규칙 기반 폴백 렌더러(render_fallback_md)와 동일한
+    형식으로 맞춘다 — 다운스트림(릴리즈 노트 소비자)이 엔진과 무관하게 단일
+    형식만 보게 하기 위함이다.
+    """
     parts = [
         "아래 커밋 목록을 바탕으로 한국어 릴리즈 요약을 작성해줘.",
-        "다음 마크다운 섹션으로 구성해줘: ### 주요 변경, ### 기능, ### 수정",
+        f"출력 형식: 첫 줄은 '## [{version}]' 헤더로 시작하고,",
+        "해당 항목이 있는 섹션만 다음 이름으로 작성해줘:",
+        "'### ✨ 기능', '### 🐛 수정', '### 📝 문서', '### ♻️ 리팩토링', '### ✅ 테스트', '### 🔧 변경사항'.",
+        "각 항목은 '- '로 시작하는 불릿으로 작성해줘.",
     ]
     if pr_title:
         parts.append(f"PR 제목: {pr_title}")
@@ -613,35 +632,51 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 
     engine = None
     summary_text = None
+    prompt = _build_ai_prompt(commit_lines, pr_title, version)
 
     if ai_api_key:
         try:
-            prompt = _build_ai_prompt(commit_lines, pr_title)
-            summary_text = call_openai_compatible(ai_base_url, ai_api_key, ai_model, prompt)
-            engine = "user-api"
-        except Exception:
-            summary_text = None
+            candidate = call_openai_compatible(ai_base_url, ai_api_key, ai_model, prompt)
+            if candidate and candidate.strip():
+                summary_text = candidate
+                engine = "user-api"
+            else:
+                print("[warn] user-api failed: empty content in response", file=sys.stderr)
+        except Exception as e:
+            print(f"[warn] user-api failed: {e}", file=sys.stderr)
 
     if summary_text is None and github_token:
         try:
-            prompt = _build_ai_prompt(commit_lines, pr_title)
-            summary_text = call_openai_compatible(_AI_DEFAULT_BASE_URL, github_token, ai_model, prompt)
-            engine = "github-models"
-        except Exception:
-            summary_text = None
+            # GitHub Models는 자체 모델 카탈로그만 서빙한다 — 사용자 API용으로
+            # AI_MODEL이 오버라이드돼 있어도 여기서는 기본 모델을 쓴다
+            # (커스텀 모델명은 models.github.ai에서 404).
+            candidate = call_openai_compatible(_AI_DEFAULT_BASE_URL, github_token, _AI_DEFAULT_MODEL, prompt)
+            if candidate and candidate.strip():
+                summary_text = candidate
+                engine = "github-models"
+            else:
+                print("[warn] github-models failed: empty content in response", file=sys.stderr)
+        except Exception as e:
+            print(f"[warn] github-models failed: {e}", file=sys.stderr)
 
     if summary_text is None:
         classified = classify_commits(commit_lines)
         summary_text = render_fallback_md(classified, version)
         engine = "fallback"
 
+    write_ok = True
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(summary_text)
-    except Exception:
-        pass
+    except Exception as e:
+        # 파일을 못 쓴 사실을 숨기지 않는다 — ok=false로 보고하고,
+        # 요약 텍스트는 stderr로 구제 출력한다. 종료 코드는 0 유지
+        # (워크플로우 파이프라인을 끊지 않기 위한 계약).
+        write_ok = False
+        print(f"[warn] output write failed: {e}", file=sys.stderr)
+        print(summary_text, file=sys.stderr)
 
-    print(json.dumps({"ok": True, "engine": engine, "output": output_path}))
+    print(json.dumps({"ok": write_ok, "engine": engine, "output": output_path}))
     return 0
 
 

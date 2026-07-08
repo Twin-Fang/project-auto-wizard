@@ -16,6 +16,22 @@ class TestClassifyCommits(unittest.TestCase):
         )
         self.assertTrue(any("소셜 로그인 추가" in s for s in out["feat"]))
 
+    def test_tier1_title_with_bare_colon_not_truncated(self):
+        # Title contains a bare ":" (no surrounding spaces) — must not be
+        # truncated at that colon; the " : type : " marker is the delimiter.
+        out = classify_commits(["v1:2 업그레이드 : feat : 스키마 마이그레이션"])
+        self.assertEqual(len(out["feat"]), 1)
+        self.assertIn("v1:2 업그레이드", out["feat"][0])
+        self.assertIn("스키마 마이그레이션", out["feat"][0])
+
+    def test_tier1_trailing_url_stripped_from_item(self):
+        out = classify_commits(
+            ["로그인 개선 : feat : 소셜 로그인 추가 https://github.com/o/r/issues/1"]
+        )
+        self.assertEqual(len(out["feat"]), 1)
+        self.assertNotIn("https://", out["feat"][0])
+        self.assertIn("소셜 로그인 추가", out["feat"][0])
+
     def test_tier2_conventional_commits(self):
         out = classify_commits(["feat(auth): add SSO", "fix: null crash"])
         self.assertEqual(len(out["feat"]), 1)
