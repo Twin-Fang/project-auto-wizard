@@ -8,11 +8,13 @@ changelog_manager.py
   - update-from-summary: CodeRabbit Summary Markdown을 파싱하여 CHANGELOG.json 갱신
   - generate-md        : CHANGELOG.json을 기반으로 CHANGELOG.md 재생성
   - export             : 특정 버전의 릴리즈 노트를 생성하여 stdout 또는 파일로 저장
+  - ai-summary         : 커밋 목록으로부터 AI(또는 규칙 기반 폴백) 릴리즈 요약 생성
 
 사용 예:
   python3 changelog_manager.py update-from-summary
   python3 changelog_manager.py generate-md
   python3 changelog_manager.py export --version 0.0.2 --output release_notes.txt
+  python3 changelog_manager.py ai-summary --commits-file commits.txt --version 1.2.3 --output summary.md
 
 입력 파일:
   - pr_body.md: GitHub PR body (Markdown 형식)
@@ -27,6 +29,8 @@ import os
 import re
 import sys
 import traceback
+import urllib.error
+import urllib.request
 
 
 # ----------------------------- 공통 유틸 -----------------------------
@@ -553,6 +557,94 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
     return 0
 
 
+# ------------------------ ai-summary 엔진 체인 ------------------------
+
+_AI_DEFAULT_BASE_URL = "https://models.github.ai/inference"
+_AI_DEFAULT_MODEL = "openai/gpt-4o-mini"
+
+
+def _build_ai_prompt(commit_lines: list[str], pr_title: str | None) -> str:
+    """AI에게 보낼 한국어 릴리즈 요약 프롬프트를 구성."""
+    parts = [
+        "아래 커밋 목록을 바탕으로 한국어 릴리즈 요약을 작성해줘.",
+        "다음 마크다운 섹션으로 구성해줘: ### 주요 변경, ### 기능, ### 수정",
+    ]
+    if pr_title:
+        parts.append(f"PR 제목: {pr_title}")
+    parts.append("커밋 목록:")
+    parts.extend(f"- {line}" for line in commit_lines)
+    return "\n".join(parts)
+
+
+def call_openai_compatible(base_url: str, token: str, model: str, prompt: str) -> str:
+    """OpenAI 호환 /chat/completions 엔드포인트 호출 후 응답 텍스트 반환."""
+    url = base_url.rstrip('/') + "/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        body = json.loads(resp.read().decode("utf-8"))
+    return body["choices"][0]["message"]["content"]
+
+
+def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: str | None) -> int:
+    """커밋 목록을 읽어 AI(우선) 또는 규칙 기반 폴백으로 릴리즈 요약을 생성."""
+    try:
+        with open(commits_file, 'r', encoding='utf-8') as f:
+            commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
+    except Exception:
+        commit_lines = []
+
+    ai_api_key = os.environ.get('AI_API_KEY')
+    ai_base_url = os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL
+    ai_model = os.environ.get('AI_MODEL') or _AI_DEFAULT_MODEL
+    github_token = os.environ.get('GITHUB_TOKEN')
+
+    engine = None
+    summary_text = None
+
+    if ai_api_key:
+        try:
+            prompt = _build_ai_prompt(commit_lines, pr_title)
+            summary_text = call_openai_compatible(ai_base_url, ai_api_key, ai_model, prompt)
+            engine = "user-api"
+        except Exception:
+            summary_text = None
+
+    if summary_text is None and github_token:
+        try:
+            prompt = _build_ai_prompt(commit_lines, pr_title)
+            summary_text = call_openai_compatible(_AI_DEFAULT_BASE_URL, github_token, ai_model, prompt)
+            engine = "github-models"
+        except Exception:
+            summary_text = None
+
+    if summary_text is None:
+        classified = classify_commits(commit_lines)
+        summary_text = render_fallback_md(classified, version)
+        engine = "fallback"
+
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(summary_text)
+    except Exception:
+        pass
+
+    print(json.dumps({"ok": True, "engine": engine, "output": output_path}))
+    return 0
+
+
 # ------------------------------- CLI -------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -570,6 +662,12 @@ def main(argv: list[str] | None = None) -> int:
     p_export.add_argument('--version', required=True, help='버전 번호')
     p_export.add_argument('--output', help='출력 파일 경로 (없으면 stdout)')
 
+    p_ai_summary = sub.add_parser('ai-summary', help='커밋 목록으로 AI/규칙 기반 릴리즈 요약 생성')
+    p_ai_summary.add_argument('--commits-file', required=True, help='커밋 제목 목록 파일 (한 줄당 1개)')
+    p_ai_summary.add_argument('--version', required=True, help='버전 번호')
+    p_ai_summary.add_argument('--output', required=True, help='요약 결과를 저장할 파일 경로')
+    p_ai_summary.add_argument('--pr-title', help='PR 제목 (프롬프트 컨텍스트로 사용, 선택)')
+
     args = parser.parse_args(argv)
 
     if args.command == 'update-from-summary':
@@ -578,6 +676,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_generate_md()
     if args.command == 'export':
         return cmd_export_release_notes(args.version, args.output)
+    if args.command == 'ai-summary':
+        return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title)
     return 2
 
 
