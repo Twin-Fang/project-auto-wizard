@@ -18,6 +18,7 @@ import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
 import { runVersion } from "./commands/version.js";
 import { runWorkflows } from "./commands/workflows.js";
+import { runRevert } from "./commands/revert.js";
 import { runInteractive } from "./commands/interactive.js";
 
 // 패키지 버전 읽기 (-v/--version 출력용). src/../package.json.
@@ -58,10 +59,22 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
     if (!process.stdout.isTTY) {
-      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows> 와 --force 를 지정하세요.");
+      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert> 와 --force 를 지정하세요.");
       return 1;
     }
     return await runInteractive({}, { cwd, payloadRoot: payload, clock });
+  }
+
+  // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
+  if (opts.mode === "revert") {
+    if (!opts.force && !process.stdout.isTTY) {
+      console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+      return 1;
+    }
+    const r = runRevert({}, payload, cwd);
+    console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개${r.coderabbit ? ", .coderabbit.yaml" : ""}`);
+    console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
+    return 0;
   }
   // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
   if (!opts.force && !process.stdout.isTTY) {

@@ -13,6 +13,7 @@ export async function selectMode() {
       { value: "full", label: "전체 설치 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)" },
       { value: "version", label: "버전 관리만 — 버전 자동 증가·동기화 시스템만 설치" },
       { value: "workflows", label: "워크플로우만 — 빌드·배포 GitHub Actions만 설치" },
+      { value: "revert", label: "되돌리기 — 마법사가 설치한 워크플로우·스크립트 제거" },
     ],
   });
 }

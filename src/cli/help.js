@@ -5,8 +5,8 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
   npx project-auto-wizard [옵션]
 
 옵션:
-  -m, --mode MODE          통합 모드 (full | version | workflows)
-                           기본: interactive (대화형)
+  -m, --mode MODE          통합 모드 (full | version | workflows | revert)
+                           기본: interactive (대화형). revert = 설치물 제거(되돌리기)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
                            지원: spring flutter next react react-native
                                  react-native-expo node python basic

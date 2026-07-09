@@ -17,6 +17,7 @@ import { createContext, VALID_TYPES } from "../context.js";
 import { runFull } from "./full.js";
 import { runVersion } from "./version.js";
 import { runWorkflows } from "./workflows.js";
+import { runRevert } from "./revert.js";
 import * as prompts from "../ui/prompts.js";
 
 const CANCEL = prompts.CANCEL;
@@ -41,6 +42,16 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 1) 모드 선택
   const mode = await io.selectMode();
   if (mode === CANCEL || mode == null) { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
+
+  // revert 모드 — 확인 질문(기본 아니오) 후 payload 유래 파일 제거. 감지·breaking 게이트 불필요.
+  if (mode === "revert") {
+    const ok = await io.askYesNo("마법사가 설치한 워크플로우·스크립트를 제거할까요? (version.yml·README는 보존)", false);
+    if (ok !== true) { io.cancelMessage?.("되돌리기를 취소했습니다."); return 0; }
+    const r = runRevert({}, payload, cwd);
+    io.note?.(`워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개 제거${r.coderabbit ? " + .coderabbit.yaml" : ""}`, "되돌리기 완료");
+    io.outro?.("되돌리기를 마쳤습니다.");
+    return 0;
+  }
 
   // Breaking Changes 게이트 (.sh execute_integration L4415~4420 — 모든 모드 공통, 대화형은 확인 질문)
   const proceed = await runBreakingCheck({
