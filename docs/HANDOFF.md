@@ -1,62 +1,50 @@
-# HANDOFF — 진행 상황 및 재개 가이드 (2026-07-09)
+# HANDOFF — 진행 상황 및 재개 가이드 (2026-07-09 갱신)
 
 > 다른 머신/세션에서 이어서 작업할 때 이 문서 + `docs/DESIGN-SPEC.md`(승인된 설계 명세) + `docs/IMPLEMENTATION-PLAN.md`(20 Task 구현 계획)를 먼저 읽는다.
-> 실행 방식: superpowers:subagent-driven-development — Task별 구현 서브에이전트 → 스펙 리뷰 → 품질 리뷰 → 수정 → 커밋+push(main). 커밋에 Claude/AI 흔적(Co-Authored-By 등) **절대 금지**. Conventional Commits(영문). 모든 커밋 후 `git push origin main` (사용자 지시: 지속 체크포인트).
+> 커밋: Conventional Commits(영문), Claude/AI 흔적(Co-Authored-By 등) **절대 금지**. 모든 커밋 후 `git pull --rebase origin main && git push origin main` (도그푸딩된 VERSION-CONTROL이 push마다 봇 커밋을 만들므로 rebase 필수).
 
 ## 프로젝트 정체
 
 - **이름**: project-auto-wizard / GitHub `Twin-Fang/project-auto-wizard` / npm `project-auto-wizard` / 실행 `npx project-auto-wizard`
 - 오픈소스 공모전 제출용. SUH-DEVOPS-TEMPLATE(projectops)의 슬림 파생 — 3축: ①npx 마법사(9타입+멀티+모노레포) ②payload 워크플로우 ③버전/체인지로그 Python 백엔드
-- 복사 원본($SRC): `E:\github\SUH-DEVOPS-TEMPLATE` (읽기 전용 참조)
+- 복사 원본($SRC): `D:\0-suh\project\suh-github-template` (읽기 전용 참조. 구 문서의 `E:\github\SUH-DEVOPS-TEMPLATE`는 이 경로로 이전됨)
 
-## WP 진행 상황 (플랜 20 Task → 9 WP)
+## WP 진행 상황 — 구현 전부 완료 ✅
 
-| WP | Task | 상태 | 커밋 |
-|---|---|---|---|
-| WP1 스캐폴드 | 1 | ✅ 완료 | 9f44248 |
-| WP2 version_manager.py | 2-4 | ✅ 완료 (리뷰 2회전 승인) | ff89c29, 365c176, c47c5c6, e5359bb |
-| WP3 changelog_manager.py | 5-6 | ✅ 완료 (리뷰 2회전 승인) | 79e2df3, 507b14a, edec49c, de24f2f |
-| WP4 common 워크플로우 | 7-9 | 🔄 **수정 중** | 9017d4f, da3c65c, 365092f + 수정 커밋 예정 |
-| WP5 타입별 워크플로우+템플릿 | 10-11 | ⬜ 대기 | |
-| WP6 src 선별복사+assets 수술 | 12 | ⬜ 대기 | |
-| WP7 마법사 신기능 | 13-17 | ⬜ 대기 | |
-| WP8 도그푸딩+README | 18-19 | ⬜ 대기 (NPM-PUBLISH는 선반영됨) | 69167cd |
-| WP9 E2E+최종리뷰+push | 20 | ⬜ 대기 | |
+| WP | Task | 상태 |
+|---|---|---|
+| WP1 스캐폴드 | 1 | ✅ |
+| WP2 version_manager.py | 2-4 | ✅ |
+| WP3 changelog_manager.py | 5-6 | ✅ |
+| WP4 common 워크플로우 | 7-9 | ✅ (I1~I5 + M1~M8 반영 확인) |
+| WP5 타입별 워크플로우+템플릿 | 10-11 | ✅ 9eb6c55, 113a550 |
+| WP6 src 선별복사+assets 수술 | 12 | ✅ 90e43bf (+오염정리 d4731b9) |
+| WP7 마법사 신기능 | 13-17 | ✅ a855ecb, 99ff823, 06ab2dc, 0f27adf, 1e61488 |
+| WP8 도그푸딩+README | 18-19 | ✅ 35ebba2, 615033c |
+| WP9 E2E+revert+실기검증 | 20 | ✅ 1a28abc + **PR #1 풀사이클 실측 성공** |
 
-**테스트 현황**: python 51 (47+4 env-skip, `python -m unittest discover -s tests/py`), node 14 (`npm run test:node`). sh 등가성은 `PROJECTOPS_SH_REF=<$SRC의 version_manager.sh>` 설정 시 4개 추가 실행 — 실측 통과 이력 있음.
+**테스트 현황**: python 52 (OK, 4 env-skip — `python -m unittest discover -s tests/py`), node 59 (`npm run test:node`, e2e 매트릭스 15개 포함).
 
-## WP4 수정 중인 내용 (재개 시 최우선 확인)
+## 실측 완료된 것 (2026-07-09, PR #1)
 
-품질 리뷰(운영 관점)에서 Important 5 + Minor 8 발견, 구현 에이전트가 수정 중이었음. 커밋 `fix(payload): workflow failure-recovery + operational hardening`이 push됐는지 확인:
-- **I1**: RELEASE-PUBLISH tag-exists 가드가 release 복구 차단 → `gh release view` 추가 체크
-- **I2**: README-VERSION-UPDATE 버전 빈값 가드 누락
-- **I3**: re-run 시 이중 increment → confirm 커밋 패턴 idempotency 가드
-- **I4**: squash-only 레포에서 automerge 실패 → allow_merge_commit 진단+명확한 에러
-- **I5**: fork PR 가드 (`head.repo.full_name == github.repository`)
-- M1~M8: sed 이스케이프, 키 grep 스코프, README 부재 skip, dead workflow_dispatch 제거, printf, 테스트 placeholder-strip 등
+- 마법사 → 자기 레포 도그푸딩 설치(pr-flow, develop 자동 생성+push) ✅
+- develop→main 릴리스 PR → **AUTO-CHANGELOG(버전확정 0.1.3 + 요약 + CHANGELOG 커밋) → automerge(WORKFLOW_PAT) → RELEASE-PUBLISH(tag v0.1.3 + GitHub Release) → README-VERSION-UPDATE** 전부 success ✅
+- **graceful degradation 실전 검증**: GitHub Models 403 → 규칙 fallback이 카테고리 분류된 릴리스 노트 생성, 릴리스 안 막힘 ✅ (플랜 Task 20 Step 5의 fallback 검증을 실전으로 커버)
+- 실측에서 발견·수정한 버그: `changelog_manager.py update-from-summary`가 비정형 CHANGELOG.json(`{"versions": []}`)에서 KeyError → setdefault 방어 + 회귀 테스트 (f0884e6)
 
-수정 커밋이 없으면 위 목록대로 다시 수정 → 리뷰어 재검 → WP5 진행.
+## 남은 항목 (사용자 액션 / 게시 전)
 
-## 미해결 이슈: npm 이름 선점 실패 (사용자 액션 필요)
+1. **npm 이름 선점 — NPM_TOKEN 권한** (기존 이슈): 현 토큰은 신규 패키지 생성 권한 없음(E404). npmjs.com → Granular token 재발급(Read/write, **All packages**) 또는 Classic Automation token → `github_cli.py secrets set Twin-Fang project-auto-wizard NPM_TOKEN`(값은 env `SECRET_VALUE`) → NPM-PUBLISH re-run. **현재 버전은 v0.1.3이므로 선점도 0.1.3으로 됨.**
+2. **GitHub Models 403 원인 확인**: job 권한에 `Models: read`는 부여됐는데 `models.github.ai` 호출이 403. Twin-Fang **org 설정에서 GitHub Models 활성화** 여부 확인 필요(Settings → Models). 활성화 후 릴리스 1회 재실측하면 AI 요약 경로 검증 완료.
+3. **데모 자산**: README의 30초 GIF + 3분 YouTube 링크 TODO 채우기 (스펙 §6 시나리오 참조).
+4. WORKFLOW_PAT은 등록 완료(automerge 후속 트리거용, 실측 통과).
 
-- NPM_TOKEN secret은 Twin-Fang/project-auto-wizard에 등록 완료.
-- CI `NPM-PUBLISH` 실행 → **npm error E404 PUT https://registry.npmjs.org/project-auto-wizard** = 토큰이 **신규 패키지 생성 권한 없음** (Granular token은 기본이 기존 패키지 scope — "Read and write" + **"All packages" 또는 신규 생성 허용** 필요).
-- 로컬 whoami도 401/{} — 같은 원인.
-- **해결**: npmjs.com → Access Tokens → Granular token 재발급 시 Packages and scopes: **Read and write, All packages** (또는 Classic Automation token) → secret 갱신(`github_cli.py secrets set Twin-Fang project-auto-wizard NPM_TOKEN`, 값은 env `SECRET_VALUE`) → Actions에서 NPM-PUBLISH re-run → 0.1.0 선점.
-
-## 핵심 계약 (구현 시 불변)
+## 핵심 계약 (구현 시 불변 — 요약)
 
 - payload 스크립트: stdlib only, stdout 마지막 줄=값(`| tail -n 1`), 릴리스 절대 안 막힘(ai-summary always exit 0)
-- ai-summary 엔진 체인: AI_API_KEY → GitHub Models(GITHUB_TOKEN, `models: read`) → 3단 규칙 fallback. update-from-summary 입력 채널 = cwd의 `pr_body.md` + env(VERSION 등)
-- 릴리스 머지 감지 패턴: 머지 커밋 subject `chore(release): vX.Y.Z (PR #N)` — AUTO-CHANGELOG(생산) / VERSION-CONTROL(skip) / RELEASE-PUBLISH(진행) 3파일 동기 유지
-- 브랜치: `{{MAIN_BRANCH}}` / `{{DEVELOP_BRANCH}}` placeholder만. 봇 커밋 `[skip ci]`
-- automerge 토큰: `secrets.WORKFLOW_PAT || github.token` (GITHUB_TOKEN 머지는 후속 워크플로우 미트리거 — README에 WORKFLOW_PAT 문서화 필요, WP8)
-- 브랜치 모드: `metadata.template.branches.mode` = pr-flow(3종 설치) / trunk-based(RELEASE-PUBLISH 단독)
-- CodeRabbit opt-in: `metadata.template.options.coderabbit`, 기본 false, PR body 폴링 30s×10
-
-## 재개 절차
-
-1. `cd E:\github\project-auto-wizard && git pull && npm test` — 그린 확인
-2. WP4 수정 커밋 존재 확인 (위 섹션) → 없으면 수정부터
-3. `docs/IMPLEMENTATION-PLAN.md`의 Task 10부터 순서대로 WP5→WP9 (각 Task 상세 스텝·코드·테스트 전부 플랜에 있음)
-4. WP9 마지막: 실제 테스트 레포 실기 검증 (플랜 Task 20 Step 4-5)
+- ai-summary 엔진 체인: CodeRabbit(opt-in) → AI_API_KEY → GitHub Models → 3단 규칙 fallback. 입력 = cwd `pr_body.md` + env
+- 릴리스 머지 감지: 머지 커밋 subject `chore(release): vX.Y.Z (PR #N)` — 3파일 동기 유지
+- 브랜치: `{{MAIN_BRANCH}}`/`{{DEVELOP_BRANCH}}` placeholder → 설치 시 `src/core/branding.js` 치환. 봇 커밋 `[skip ci]`
+- payload 단일 진실: 설치 자산은 전부 `payload/` (버전 레이아웃 = `payload/version.yml.template`)
+- 브랜치 모드: `metadata.template.branches.mode` = pr-flow(3종) / trunk-based(RELEASE-PUBLISH 단독)
+- revert 모드: payload에 존재하는 파일명 일치분만 제거 (사용자 파일·version.yml 보존)
