@@ -1,18 +1,48 @@
 # ===
 # Version format: x.y.z (semantic versioning)
-# - patch: auto-incremented on each main push (unless release PR)
-# - version_code: monotonically increasing build number, auto-incremented parallel to version
+# - patch: auto-incremented by the release workflows
+# - version_code: monotonically increasing build number, bumped alongside version
+# - major/minor: NOT bumped automatically — edit this file manually
+#   (e.g., 1.0.5 -> 1.1.0 or 2.0.0)
 # ===
-# Supported project types: spring, flutter, next, react, react-native, react-native-expo, node, python, basic
-# Multi-type projects: use project_types array (e.g., ["spring", "react"])
-# Monorepo paths: use project_paths map to specify subdir per type (e.g., {"spring": "api", "react": "web"})
+# Supported project types: spring, flutter, next, react, react-native,
+#                          react-native-expo, node, python, basic
+# Multi-type projects: list every type in the project_types array
+#   -> project_type (singular) always mirrors project_types[0] — do not edit it directly
+# Monorepo paths: project_paths maps each type to its subdir relative to the repo root
+#   (e.g., flutter: "app", react: "client"). Omitted -> repo root.
+#
+# Synced files per type:
+# - spring: build.gradle / build.gradle.kts
+# - flutter: pubspec.yaml
+# - next/react/node: package.json
+# - react-native: Info.plist + build.gradle
+# - react-native-expo: app.json
+# - python: pyproject.toml
+# - basic: version.yml only
 # ===
 
 version: "0.1.0"
-version_code: 1
-project_type: "node"
-project_types:
-  - "node"
+version_code: 1 # app build number
+project_types: ["node"] # first entry is primary
+project_type: "node" # auto-mirror of project_types[0] — do not edit directly
+project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
+  node: "." # package.json
 metadata:
-  last_updated: "2026-07-08"
-  update_reason: "initial scaffold"
+  last_updated: "2026-07-09 01:44:46"
+  last_updated_by: "project-auto-wizard"
+  default_branch: "main"
+  integration_date: "2026-07-09"
+  template:
+    source: "project-auto-wizard"
+    version: "0.1.0"
+    integrated_date: "2026-07-09"
+    last_update_date: "2026-07-09"
+    branches:
+      main: "main"
+      develop: "develop"
+      mode: "pr-flow" # pr-flow | trunk-based
+    options:
+      nexus: false
+      secret_backup: false
+      coderabbit: false

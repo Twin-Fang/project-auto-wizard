@@ -4,3 +4,8 @@ __pycache__/
 .DS_Store
 tmp/
 .idea/
+
+# ====================================================================
+# project-auto-wizard: Auto-added entries
+# ====================================================================
+/.claude/settings.local.json
