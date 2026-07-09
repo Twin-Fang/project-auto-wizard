@@ -7,8 +7,8 @@ const files = readdirSync("payload/workflows", { recursive: true })
   .filter((f) => /\.ya?ml$/.test(String(f)))
   .map((f) => join("payload/workflows", String(f)));
 
-// Task 7 시점엔 2개뿐 — 최종 개수(>=20)는 Task 10에서 상향
-test("payload workflows exist", () => assert.ok(files.length >= 2));
+// Task 10에서 타입별 워크플로우 이식 완료 — common 4 + secret-backup 1 + 타입별 22
+test("payload workflows exist", () => assert.ok(files.length >= 20, `expected >= 20, got ${files.length}`));
 
 test("no hardcoded branch literals outside placeholders", () => {
   for (const f of files) {

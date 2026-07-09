@@ -1,0 +1,987 @@
+# ===================================================================
+# Flutter iOS 테스트용 TestFlight 배포 워크플로우
+# ===================================================================
+#
+# 이 워크플로우는 기능 브랜치에서 수동으로 실행하여
+# 테스트용 iOS 빌드를 TestFlight에 배포합니다.
+#
+# ★ 마법사 우선 아키텍처 ★
+# - 빌드에 필요한 설정 파일들은 웹 마법사가 생성합니다
+# - 워크플로우는 마법사가 생성한 파일들을 그대로 사용합니다
+# - 마법사 경로: .github/util/flutter/ios-testflight-setup-wizard/index.html
+#
+# 주요 특징:
+# - workflow_dispatch로 수동 실행 또는 repository_dispatch로 트리거
+# - 버전은 version.yml에서 동적으로 읽어 사용 (운영 버전과 동일, 빌드 번호로 구분)
+# - 빌드 번호는 PR번호 + 카운트 또는 GITHUB_RUN_NUMBER 사용
+# - 브랜치명에서 이슈 번호 자동 추출 (YYYYMMDD_#이슈번호_내용 형식)
+# - GitHub API로 이슈 정보 가져와서 릴리즈 노트에 포함
+#
+# 빌드 파이프라인:
+#   1. flutter build ios --no-codesign (Flutter 빌드)
+#   2. xcodebuild archive (Xcode 아카이브 생성)
+#   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
+#   4. fastlane upload_testflight (마법사 생성 Fastfile 사용)
+#
+# ===================================================================
+# 🔑 필수 GitHub Secrets
+# ===================================================================
+#
+# 🔐 Apple 인증서 & 프로비저닝 프로파일:
+# APPLE_CERTIFICATE_BASE64: .p12 인증서 (base64 인코딩)
+# APPLE_CERTIFICATE_PASSWORD: .p12 인증서 비밀번호
+# APPLE_PROVISIONING_PROFILE_BASE64: .mobileprovision 파일 (base64 인코딩)
+# IOS_PROVISIONING_PROFILE_NAME: 프로비저닝 프로파일 이름
+#
+# 🔐 App Store Connect API:
+# APP_STORE_CONNECT_API_KEY_ID: API Key ID (10자리)
+# APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID 형식)
+# APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 파일 (base64 인코딩)
+#
+# 📝 환경 설정 (선택):
+# ENV_FILE (선택): .env 파일 내용
+# SECRETS_XCCONFIG (선택): ios/Flutter/Secrets.xcconfig 내용
+#
+# ===================================================================
+
+name: PROJECT-Flutter-iOS-Test-TestFlight
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [build-ios-app]
+
+# ===================================================================
+# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
+# ===================================================================
+env:
+  FLUTTER_VERSION: "3.35.5"
+  XCODE_VERSION: "26.0"
+  PROJECT_TYPE: "flutter"
+  ENV_FILE_PATH: ".env"
+
+jobs:
+  # ===================================================================
+  # 즉시 댓글 생성 (ubuntu-latest로 빠르게 실행)
+  # ===================================================================
+  notify-start:
+    name: 진행 상황 알림
+    runs-on: ubuntu-latest
+    if: github.event_name == 'repository_dispatch'
+
+    outputs:
+      comment_id: ${{ steps.progress.outputs.comment_id }}
+      start_time: ${{ steps.progress.outputs.start_time }}
+      branch_valid: ${{ steps.verify_branch.outputs.valid }}
+
+    steps:
+      - name: 브랜치 존재 여부 사전 확인
+        id: verify_branch
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const prNumber = '${{ github.event.client_payload.pr_number }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            console.log(`🔍 브랜치 존재 여부 확인: ${branchName}`);
+
+            try {
+              await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: branchName
+              });
+              console.log(`✅ 브랜치 존재 확인됨: ${branchName}`);
+              core.setOutput('valid', 'true');
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`❌ 브랜치를 찾을 수 없음: ${branchName}`);
+
+                const body = [
+                  '🍎 ❌ **iOS TestFlight 빌드 실패 - 브랜치를 찾을 수 없습니다**',
+                  '',
+                  '| 항목 | 값 |',
+                  '|------|-----|',
+                  `| **요청된 브랜치** | \`${branchName}\` |`,
+                  `| **이슈/PR** | #${prNumber} |`,
+                  '',
+                  '### 💡 확인 사항',
+                  '1. 브랜치가 원격 저장소에 push되었는지 확인하세요',
+                  '2. "Guide by SUH-LAB" 댓글의 브랜치명이 올바른지 확인하세요',
+                  '3. 브랜치명에 오타가 없는지 확인하세요',
+                  '',
+                  `🔗 [워크플로우 로그](${runUrl})`
+                ].join('\n');
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(prNumber),
+                  body: body
+                });
+
+                core.setFailed(`브랜치를 찾을 수 없습니다: ${branchName}`);
+              } else {
+                core.setFailed(`브랜치 확인 중 오류: ${error.message}`);
+              }
+            }
+
+      - name: 진행 상황 댓글 생성
+        id: progress
+        if: github.event.client_payload.pr_number != ''
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ github.event.client_payload.pr_number }}');
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+            const startTime = Date.now();
+
+            const body = [
+              '## 🍎 iOS TestFlight 빌드 진행 중...',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              '| 🔧 준비 | ⏳ 진행 중... | - |',
+              '| 🔨 IPA 빌드 | ⏸️ 대기 | - |',
+              '| 📤 TestFlight 배포 | ⏸️ 대기 | - |',
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **빌드 번호** | \`${buildNumber}\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              '',
+              `**[📋 실시간 로그 보기](${runUrl})**`,
+              '',
+              '---',
+              '*🤖 이 댓글은 자동으로 업데이트됩니다.*'
+            ].join('\n');
+
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+
+            console.log(`✅ 진행 상황 댓글 생성 완료: #${comment.id}`);
+            core.setOutput('comment_id', comment.id);
+            core.setOutput('start_time', startTime);
+
+  # ===================================================================
+  # 테스트 빌드 준비 (macOS 환경 설정)
+  # ===================================================================
+  prepare-test-build:
+    name: 테스트 빌드 준비
+    runs-on: macos-26
+    needs: notify-start
+    if: |
+      always() &&
+      (needs.notify-start.result == 'skipped' || needs.notify-start.outputs.branch_valid == 'true')
+
+    outputs:
+      version: ${{ steps.test_version.outputs.version }}
+      build_number: ${{ steps.test_version.outputs.build_number }}
+      issue_url: ${{ steps.issue_info.outputs.issue_url }}
+      issue_title: ${{ steps.issue_info.outputs.issue_title }}
+      issue_number: ${{ steps.issue_info.outputs.issue_number }}
+      branch_name: ${{ steps.issue_info.outputs.branch_name }}
+      pr_number: ${{ steps.test_version.outputs.pr_number }}
+      commit_hash: ${{ steps.release_notes.outputs.commit_hash }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref }}
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
+
+      - name: Create .env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
+        run: |
+          printf '%s\n' "$ENV_CONTENT" > ${{ env.ENV_FILE_PATH }}
+          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+
+      - name: Create Secrets.xcconfig file
+        env:
+          SECRETS_XCCONFIG_CONTENT: ${{ secrets.SECRETS_XCCONFIG }}
+        run: |
+          mkdir -p ios/Flutter
+          if [ -n "$SECRETS_XCCONFIG_CONTENT" ]; then
+            echo "$SECRETS_XCCONFIG_CONTENT" > ios/Flutter/Secrets.xcconfig
+            echo "✅ Secrets.xcconfig created"
+          else
+            echo "// No secrets provided" > ios/Flutter/Secrets.xcconfig
+            echo "ℹ️ Empty Secrets.xcconfig created (no secrets provided)"
+          fi
+
+      # 테스트 빌드 버전 설정 (version.yml에서 동적 읽기)
+      - name: 테스트 빌드 버전 설정
+        id: test_version
+        run: |
+          # version_manager.py로 버전 가져오기 (프로덕션 워크플로우와 동일한 방식)
+          VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # repository_dispatch 이벤트인 경우 PR 번호를 빌드 번호로 사용
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            BUILD_NUMBER="${{ github.event.client_payload.build_number }}"
+            PR_NUMBER="${{ github.event.client_payload.pr_number }}"
+            echo "📋 repository_dispatch 이벤트 감지"
+            echo "  PR 번호: #$PR_NUMBER"
+            echo "  빌드 번호: $BUILD_NUMBER (PR 번호 사용)"
+          else
+            BUILD_NUMBER="${{ github.run_number }}"
+            PR_NUMBER=""
+            echo "📋 workflow_dispatch 이벤트 감지"
+            echo "  빌드 번호: $BUILD_NUMBER (기본값)"
+          fi
+
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "📋 테스트 빌드: 버전=$VERSION, 빌드번호=$BUILD_NUMBER"
+
+      # 브랜치명에서 이슈 번호 추출 및 GitHub API로 이슈 정보 가져오기
+      - name: 브랜치명에서 이슈 정보 추출
+        id: issue_info
+        run: |
+          # repository_dispatch인 경우 client_payload에서 브랜치명 가져오기
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            BRANCH_NAME="${{ github.event.client_payload.branch_name }}"
+            ISSUE_NUMBER="${{ github.event.client_payload.issue_number }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+            # 브랜치명에서 이슈 번호 추출 (#387 형식)
+            ISSUE_NUMBER=$(echo "$BRANCH_NAME" | sed -n 's/.*#\([0-9]*\).*/\1/p')
+          fi
+
+          echo "🌿 브랜치명: $BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "⚠️ 브랜치명에서 이슈 번호를 찾을 수 없습니다."
+            echo "issue_url=" >> $GITHUB_OUTPUT
+            echo "issue_title=" >> $GITHUB_OUTPUT
+            echo "issue_number=" >> $GITHUB_OUTPUT
+          else
+            echo "✅ 추출된 이슈 번호: #$ISSUE_NUMBER"
+            ISSUE_URL="https://github.com/${{ github.repository }}/issues/$ISSUE_NUMBER"
+            echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+            echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+            # GitHub API로 이슈 정보 가져오기
+            echo "🔍 GitHub API로 이슈 정보 조회 중..."
+            ISSUE_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER")
+
+            ISSUE_TITLE=$(echo "$ISSUE_RESPONSE" | jq -r '.title // "이슈 정보 없음"')
+            ISSUE_STATE=$(echo "$ISSUE_RESPONSE" | jq -r '.state // "unknown"')
+
+            if [ "$ISSUE_TITLE" = "null" ] || [ "$ISSUE_TITLE" = "이슈 정보 없음" ]; then
+              echo "⚠️ 이슈 #$ISSUE_NUMBER를 찾을 수 없습니다."
+              echo "issue_title=" >> $GITHUB_OUTPUT
+            else
+              echo "📋 이슈 제목: $ISSUE_TITLE"
+              echo "📌 이슈 상태: $ISSUE_STATE"
+              echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      # 릴리즈 노트 생성
+      - name: 릴리즈 노트 생성
+        id: release_notes
+        run: |
+          BUILD_NUMBER="${{ steps.test_version.outputs.build_number }}"
+          BRANCH_NAME="${{ steps.issue_info.outputs.branch_name }}"
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
+          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+          echo "commit_hash=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+
+          cat > final_release_notes.txt << EOF
+테스트 빌드 #$BUILD_NUMBER
+
+브랜치: $BRANCH_NAME
+커밋: $COMMIT_SHORT
+날짜: $BUILD_DATE
+
+EOF
+
+          # 이슈 정보가 있으면 추가
+          if [ -n "${{ steps.issue_info.outputs.issue_number }}" ]; then
+            ISSUE_NUMBER="${{ steps.issue_info.outputs.issue_number }}"
+            ISSUE_TITLE="${{ steps.issue_info.outputs.issue_title }}"
+            ISSUE_URL="${{ steps.issue_info.outputs.issue_url }}"
+
+            cat >> final_release_notes.txt << EOF
+관련 이슈:
+- #$ISSUE_NUMBER: $ISSUE_TITLE
+- URL: $ISSUE_URL
+
+EOF
+          fi
+
+          echo "📋 생성된 릴리즈 노트:"
+          echo "----------------------------------------"
+          cat final_release_notes.txt
+          echo "----------------------------------------"
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: final_release_notes.txt
+          retention-days: 1
+
+      - name: Upload project files
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-files
+          path: |
+            ${{ env.ENV_FILE_PATH }}
+            ios/Flutter/Secrets.xcconfig
+            pubspec.yaml
+            lib/
+            assets/
+          retention-days: 1
+
+      # 진행 상황 업데이트 - 준비 실패
+      - name: 진행 상황 업데이트 - 준비 실패
+        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const minutes = Math.floor(elapsed / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+
+            const body = [
+              '## 🍎 ❌ iOS TestFlight 빌드 실패',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ❌ 실패 | ${duration} |`,
+              '| 🔨 IPA 빌드 | ⏸️ 취소됨 | - |',
+              '| 📤 TestFlight 배포 | ⏸️ 취소됨 | - |',
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **빌드 번호** | \`${buildNumber}\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              '',
+              '❌ **환경 준비 중 오류가 발생했습니다.**',
+              '',
+              `🔗 [워크플로우 실행 로그 확인](${runUrl})`
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`❌ 진행 상황 업데이트 완료: 준비 실패`);
+
+  # ===================================================================
+  # iOS 빌드 (xcodebuild 직접 사용)
+  # ===================================================================
+  build-ios-test:
+    name: iOS 테스트 빌드
+    runs-on: macos-26
+    needs: [notify-start, prepare-test-build]
+    if: |
+      !cancelled() &&
+      needs.prepare-test-build.result == 'success'
+
+    outputs:
+      step1_elapsed: ${{ steps.progress_step1.outputs.elapsed }}
+      step1_end_time: ${{ steps.progress_step1.outputs.end_time }}
+      step2_elapsed: ${{ steps.progress_step2.outputs.elapsed }}
+      step2_end_time: ${{ steps.progress_step2.outputs.end_time }}
+
+    steps:
+      # 진행 상황 업데이트 - 준비 완료 (build job 시작 시점에 업데이트해야 준비 시간이 정확히 표시됨)
+      - name: 진행 상황 업데이트 - 준비 완료
+        id: progress_step1
+        if: github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+            const elapsed = Math.round((now - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            const elapsedStr = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+
+            const body = [
+              '## 🍎 iOS TestFlight 빌드 진행 중...',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ✅ 완료 | ${elapsedStr} |`,
+              '| 🔨 IPA 빌드 | ⏳ 진행 중... | - |',
+              '| 📤 TestFlight 배포 | ⏸️ 대기 | - |',
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **앱 버전** | \`${version}(${buildNumber})\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              '',
+              `**[📋 실시간 로그 보기](${runUrl})**`,
+              '',
+              '---',
+              '*🤖 이 댓글은 자동으로 업데이트됩니다.*'
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`✅ 진행 상황 업데이트 완료: 준비 완료 (${elapsedStr})`);
+            core.setOutput('elapsed', elapsedStr);
+            core.setOutput('end_time', now.toString());
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref }}
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
+
+      - name: Install iOS device platform
+        env:
+          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
+        run: |
+          echo "=== iPhoneOS.platform check ==="
+          ls "$DEVELOPER_DIR/Platforms/iPhoneOS.platform/" 2>/dev/null && echo "iPhoneOS.platform EXISTS" || echo "iPhoneOS.platform NOT FOUND"
+          echo "=== Installing MobileDevice packages ==="
+          sudo installer -pkg /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Resources/Packages/MobileDevice.pkg -target /
+          sudo installer -pkg /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Resources/Packages/MobileDeviceDevelopment.pkg -target /
+          echo "=== Accepting Xcode license ==="
+          sudo xcodebuild -license accept
+          echo "=== Initializing Xcode components ==="
+          xcrun simctl list >/dev/null 2>&1 || true
+          echo "=== Downloading iOS platform ==="
+          xcodebuild -downloadPlatform iOS
+
+      - name: Download project files
+        uses: actions/download-artifact@v4
+        with:
+          name: project-files
+          path: .
+
+      - name: Ensure .env file exists
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
+        run: |
+          if [ ! -f "${{ env.ENV_FILE_PATH }}" ]; then
+            printf '%s\n' "$ENV_CONTENT" > ${{ env.ENV_FILE_PATH }}
+            echo "✅ ${{ env.ENV_FILE_PATH }} file created (fallback)"
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-flutter-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods
+          cd ios && pod install
+
+      - name: Import Code-Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Install Provisioning Profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          uuid=$(grep -A1 -a "UUID" profile.mobileprovision | grep string | sed -e "s/<string>//" -e "s/<\/string>//" -e "s/[[:space:]]//g")
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$uuid.mobileprovision
+
+      - name: Verify ExportOptions.plist
+        run: |
+          cd ios
+          if [ ! -f "ExportOptions.plist" ]; then
+            echo "❌ ios/ExportOptions.plist이 없습니다!"
+            echo "웹 마법사를 실행하여 설정 파일을 생성하세요:"
+            echo "  브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기"
+            exit 1
+          fi
+          echo "✅ ExportOptions.plist 확인됨"
+
+      - name: Flutter build (no codesign)
+        env:
+          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name="${{ needs.prepare-test-build.outputs.version }}" \
+            --build-number="${{ needs.prepare-test-build.outputs.build_number }}"
+
+      - name: Create Archive
+        env:
+          IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
+        run: |
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -archivePath build/Runner.xcarchive \
+            -destination 'generic/platform=iOS' \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE_NAME" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
+
+      - name: Export IPA
+        run: |
+          cd ios
+          xcodebuild -exportArchive \
+            -archivePath build/Runner.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Create build metadata file
+        run: |
+          cat > build-metadata.json << EOF
+{
+  "pr_number": "${{ needs.prepare-test-build.outputs.pr_number }}",
+  "build_number": "${{ needs.prepare-test-build.outputs.build_number }}",
+  "issue_number": "${{ needs.prepare-test-build.outputs.issue_number }}",
+  "branch_name": "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}"
+}
+EOF
+          cat build-metadata.json
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: |
+            ios/build/ipa/*.ipa
+            build-metadata.json
+          retention-days: 1
+
+      # 진행 상황 업데이트 - IPA 빌드 완료
+      - name: 진행 상황 업데이트 - IPA 빌드 완료
+        id: progress_step2
+        if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}');
+            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+
+            // 빌드 단계 소요 시간 (step1 종료 ~ 현재)
+            const elapsed = Math.round((now - step1EndTime) / 1000);
+            const buildMin = Math.floor(elapsed / 60);
+            const buildSec = elapsed % 60;
+            const elapsedStr = buildMin > 0 ? `${buildMin}분 ${buildSec}초` : `${buildSec}초`;
+
+            const body = [
+              '## 🍎 ✅ iOS 빌드 완료',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ✅ 완료 | ${step1Elapsed || '-'} |`,
+              `| 🔨 IPA 빌드 | ✅ 완료 | ${elapsedStr} |`,
+              '| 📤 TestFlight 배포 | ⏳ 진행 중... | - |',
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **앱 버전** | \`${version}(${buildNumber})\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              '',
+              `**[📋 실시간 로그 보기](${runUrl})**`,
+              '',
+              '---',
+              '*🤖 이 댓글은 자동으로 업데이트됩니다.*'
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`✅ 진행 상황 업데이트 완료: IPA 빌드 완료 (${elapsedStr})`);
+            core.setOutput('elapsed', elapsedStr);
+            core.setOutput('end_time', now.toString());
+
+      # 빌드 실패 시 progress 댓글 업데이트
+      - name: 빌드 실패 시 progress 댓글 업데이트
+        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
+            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}') || 0;
+            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+
+            // 빌드 단계 소요 시간 (step1 종료 ~ 현재)
+            let step2ElapsedStr = '-';
+            if (step1EndTime > 0) {
+              const step2_s = Math.round((now - step1EndTime) / 1000);
+              const s2Min = Math.floor(step2_s / 60);
+              const s2Sec = step2_s % 60;
+              step2ElapsedStr = s2Min > 0 ? `${s2Min}분 ${s2Sec}초` : `${s2Sec}초`;
+            }
+
+            const body = [
+              '## 🍎 ❌ iOS TestFlight 빌드 실패',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ✅ 완료 | ${step1Elapsed || '-'} |`,
+              `| 🔨 IPA 빌드 | ❌ 실패 | ${step2ElapsedStr} |`,
+              '| 📤 TestFlight 배포 | ⏸️ 취소됨 | - |',
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **앱 버전** | \`${version}(${buildNumber})\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              `| **커밋** | \`${commitHash}\` |`,
+              '',
+              '❌ **IPA 빌드 중 오류가 발생했습니다.**',
+              '',
+              `🔗 [워크플로우 실행 로그 확인](${runUrl})`
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`❌ 진행 상황 업데이트 완료: IPA 빌드 실패`);
+
+  # ===================================================================
+  # TestFlight 배포 (마법사 생성 Fastfile 사용)
+  # ===================================================================
+  deploy-testflight-test:
+    name: TestFlight 테스트 배포
+    runs-on: macos-26
+    needs: [notify-start, prepare-test-build, build-ios-test]
+    if: |
+      !cancelled() &&
+      needs.build-ios-test.result == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref }}
+
+      - name: Setup App Store Connect API Key
+        env:
+          API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: ios/build/ipa/
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .
+
+      - name: Verify Fastfile exists
+        run: |
+          if [ ! -f "ios/fastlane/Fastfile" ]; then
+            echo "❌ ios/fastlane/Fastfile이 없습니다!"
+            echo "웹 마법사를 실행하여 설정 파일을 생성하세요:"
+            echo "  브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기"
+            exit 1
+          fi
+          echo "✅ Fastfile 확인됨: ios/fastlane/Fastfile"
+
+      - name: Install Fastlane
+        working-directory: ios
+        run: |
+          # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+          printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          bundle install
+          echo "✅ Fastlane installed (Bundler)"
+
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          # IPA 파일 찾기
+          IPA_PATH=$(find $GITHUB_WORKSPACE/ios/build/ipa -name "*.ipa" | head -1)
+          echo "📦 Found IPA at: $IPA_PATH"
+
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "❌ IPA 파일을 찾을 수 없습니다!"
+            ls -la ios/build/ipa/
+            exit 1
+          fi
+
+          # Release notes 준비
+          if [ -f "final_release_notes.txt" ]; then
+            RELEASE_NOTES=$(cat final_release_notes.txt)
+            echo "📝 Release Notes:"
+            echo "$RELEASE_NOTES"
+          else
+            RELEASE_NOTES="테스트 빌드 #${{ needs.prepare-test-build.outputs.build_number }}"
+            echo "📝 기본 Release Notes: $RELEASE_NOTES"
+          fi
+
+          # 환경변수 설정 (Fastfile에서 사용)
+          export API_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+          export IPA_PATH="$IPA_PATH"
+          export RELEASE_NOTES="$RELEASE_NOTES"
+
+          echo "🔧 Working directory: $(pwd)"
+          echo "🔧 IPA_PATH: $IPA_PATH"
+          echo "🔧 API_KEY_PATH: $API_KEY_PATH"
+
+          # Fastlane 실행 (마법사가 생성한 Fastfile 사용)
+          cd ios
+          bundle exec fastlane upload_testflight
+
+      - name: Notify TestFlight Upload Success
+        if: success()
+        run: |
+          echo "✅ TestFlight 테스트 빌드 업로드 성공!"
+          echo "버전: ${{ needs.prepare-test-build.outputs.version }}"
+          echo "빌드 번호: ${{ needs.prepare-test-build.outputs.build_number }}"
+          if [ -n "${{ needs.prepare-test-build.outputs.pr_number }}" ]; then
+            echo "PR 번호: ${{ needs.prepare-test-build.outputs.pr_number }}"
+          fi
+          echo "브랜치: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}"
+          echo "커밋: ${{ github.sha }}"
+          if [ -n "${{ needs.prepare-test-build.outputs.issue_url }}" ]; then
+            echo "관련 이슈: ${{ needs.prepare-test-build.outputs.issue_url }}"
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ TestFlight 테스트 빌드 업로드 실패!"
+          echo "로그를 확인해주세요."
+
+      # 진행 상황 최종 업데이트 - 성공
+      - name: 진행 상황 최종 업데이트 - 성공
+        if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
+            const step2EndTime = parseInt('${{ needs.build-ios-test.outputs.step2_end_time }}');
+            const step1Elapsed = '${{ needs.build-ios-test.outputs.step1_elapsed }}';
+            const step2Elapsed = '${{ needs.build-ios-test.outputs.step2_elapsed }}';
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+
+            // 배포 단계 소요 시간 (step2 종료 ~ 현재)
+            const step3_s = Math.round((now - step2EndTime) / 1000);
+            const s3Min = Math.floor(step3_s / 60);
+            const s3Sec = step3_s % 60;
+            const step3Elapsed = s3Min > 0 ? `${s3Min}분 ${s3Sec}초` : `${s3Sec}초`;
+
+            // 전체 소요 시간
+            const total_s = Math.round((now - startTime) / 1000);
+            const tMin = Math.floor(total_s / 60);
+            const tSec = total_s % 60;
+            const totalElapsed = tMin > 0 ? `${tMin}분 ${tSec}초` : `${tSec}초`;
+
+            const body = [
+              '## 🍎 ✅ iOS TestFlight 배포 완료',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ✅ 완료 | ${step1Elapsed || '-'} |`,
+              `| 🔨 IPA 빌드 | ✅ 완료 | ${step2Elapsed || '-'} |`,
+              `| 📤 TestFlight 배포 | ✅ 완료 | ${step3Elapsed} |`,
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **앱 버전** | \`${version}(${buildNumber})\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              `| **커밋** | \`${commitHash}\` |`,
+              `| **총 소요 시간** | ${totalElapsed} |`,
+              '',
+              '📱 **TestFlight에서 테스트 앱을 다운로드할 수 있습니다.**',
+              '',
+              `🔗 [워크플로우 실행 로그](${runUrl})`
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`✅ 진행 상황 최종 업데이트 완료: 전체 성공 (${totalElapsed})`);
+
+      # 진행 상황 최종 업데이트 - 실패
+      - name: 진행 상황 최종 업데이트 - 실패
+        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
+            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
+            const step2EndTime = parseInt('${{ needs.build-ios-test.outputs.step2_end_time }}') || 0;
+            const step1Elapsed = '${{ needs.build-ios-test.outputs.step1_elapsed }}';
+            const step2Elapsed = '${{ needs.build-ios-test.outputs.step2_elapsed }}';
+            const branchName = '${{ github.event.client_payload.branch_name }}';
+            const buildNumber = '${{ github.event.client_payload.build_number }}';
+            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
+            const runId = '${{ github.run_id }}';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const now = Date.now();
+
+            // 배포 단계 소요 시간 (step2 종료 ~ 현재)
+            let step3Elapsed = '-';
+            if (step2EndTime > 0) {
+              const step3_s = Math.round((now - step2EndTime) / 1000);
+              const s3Min = Math.floor(step3_s / 60);
+              const s3Sec = step3_s % 60;
+              step3Elapsed = s3Min > 0 ? `${s3Min}분 ${s3Sec}초` : `${s3Sec}초`;
+            }
+
+            const body = [
+              '## 🍎 ❌ iOS TestFlight 배포 실패',
+              '',
+              '| 단계 | 상태 | 소요 시간 |',
+              '|------|------|----------|',
+              `| 🔧 준비 | ✅ 완료 | ${step1Elapsed || '-'} |`,
+              `| 🔨 IPA 빌드 | ✅ 완료 | ${step2Elapsed || '-'} |`,
+              `| 📤 TestFlight 배포 | ❌ 실패 | ${step3Elapsed} |`,
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| **앱 버전** | \`${version}(${buildNumber})\` |`,
+              `| **브랜치** | \`${branchName}\` |`,
+              `| **커밋** | \`${commitHash}\` |`,
+              '',
+              '❌ **TestFlight 배포 중 오류가 발생했습니다.**',
+              '',
+              `🔗 [워크플로우 실행 로그 확인](${runUrl})`
+            ].join('\n');
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+
+            console.log(`❌ 진행 상황 최종 업데이트 완료: TestFlight 배포 실패`);
