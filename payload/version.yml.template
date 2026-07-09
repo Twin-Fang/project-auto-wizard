@@ -28,7 +28,15 @@ project_types: {{PROJECT_TYPES}} # first entry is primary
 project_type: "{{PROJECT_TYPE}}" # auto-mirror of project_types[0] — do not edit directly
 {{PROJECT_PATHS}}
 metadata:
+  last_updated: "{{NOW}}"
+  last_updated_by: "project-auto-wizard"
+  default_branch: "{{DEFAULT_BRANCH}}"
+  integration_date: "{{TODAY}}"
   template:
+    source: "project-auto-wizard"
+    version: "{{TEMPLATE_VERSION}}"
+    integrated_date: "{{TODAY}}"
+    last_update_date: "{{TODAY}}"
     branches:
       main: "{{MAIN_BRANCH}}"
       develop: "{{DEVELOP_BRANCH}}"
@@ -37,3 +45,4 @@ metadata:
       nexus: {{OPT_NEXUS}}
       secret_backup: {{OPT_SECRET_BACKUP}}
       coderabbit: {{OPT_CODERABBIT}}
+{{DEPLOY}}

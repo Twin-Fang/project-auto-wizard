@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
 import { buildVersionYml } from "../core/version-yml.js";
+import { readVersionYmlTemplate } from "../core/assets.js";
 import { markerForType } from "../core/detect.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
 import { copyWorkflows } from "../core/copy/workflows.js";
@@ -29,10 +30,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const wfCounters = copyWorkflows(context, payloadRoot, targetRoot, hooks);
   const deployValues = wfCounters.deployValues || new Map(); // Map<type, Map<key,value>>
 
-  // 2. version.yml 생성 (전체 재생성 — metadata → deploy → template 순, .sh 최종형과 동일)
+  // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성 전략 D4)
   writeText(join(targetRoot, PATHS.versionFile),
     buildVersionYml({
-      version, types, paths, pathMarkers, branch, versionCode, now, today,
+      templateText: readVersionYmlTemplate(payloadRoot),
+      version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
       deployValues,
       templateOptions: { templateVersion, includeNexus, includeSecretBackup, optionsDate: today },
     }));

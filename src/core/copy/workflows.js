@@ -5,8 +5,18 @@
 import { join, basename } from "node:path";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
-import { exists, copyFileSync, listYamlFiles } from "../fsutil.js";
+import { exists, writeText, listYamlFiles } from "../fsutil.js";
 import { isUnchanged, substituteEnv } from "../wizard-env.js";
+import { substitute } from "../branding.js";
+
+// 원본 텍스트 로더 — context.branches가 있으면 {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 치환 적용.
+// classify(unchanged 판정)와 실제 복사가 같은 치환본을 봐야 재실행 시 가짜 충돌이 없다.
+function makeSrcText(branches) {
+  return (p) => {
+    const raw = readFileSync(p, "utf8");
+    return branches ? substitute(raw, branches) : raw;
+  };
+}
 
 // 한 파일에 env 치환을 적용해 대상 파일을 갱신 (.sh configure_workflow_env 등가).
 // values/useDefaults: env 계획(promptEnvPlan) 결과 — 미지정이면 기본값 경로(현행 force 동작).
@@ -18,13 +28,14 @@ function configureEnv(targetPath, { type, projectPath = ".", repoName = "", reso
 }
 
 // 3분류 (신규/unchanged/changed) — 대상 워크플로우 디렉토리 기준.
-function classify(srcDir, workflowsDir, envOpts) {
+// srcText: 브랜치 치환이 적용된 원본 로더 (makeSrcText).
+function classify(srcDir, workflowsDir, envOpts, srcText) {
   const result = { newFiles: [], unchanged: [], changed: [] };
   for (const filename of listYamlFiles(srcDir)) {
     const src = join(srcDir, filename);
     const dst = join(workflowsDir, filename);
     if (existsSync(dst)) {
-      const tpl = readFileSync(src, "utf8");
+      const tpl = srcText(src);
       const inst = readFileSync(dst, "utf8");
       if (isUnchanged(tpl, inst, envOpts)) result.unchanged.push(filename);
       else result.changed.push(filename);
@@ -51,6 +62,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0 };
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
+  const srcText = makeSrcText(context.branches || null);
   // values/useDefaults는 치환 경로에서만 의미 (isUnchanged는 내부에서 useDefaults:true 강제 — 가상 비교 무손상)
   const envOptsFor = (type) => ({ type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults });
 
@@ -60,11 +72,12 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
     for (const filename of listYamlFiles(commonDir)) {
       const src = join(commonDir, filename);
       const dst = join(workflowsDir, filename);
-      if (existsSync(dst) && isUnchanged(readFileSync(src, "utf8"), readFileSync(dst, "utf8"), envOptsFor("common"))) {
+      const body = srcText(src);
+      if (existsSync(dst) && isUnchanged(body, readFileSync(dst, "utf8"), envOptsFor("common"))) {
         counters.skipped++;
         continue;
       }
-      copyFileSync(src, dst);
+      writeText(dst, body);
       counters.copied++;
     }
   }
@@ -72,7 +85,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // (2~4) 타입별
   for (const type of types) {
     const asks = new Map();
-    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { includeNexus, ...context, envOptsFor, collectAsks: asks, decisions }, counters);
+    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { includeNexus, ...context, envOptsFor, collectAsks: asks, decisions, srcText }, counters);
     if (asks.size) deployValues.set(type, asks);
   }
 
@@ -82,7 +95,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
     for (const filename of listYamlFiles(secretDir)) {
       const dst = join(workflowsDir, filename);
       if (existsSync(dst)) continue; // 이미 존재하면 스킵
-      copyFileSync(join(secretDir, filename), dst);
+      writeText(dst, srcText(join(secretDir, filename)));
       counters.optionalCopied++;
       counters.copied++;
     }
@@ -93,20 +106,20 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
 
 // changed(기존에 있고 내용이 바뀐) 파일 1개를 결정에 따라 처리 (.sh 3440~3508 3지선 case 등가).
 // 'skip'(기본): 기존 유지. 'backup': 기존→.bak 후 교체. 'template': 기존 유지 + 새 버전을 .template.yaml로.
-function applyDecision(decision, srcDir, workflowsDir, filename, counters) {
+function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcText) {
   const src = join(srcDir, filename);
   const dst = join(workflowsDir, filename);
   if (decision === "backup") {
     // .sh O) mv → cp: 기존을 .bak으로 백업 후 새 버전으로 교체
     renameSync(dst, dst + ".bak");
-    copyFileSync(src, dst);
+    writeText(dst, srcText(src));
     counters.copied++;
     return;
   }
   if (decision === "template") {
     // .sh T) `${filename%.yaml}.template.yaml` — .yaml만 strip (.yml은 그대로 뒤에 붙음, .sh 동일)
     const templateName = (filename.endsWith(".yaml") ? filename.slice(0, -".yaml".length) : filename) + ".template.yaml";
-    copyFileSync(src, join(workflowsDir, templateName)); // cp가 기존 .template.yaml 덮어씀(.sh rm -f + cp 등가)
+    writeText(join(workflowsDir, templateName), srcText(src)); // 기존 .template.yaml 덮어씀(.sh rm -f + cp 등가)
     counters.templateAdded++;
     return;
   }
@@ -119,16 +132,17 @@ export function listWorkflowConflicts(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
+  const srcText = makeSrcText(context.branches || null);
   const conflicts = []; // [{ filename, type }] — 엔진 처리 순서와 동일 (타입 순회 → 직하위 → server-deploy)
   for (const type of types) {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) {
-      for (const f of classify(typeDir, workflowsDir, envOpts).changed) conflicts.push({ filename: f, type });
+      for (const f of classify(typeDir, workflowsDir, envOpts, srcText).changed) conflicts.push({ filename: f, type });
     }
     const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && !includeNexus) {
-      for (const f of classify(serverDeployDir, workflowsDir, envOpts).changed) conflicts.push({ filename: f, type });
+      for (const f of classify(serverDeployDir, workflowsDir, envOpts, srcText).changed) conflicts.push({ filename: f, type });
     }
   }
   return conflicts;
@@ -150,19 +164,19 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 }
 
 function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
-  const { includeNexus, force = false, paths = new Map(), repoName = "", resolvers = {}, envOptsFor, collectAsks = null, decisions = new Map() } = ctx;
+  const { includeNexus, envOptsFor, collectAsks = null, decisions = new Map(), srcText } = ctx;
   const typeDir = join(projectTypesDir, type);
   const envOpts = envOptsFor(type);
   let unchangedNames = [];
 
   // 타입별 워크플로우 (직하위)
   if (exists(typeDir)) {
-    const { newFiles, unchanged, changed } = classify(typeDir, workflowsDir, envOpts);
+    const { newFiles, unchanged, changed } = classify(typeDir, workflowsDir, envOpts, srcText);
     unchangedNames = unchanged.slice();
     for (const f of unchanged) counters.skipped++;
-    for (const f of newFiles) { copyFileSync(join(typeDir, f), join(workflowsDir, f)); counters.copied++; }
+    for (const f of newFiles) { writeText(join(workflowsDir, f), srcText(join(typeDir, f))); counters.copied++; }
     // changed: 결정 Map에 따라 처리 (미지정=skip → 현행 force 동작과 동일)
-    for (const f of changed) applyDecision(decisions.get(f), typeDir, workflowsDir, f, counters);
+    for (const f of changed) applyDecision(decisions.get(f), typeDir, workflowsDir, f, counters, srcText);
   }
 
   // server-deploy
@@ -171,10 +185,10 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     if (includeNexus) {
       // Nexus 프로젝트 → 폴더째 제외 (복사 안 함)
     } else {
-      const { newFiles, unchanged, changed } = classify(serverDeployDir, workflowsDir, envOpts);
+      const { newFiles, unchanged, changed } = classify(serverDeployDir, workflowsDir, envOpts, srcText);
       for (const f of unchanged) counters.skipped++;
-      for (const f of newFiles) { copyFileSync(join(serverDeployDir, f), join(workflowsDir, f)); counters.copied++; }
-      for (const f of changed) applyDecision(decisions.get(f), serverDeployDir, workflowsDir, f, counters);
+      for (const f of newFiles) { writeText(join(workflowsDir, f), srcText(join(serverDeployDir, f))); counters.copied++; }
+      for (const f of changed) applyDecision(decisions.get(f), serverDeployDir, workflowsDir, f, counters, srcText);
     }
   }
 
@@ -184,12 +198,13 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     for (const filename of listYamlFiles(nexusDir)) {
       const src = join(nexusDir, filename);
       const dst = join(workflowsDir, filename);
-      if (existsSync(dst) && isUnchanged(readFileSync(src, "utf8"), readFileSync(dst, "utf8"), envOpts)) {
+      const body = srcText(src);
+      if (existsSync(dst) && isUnchanged(body, readFileSync(dst, "utf8"), envOpts)) {
         counters.skipped++;
         continue;
       }
       if (existsSync(dst)) renameSync(dst, dst + ".bak");
-      copyFileSync(src, dst);
+      writeText(dst, body);
       counters.optionalCopied++;
       counters.copied++;
     }

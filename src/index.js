@@ -86,9 +86,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
   });
 
-  // 브랜치 구성 (--main-branch/--develop-branch → 감지 default → main/develop)
+  // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   const branches = resolveBranchConfig({
-    mainBranch: opts.mainBranch, developBranch: opts.developBranch, defaultBranch: branch,
+    mainBranch: opts.mainBranch || existing?.branches?.main || "",
+    developBranch: opts.developBranch || existing?.branches?.develop || "",
+    defaultBranch: branch,
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
   // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
 import { buildVersionYml } from "../core/version-yml.js";
+import { readVersionYmlTemplate } from "../core/assets.js";
 import { markerForType } from "../core/detect.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
 import { copyScripts } from "../core/copy/simple.js";
@@ -19,7 +20,8 @@ export function runVersion(context, payloadRoot, targetRoot = ".") {
 
   writeText(join(targetRoot, PATHS.versionFile),
     buildVersionYml({
-      version, types, paths, pathMarkers, branch, versionCode, now, today,
+      templateText: readVersionYmlTemplate(payloadRoot),
+      version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
       templateOptions: { templateVersion, includeNexus, includeSecretBackup, optionsDate: today },
     }));
   addVersionSectionToReadme(version, targetRoot);

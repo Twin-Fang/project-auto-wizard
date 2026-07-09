@@ -14,4 +14,6 @@ const indexPath = join(here, "..", "src", "index.js");
 const { run } = await import(pathToFileURL(indexPath).href);
 
 const code = await run(process.argv.slice(2), { cwd: process.cwd() });
-process.exit(code);
+// process.exit() 금지 — fetch(undici) keep-alive 소켓·타이머와 경합해
+// Windows libuv assertion(src/win/async.c)으로 비정상 종료(127)한다. 실측 확인.
+process.exitCode = code;
