@@ -1,1 +1,35 @@
-{"versions": []}
+{
+  "versions": [],
+  "metadata": {
+    "lastUpdated": "2026-07-09T01:58:16Z",
+    "currentVersion": "0.1.3",
+    "projectType": "node",
+    "projectTypes": [
+      "node"
+    ],
+    "totalReleases": 1
+  },
+  "releases": [
+    {
+      "version": "0.1.3",
+      "project_type": "node",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-07-09",
+      "pr_number": 1,
+      "raw_summary": "## [0.1.3]\n\n### 🐛 수정\n- update-from-summary survives degenerate CHANGELOG.json\n\n### 📝 문서\n- correct test counts in README (py 51 + node 59)",
+      "parsed_changes": {
+        "update_from_summary_survives_degenerate_changelog_json": {
+          "title": "update-from-summary survives degenerate CHANGELOG.json",
+          "items": []
+        },
+        "correct_test_counts_in_readme__py_51___node_59": {
+          "title": "correct test counts in README (py 51 + node 59)",
+          "items": []
+        }
+      },
+      "parse_method": "markdown"
+    }
+  ]
+}

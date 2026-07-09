@@ -127,7 +127,7 @@ flowchart TB
 ## 개발
 
 ```bash
-npm test          # node --test + python unittest (51 py + 44 node)
+npm test          # node --test + python unittest (py 51 + node 59)
 npm run test:node
 npm run test:py
 ```

@@ -424,6 +424,12 @@ def cmd_update_from_summary() -> int:
                 "releases": [],
             }
 
+        # 방어: 파일이 존재하지만 스캐폴드 등 비정형 구조({"versions": []})라
+        # metadata/releases 키가 없을 수 있다 — 릴리스를 절대 막지 않는다 (실측: dogfood PR #1)
+        if not isinstance(changelog_data, dict):
+            changelog_data = {}
+        changelog_data.setdefault("metadata", {})
+
         changelog_data["metadata"]["lastUpdated"] = timestamp
         changelog_data["metadata"]["currentVersion"] = version
         changelog_data["metadata"]["projectType"] = project_type
