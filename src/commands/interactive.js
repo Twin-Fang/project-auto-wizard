@@ -9,6 +9,7 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
+import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "../core/branches.js";
 import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { listWorkflowConflicts } from "../core/copy/workflows.js";
@@ -122,6 +123,27 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
+  // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
+  // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
+  let branches = existing?.branches
+    ? resolveBranchConfig({ mainBranch: existing.branches.main, developBranch: existing.branches.develop, defaultBranch: branch })
+    : resolveBranchConfig({ defaultBranch: branch });
+  if (showOptional && !existing?.branches) {
+    const remoteBranches = await detectRemoteBranches(cwd);
+    const mainB = await pickBranch(io, `릴리스 브랜치를 선택하세요 (기본: ${branch})`, branch, remoteBranches, isCancel);
+    const devB = await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
+    branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
+    if (branches.mode === "trunk-based") {
+      io.note?.("릴리스 브랜치 = 개발 브랜치 → trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).", "브랜치 모드");
+    } else if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
+      await ensureDevelopBranch({
+        develop: branches.develop, remoteBranches, cwd,
+        confirm: (msg) => io.askYesNo(msg, true),
+        log: (m) => io.note?.(m, "브랜치"),
+      });
+    }
+  }
+
   // 경로 확정 (.sh resolve_project_paths L1362~1589 — full/version만. 저장값·후보 스캔·질문)
   if (mode === "full" || mode === "version") {
     paths = await resolveProjectPaths({
@@ -146,7 +168,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   const { now, today } = clock || utcNow();
   const ctx = createContext({
-    mode, force: true, types, version, versionCode, branch, paths, includeNexus, includeSecretBackup,
+    mode, force: true, types, version, versionCode, branch, branches, paths, includeNexus, includeSecretBackup,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
   });
   ctx.templateVersion = templateVersion;
@@ -188,6 +210,24 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }, cwd);
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
+}
+
+// 브랜치 선택 — 원격 목록이 있으면 select(+직접 입력), 없으면 텍스트 입력. ESC/빈값 = 기본값.
+async function pickBranch(io, message, def, remoteBranches, isCancel) {
+  if (io.engineIo?.select && remoteBranches.length) {
+    const options = [];
+    if (!remoteBranches.includes(def)) options.push({ value: def, label: `${def} (기본값 — 없으면 새로 생성)` });
+    for (const b of remoteBranches) options.push({ value: b, label: b === def ? `${b} (기본값)` : b });
+    options.push({ value: "__custom__", label: "직접 입력..." });
+    const sel = await io.engineIo.select({ message, options });
+    if (sel === "__custom__") {
+      const v = await io.askText("브랜치 이름", def);
+      return isCancel(v) || !v ? def : v;
+    }
+    return isCancel(sel) || sel == null ? def : sel;
+  }
+  const v = await io.askText(message, def);
+  return isCancel(v) || !v ? def : v;
 }
 
 function summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional }) {

@@ -13,6 +13,7 @@ export function createContext(overrides = {}) {
     types: [],
     version: "",
     branch: "",
+    branches: null,          // { main, develop, mode: "pr-flow"|"trunk-based" } — resolveBranchConfig 결과
     paths: new Map(),        // type -> path
     includeNexus: null,      // null=미설정, true/false=명시
     includeSecretBackup: null,

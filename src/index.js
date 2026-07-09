@@ -12,6 +12,7 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
+import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
@@ -85,10 +86,27 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
   });
 
+  // 브랜치 구성 (--main-branch/--develop-branch → 감지 default → main/develop)
+  const branches = resolveBranchConfig({
+    mainBranch: opts.mainBranch, developBranch: opts.developBranch, defaultBranch: branch,
+  });
+  // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
+  // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
+  if (branches.mode === "pr-flow") {
+    const remoteBranches = await detectRemoteBranches(cwd);
+    if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
+      await ensureDevelopBranch({
+        develop: branches.develop, remoteBranches, confirm: null, cwd,
+        log: (m) => console.error(m),
+      });
+    }
+  }
+
   const { now, today } = clock || utcNow();
 
   const context = createContext({
     mode: opts.mode, force: true, types, version, versionCode, branch,
+    branches,
     paths,
     // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
     includeNexus: opts.includeNexus ?? existing?.options?.nexus ?? false,

@@ -11,6 +11,8 @@ export function parseArgs(argv) {
     includeNexus: null,      // null=미설정
     includeSecretBackup: null,
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
+    mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
+    developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
@@ -51,6 +53,8 @@ export function parseArgs(argv) {
       case "--secret-backup": result.includeSecretBackup = true; break;
       case "--no-secret-backup": result.includeSecretBackup = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
+      case "--main-branch": result.mainBranch = args.shift() ?? ""; break;
+      case "--develop-branch": result.developBranch = args.shift() ?? ""; break;
       case "-h": case "--help": result.help = true; break;
       default:
         throw new CliError(`알 수 없는 옵션: ${a}`);
