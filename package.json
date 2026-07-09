@@ -1,6 +1,6 @@
 {
   "name": "project-auto-wizard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One command DevOps: npx wizard that installs GitHub-native AI Release Automation into any project",
   "license": "MIT",
   "type": "module",
