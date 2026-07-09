@@ -22,8 +22,8 @@
 # - basic: version.yml only
 # ===
 
-version: "0.1.1"
-version_code: 2  # app build number
+version: "0.1.2"
+version_code: 3  # app build number
 project_types: ["node"] # first entry is primary
 project_type: "node" # auto-mirror of project_types[0] — do not edit directly
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
