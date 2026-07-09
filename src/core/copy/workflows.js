@@ -18,6 +18,13 @@ function makeSrcText(branches) {
   };
 }
 
+// trunk-based 모드에서 설치하지 않는 common 워크플로우 (DESIGN-SPEC §4 설치 매트릭스).
+// 릴리스 PR 흐름이 없으므로 RELEASE-PUBLISH 하나가 bump→changelog→tag→Release를 흡수한다.
+const TRUNK_BASED_EXCLUDED = new Set([
+  "PROJECT-COMMON-VERSION-CONTROL.yaml",
+  "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
+]);
+
 // 한 파일에 env 치환을 적용해 대상 파일을 갱신 (.sh configure_workflow_env 등가).
 // values/useDefaults: env 계획(promptEnvPlan) 결과 — 미지정이면 기본값 경로(현행 force 동작).
 function configureEnv(targetPath, { type, projectPath = ".", repoName = "", resolvers = {}, collectAsks = null, values = new Map(), useDefaults = true }) {
@@ -66,10 +73,13 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // values/useDefaults는 치환 경로에서만 의미 (isUnchanged는 내부에서 useDefaults:true 강제 — 가상 비교 무손상)
   const envOptsFor = (type) => ({ type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults });
 
-  // (1) common — unchanged면 스킵, 아니면 무조건 덮어쓰기
+  // (1) common — unchanged면 스킵, 아니면 무조건 덮어쓰기.
+  //     trunk-based 모드는 VERSION-CONTROL·AUTO-CHANGELOG 미설치 (RELEASE-PUBLISH 단독).
+  const branchMode = context.branches?.mode || "pr-flow";
   const commonDir = join(projectTypesDir, "common");
   if (exists(commonDir)) {
     for (const filename of listYamlFiles(commonDir)) {
+      if (branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename)) continue;
       const src = join(commonDir, filename);
       const dst = join(workflowsDir, filename);
       const body = srcText(src);
