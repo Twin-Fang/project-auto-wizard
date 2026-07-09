@@ -16,6 +16,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --develop-branch B   개발 브랜치 (기본: develop). 릴리스 브랜치와 같으면 trunk-based 모드
       --nexus / --no-nexus            Nexus 라이브러리 publish 워크플로우 포함/제외
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
+      --coderabbit / --no-coderabbit  CodeRabbit PR 요약을 릴리스 노트 1순위로 사용 (기본: 사용 안 함)
       --force              모든 확인 생략, 비대화형 기본값 사용
   -v, --version            project-auto-wizard 버전 출력
   -h, --help               이 도움말 표시

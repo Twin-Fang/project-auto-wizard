@@ -19,7 +19,7 @@ import { ensureGitignore } from "../core/copy/gitignore.js";
 export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     force = true, now, today, templateVersion = "unknown",
-    includeNexus = false, includeSecretBackup = false } = context;
+    includeNexus = false, includeSecretBackup = false, includeCodeRabbit = false } = context;
 
   // project_paths 마커 계산 (.sh existing_marker_in_dir 등가 — 대표 마커명)
   const pathMarkers = new Map();
@@ -36,7 +36,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       templateText: readVersionYmlTemplate(payloadRoot),
       version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
       deployValues,
-      templateOptions: { templateVersion, includeNexus, includeSecretBackup, optionsDate: today },
+      templateOptions: { templateVersion, includeNexus, includeSecretBackup, includeCodeRabbit: includeCodeRabbit === true, optionsDate: today },
     }));
 
   // 3. README 버전 섹션
@@ -45,8 +45,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // 4. scripts (payload/scripts/*.py → .github/scripts/)
   copyScripts(payloadRoot, targetRoot);
 
-  // 5. coderabbit / gitignore
-  copyCoderabbit(payloadRoot, { force }, targetRoot);
+  // 5. coderabbit (opt-in true일 때만 — DESIGN-SPEC §4 질문②) / gitignore
+  if (includeCodeRabbit === true) copyCoderabbit(payloadRoot, { force }, targetRoot);
   ensureGitignore(targetRoot);
 
   return { workflows: wfCounters };

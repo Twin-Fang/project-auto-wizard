@@ -58,6 +58,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
+  let includeCodeRabbit = existing?.options?.coderabbit ?? null;
   const showOptional = mode === "full" || mode === "workflows";
   const realTty = process.stdout.isTTY === true;
 
@@ -74,7 +75,14 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     });
     includeNexus = r.nexus;
     includeSecretBackup = r.secretBackup;
+
+    // 신규 질문 ② — CodeRabbit opt-in (DESIGN-SPEC §4, 기본 아니오). 저장값 있으면 재질문 생략.
+    if (includeCodeRabbit === null) {
+      const y = await io.askYesNo("CodeRabbit을 사용합니까? (PR AI 리뷰·요약을 릴리스 노트 1순위로 사용)", false);
+      includeCodeRabbit = y === true;
+    }
   }
+  includeCodeRabbit = includeCodeRabbit === true;
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
@@ -168,7 +176,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   const { now, today } = clock || utcNow();
   const ctx = createContext({
-    mode, force: true, types, version, versionCode, branch, branches, paths, includeNexus, includeSecretBackup,
+    mode, force: true, types, version, versionCode, branch, branches, paths,
+    includeNexus, includeSecretBackup, includeCodeRabbit,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
   });
   ctx.templateVersion = templateVersion;

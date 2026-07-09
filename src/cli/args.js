@@ -10,6 +10,7 @@ export function parseArgs(argv) {
     primaryType: "",
     includeNexus: null,      // null=미설정
     includeSecretBackup: null,
+    includeCodeRabbit: null, // --coderabbit / --no-coderabbit (기본 false — DESIGN-SPEC §4 질문②)
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
     developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
@@ -52,6 +53,8 @@ export function parseArgs(argv) {
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
       case "--no-secret-backup": result.includeSecretBackup = false; break;
+      case "--coderabbit": result.includeCodeRabbit = true; break;
+      case "--no-coderabbit": result.includeCodeRabbit = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
       case "--main-branch": result.mainBranch = args.shift() ?? ""; break;
       case "--develop-branch": result.developBranch = args.shift() ?? ""; break;

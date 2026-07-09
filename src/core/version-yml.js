@@ -7,7 +7,7 @@
 // 구 synology 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다.
 // (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
-  const out = { nexus: null, secretBackup: null };
+  const out = { nexus: null, secretBackup: null, coderabbit: null };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
   const strip = (s) => String(s).replace(/["']/g, "").trim();
   let inTemplate = false;
@@ -28,6 +28,13 @@ export function parseTemplateOptions(content) {
         const v = strip(m[1]);
         if (v === "true") out.secretBackup = true;
         if (v === "false") out.secretBackup = false;
+        continue;
+      }
+      m = line.match(/^\s+coderabbit:\s*(.+)/);
+      if (m) {
+        const v = strip(m[1]);
+        if (v === "true") out.coderabbit = true;
+        if (v === "false") out.coderabbit = false;
         continue;
       }
       // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료 (.sh L2404~2408)
