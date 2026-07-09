@@ -1,0 +1,39 @@
+# ===
+# Version format: x.y.z (semantic versioning)
+# - patch: auto-incremented by the release workflows
+# - version_code: monotonically increasing build number, bumped alongside version
+# - major/minor: NOT bumped automatically — edit this file manually
+#   (e.g., 1.0.5 -> 1.1.0 or 2.0.0)
+# ===
+# Supported project types: spring, flutter, next, react, react-native,
+#                          react-native-expo, node, python, basic
+# Multi-type projects: list every type in the project_types array
+#   -> project_type (singular) always mirrors project_types[0] — do not edit it directly
+# Monorepo paths: project_paths maps each type to its subdir relative to the repo root
+#   (e.g., flutter: "app", react: "client"). Omitted -> repo root.
+#
+# Synced files per type:
+# - spring: build.gradle / build.gradle.kts
+# - flutter: pubspec.yaml
+# - next/react/node: package.json
+# - react-native: Info.plist + build.gradle
+# - react-native-expo: app.json
+# - python: pyproject.toml
+# - basic: version.yml only
+# ===
+
+version: "{{VERSION}}"
+version_code: {{VERSION_CODE}} # app build number
+project_types: {{PROJECT_TYPES}} # first entry is primary
+project_type: "{{PROJECT_TYPE}}" # auto-mirror of project_types[0] — do not edit directly
+{{PROJECT_PATHS}}
+metadata:
+  template:
+    branches:
+      main: "{{MAIN_BRANCH}}"
+      develop: "{{DEVELOP_BRANCH}}"
+      mode: "{{BRANCH_MODE}}" # pr-flow | trunk-based
+    options:
+      nexus: {{OPT_NEXUS}}
+      secret_backup: {{OPT_SECRET_BACKUP}}
+      coderabbit: {{OPT_CODERABBIT}}
