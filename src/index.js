@@ -141,7 +141,8 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version,
+    mode: opts.mode, types, version, branches,
+    includeCodeRabbit: context.includeCodeRabbit === true,
     counters: { workflows: result?.workflows?.copied ?? 0 },
   }, cwd);
   return 0;

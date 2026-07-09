@@ -214,7 +214,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({
-    mode, types, version,
+    mode, types, version, branches, includeCodeRabbit,
     counters: { workflows: result?.workflows?.copied ?? 0 },
   }, cwd);
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);

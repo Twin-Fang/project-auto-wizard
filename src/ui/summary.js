@@ -1,5 +1,5 @@
 // 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
-// ctx: { mode, types:[], version, counters:{ workflows } }
+// ctx: { mode, types:[], version, counters:{ workflows }, branches?, includeCodeRabbit? }
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS, WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
@@ -8,7 +8,7 @@ import { listYamlFiles } from "../core/fsutil.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx, targetRoot = ".") {
-  const { mode, types = [], version = "", counters = {} } = ctx || {};
+  const { mode, types = [], version = "", counters = {}, branches = null, includeCodeRabbit = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 TTY일 때만 (.sh YELLOW/CYAN/NC 등가)
   const isTty = !!process.stderr.isTTY;
@@ -42,6 +42,23 @@ export function printSummary(ctx, targetRoot = ".") {
     case "workflows":
       err("  ✅ GitHub Actions 워크플로우 (AI 릴리스 자동화 포함)");
       break;
+  }
+
+  // 브랜치 모드 + 릴리스 요약 엔진 안내 (DESIGN-SPEC §4~5)
+  if (branches) {
+    err("");
+    err("브랜치 구성:");
+    if (branches.mode === "trunk-based") {
+      err(`  🌿 ${branches.main} 단일 브랜치 (trunk-based) — RELEASE-PUBLISH 하나가 버전확정→체인지로그→tag→Release를 순차 처리`);
+    } else {
+      err(`  🌿 개발 ${branches.develop} → 릴리스 ${branches.main} (pr-flow) — 릴리스 PR에서 버전확정·AI 체인지로그·automerge`);
+    }
+  }
+  if (mode === "full" || mode === "workflows") {
+    err("");
+    err("릴리스 노트 요약 엔진:");
+    if (includeCodeRabbit) err("  🤖 1순위 CodeRabbit PR 요약 (opt-in) → AI_API_KEY → GitHub Models(무료) → 규칙 fallback");
+    else err("  🤖 AI_API_KEY(선택) → GitHub Models(기본·무료·API 키 불필요) → 규칙 fallback — 릴리스는 절대 막히지 않음");
   }
 
   err("");
