@@ -2,6 +2,8 @@
 
 > **One command DevOps** — `npx` 한 줄로 어떤 프로젝트든 GitHub-native AI 릴리스 자동화를 설치하는 마법사
 
+- 새 프로젝트를 시작하면 코드를 작성하기 전부터 버전 관리, 배포 자동화, 변경 기록 작성처럼 먼저 정해야 할 일이 많다. project-auto-wizard는 이 준비 과정을 명령 한 번으로 구성하고, 프로젝트 상태 관리가 GitHub 안에서 자동으로 동작하도록 해 개발자가 기능 구현에 집중하도록 돕는 오픈소스 도구
+
 ```bash
 npx project-auto-wizard
 ```
