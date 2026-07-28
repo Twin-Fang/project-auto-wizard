@@ -66,7 +66,7 @@ test("printStatus: null nexus/secretBackup/coderabbit render as '미설정(기�
   assert.ok(output.includes("nexus=미설정(기본 false)"));
   assert.ok(output.includes("secret_backup=미설정(기본 false)"));
   assert.ok(output.includes("coderabbit=미설정(기본 false)"));
-  assert.ok(output.includes("semver_auto=미설정(기본 true)"));
+  assert.ok(output.includes("semver_auto=미설정(기본 false)"));
 });
 
 test("runStatus: version.yml without a branches block does not false-flag every workflow as modified", () => {
