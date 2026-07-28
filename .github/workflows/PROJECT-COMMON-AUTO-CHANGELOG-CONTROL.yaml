@@ -4,7 +4,12 @@
 # ===================================================================
 #
 # Runs on release PRs (develop -> main) and:
-# 1. Confirms the release version (patch +1 and sync of every version file)
+# 1. Confirms the release version and syncs every version file:
+#    - If version.yml metadata.template.options.semver_auto is true
+#      (default): classifies commits (feat -> minor, `!` marker -> major,
+#      else patch; AI-assisted patch->minor upgrade for unclassified
+#      commits) and bumps accordingly.
+#    - Otherwise: always patch+1 (legacy behavior).
 # 2. Acquires a release summary:
 #    - If version.yml metadata.template.options.coderabbit is true:
 #      requests a CodeRabbit summary comment once and polls the PR body
@@ -83,6 +88,21 @@ jobs:
           CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?coderabbit:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "coderabbit=$CODERABBIT" >> $GITHUB_OUTPUT
           echo "coderabbit option: $CODERABBIT"
+
+      - name: Read semver_auto option from version.yml
+        id: semver_options
+        run: |
+          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
+          echo "semver_auto option: $SEMVER_AUTO"
+
+      - name: Collect commits since last release
+        id: collect
+        run: |
+          git fetch origin main
+          git log --pretty=%s "origin/main..HEAD" > commits.txt
+          git diff --stat "origin/main...HEAD" | head -50 > diff_stat.txt
+          echo "commits to summarize: $(wc -l < commits.txt)"
 
       - name: Request CodeRabbit summary (PR-body-init protection)
         id: coderabbit_request
@@ -165,8 +185,13 @@ jobs:
             echo "summary_found=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Confirm release version (patch +1 and sync)
+      - name: Confirm release version (bump + sync)
         id: bump
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Idempotency: if the PR head is already this workflow's own
           # version-confirm commit (re-run / synchronize retrigger), do not
@@ -176,13 +201,19 @@ jobs:
             NEW_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
             echo "version already confirmed by a previous run — reusing $NEW_VERSION (no re-increment)"
           else
-            NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
+            if [ "${{ steps.semver_options.outputs.semver_auto }}" = "true" ]; then
+              BUMP=$(python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt | tail -n 1)
+            else
+              BUMP="patch"
+            fi
+            echo "bump level: $BUMP"
+            NEW_VERSION=$(python3 .github/scripts/version_manager.py increment --bump "$BUMP" | tail -n 1)
             if [ -z "$NEW_VERSION" ]; then
               echo "version bump failed"
               exit 1
             fi
             python3 .github/scripts/version_manager.py sync
-            echo "release version confirmed: $NEW_VERSION"
+            echo "release version confirmed: $NEW_VERSION ($BUMP)"
           fi
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
@@ -198,11 +229,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
-
-          git fetch origin main
-          git log --pretty=%s "origin/main..HEAD" > commits.txt
-          git diff --stat "origin/main...HEAD" | head -50 > diff_stat.txt
-          echo "commits to summarize: $(wc -l < commits.txt)"
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
