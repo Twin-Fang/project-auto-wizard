@@ -580,7 +580,7 @@ _AI_DEFAULT_BASE_URL = "https://models.github.ai/inference"
 _AI_DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
-def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str) -> str:
+def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str, diff_stat: str | None = None) -> str:
     """AI에게 보낼 한국어 릴리즈 요약 프롬프트를 구성.
 
     요청하는 출력 형식은 규칙 기반 폴백 렌더러(render_fallback_md)와 동일한
@@ -596,6 +596,9 @@ def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str
     ]
     if pr_title:
         parts.append(f"PR 제목: {pr_title}")
+    if diff_stat and diff_stat.strip():
+        parts.append("파일별 변경 요약:")
+        parts.append(diff_stat.strip())
     parts.append("커밋 목록:")
     parts.extend(f"- {line}" for line in commit_lines)
     return "\n".join(parts)
@@ -623,13 +626,21 @@ def call_openai_compatible(base_url: str, token: str, model: str, prompt: str) -
     return body["choices"][0]["message"]["content"]
 
 
-def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: str | None) -> int:
+def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: str | None, diff_stat_file: str | None = None) -> int:
     """커밋 목록을 읽어 AI(우선) 또는 규칙 기반 폴백으로 릴리즈 요약을 생성."""
     try:
         with open(commits_file, 'r', encoding='utf-8') as f:
             commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
     except Exception:
         commit_lines = []
+
+    diff_stat = None
+    if diff_stat_file:
+        try:
+            with open(diff_stat_file, 'r', encoding='utf-8') as f:
+                diff_stat = f.read()
+        except Exception:
+            diff_stat = None
 
     ai_api_key = os.environ.get('AI_API_KEY')
     ai_base_url = os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL
@@ -638,7 +649,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 
     engine = None
     summary_text = None
-    prompt = _build_ai_prompt(commit_lines, pr_title, version)
+    prompt = _build_ai_prompt(commit_lines, pr_title, version, diff_stat)
 
     if ai_api_key:
         try:
@@ -708,6 +719,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ai_summary.add_argument('--version', required=True, help='버전 번호')
     p_ai_summary.add_argument('--output', required=True, help='요약 결과를 저장할 파일 경로')
     p_ai_summary.add_argument('--pr-title', help='PR 제목 (프롬프트 컨텍스트로 사용, 선택)')
+    p_ai_summary.add_argument('--diff-stat-file', help='git diff --stat 출력 파일 (프롬프트 컨텍스트 확장, 선택)')
 
     args = parser.parse_args(argv)
 
@@ -718,7 +730,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == 'export':
         return cmd_export_release_notes(args.version, args.output)
     if args.command == 'ai-summary':
-        return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title)
+        return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title, args.diff_stat_file)
     return 2
 
 
