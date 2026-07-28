@@ -67,7 +67,13 @@ jobs:
 
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
-          { git diff --stat "origin/main...HEAD" | head -49; git diff --stat "origin/main...HEAD" | tail -1; } > diff_stat.txt
+          git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
+          if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
+            { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
+          else
+            cp _full_diff_stat.txt diff_stat.txt
+          fi
+          rm -f _full_diff_stat.txt
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
@@ -84,7 +90,7 @@ jobs:
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
 
-          curl -s -H "Authorization: token ${{ github.token }}" \
+          curl -sf -H "Authorization: token ${{ github.token }}" \
                -H "Content-Type: application/json" \
                -X POST \
                -d @comment_payload.json \

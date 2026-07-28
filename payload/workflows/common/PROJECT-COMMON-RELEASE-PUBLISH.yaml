@@ -156,7 +156,13 @@ jobs:
             git log --pretty=%s > commits.txt
             DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
           fi
-          { git diff --stat "${DIFF_BASE}..HEAD" | head -49; git diff --stat "${DIFF_BASE}..HEAD" | tail -1; } > diff_stat.txt
+          git diff --stat "${DIFF_BASE}..HEAD" > _full_diff_stat.txt
+          if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
+            { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
+          else
+            cp _full_diff_stat.txt diff_stat.txt
+          fi
+          rm -f _full_diff_stat.txt
 
           if [ "${{ steps.semver_options.outputs.semver_auto }}" = "true" ]; then
             BUMP=$(python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt | tail -n 1)
