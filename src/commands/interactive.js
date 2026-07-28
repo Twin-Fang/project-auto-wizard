@@ -95,7 +95,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
 
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
-    if (includeSemverAuto === null) {
+    // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
+    if (mode === "full" && includeSemverAuto === null) {
       const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
       includeSemverAuto = y2 === true;
     }

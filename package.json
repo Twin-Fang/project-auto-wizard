@@ -18,7 +18,7 @@
   "scripts": {
     "test": "npm run test:node && npm run test:py",
     "test:node": "node --test \"tests/node/**/*.test.js\"",
-    "test:py": "python -m unittest discover -s tests/py -v"
+    "test:py": "python3 -m unittest discover -s tests/py -v"
   },
   "repository": {
     "type": "git",
