@@ -358,14 +358,61 @@ def classify_bump_level(lines: list[str]) -> str:
     return 'minor' if classified.get('feat') else 'patch'
 
 
+_BUMP_AI_PROMPT_PREFIX = (
+    "다음은 정해진 커밋 컨벤션을 따르지 않는 자유형식 커밋 메시지들이다.\n"
+    "이 중 사용자 대상 새로운 기능(feature) 추가로 보이는 것이 하나라도 있으면 정확히 MINOR라고만 답하고,\n"
+    "없으면 정확히 PATCH라고만 답해라. 다른 말은 절대 덧붙이지 마라.\n"
+    "커밋 목록:\n"
+)
+
+
+def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
+    """규칙 분류가 patch일 때, 미분류 자유형식 커밋에 한해 AI에게 minor 업그레이드
+    여부만 보조 판단시킨다. AI는 절대 major를 만들 수 없다 — major는 항상 명시적
+    `!` 마커만 신뢰한다(classify_bump_level에서 이미 확정됨). 응답이 정확히
+    'MINOR'가 아니거나 호출이 실패하면 무조건 False(규칙 결과 patch 유지)."""
+    if not unclassified_lines:
+        return False
+    prompt = _BUMP_AI_PROMPT_PREFIX + "\n".join(f"- {line}" for line in unclassified_lines)
+
+    ai_api_key = os.environ.get('AI_API_KEY')
+    github_token = os.environ.get('GITHUB_TOKEN')
+    candidates = [
+        (ai_api_key, os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL, os.environ.get('AI_MODEL') or _AI_DEFAULT_MODEL),
+        (github_token, _AI_DEFAULT_BASE_URL, _AI_DEFAULT_MODEL),
+    ]
+    for token, base_url, model in candidates:
+        if not token:
+            continue
+        try:
+            response = call_openai_compatible(base_url, token, model, prompt)
+            return response.strip() == 'MINOR'
+        except Exception as e:
+            print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
+            continue
+    return False
+
+
 def cmd_classify_bump(commits_file: str) -> int:
-    """커밋 목록 파일을 읽어 semver 승격 폭(major/minor/patch)을 stdout 마지막 줄에 출력."""
+    """커밋 목록 파일을 읽어 semver 승격 폭(major/minor/patch)을 stdout 마지막 줄에 출력.
+
+    규칙 우선(feat->minor, !마커->major, 그외->patch). 규칙 결과가 patch이고
+    분류 안 된 자유형식 커밋이 있으면, AI에게 patch->minor 업그레이드 여부만
+    보조 판단시킨다(major는 AI가 절대 만들 수 없음).
+    """
     try:
         with open(commits_file, 'r', encoding='utf-8') as f:
             commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
     except Exception:
         commit_lines = []
-    print(classify_bump_level(commit_lines))
+
+    bump = classify_bump_level(commit_lines)
+    if bump == 'patch':
+        classified = classify_commits(commit_lines)
+        if _ai_assisted_minor_upgrade(classified.get('changes') or []):
+            bump = 'minor'
+
+    print(bump)
     return 0
 
 
