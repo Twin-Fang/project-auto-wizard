@@ -7,7 +7,7 @@
 // 구 synology 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다.
 // (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
-  const out = { nexus: null, secretBackup: null, coderabbit: null };
+  const out = { nexus: null, secretBackup: null, coderabbit: null, semverAuto: null };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
   const strip = (s) => String(s).replace(/["']/g, "").trim();
   let inTemplate = false;
@@ -35,6 +35,13 @@ export function parseTemplateOptions(content) {
         const v = strip(m[1]);
         if (v === "true") out.coderabbit = true;
         if (v === "false") out.coderabbit = false;
+        continue;
+      }
+      m = line.match(/^\s+semver_auto:\s*(.+)/);
+      if (m) {
+        const v = strip(m[1]);
+        if (v === "true") out.semverAuto = true;
+        if (v === "false") out.semverAuto = false;
         continue;
       }
       // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료 (.sh L2404~2408)
@@ -137,7 +144,7 @@ export function buildVersionYml({
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
-    includeCodeRabbit = false, optionsDate = today,
+    includeCodeRabbit = false, includeSemverAuto = true, optionsDate = today,
   } = templateOptions || {};
 
   // project_paths 블록 (full-line 토큰 {{PROJECT_PATHS}} — 없으면 라인 제거)
@@ -171,7 +178,7 @@ export function buildVersionYml({
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     OPT_NEXUS: String(includeNexus), OPT_SECRET_BACKUP: String(includeSecretBackup),
-    OPT_CODERABBIT: String(includeCodeRabbit),
+    OPT_CODERABBIT: String(includeCodeRabbit), OPT_SEMVER_AUTO: String(includeSemverAuto),
   };
 
   const out = [];

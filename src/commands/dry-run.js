@@ -12,13 +12,19 @@ import { markerForType } from "../core/detect.js";
 function versionYmlPreview(context, payloadRoot, targetRoot) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown",
-    includeNexus = false, includeSecretBackup = false, includeCodeRabbit = false } = context;
+    includeNexus = false, includeSecretBackup = false, includeCodeRabbit = false,
+    includeSemverAuto } = context;
   const pathMarkers = new Map();
   for (const [t] of paths) pathMarkers.set(t, markerForType(t));
   const wouldBe = buildVersionYml({
     templateText: readVersionYmlTemplate(payloadRoot),
     version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
-    templateOptions: { templateVersion, includeNexus, includeSecretBackup, includeCodeRabbit: includeCodeRabbit === true, optionsDate: today },
+    templateOptions: {
+      templateVersion, includeNexus, includeSecretBackup,
+      includeCodeRabbit: includeCodeRabbit === true,
+      includeSemverAuto: includeSemverAuto !== false,
+      optionsDate: today,
+    },
   });
   const vyPath = join(targetRoot, PATHS.versionFile);
   const existing = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;

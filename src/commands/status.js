@@ -46,7 +46,8 @@ export function printStatus(status) {
   if (status.branches) {
     lines.push(`브랜치 모드      : ${status.branches.mode} (${status.branches.main} / ${status.branches.develop})`);
   }
-  lines.push(`옵션            : nexus=${status.options.nexus} secret_backup=${status.options.secretBackup} coderabbit=${status.options.coderabbit}`);
+  const semverAutoLabel = status.options.semverAuto === null ? "미설정(기본 true)" : status.options.semverAuto;
+  lines.push(`옵션            : nexus=${status.options.nexus} secret_backup=${status.options.secretBackup} coderabbit=${status.options.coderabbit} semver_auto=${semverAutoLabel}`);
   if (status.modifiedFiles.length) {
     lines.push("", `사용자가 수정한 워크플로우 파일 (${status.modifiedFiles.length}개):`);
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);

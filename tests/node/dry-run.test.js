@@ -75,6 +75,18 @@ test("printDryRun() warns that version.yml preview may be inaccurate for deploy-
   }
 });
 
+test("planDryRun('full', ...) with semver_auto:false preserved -> versionYml unchanged", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const ctx = baseContext({ includeSemverAuto: false });
+    runFull(ctx, resolvePayloadRoot(), target);
+    const plan = planDryRun("full", ctx, resolvePayloadRoot(), target);
+    assert.strictEqual(plan.versionYml.changed, false);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("planDryRun('revert', ...) delegates to planRevert and writes nothing", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
