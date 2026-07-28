@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseExisting } from "../core/version-yml.js";
 import { planWorkflows } from "../core/copy/workflows.js";
-import { makeResolvers, detectRepoName } from "../core/detect-fs.js";
+import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
 import { PATHS } from "../core/paths.js";
 
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 상태를 확인할 대상 레포.
@@ -14,11 +14,15 @@ export function runStatus(payloadRoot, targetRoot = ".") {
   const existing = parseExisting(readFileSync(vyPath, "utf8"));
   const repoName = detectRepoName(targetRoot);
   const resolvers = makeResolvers(targetRoot, repoName, existing.paths);
+  // version.yml에 branches 블록이 없으면(신기능 이전 설치·수기 편집) makeSrcText(null)이
+  // {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}}를 치환하지 못해 모든 워크플로우가 드리프트로 오탐된다 —
+  // 비교용 기본값으로 폴백(실제 저장값은 아니지만 드리프트 비교 목적에는 충분).
+  const branchesForCompare = existing.branches || { main: detectDefaultBranch(targetRoot) || "main", develop: "develop", mode: "pr-flow" };
   const context = {
     types: existing.types, paths: existing.paths,
     includeNexus: existing.options.nexus === true,
     includeSecretBackup: existing.options.secretBackup === true,
-    repoName, resolvers, branches: existing.branches,
+    repoName, resolvers, branches: branchesForCompare,
   };
   const plan = planWorkflows(context, payloadRoot, targetRoot);
 

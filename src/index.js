@@ -61,6 +61,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
+    // --dry-run은 대화형 모드에서 조용히 무시되면 안 됨(실제 설치가 진행돼버림) — 명시 에러로 차단.
+    if (opts.dryRun) {
+      console.error("--dry-run은 --mode <full|version|workflows|revert>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
+      return 1;
+    }
     if (!process.stdout.isTTY) {
       console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert> 와 --force 를 지정하세요.");
       return 1;
@@ -70,7 +75,8 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
 
   // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
   if (opts.mode === "revert") {
-    if (!opts.force && !process.stdout.isTTY) {
+    // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
+    if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
     }
@@ -94,7 +100,8 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     return 0;
   }
   // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
-  if (!opts.force && !process.stdout.isTTY) {
+  // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
+  if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
     console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
     return 1;
   }
@@ -144,7 +151,10 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     includeNexus: opts.includeNexus ?? existing?.options?.nexus ?? false,
     includeSecretBackup: opts.includeSecretBackup ?? existing?.options?.secretBackup ?? false,
     includeCodeRabbit: opts.includeCodeRabbit ?? existing?.options?.coderabbit ?? false,
-    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? true,
+    // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
+    // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
+    // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
+    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths),

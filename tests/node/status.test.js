@@ -69,6 +69,27 @@ test("printStatus: null nexus/secretBackup/coderabbit render as '미설정(기�
   assert.ok(output.includes("semver_auto=미설정(기본 true)"));
 });
 
+test("runStatus: version.yml without a branches block does not false-flag every workflow as modified", () => {
+  // version.yml이 branches 기능 이전에 만들어졌거나 수기 편집으로 branches 블록이 빠진 경우 —
+  // parseTemplateBranches가 null을 반환해도 status가 매 파일을 오탐 드리프트로 보고하면 안 된다.
+  const target = installFixture();
+  try {
+    const vyPath = join(target, "version.yml");
+    const original = readFileSync(vyPath, "utf8");
+    const stripped = original
+      .split("\n")
+      .filter((l) => !/^\s*branches:\s*$/.test(l) && !/^\s+(main|develop|mode):\s*"?[\w-]/.test(l))
+      .join("\n");
+    writeFileSync(vyPath, stripped);
+
+    const status = runStatus(resolvePayloadRoot(), target);
+    assert.strictEqual(status.branches, null, "branches should be null once the block is stripped");
+    assert.deepStrictEqual(status.modifiedFiles, []);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("runStatus: user-edited common workflow file appears in modifiedFiles", () => {
   const target = installFixture();
   try {

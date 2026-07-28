@@ -102,7 +102,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
   includeCodeRabbit = includeCodeRabbit === true;
-  includeSemverAuto = includeSemverAuto !== false; // 기본 ON — 명시적으로 false만 OFF
+  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
+  // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
+  // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
+  includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
