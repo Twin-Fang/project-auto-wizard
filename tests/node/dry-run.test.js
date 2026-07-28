@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { runFull } from "../../src/commands/full.js";
-import { planDryRun } from "../../src/commands/dry-run.js";
+import { planDryRun, printDryRun } from "../../src/commands/dry-run.js";
 
 function baseContext(overrides = {}) {
   return createContext({
@@ -52,6 +52,24 @@ test("planDryRun('version', ...) only computes versionYml preview, not workflows
     const plan = planDryRun("version", baseContext(), resolvePayloadRoot(), target);
     assert.strictEqual(plan.workflows, undefined);
     assert.ok(plan.versionYml);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("printDryRun() warns that version.yml preview may be inaccurate for deploy-block types", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const plan = planDryRun("version", baseContext(), resolvePayloadRoot(), target);
+    const originalLog = console.log;
+    let output = "";
+    console.log = (msg) => { output += msg; };
+    try {
+      printDryRun(plan);
+    } finally {
+      console.log = originalLog;
+    }
+    assert.ok(output.includes("deploy: 블록이 미리보기에 반영되지 않아"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

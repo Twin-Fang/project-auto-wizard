@@ -61,6 +61,9 @@ export function printDryRun(plan) {
       lines.push(plan.versionYml.existed
         ? (plan.versionYml.changed ? "version.yml: 갱신될 예정" : "version.yml: 변경 없음")
         : "version.yml: 새로 생성될 예정");
+      // dry-run은 프롬프트 없이 읽기 전용으로 동작하므로 @wizard ask 배포 설정 값을 계산할 수 없다.
+      // spring 등 deploy 블록이 있는 타입은 실제 설치 결과와 미리보기가 다를 수 있음을 안내한다.
+      lines.push("  (참고: 배포 설정 질문이 있는 타입(spring 등)은 deploy: 블록이 미리보기에 반영되지 않아 실제 설치와 다르게 보일 수 있습니다.)");
     }
   }
   lines.push("");
