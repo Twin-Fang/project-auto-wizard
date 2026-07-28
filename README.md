@@ -111,7 +111,7 @@ flowchart LR
 ```
 npx project-auto-wizard [옵션]
 
-  -m, --mode MODE          full | version | workflows  (기본: 대화형)
+  -m, --mode MODE          full | version | workflows | revert | status | doctor  (기본: 대화형)
   -t, --type CSV           spring,react,... (미지정 시 자동 감지)
       --project-version V  초기 버전 (미지정 시 자동 감지)
       --paths "t=p,..."    모노레포 타입별 경로
@@ -120,6 +120,8 @@ npx project-auto-wizard [옵션]
       --nexus              Nexus 라이브러리 publish 워크플로우 포함
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --coderabbit         CodeRabbit PR 요약을 릴리스 노트 1순위로
+      --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
+      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
       --force              전 질문 생략 (CI용)
 ```
 
@@ -132,8 +134,8 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 
 | 명령 | 내용 |
 |---|---|
-| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음 |
-| `--mode doctor` | Node/Python 버전, git 원격, 브랜치 존재 여부 등 로컬 환경을 점검합니다. AI 진단은 포함하지 않습니다(규칙 기반 점검만) |
+| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
+| `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
 
 `--dry-run`을 어떤 모드와도 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다(`full`/`version`/`workflows`/`revert` 전체 지원):
 
@@ -152,7 +154,9 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 ### 자체 AI PR 요약봇
 
-CodeRabbit을 쓰지 않는 레포를 위한 대안입니다. `--coderabbit`을 켜지 않으면(기본값) PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다. `--coderabbit`을 켜면 CodeRabbit이 PR 요약을 전담하고 이 봇은 no-op으로 빠집니다(중복 방지, 상호 배타적).
+CodeRabbit을 쓰지 않는 레포를 위한 대안입니다. `--coderabbit`을 켜지 않으면(기본값) 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다. `--coderabbit`을 켜면 CodeRabbit이 PR 요약을 전담하고 이 봇은 no-op으로 빠집니다(중복 방지, 상호 배타적).
+
+기본 설치(pr-flow) 기준으로 일상적인 기능 PR은 `develop`을 대상으로 열리므로, 이 봇은 develop→main 릴리스 PR에서만 실제로 동작합니다 — 해당 PR에서는 `AUTO-CHANGELOG-CONTROL`이 이미 같은 엔진으로 체인지로그 요약을 생성하므로, 이 봇은 그 요약을 PR 코멘트 형태로도 남겨주는 보조 역할입니다. 릴리스 브랜치 = 개발 브랜치인 trunk-based 모드에서는 모든 PR이 곧 릴리스 대상 브랜치를 향하므로 매 PR마다 동작합니다.
 
 ## 설치 후 확인할 것
 
