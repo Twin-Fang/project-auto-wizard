@@ -19,6 +19,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --coderabbit / --no-coderabbit  CodeRabbit PR 요약을 릴리스 노트 1순위로 사용 (기본: 사용 안 함)
       --force              모든 확인 생략, 비대화형 기본값 사용
+      --dry-run             실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/version/workflows/revert 전체 지원)
   -v, --version            project-auto-wizard 버전 출력
   -h, --help               이 도움말 표시
 
@@ -27,4 +28,5 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
   npx project-auto-wizard --mode workflows --type flutter --paths "flutter=app"
   npx project-auto-wizard --mode status
   npx project-auto-wizard --mode doctor
+  npx project-auto-wizard --mode full --force --type node --dry-run
 `;

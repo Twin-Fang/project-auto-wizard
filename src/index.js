@@ -22,6 +22,7 @@ import { runRevert } from "./commands/revert.js";
 import { runInteractive } from "./commands/interactive.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
+import { planDryRun, printDryRun } from "./commands/dry-run.js";
 
 // 패키지 버전 읽기 (-v/--version 출력용). src/../package.json.
 function readPkgVersion() {
@@ -73,6 +74,10 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
     }
+    if (opts.dryRun) {
+      printDryRun(planDryRun("revert", {}, payload, cwd));
+      return 0;
+    }
     const r = runRevert({}, payload, cwd);
     console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개${r.coderabbit ? ", .coderabbit.yaml" : ""}`);
     console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
@@ -119,7 +124,7 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
   // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
-  if (branches.mode === "pr-flow") {
+  if (branches.mode === "pr-flow" && !opts.dryRun) {
     const remoteBranches = await detectRemoteBranches(cwd);
     if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
       await ensureDevelopBranch({
@@ -153,6 +158,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   // Breaking Changes 게이트 (.sh execute_integration L4415~4420 등가 — 비대화형은 경고 후 진행)
   const proceed = await runBreakingCheck({ cwd, payloadRoot: payload, templateVersion: context.templateVersion });
   if (!proceed) return 0;
+
+  if (opts.dryRun) {
+    printDryRun(planDryRun(opts.mode, context, payload, cwd));
+    return 0;
+  }
 
   let result = null;
   switch (opts.mode) {

@@ -17,6 +17,7 @@ export function parseArgs(argv) {
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
+    dryRun: false,        // --dry-run: 실제 변경 없이 미리보기만 (full/version/workflows/revert 공통)
   };
   const args = [...argv];
   while (args.length > 0) {
@@ -49,6 +50,7 @@ export function parseArgs(argv) {
         break;
       }
       case "--force": result.force = true; break;
+      case "--dry-run": result.dryRun = true; break;
       case "--nexus": result.includeNexus = true; break;
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
