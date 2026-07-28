@@ -26,4 +26,5 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
   npx project-auto-wizard --mode full --force --type spring,react
   npx project-auto-wizard --mode workflows --type flutter --paths "flutter=app"
   npx project-auto-wizard --mode status
+  npx project-auto-wizard --mode doctor
 `;

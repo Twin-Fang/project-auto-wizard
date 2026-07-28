@@ -21,6 +21,7 @@ import { runWorkflows } from "./commands/workflows.js";
 import { runRevert } from "./commands/revert.js";
 import { runInteractive } from "./commands/interactive.js";
 import { runStatus, printStatus } from "./commands/status.js";
+import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 
 // 패키지 버전 읽기 (-v/--version 출력용). src/../package.json.
 function readPkgVersion() {
@@ -80,6 +81,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   // status 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
   if (opts.mode === "status") {
     printStatus(runStatus(payload, cwd));
+    return 0;
+  }
+  // doctor 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
+  if (opts.mode === "doctor") {
+    printDoctorReport(runDoctor(cwd));
     return 0;
   }
   // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
