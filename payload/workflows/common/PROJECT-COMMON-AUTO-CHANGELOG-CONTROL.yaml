@@ -12,6 +12,9 @@
 #    - Otherwise (or on poll timeout): generates the summary locally with
 #      changelog_manager.py ai-summary (engine chain: user API key ->
 #      GitHub Models -> rule-based fallback; always succeeds)
+#    - The AI prompt includes commit subjects plus a capped
+#      `git diff --stat` (file-level change summary, no diff body)
+#      for richer context without token-cost blowup.
 # 3. Updates CHANGELOG.json / CHANGELOG.md and commits to the PR head
 #    branch with [skip ci]
 # 4. Enables automerge (gh pr merge --auto --merge)
@@ -198,13 +201,15 @@ jobs:
 
           git fetch origin {{MAIN_BRANCH}}
           git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
+          git diff --stat "origin/{{MAIN_BRANCH}}...HEAD" | head -50 > diff_stat.txt
           echo "commits to summarize: $(wc -l < commits.txt)"
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
             --version "$VERSION" \
             --output summary.md \
-            --pr-title "$PR_TITLE"
+            --pr-title "$PR_TITLE" \
+            --diff-stat-file diff_stat.txt
 
           # Feed the generated summary through the same channel the
           # CodeRabbit path uses: update-from-summary reads ./pr_body.md
@@ -234,7 +239,7 @@ jobs:
           VERSION="${{ steps.bump.outputs.new_version }}"
 
           # Working files must not land in the repo
-          rm -f pr_body.md summary.md commits.txt
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt
 
           git add -A
 
