@@ -246,6 +246,17 @@ def increment_patch(version):
     return f"{major}.{minor}.{int(patch) + 1}"
 
 
+def increment_version(version, bump="patch"):
+    """bump: 'major'|'minor'|'patch'. 생략하면 기존과 동일하게 patch(increment_patch)로 동작."""
+    if bump == "major":
+        major, _minor, _patch = version.split(".")
+        return f"{int(major) + 1}.0.0"
+    if bump == "minor":
+        major, minor, _patch = version.split(".")
+        return f"{major}.{int(minor) + 1}.0"
+    return increment_patch(version)
+
+
 def compare_versions(v1, v2):
     """Return 1 if v1>v2, -1 if v1<v2, 0 if equal."""
     p1 = [int(x) for x in v1.split(".")]
@@ -553,7 +564,8 @@ def cmd_increment(args):
     if not validate_version(current_version):
         log(f"ERROR: invalid version format: {current_version}")
         return 1
-    new_version = increment_patch(current_version)
+    bump = getattr(args, "bump", None) or "patch"
+    new_version = increment_version(current_version, bump)
     update_all_versions(new_version)
 
     current_code = int(get_version_code())
@@ -587,7 +599,9 @@ def build_parser():
 
     sub.add_parser("get")
     sub.add_parser("get-code")
-    sub.add_parser("increment")
+    p_increment = sub.add_parser("increment")
+    p_increment.add_argument("--bump", choices=["major", "minor", "patch"], default="patch",
+                              help="승격 폭 (기본 patch — 지정 안 하면 기존 동작과 동일)")
     sub.add_parser("increment-code")
     sub.add_parser("sync")
 
