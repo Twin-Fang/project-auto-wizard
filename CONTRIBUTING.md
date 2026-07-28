@@ -34,7 +34,7 @@ npm run test:py   # Python 테스트만 (tests/py)
 - **Node 쪽(`src/`, `bin/`)**: 외부 의존성을 추가하지 않습니다. `node:*` 내장 모듈만 사용합니다.
 - **Python 쪽(`payload/scripts/`)**: stdlib만 사용합니다(GitHub Actions ubuntu 러너에 기본 탑재된 python3만으로 동작해야 함).
 - 워크플로우 YAML을 수정할 때는 **`payload/workflows/`가 단일 진실**입니다. `.github/workflows/`에 있는 것은 이 레포 자신에게 설치된 산출물(도그푸딩)이며, `payload/` 변경 후 브랜치 플레이스홀더(`{{MAIN_BRANCH}}` → `main`, `{{DEVELOP_BRANCH}}` → `develop`)를 치환해 수동으로 동기화해야 합니다.
-- 커밋 메시지는 [Conventional Commits](https://www.conventionalcommits.org/) 형식을 따릅니다(`feat:`, `fix:`, `docs:`, `chore:` 등).
+- 커밋 메시지는 [Conventional Commits](https://www.conventionalcommits.org/) 형식을 따릅니다(`feat:`, `fix:`, `docs:`, `chore:` 등 타입 접두사는 영어). 단, 접두사 뒤 설명 부분은 **한국어로 작성**합니다. 예: `feat: 로그인 실패 시 재시도 로직 추가`
 
 ## PR 규칙
 
