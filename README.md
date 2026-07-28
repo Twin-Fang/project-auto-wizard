@@ -47,6 +47,32 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 - **멀티타입**: `--type spring,react,python` — 한 레포에 여러 타입 공존
 - **모노레포**: `--paths "flutter=app,react=client"` — 타입별 서브폴더 지정 (마커 파일 자동 감지)
 
+### 질문 문구 커스터마이징
+
+마법사가 묻는 질문의 라벨·도움말·예시 문구는 `.github/config/wizard-prompts.yml`을 만들어 재정의할 수 있습니다(설치되지 않는 파일이라 직접 만들어야 합니다). 타입별로 다른 문구를 쓰고 싶으면 `{type}.KEY` 형태로 오버라이드합니다.
+
+```yaml
+PROJECT_NAME:
+  label: "프로젝트 이름이 뭔가요?"
+  help: "GitHub 레포 이름과 다르게 표시하고 싶을 때만 입력하세요."
+
+flutter.APP_ARTIFACT_NAME:
+  label: "Flutter 앱 아티팩트 이름"
+```
+
+### 타입별 워크플로우 구성
+
+`spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
+
+- **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
+- **spring**: 무중단 배포 2종(Nginx/Traefik) + 단일 서버 배포 + PR 프리뷰 + Nexus publish(opt-in)
+- **react/next**: CI와 CI+CD 분리 구성
+- **python**: CI / PR 프리뷰 / SimpleCICD
+
+### 되돌리기(`--mode revert`)
+
+`npx project-auto-wizard --mode revert`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
+
 ## API 키 0개 AI — 요약 엔진 체인
 
 릴리스 노트는 4단 엔진 체인으로 생성됩니다. **어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
