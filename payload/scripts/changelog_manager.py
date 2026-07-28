@@ -252,6 +252,12 @@ _TIER2_BUCKET_MAP = {
 
 _FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
 
+# 승격 폭 판단 전용 — 타입 뒤 `!` 마커(어떤 타입이든)는 breaking 신호.
+# BREAKING CHANGE: 본문 푸터는 지원하지 않는다(커밋 수집이 제목 한 줄만
+# 가져오는 구조라 본문에 접근 불가 — Conventional Commits 스펙 조항 13에
+# 따르면 `!` 마커 단독으로도 표준을 만족하므로 이는 표준이 허용하는 부분집합).
+_BREAKING_MARKER_RE = re.compile(r'^[a-zA-Z]+(\([^)]*\))?!:')
+
 
 def classify_commits(lines: list[str]) -> dict:
     """
@@ -333,6 +339,34 @@ def render_fallback_md(classified: dict, version: str) -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def classify_bump_level(lines: list[str]) -> str:
+    """커밋 제목 목록에서 semver 승격 폭을 규칙 기반으로 판단.
+
+    - 타입 뒤 `!` 마커 포함 -> major
+    - `feat:`(classify_commits의 feat 버킷과 동일 판정 기준) 포함 -> minor
+    - 그 외(매칭 실패 포함) -> patch
+    """
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or '[skip ci]' in line or line.startswith('Merge '):
+            continue
+        if _BREAKING_MARKER_RE.match(line):
+            return 'major'
+    classified = classify_commits(lines)
+    return 'minor' if classified.get('feat') else 'patch'
+
+
+def cmd_classify_bump(commits_file: str) -> int:
+    """커밋 목록 파일을 읽어 semver 승격 폭(major/minor/patch)을 stdout 마지막 줄에 출력."""
+    try:
+        with open(commits_file, 'r', encoding='utf-8') as f:
+            commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
+    except Exception:
+        commit_lines = []
+    print(classify_bump_level(commit_lines))
+    return 0
 
 
 # ------------------------ 서브커맨드 구현부 ------------------------
@@ -710,6 +744,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser('update-from-summary', help='PR body에서 CHANGELOG.json 갱신')
     sub.add_parser('generate-md', help='CHANGELOG.json → CHANGELOG.md 생성')
 
+    p_classify_bump = sub.add_parser('classify-bump', help='커밋 목록으로 semver 승격 폭(major/minor/patch) 판단')
+    p_classify_bump.add_argument('--commits-file', required=True, help='커밋 제목 목록 파일 (한 줄당 1개)')
+
     p_export = sub.add_parser('export', help='특정 버전 릴리즈 노트 추출')
     p_export.add_argument('--version', required=True, help='버전 번호')
     p_export.add_argument('--output', help='출력 파일 경로 (없으면 stdout)')
@@ -729,6 +766,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_generate_md()
     if args.command == 'export':
         return cmd_export_release_notes(args.version, args.output)
+    if args.command == 'classify-bump':
+        return cmd_classify_bump(args.commits_file)
     if args.command == 'ai-summary':
         return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title, args.diff_stat_file)
     return 2
