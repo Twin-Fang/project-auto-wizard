@@ -123,6 +123,37 @@ npx project-auto-wizard [옵션]
       --force              전 질문 생략 (CI용)
 ```
 
+## 설치 상태 확인 · 진단 · 미리보기
+
+```bash
+npx project-auto-wizard --mode status   # 설치 상태·드리프트 확인 (읽기 전용)
+npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 기반)
+```
+
+| 명령 | 내용 |
+|---|---|
+| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음 |
+| `--mode doctor` | Node/Python 버전, git 원격, 브랜치 존재 여부 등 로컬 환경을 점검합니다. AI 진단은 포함하지 않습니다(규칙 기반 점검만) |
+
+`--dry-run`을 어떤 모드와도 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다(`full`/`version`/`workflows`/`revert` 전체 지원):
+
+```bash
+npx project-auto-wizard --mode full --force --type node --dry-run
+```
+
+### 자동 semver 승격 (`--semver-auto`)
+
+기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, `!` 브레이킹 마커 → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 분류가 애매한 커밋은 AI 엔진 체인이 patch→minor 승격 여부를 판단합니다. 끄면 기존과 동일하게 항상 patch+1입니다.
+
+```bash
+npx project-auto-wizard --semver-auto      # 기본값, 명시 지정도 가능
+npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
+```
+
+### 자체 AI PR 요약봇
+
+CodeRabbit을 쓰지 않는 레포를 위한 대안입니다. `--coderabbit`을 켜지 않으면(기본값) PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다. `--coderabbit`을 켜면 CodeRabbit이 PR 요약을 전담하고 이 봇은 no-op으로 빠집니다(중복 방지, 상호 배타적).
+
 ## 설치 후 확인할 것
 
 | 항목 | 내용 |
