@@ -70,6 +70,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeCodeRabbit = existing?.options?.coderabbit ?? null;
+  let includeSemverAuto = existing?.options?.semverAuto ?? null;
   const showOptional = mode === "full" || mode === "workflows";
   const realTty = process.stdout.isTTY === true;
 
@@ -92,8 +93,15 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       const y = await io.askYesNo("CodeRabbit을 사용합니까? (PR AI 리뷰·요약을 릴리스 노트 1순위로 사용)", false);
       includeCodeRabbit = y === true;
     }
+
+    // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
+    if (includeSemverAuto === null) {
+      const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
+      includeSemverAuto = y2 === true;
+    }
   }
   includeCodeRabbit = includeCodeRabbit === true;
+  includeSemverAuto = includeSemverAuto !== false; // 기본 ON — 명시적으로 false만 OFF
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
@@ -189,6 +197,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const ctx = createContext({
     mode, force: true, types, version, versionCode, branch, branches, paths,
     includeNexus, includeSecretBackup, includeCodeRabbit,
+    includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
   });
   ctx.templateVersion = templateVersion;

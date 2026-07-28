@@ -144,6 +144,7 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     includeNexus: opts.includeNexus ?? existing?.options?.nexus ?? false,
     includeSecretBackup: opts.includeSecretBackup ?? existing?.options?.secretBackup ?? false,
     includeCodeRabbit: opts.includeCodeRabbit ?? existing?.options?.coderabbit ?? false,
+    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? true,
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths),
