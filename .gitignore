@@ -9,3 +9,6 @@ tmp/
 # project-auto-wizard: Auto-added entries
 # ====================================================================
 /.claude/settings.local.json
+
+# issue skill working files
+/.issue
