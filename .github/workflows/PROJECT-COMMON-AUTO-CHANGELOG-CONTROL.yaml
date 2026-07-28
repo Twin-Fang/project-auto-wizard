@@ -101,7 +101,7 @@ jobs:
         run: |
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
-          git diff --stat "origin/main...HEAD" | head -50 > diff_stat.txt
+          { git diff --stat "origin/main...HEAD" | head -49; git diff --stat "origin/main...HEAD" | tail -1; } > diff_stat.txt
           echo "commits to summarize: $(wc -l < commits.txt)"
 
       - name: Request CodeRabbit summary (PR-body-init protection)
