@@ -231,3 +231,59 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     }
   }
 }
+
+// 전체 워크플로우 분류(common + 타입별 + server-deploy + nexus opt-in) — status/dry-run 공용.
+// listWorkflowConflicts와 달리 common 디렉토리도 포함하고, changed뿐 아니라
+// newFiles/unchanged까지 전부 반환한다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
+export function planWorkflows(context, payloadRoot, targetRoot = ".") {
+  const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {} } = context;
+  const workflowsDir = join(targetRoot, PATHS.workflowsDir);
+  const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
+  const srcText = makeSrcText(context.branches || null);
+  const branchMode = context.branches?.mode || "pr-flow";
+  const plan = { newFiles: [], unchanged: [], changed: [] };
+
+  const merge = (result, type, excluded = null) => {
+    for (const bucket of ["newFiles", "unchanged", "changed"]) {
+      for (const filename of result[bucket]) {
+        if (excluded && excluded.has(filename)) continue;
+        plan[bucket].push({ filename, type });
+      }
+    }
+  };
+
+  const commonDir = join(projectTypesDir, "common");
+  if (exists(commonDir)) {
+    const envOpts = { type: "common", projectPath: ".", repoName, resolvers };
+    merge(classify(commonDir, workflowsDir, envOpts, srcText), "common",
+      branchMode === "trunk-based" ? TRUNK_BASED_EXCLUDED : null);
+  }
+
+  // secret-backup은 copyWorkflows처럼 신규 파일만 대상(기존 파일은 절대 덮어쓰지 않는 규약) —
+  // classify()의 changed 판정과 무관하게, 여기서도 존재 여부만으로 new/unchanged를 가른다.
+  const secretDir = join(commonDir, "secret-backup");
+  if (exists(secretDir) && includeSecretBackup) {
+    for (const filename of listYamlFiles(secretDir)) {
+      const dst = join(workflowsDir, filename);
+      plan[existsSync(dst) ? "unchanged" : "newFiles"].push({ filename, type: "common" });
+    }
+  }
+
+  for (const type of types) {
+    const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
+    const typeDir = join(projectTypesDir, type);
+    if (exists(typeDir)) merge(classify(typeDir, workflowsDir, envOpts, srcText), type);
+
+    const serverDeployDir = join(typeDir, "server-deploy");
+    if (exists(serverDeployDir) && !includeNexus) {
+      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText), type);
+    }
+
+    const nexusDir = join(typeDir, "nexus");
+    if (exists(nexusDir) && includeNexus) {
+      merge(classify(nexusDir, workflowsDir, envOpts, srcText), type);
+    }
+  }
+
+  return plan;
+}

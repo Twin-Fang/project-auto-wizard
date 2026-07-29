@@ -70,6 +70,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeCodeRabbit = existing?.options?.coderabbit ?? null;
+  let includeSemverAuto = existing?.options?.semverAuto ?? null;
   const showOptional = mode === "full" || mode === "workflows";
   const realTty = process.stdout.isTTY === true;
 
@@ -92,8 +93,19 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       const y = await io.askYesNo("CodeRabbit을 사용합니까? (PR AI 리뷰·요약을 릴리스 노트 1순위로 사용)", false);
       includeCodeRabbit = y === true;
     }
+
+    // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
+    // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
+    if (mode === "full" && includeSemverAuto === null) {
+      const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
+      includeSemverAuto = y2 === true;
+    }
   }
   includeCodeRabbit = includeCodeRabbit === true;
+  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
+  // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
+  // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
+  includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
@@ -189,6 +201,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const ctx = createContext({
     mode, force: true, types, version, versionCode, branch, branches, paths,
     includeNexus, includeSecretBackup, includeCodeRabbit,
+    includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
   });
   ctx.templateVersion = templateVersion;

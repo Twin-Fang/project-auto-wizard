@@ -249,6 +249,38 @@ class TestAiSummary(unittest.TestCase):
         content = self.output_file.read_text(encoding="utf-8")
         self.assertTrue(len(content.strip()) > 0)
 
+    def test_diff_stat_included_when_provided(self):
+        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        diff_stat_file = Path(self.tmp) / "diff_stat.txt"
+        diff_stat_file.write_text(" src/foo.js | 12 +++++++\n src/bar.js |  3 +--\n", encoding="utf-8")
+
+        mock_resp = _mock_response({"choices": [{"message": {"content": "summary text"}}]})
+
+        with patch.object(changelog_manager.urllib.request, "urlopen", return_value=mock_resp) as mock_urlopen:
+            rc, payload, _ = self._run_main_capture(["--diff-stat-file", str(diff_stat_file)])
+
+        self.assertEqual(rc, 0)
+        req = mock_urlopen.call_args[0][0]
+        body = json.loads(req.data.decode("utf-8"))
+        self.assertIn("src/foo.js", body["messages"][0]["content"])
+
+    def test_missing_diff_stat_file_is_tolerated(self):
+        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        mock_resp = _mock_response({"choices": [{"message": {"content": "summary text"}}]})
+
+        with patch.object(changelog_manager.urllib.request, "urlopen", return_value=mock_resp):
+            rc, payload, _ = self._run_main_capture(["--diff-stat-file", str(Path(self.tmp) / "missing.txt")])
+
+        self.assertEqual(rc, 0)
+        self.assertTrue(payload["ok"])
+
+    def test_no_diff_stat_flag_behaves_exactly_as_before(self):
+        with patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:
+            rc, payload, _ = self._run_main_capture()
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["engine"], "fallback")
+        mock_urlopen.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

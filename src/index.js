@@ -20,6 +20,9 @@ import { runVersion } from "./commands/version.js";
 import { runWorkflows } from "./commands/workflows.js";
 import { runRevert } from "./commands/revert.js";
 import { runInteractive } from "./commands/interactive.js";
+import { runStatus, printStatus } from "./commands/status.js";
+import { runDoctor, printDoctorReport } from "./commands/doctor.js";
+import { planDryRun, printDryRun } from "./commands/dry-run.js";
 
 // 패키지 버전 읽기 (-v/--version 출력용). src/../package.json.
 function readPkgVersion() {
@@ -58,6 +61,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
+    // --dry-run은 대화형 모드에서 조용히 무시되면 안 됨(실제 설치가 진행돼버림) — 명시 에러로 차단.
+    if (opts.dryRun) {
+      console.error("--dry-run은 --mode <full|version|workflows|revert>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
+      return 1;
+    }
     if (!process.stdout.isTTY) {
       console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert> 와 --force 를 지정하세요.");
       return 1;
@@ -67,17 +75,33 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
 
   // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
   if (opts.mode === "revert") {
-    if (!opts.force && !process.stdout.isTTY) {
+    // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
+    if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
+    }
+    if (opts.dryRun) {
+      printDryRun(planDryRun("revert", {}, payload, cwd));
+      return 0;
     }
     const r = runRevert({}, payload, cwd);
     console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개${r.coderabbit ? ", .coderabbit.yaml" : ""}`);
     console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
     return 0;
   }
+  // status 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
+  if (opts.mode === "status") {
+    printStatus(runStatus(payload, cwd));
+    return 0;
+  }
+  // doctor 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
+  if (opts.mode === "doctor") {
+    printDoctorReport(runDoctor(cwd));
+    return 0;
+  }
   // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
-  if (!opts.force && !process.stdout.isTTY) {
+  // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
+  if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
     console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
     return 1;
   }
@@ -107,7 +131,7 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
   // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
-  if (branches.mode === "pr-flow") {
+  if (branches.mode === "pr-flow" && !opts.dryRun) {
     const remoteBranches = await detectRemoteBranches(cwd);
     if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
       await ensureDevelopBranch({
@@ -127,6 +151,10 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     includeNexus: opts.includeNexus ?? existing?.options?.nexus ?? false,
     includeSecretBackup: opts.includeSecretBackup ?? existing?.options?.secretBackup ?? false,
     includeCodeRabbit: opts.includeCodeRabbit ?? existing?.options?.coderabbit ?? false,
+    // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
+    // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
+    // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
+    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths),
@@ -141,6 +169,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   // Breaking Changes 게이트 (.sh execute_integration L4415~4420 등가 — 비대화형은 경고 후 진행)
   const proceed = await runBreakingCheck({ cwd, payloadRoot: payload, templateVersion: context.templateVersion });
   if (!proceed) return 0;
+
+  if (opts.dryRun) {
+    printDryRun(planDryRun(opts.mode, context, payload, cwd));
+    return 0;
+  }
 
   let result = null;
   switch (opts.mode) {

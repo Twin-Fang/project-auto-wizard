@@ -25,6 +25,17 @@ test("no hardcoded branch literals outside placeholders", () => {
   }
 });
 
+test("git diff --stat truncation always preserves the trailing summary line", () => {
+  for (const f of files) {
+    const body = readFileSync(f, "utf8");
+    for (const line of body.split("\n")) {
+      if (line.includes("diff --stat") && line.includes("head -50")) {
+        assert.fail(`${f}: 'head -50' after 'git diff --stat' drops the aggregate summary line — use head -49 + tail -1: ${line}`);
+      }
+    }
+  }
+});
+
 test("no .sh script references in payload", () => {
   for (const f of files) {
     assert.ok(!readFileSync(f, "utf8").includes("version_manager.sh"), f);
@@ -110,4 +121,35 @@ test("RELEASE-PUBLISH guards against [skip ci] commits", () => {
 test("RELEASE-PUBLISH merges GitHub generate-notes into the release notes", () => {
   const body = readFileSync(releasePath, "utf8");
   assert.ok(body.includes("generate-notes"));
+});
+
+// ---------------------------------------------------------------
+// RELEASE-PUBLISH trunk-based semver_auto + diff-stat parity with
+// AUTO-CHANGELOG-CONTROL (final review fix)
+// ---------------------------------------------------------------
+test("RELEASE-PUBLISH reads semver_auto option from version.yml", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("semver_auto:"));
+  assert.ok(body.includes("steps.semver_options.outputs.semver_auto"));
+});
+
+test("RELEASE-PUBLISH calls classify-bump and passes --bump to increment when semver_auto is on", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("changelog_manager.py classify-bump --commits-file commits.txt"));
+  assert.ok(body.includes('version_manager.py increment --bump "$BUMP"'));
+});
+
+test("RELEASE-PUBLISH's classify-bump step has the AI env block", () => {
+  const body = readFileSync(releasePath, "utf8");
+  const bumpStepIndex = body.indexOf("Trunk-based version bump + changelog");
+  const bumpStepBody = body.slice(bumpStepIndex, bumpStepIndex + 400);
+  assert.ok(bumpStepBody.includes("AI_API_KEY"));
+  assert.ok(bumpStepBody.includes("AI_API_BASE_URL"));
+  assert.ok(bumpStepBody.includes("AI_MODEL"));
+  assert.ok(bumpStepBody.includes("GITHUB_TOKEN"));
+});
+
+test("RELEASE-PUBLISH passes --diff-stat-file to ai-summary", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("--diff-stat-file diff_stat.txt"));
 });

@@ -1,0 +1,98 @@
+# ===================================================================
+# PROJECT-COMMON-AI-PR-SUMMARY.yaml
+# Self-hosted AI PR summary bot — CodeRabbit-independent alternative.
+# ===================================================================
+#
+# Posts an AI-generated summary comment on PRs targeting the default
+# branch, using the same zero-API-key engine chain as the release
+# changelog (user API key -> GitHub Models -> rule-based fallback).
+# The prompt includes commit subjects plus a capped `git diff --stat`.
+#
+# Mutually exclusive with CodeRabbit by design: if version.yml
+# metadata.template.options.coderabbit is true, this workflow no-ops
+# immediately — CodeRabbit already covers PR summaries, and posting
+# both on the same PR would be redundant/confusing.
+#
+# Independent from PROJECT-COMMON-AUTO-CHANGELOG-CONTROL: on release
+# PRs both workflows may call the AI engine once each, and when
+# semver_auto is on, AUTO-CHANGELOG-CONTROL's bump classification may
+# add a third AI-assisted call to resolve an ambiguous patch->minor
+# escalation (up to 3 LLM calls total). This is an accepted trade-off
+# for simplicity — GitHub Models is free-tier and rule-based fallback
+# is instant either way.
+# ===================================================================
+
+name: PROJECT-AI-PR-SUMMARY
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+jobs:
+  ai-pr-summary:
+    name: Post AI summary comment
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Read coderabbit option from version.yml
+        id: options
+        run: |
+          CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?coderabbit:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          echo "coderabbit=$CODERABBIT" >> $GITHUB_OUTPUT
+
+      - name: Generate and post AI summary
+        if: steps.options.outputs.coderabbit != 'true'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
+          VERSION=${VERSION:-unreleased}
+
+          git fetch origin main
+          git log --pretty=%s "origin/main..HEAD" > commits.txt
+          git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
+          if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
+            { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
+          else
+            cp _full_diff_stat.txt diff_stat.txt
+          fi
+          rm -f _full_diff_stat.txt
+
+          python3 .github/scripts/changelog_manager.py ai-summary \
+            --commits-file commits.txt \
+            --version "$VERSION" \
+            --output summary.md \
+            --pr-title "$PR_TITLE" \
+            --diff-stat-file diff_stat.txt
+
+          {
+            echo "🤖 **AI Summary (project-auto-wizard)**"
+            echo ""
+            cat summary.md
+          } > comment_body.md
+
+          python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
+
+          curl -sf -H "Authorization: token ${{ github.token }}" \
+               -H "Content-Type: application/json" \
+               -X POST \
+               -d @comment_payload.json \
+               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
+            || echo "comment post failed — continuing (this workflow never blocks the PR)"

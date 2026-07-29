@@ -1,6 +1,6 @@
 // Task 12 게이트 — payload 단일 진실 배선 검증.
 // 1) resolvePayloadRoot()가 패키지 루트의 payload/를 가리킨다
-// 2) listCommonWorkflows()가 RELEASE-PUBLISH 포함 common 4종을 반환한다
+// 2) listCommonWorkflows()가 RELEASE-PUBLISH 포함 common 5종을 반환한다
 // 3) 제외된 모듈(ide/skills/issues/labels UI/exclusions) import가 src에 잔존하지 않는다
 // 4) copyScripts가 payload/scripts/*.py를 .github/scripts/로 설치한다 (누락 시 설치물 런타임 사망)
 import { test } from "node:test";
@@ -24,10 +24,11 @@ test("readTemplateVersion returns the package.json version", () => {
   assert.strictEqual(readTemplateVersion(), pkg.version);
 });
 
-test("listCommonWorkflows returns the 4 common workflows incl. RELEASE-PUBLISH", () => {
+test("listCommonWorkflows returns the 5 common workflows incl. RELEASE-PUBLISH", () => {
   const names = listCommonWorkflows();
-  assert.strictEqual(names.length, 4, `expected 4, got ${names.length}: ${names}`);
+  assert.strictEqual(names.length, 5, `expected 5, got ${names.length}: ${names}`);
   for (const wf of [
+    "PROJECT-COMMON-AI-PR-SUMMARY.yaml",
     "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
     "PROJECT-COMMON-README-VERSION-UPDATE.yaml",
     "PROJECT-COMMON-RELEASE-PUBLISH.yaml",

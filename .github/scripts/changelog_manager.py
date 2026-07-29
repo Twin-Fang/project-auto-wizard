@@ -252,6 +252,12 @@ _TIER2_BUCKET_MAP = {
 
 _FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
 
+# 승격 폭 판단 전용 — 타입 뒤 `!` 마커(어떤 타입이든)는 breaking 신호.
+# BREAKING CHANGE: 본문 푸터는 지원하지 않는다(커밋 수집이 제목 한 줄만
+# 가져오는 구조라 본문에 접근 불가 — Conventional Commits 스펙 조항 13에
+# 따르면 `!` 마커 단독으로도 표준을 만족하므로 이는 표준이 허용하는 부분집합).
+_BREAKING_MARKER_RE = re.compile(r'^[a-zA-Z]+(\([^)]*\))?!:')
+
 
 def classify_commits(lines: list[str]) -> dict:
     """
@@ -333,6 +339,81 @@ def render_fallback_md(classified: dict, version: str) -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def classify_bump_level(lines: list[str]) -> str:
+    """커밋 제목 목록에서 semver 승격 폭을 규칙 기반으로 판단.
+
+    - 타입 뒤 `!` 마커 포함 -> major
+    - `feat:`(classify_commits의 feat 버킷과 동일 판정 기준) 포함 -> minor
+    - 그 외(매칭 실패 포함) -> patch
+    """
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or '[skip ci]' in line or line.startswith('Merge '):
+            continue
+        if _BREAKING_MARKER_RE.match(line):
+            return 'major'
+    classified = classify_commits(lines)
+    return 'minor' if classified.get('feat') else 'patch'
+
+
+_BUMP_AI_PROMPT_PREFIX = (
+    "다음은 정해진 커밋 컨벤션을 따르지 않는 자유형식 커밋 메시지들이다.\n"
+    "이 중 사용자 대상 새로운 기능(feature) 추가로 보이는 것이 하나라도 있으면 정확히 MINOR라고만 답하고,\n"
+    "없으면 정확히 PATCH라고만 답해라. 다른 말은 절대 덧붙이지 마라.\n"
+    "커밋 목록:\n"
+)
+
+
+def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
+    """규칙 분류가 patch일 때, 미분류 자유형식 커밋에 한해 AI에게 minor 업그레이드
+    여부만 보조 판단시킨다. AI는 절대 major를 만들 수 없다 — major는 항상 명시적
+    `!` 마커만 신뢰한다(classify_bump_level에서 이미 확정됨). 응답이 정확히
+    'MINOR'가 아니거나 호출이 실패하면 무조건 False(규칙 결과 patch 유지)."""
+    if not unclassified_lines:
+        return False
+    prompt = _BUMP_AI_PROMPT_PREFIX + "\n".join(f"- {line}" for line in unclassified_lines)
+
+    ai_api_key = os.environ.get('AI_API_KEY')
+    github_token = os.environ.get('GITHUB_TOKEN')
+    candidates = [
+        (ai_api_key, os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL, os.environ.get('AI_MODEL') or _AI_DEFAULT_MODEL),
+        (github_token, _AI_DEFAULT_BASE_URL, _AI_DEFAULT_MODEL),
+    ]
+    for token, base_url, model in candidates:
+        if not token:
+            continue
+        try:
+            response = call_openai_compatible(base_url, token, model, prompt)
+            return response.strip() == 'MINOR'
+        except Exception as e:
+            print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
+            continue
+    return False
+
+
+def cmd_classify_bump(commits_file: str) -> int:
+    """커밋 목록 파일을 읽어 semver 승격 폭(major/minor/patch)을 stdout 마지막 줄에 출력.
+
+    규칙 우선(feat->minor, !마커->major, 그외->patch). 규칙 결과가 patch이고
+    분류 안 된 자유형식 커밋이 있으면, AI에게 patch->minor 업그레이드 여부만
+    보조 판단시킨다(major는 AI가 절대 만들 수 없음).
+    """
+    try:
+        with open(commits_file, 'r', encoding='utf-8') as f:
+            commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
+    except Exception:
+        commit_lines = []
+
+    bump = classify_bump_level(commit_lines)
+    if bump == 'patch':
+        classified = classify_commits(commit_lines)
+        if _ai_assisted_minor_upgrade(classified.get('changes') or []):
+            bump = 'minor'
+
+    print(bump)
+    return 0
 
 
 # ------------------------ 서브커맨드 구현부 ------------------------
@@ -580,7 +661,7 @@ _AI_DEFAULT_BASE_URL = "https://models.github.ai/inference"
 _AI_DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
-def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str) -> str:
+def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str, diff_stat: str | None = None) -> str:
     """AI에게 보낼 한국어 릴리즈 요약 프롬프트를 구성.
 
     요청하는 출력 형식은 규칙 기반 폴백 렌더러(render_fallback_md)와 동일한
@@ -596,6 +677,9 @@ def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str
     ]
     if pr_title:
         parts.append(f"PR 제목: {pr_title}")
+    if diff_stat and diff_stat.strip():
+        parts.append("파일별 변경 요약:")
+        parts.append(diff_stat.strip())
     parts.append("커밋 목록:")
     parts.extend(f"- {line}" for line in commit_lines)
     return "\n".join(parts)
@@ -623,13 +707,21 @@ def call_openai_compatible(base_url: str, token: str, model: str, prompt: str) -
     return body["choices"][0]["message"]["content"]
 
 
-def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: str | None) -> int:
+def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: str | None, diff_stat_file: str | None = None) -> int:
     """커밋 목록을 읽어 AI(우선) 또는 규칙 기반 폴백으로 릴리즈 요약을 생성."""
     try:
         with open(commits_file, 'r', encoding='utf-8') as f:
             commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
     except Exception:
         commit_lines = []
+
+    diff_stat = None
+    if diff_stat_file:
+        try:
+            with open(diff_stat_file, 'r', encoding='utf-8') as f:
+                diff_stat = f.read()
+        except Exception:
+            diff_stat = None
 
     ai_api_key = os.environ.get('AI_API_KEY')
     ai_base_url = os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL
@@ -638,7 +730,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 
     engine = None
     summary_text = None
-    prompt = _build_ai_prompt(commit_lines, pr_title, version)
+    prompt = _build_ai_prompt(commit_lines, pr_title, version, diff_stat)
 
     if ai_api_key:
         try:
@@ -699,6 +791,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser('update-from-summary', help='PR body에서 CHANGELOG.json 갱신')
     sub.add_parser('generate-md', help='CHANGELOG.json → CHANGELOG.md 생성')
 
+    p_classify_bump = sub.add_parser('classify-bump', help='커밋 목록으로 semver 승격 폭(major/minor/patch) 판단')
+    p_classify_bump.add_argument('--commits-file', required=True, help='커밋 제목 목록 파일 (한 줄당 1개)')
+
     p_export = sub.add_parser('export', help='특정 버전 릴리즈 노트 추출')
     p_export.add_argument('--version', required=True, help='버전 번호')
     p_export.add_argument('--output', help='출력 파일 경로 (없으면 stdout)')
@@ -708,6 +803,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ai_summary.add_argument('--version', required=True, help='버전 번호')
     p_ai_summary.add_argument('--output', required=True, help='요약 결과를 저장할 파일 경로')
     p_ai_summary.add_argument('--pr-title', help='PR 제목 (프롬프트 컨텍스트로 사용, 선택)')
+    p_ai_summary.add_argument('--diff-stat-file', help='git diff --stat 출력 파일 (프롬프트 컨텍스트 확장, 선택)')
 
     args = parser.parse_args(argv)
 
@@ -717,8 +813,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_generate_md()
     if args.command == 'export':
         return cmd_export_release_notes(args.version, args.output)
+    if args.command == 'classify-bump':
+        return cmd_classify_bump(args.commits_file)
     if args.command == 'ai-summary':
-        return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title)
+        return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title, args.diff_stat_file)
     return 2
 
 

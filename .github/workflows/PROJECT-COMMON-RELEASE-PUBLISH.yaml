@@ -13,10 +13,16 @@
 #   exits cleanly. Version + changelog were already confirmed in the PR.
 #
 # - trunk-based: every direct push to main is a release.
-#   This job bumps the version (patch +1 and sync), summarizes the commits
-#   since the last tag with the ai-summary engine chain (user API ->
-#   GitHub Models -> rule-based fallback), updates CHANGELOG.json /
-#   CHANGELOG.md, and commits everything back with [skip ci].
+#   This job bumps the version and syncs it, summarizes the commits since
+#   the last tag with the ai-summary engine chain (user API -> GitHub
+#   Models -> rule-based fallback, diff-stat-enriched prompt), updates
+#   CHANGELOG.json / CHANGELOG.md, and commits everything back with
+#   [skip ci]. Same as pr-flow's AUTO-CHANGELOG-CONTROL:
+#   - If version.yml metadata.template.options.semver_auto is true
+#     (default): classifies commits (feat -> minor, `!` marker -> major,
+#     else patch; AI-assisted patch->minor upgrade for unclassified
+#     commits) and bumps accordingly.
+#   - Otherwise: always patch+1 (legacy behavior).
 #
 # Common tail (both modes): recovery-aware idempotency guard (tag and
 # release checked separately so a half-published release can be finished
@@ -102,6 +108,19 @@ jobs:
             echo "not a release-confirm push in pr-flow mode — skipping (clean exit)"
           fi
 
+      - name: Read semver_auto option from version.yml
+        id: semver_options
+        if: >-
+          steps.gate.outputs.proceed == 'true' &&
+          steps.mode.outputs.mode == 'trunk-based' &&
+          github.event_name == 'push'
+        run: |
+          # scoped to the metadata: -> template: -> options: chain so an
+          # unrelated "semver_auto:" key can never hijack the value
+          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
+          echo "semver_auto option: $SEMVER_AUTO"
+
       - name: Trunk-based version bump + changelog
         if: >-
           steps.gate.outputs.proceed == 'true' &&
@@ -123,28 +142,48 @@ jobs:
             exit 0
           fi
 
-          NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
+          # Commits (and diff-stat) since the last tag — this is "what's in
+          # this release" for trunk-based pushes. Fall back to the full
+          # history / a diff against the empty tree on the first-ever
+          # release (no previous tag to diff against).
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "collecting commits since $LAST_TAG"
+            git log --pretty=%s "${LAST_TAG}..HEAD" > commits.txt
+            DIFF_BASE="$LAST_TAG"
+          else
+            echo "no previous tag — collecting the full history"
+            git log --pretty=%s > commits.txt
+            DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
+          fi
+          git diff --stat "${DIFF_BASE}..HEAD" > _full_diff_stat.txt
+          if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
+            { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
+          else
+            cp _full_diff_stat.txt diff_stat.txt
+          fi
+          rm -f _full_diff_stat.txt
+
+          if [ "${{ steps.semver_options.outputs.semver_auto }}" = "true" ]; then
+            BUMP=$(python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt | tail -n 1)
+          else
+            BUMP="patch"
+          fi
+          echo "bump level: $BUMP"
+
+          NEW_VERSION=$(python3 .github/scripts/version_manager.py increment --bump "$BUMP" | tail -n 1)
           if [ -z "$NEW_VERSION" ]; then
             echo "version bump failed"
             exit 1
           fi
           python3 .github/scripts/version_manager.py sync
-          echo "release version: $NEW_VERSION"
-
-          # Commits since the last tag (fall back to full history on first release)
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            echo "collecting commits since $LAST_TAG"
-            git log --pretty=%s "${LAST_TAG}..HEAD" > commits.txt
-          else
-            echo "no previous tag — collecting the full history"
-            git log --pretty=%s > commits.txt
-          fi
+          echo "release version: $NEW_VERSION ($BUMP)"
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
             --version "$NEW_VERSION" \
-            --output summary.md
+            --output summary.md \
+            --diff-stat-file diff_stat.txt
 
           # Same input channel as AUTO-CHANGELOG-CONTROL:
           # update-from-summary reads ./pr_body.md
@@ -165,7 +204,7 @@ jobs:
           python3 .github/scripts/changelog_manager.py update-from-summary
           python3 .github/scripts/changelog_manager.py generate-md
 
-          rm -f pr_body.md summary.md commits.txt
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt
 
           git add -A
           if git diff --staged --quiet; then

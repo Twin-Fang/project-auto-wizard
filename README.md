@@ -47,6 +47,32 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 - **멀티타입**: `--type spring,react,python` — 한 레포에 여러 타입 공존
 - **모노레포**: `--paths "flutter=app,react=client"` — 타입별 서브폴더 지정 (마커 파일 자동 감지)
 
+### 질문 문구 커스터마이징
+
+마법사가 묻는 질문의 라벨·도움말·예시 문구는 `.github/config/wizard-prompts.yml`을 만들어 재정의할 수 있습니다(설치되지 않는 파일이라 직접 만들어야 합니다). 타입별로 다른 문구를 쓰고 싶으면 `{type}.KEY` 형태로 오버라이드합니다.
+
+```yaml
+PROJECT_NAME:
+  label: "프로젝트 이름이 뭔가요?"
+  help: "GitHub 레포 이름과 다르게 표시하고 싶을 때만 입력하세요."
+
+flutter.APP_ARTIFACT_NAME:
+  label: "Flutter 앱 아티팩트 이름"
+```
+
+### 타입별 워크플로우 구성
+
+`spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
+
+- **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
+- **spring**: 무중단 배포 2종(Nginx/Traefik) + 단일 서버 배포 + PR 프리뷰 + Nexus publish(opt-in)
+- **react/next**: CI와 CI+CD 분리 구성
+- **python**: CI / PR 프리뷰 / SimpleCICD
+
+### 되돌리기(`--mode revert`)
+
+`npx project-auto-wizard --mode revert`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
+
 ## API 키 0개 AI — 요약 엔진 체인
 
 릴리스 노트는 4단 엔진 체인으로 생성됩니다. **어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
@@ -85,7 +111,7 @@ flowchart LR
 ```
 npx project-auto-wizard [옵션]
 
-  -m, --mode MODE          full | version | workflows  (기본: 대화형)
+  -m, --mode MODE          full | version | workflows | revert | status | doctor  (기본: 대화형)
   -t, --type CSV           spring,react,... (미지정 시 자동 감지)
       --project-version V  초기 버전 (미지정 시 자동 감지)
       --paths "t=p,..."    모노레포 타입별 경로
@@ -94,8 +120,43 @@ npx project-auto-wizard [옵션]
       --nexus              Nexus 라이브러리 publish 워크플로우 포함
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --coderabbit         CodeRabbit PR 요약을 릴리스 노트 1순위로
+      --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
+      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
       --force              전 질문 생략 (CI용)
 ```
+
+## 설치 상태 확인 · 진단 · 미리보기
+
+```bash
+npx project-auto-wizard --mode status   # 설치 상태·드리프트 확인 (읽기 전용)
+npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 기반)
+```
+
+| 명령 | 내용 |
+|---|---|
+| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
+| `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
+
+`--dry-run`을 어떤 모드와도 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다(`full`/`version`/`workflows`/`revert` 전체 지원):
+
+```bash
+npx project-auto-wizard --mode full --force --type node --dry-run
+```
+
+### 자동 semver 승격 (`--semver-auto`)
+
+기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, `!` 브레이킹 마커 → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 분류가 애매한 커밋은 AI 엔진 체인이 patch→minor 승격 여부를 판단합니다. 끄면 기존과 동일하게 항상 patch+1입니다.
+
+```bash
+npx project-auto-wizard --semver-auto      # 기본값, 명시 지정도 가능
+npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
+```
+
+### 자체 AI PR 요약봇
+
+CodeRabbit을 쓰지 않는 레포를 위한 대안입니다. `--coderabbit`을 켜지 않으면(기본값) 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다. `--coderabbit`을 켜면 CodeRabbit이 PR 요약을 전담하고 이 봇은 no-op으로 빠집니다(중복 방지, 상호 배타적).
+
+기본 설치(pr-flow) 기준으로 일상적인 기능 PR은 `develop`을 대상으로 열리므로, 이 봇은 develop→main 릴리스 PR에서만 실제로 동작합니다 — 해당 PR에서는 `AUTO-CHANGELOG-CONTROL`이 이미 같은 엔진으로 체인지로그 요약을 생성하므로, 이 봇은 그 요약을 PR 코멘트 형태로도 남겨주는 보조 역할입니다. 릴리스 브랜치 = 개발 브랜치인 trunk-based 모드에서는 모든 PR이 곧 릴리스 대상 브랜치를 향하므로 매 PR마다 동작합니다.
 
 ## 설치 후 확인할 것
 

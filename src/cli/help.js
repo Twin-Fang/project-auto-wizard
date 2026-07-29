@@ -5,8 +5,9 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
   npx project-auto-wizard [옵션]
 
 옵션:
-  -m, --mode MODE          통합 모드 (full | version | workflows | revert)
+  -m, --mode MODE          통합 모드 (full | version | workflows | revert | status | doctor)
                            기본: interactive (대화형). revert = 설치물 제거(되돌리기)
+                           status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
                            지원: spring flutter next react react-native
                                  react-native-expo node python basic
@@ -17,11 +18,16 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --nexus / --no-nexus            Nexus 라이브러리 publish 워크플로우 포함/제외
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --coderabbit / --no-coderabbit  CodeRabbit PR 요약을 릴리스 노트 1순위로 사용 (기본: 사용 안 함)
+      --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
       --force              모든 확인 생략, 비대화형 기본값 사용
+      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/version/workflows/revert 전체 지원)
   -v, --version            project-auto-wizard 버전 출력
   -h, --help               이 도움말 표시
 
 예시:
   npx project-auto-wizard --mode full --force --type spring,react
   npx project-auto-wizard --mode workflows --type flutter --paths "flutter=app"
+  npx project-auto-wizard --mode status
+  npx project-auto-wizard --mode doctor
+  npx project-auto-wizard --mode full --force --type node --dry-run
 `;

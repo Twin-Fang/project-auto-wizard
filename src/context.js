@@ -18,6 +18,7 @@ export function createContext(overrides = {}) {
     includeNexus: null,      // null=미설정, true/false=명시
     includeSecretBackup: null,
     includeCodeRabbit: null, // CodeRabbit opt-in (기본 false — version.yml options.coderabbit에 기록)
+    includeSemverAuto: null, // null=미설정(다운스트림에서 true로 해석), true/false=명시
     templateVersion: "",
     deployValues: new Map(), // "type.KEY" -> value
     counters: {},
