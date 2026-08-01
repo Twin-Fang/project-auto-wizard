@@ -37,6 +37,26 @@ function stubIo({ multiselectReturn, confirmReturn }) {
   };
 }
 
+function stubIoWithCapture({ multiselectReturn, confirmReturn }) {
+  const notes = [];
+  const cancels = [];
+  const multiselectCalls = [];
+  return {
+    io: {
+      engineIo: {
+        multiselect: async (args) => {
+          multiselectCalls.push(args);
+          return multiselectReturn;
+        }
+      },
+      askYesNo: async () => confirmReturn,
+      note: (text, title) => notes.push({ text, title }),
+      cancelMessage: (text) => cancels.push(text),
+    },
+    notes, cancels, multiselectCalls,
+  };
+}
+
 test("runUninstallFlow: no items available -> notes and returns null without prompting for a choice", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-uninstall-flow-empty-"));
   try {
@@ -82,6 +102,40 @@ test("runUninstallFlow: selecting only readme removes just the version section",
     assert.strictEqual(result.readme, true);
     assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // 미선택 항목은 유지
     assert.ok(!readFileSync(join(target, "README.md"), "utf8").includes("AUTO-VERSION-SECTION"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("runUninstallFlow: multiselect returns empty array (user deselects all) -> nothing removed", async () => {
+  const target = installFixture();
+  try {
+    const { io, cancels } = stubIo({ multiselectReturn: [], confirmReturn: true });
+    const result = await runUninstallFlow(resolvePayloadRoot(), target, io);
+    assert.strictEqual(result, null);
+    assert.strictEqual(cancels.length, 1);
+    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py")));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("runUninstallFlow: default checked items are exactly SAFE_ITEMS", async () => {
+  const target = installFixture();
+  try {
+    const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: ["workflows"], confirmReturn: true });
+    const result = await runUninstallFlow(resolvePayloadRoot(), target, io);
+
+    // 다중선택 호출 검증
+    assert.strictEqual(multiselectCalls.length, 1);
+    const call = multiselectCalls[0];
+
+    // initialValues가 정확히 SAFE_ITEMS를 포함해야 함 (순서 중요)
+    assert.deepStrictEqual(call.initialValues, ["workflows", "scripts", "coderabbit"]);
+
+    // 선택한 항목만 제거되었는지 확인
+    assert.strictEqual(result.workflows.length > 0, true);
+    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // scripts 미선택
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
