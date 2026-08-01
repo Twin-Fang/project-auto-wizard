@@ -32,7 +32,7 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   return { existed: existing !== null, changed: existing !== wouldBe };
 }
 
-// mode: "full" | "version" | "workflows" | "revert". 읽기 전용 — 아무 파일도 쓰지 않는다.
+// mode: "full" | "version" | "workflows" | "revert" | "uninstall". 읽기 전용 — 아무 파일도 쓰지 않는다.
 export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
   if (mode === "revert") return { mode, revert: planRevert(payloadRoot, targetRoot) };
   if (mode === "uninstall") {

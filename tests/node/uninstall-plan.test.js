@@ -86,6 +86,22 @@ test("runUninstall: safe selection leaves readme/gitignore/version.yml untouched
   }
 });
 
+test("runUninstall: README in unexpected format is not falsely reported as removed", () => {
+  const target = installFixture();
+  try {
+    // 사용자가 CHANGELOG 링크 줄을 지워 removeVersionSectionFromReadme가 skip하게 만든다.
+    const readmePath = join(target, "README.md");
+    const content = readFileSync(readmePath, "utf8").replace("[전체 버전 기록 보기](CHANGELOG.md)\n", "");
+    writeFileSync(readmePath, content);
+
+    const result = runUninstall({}, resolvePayloadRoot(), target, FULL_SELECTION);
+    assert.strictEqual(result.readme, false); // 실제로는 제거되지 않았으므로 false여야 함
+    assert.strictEqual(readFileSync(readmePath, "utf8"), content); // README는 그대로 보존
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("planUninstall: nothing installed -> everything false/empty", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-uninstall-empty-"));
   try {

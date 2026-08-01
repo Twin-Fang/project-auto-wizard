@@ -111,3 +111,24 @@ test("removeVersionSectionFromReadme: marker block present but tail line missing
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("removeVersionSectionFromReadme: tail found far beyond the wizard's block -> skip-unexpected-format, untouched (guards against deleting relocated user content)", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-readme-remove-"));
+  try {
+    const original = "# Test Project\n";
+    writeFileSync(join(target, "README.md"), original);
+    addVersionSectionToReadme("1.0.0", target);
+    const withSection = readFileSync(join(target, "README.md"), "utf8");
+    // 사용자가 CHANGELOG 링크 줄을 지우고, 문서 뒤쪽 먼 곳으로 "옮겨 적었다"고 가정 —
+    // 사이에 낀 사용자 콘텐츠까지 삭제되면 안 된다.
+    const withoutTail = withSection.replace("[전체 버전 기록 보기](CHANGELOG.md)\n", "");
+    const farContent = withoutTail + "x".repeat(400) + "\n[전체 버전 기록 보기](CHANGELOG.md)\n";
+    writeFileSync(join(target, "README.md"), farContent);
+
+    const status = removeVersionSectionFromReadme(target);
+    assert.strictEqual(status, "skip-unexpected-format");
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), farContent);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

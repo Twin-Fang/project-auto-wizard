@@ -34,10 +34,14 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
     remove(cr);
     if (existsSync(cr + ".bak")) renameSync(cr + ".bak", cr);
   }
-  if (plan.readme) removeVersionSectionFromReadme(targetRoot);
-  if (plan.gitignore) removeAutoAddedEntriesFromGitignore(targetRoot);
+  // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
+  // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
+  // 실제 결과로 plan을 덮어써서 호출부(CLI/대화형 요약)가 거짓 성공을 보고하지 않게 한다.
+  const readmeRemoved = plan.readme && removeVersionSectionFromReadme(targetRoot) === "removed";
+  const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
+  const gitignoreRemoved = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
   if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
-  return plan;
+  return { ...plan, readme: readmeRemoved, gitignore: gitignoreRemoved };
 }
 
 // ── 대화형 체크리스트 흐름 ────────────────────────────────────────────

@@ -58,10 +58,13 @@ export function removeVersionSectionFromReadme(targetRoot = ".") {
   const idx = content.indexOf(SECTION_PREFIX);
   if (idx !== -1) {
     // 마법사가 append한 전체 블록 케이스 — SECTION_TAIL 라인까지만 잘라내고 그 이후는 보존한다.
-    // tail을 못 찾으면(사용자가 그 줄을 지웠다면) 어디까지가 "마법사 구간"인지 알 수 없으므로
-    // 안전하게 포기한다.
+    // tail을 못 찾거나(사용자가 그 줄을 지웠다면), 위저드 블록치고 너무 먼 곳에서 발견되면
+    // (사용자가 같은 문구를 자기 문서 어딘가로 옮겨 적은 경우) 그 사이 사용자 콘텐츠까지
+    // 지워버릴 수 있으므로 어디까지가 "마법사 구간"인지 확신할 수 없어 안전하게 포기한다.
+    // 위저드 블록은 버전 문자열이 길어져도 수백 바이트를 넘지 않는다.
+    const MAX_SECTION_LENGTH = 300;
     const tailIdx = content.indexOf(SECTION_TAIL, idx);
-    if (tailIdx === -1) return "skip-unexpected-format";
+    if (tailIdx === -1 || tailIdx > idx + MAX_SECTION_LENGTH) return "skip-unexpected-format";
     const cutEnd = tailIdx + SECTION_TAIL.length;
     writeFileSync(p, content.slice(0, idx) + content.slice(cutEnd));
     return "removed";
