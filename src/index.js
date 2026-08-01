@@ -19,6 +19,8 @@ import { runFull } from "./commands/full.js";
 import { runVersion } from "./commands/version.js";
 import { runWorkflows } from "./commands/workflows.js";
 import { runRevert } from "./commands/revert.js";
+import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
+import * as prompts from "./ui/prompts.js";
 import { runInteractive } from "./commands/interactive.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
@@ -63,11 +65,11 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
   if (opts.mode === "interactive") {
     // --dry-run은 대화형 모드에서 조용히 무시되면 안 됨(실제 설치가 진행돼버림) — 명시 에러로 차단.
     if (opts.dryRun) {
-      console.error("--dry-run은 --mode <full|version|workflows|revert>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
+      console.error("--dry-run은 --mode <full|version|workflows|revert|uninstall>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
       return 1;
     }
     if (!process.stdout.isTTY) {
-      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert> 와 --force 를 지정하세요.");
+      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert|uninstall> 와 --force 를 지정하세요.");
       return 1;
     }
     return await runInteractive({}, { cwd, payloadRoot: payload, clock });
@@ -89,6 +91,35 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
     return 0;
   }
+
+  // uninstall 모드 — revert보다 넓게 README·gitignore·version.yml까지 선택적으로 제거.
+  if (opts.mode === "uninstall") {
+    const safeSelection = {
+      workflows: true, scripts: true, coderabbit: true,
+      readme: opts.purgeReadme, gitignore: opts.purgeGitignore, versionYml: opts.purgeVersion,
+    };
+    if (opts.dryRun) {
+      printDryRun(planDryRun("uninstall", { uninstallSelection: safeSelection }, payload, cwd));
+      return 0;
+    }
+    if (opts.force) {
+      const r = runUninstall({}, payload, cwd, safeSelection);
+      const removed = [
+        `워크플로우 ${r.workflows.length}개`, `스크립트 ${r.scripts.length}개`,
+        r.coderabbit && ".coderabbit.yaml", r.readme && "README 버전 섹션",
+        r.gitignore && ".gitignore 자동 추가 항목", r.versionYml && "version.yml",
+      ].filter(Boolean).join(", ");
+      console.error(`제거됨 — ${removed}`);
+      return 0;
+    }
+    if (!process.stdout.isTTY) {
+      console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+      return 1;
+    }
+    await runUninstallFlow(payload, cwd, prompts);
+    return 0;
+  }
+
   // status 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
   if (opts.mode === "status") {
     printStatus(runStatus(payload, cwd));

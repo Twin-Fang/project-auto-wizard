@@ -19,6 +19,9 @@ export function parseArgs(argv) {
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
     dryRun: false,        // --dry-run: 실제 변경 없이 미리보기만 (full/version/workflows/revert 공통)
+    purgeReadme: false,       // --purge-readme: uninstall --force 시 README 버전 섹션도 제거
+    purgeGitignore: false,    // --purge-gitignore: uninstall --force 시 .gitignore 자동 추가 항목도 제거
+    purgeVersion: false,      // --purge-version: uninstall --force 시 version.yml도 제거
   };
   const args = [...argv];
   while (args.length > 0) {
@@ -52,6 +55,9 @@ export function parseArgs(argv) {
       }
       case "--force": result.force = true; break;
       case "--dry-run": result.dryRun = true; break;
+      case "--purge-readme": result.purgeReadme = true; break;
+      case "--purge-gitignore": result.purgeGitignore = true; break;
+      case "--purge-version": result.purgeVersion = true; break;
       case "--nexus": result.includeNexus = true; break;
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
