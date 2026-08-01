@@ -7,6 +7,7 @@ import { remove } from "../core/fsutil.js";
 import { planRevert } from "./revert.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
+import { CANCEL } from "../ui/prompts.js";
 
 // selection: { workflows, scripts, coderabbit, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
@@ -37,4 +38,88 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
   if (plan.gitignore) removeAutoAddedEntriesFromGitignore(targetRoot);
   if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
   return plan;
+}
+
+// ── 대화형 체크리스트 흐름 ────────────────────────────────────────────
+const ITEM_DEFS = [
+  { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml)" },
+  { key: "scripts", label: "스크립트 (.github/scripts/*.py)" },
+  { key: "coderabbit", label: ".coderabbit.yaml" },
+  { key: "readme", label: "README.md 버전 섹션 (AUTO-VERSION-SECTION)" },
+  { key: "gitignore", label: ".gitignore 자동 추가 항목" },
+  { key: "versionYml", label: "version.yml (버전/브랜치 설정 전체)" },
+];
+
+// 기본 체크 상태 — 설치 시 옵션(nexus/secret-backup/coderabbit)이 opt-in인 것과 대칭으로,
+// 여기서는 "안전 삭제" 3종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
+export const SAFE_ITEMS = ["workflows", "scripts", "coderabbit"];
+
+function detectAvailableItems(payloadRoot, targetRoot) {
+  const revertPlan = planRevert(payloadRoot, targetRoot);
+  const presence = {
+    workflows: revertPlan.workflows.length > 0,
+    scripts: revertPlan.scripts.length > 0,
+    coderabbit: revertPlan.coderabbit,
+    readme: hasVersionSection(targetRoot),
+    gitignore: hasAutoAddedEntries(targetRoot),
+    versionYml: existsSync(join(targetRoot, PATHS.versionFile)),
+  };
+  return ITEM_DEFS.filter((d) => presence[d.key]).map((d) => ({ value: d.key, label: d.label }));
+}
+
+function toSelection(checkedKeys) {
+  const set = new Set(checkedKeys);
+  return {
+    workflows: set.has("workflows"), scripts: set.has("scripts"), coderabbit: set.has("coderabbit"),
+    readme: set.has("readme"), gitignore: set.has("gitignore"), versionYml: set.has("versionYml"),
+  };
+}
+
+function summarizeSelection(selection) {
+  const labelOf = Object.fromEntries(ITEM_DEFS.map((d) => [d.key, d.label]));
+  const chosen = Object.keys(selection).filter((k) => selection[k]).map((k) => `- ${labelOf[k]}`);
+  return chosen.length ? chosen.join("\n") : "(선택된 항목 없음)";
+}
+
+function summarizeResult(result) {
+  const lines = [];
+  if (result.workflows.length) lines.push(`워크플로우 ${result.workflows.length}개 제거`);
+  if (result.scripts.length) lines.push(`스크립트 ${result.scripts.length}개 제거`);
+  if (result.coderabbit) lines.push(".coderabbit.yaml 제거");
+  if (result.readme) lines.push("README.md 버전 섹션 제거");
+  if (result.gitignore) lines.push(".gitignore 자동 추가 항목 제거");
+  if (result.versionYml) lines.push("version.yml 제거");
+  return lines.length ? lines.join("\n") : "제거된 항목이 없습니다.";
+}
+
+// io 계약: engineIo.multiselect({message,options,initialValues}), askYesNo(msg,def),
+// note(text,title)?, cancelMessage(text)? — src/ui/prompts.js가 실물, 테스트는 스텁 주입.
+export async function runUninstallFlow(payloadRoot, targetRoot, io) {
+  const available = detectAvailableItems(payloadRoot, targetRoot);
+  if (available.length === 0) {
+    io.note?.("제거할 항목이 없습니다.", "완전 삭제");
+    return null;
+  }
+
+  const checked = await io.engineIo.multiselect({
+    message: "삭제할 항목을 선택하세요 (Space 토글, Enter 확정)",
+    options: available,
+    initialValues: available.map((o) => o.value).filter((v) => SAFE_ITEMS.includes(v)),
+  });
+  if (checked === CANCEL || !Array.isArray(checked) || checked.length === 0) {
+    io.cancelMessage?.("완전 삭제를 취소했습니다.");
+    return null;
+  }
+
+  const selection = toSelection(checked);
+  io.note?.(summarizeSelection(selection), "삭제 예정 항목");
+  const ok = await io.askYesNo("정말 삭제할까요? 되돌릴 수 없습니다.", false);
+  if (ok !== true) {
+    io.cancelMessage?.("완전 삭제를 취소했습니다.");
+    return null;
+  }
+
+  const result = runUninstall({}, payloadRoot, targetRoot, selection);
+  io.note?.(summarizeResult(result), "완전 삭제 완료");
+  return result;
 }
