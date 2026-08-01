@@ -14,6 +14,7 @@ export async function selectMode() {
       { value: "version", label: "버전 관리만 — 버전 자동 증가·동기화 시스템만 설치" },
       { value: "workflows", label: "워크플로우만 — 빌드·배포 GitHub Actions만 설치" },
       { value: "revert", label: "되돌리기 — 마법사가 설치한 워크플로우·스크립트 제거" },
+      { value: "uninstall", label: "완전 삭제 — 마법사가 설치·수정한 모든 항목 제거(확인 후, README·gitignore·version.yml 포함)" },
     ],
   });
 }

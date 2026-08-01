@@ -73,6 +73,20 @@ flutter.APP_ARTIFACT_NAME:
 
 `npx project-auto-wizard --mode revert`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
 
+### 완전 삭제(`--mode uninstall`)
+
+`npx project-auto-wizard --mode uninstall`은 `revert`보다 넓게 제거합니다 — 워크플로우·스크립트·`.coderabbit.yaml`은 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
+
+- **대화형(TTY)**: 실제로 설치된 항목만 체크리스트로 보여줍니다. 워크플로우/스크립트/`.coderabbit.yaml`은 기본 체크, README·`.gitignore`·`version.yml`은 opt-in입니다. 선택 후 최종 확인(기본 "아니오")을 거쳐야 실제로 삭제됩니다.
+- **비대화형(`--force`)**: 워크플로우·스크립트·`.coderabbit.yaml`만 기본 삭제합니다. README·`.gitignore`·`version.yml`까지 지우려면 `--purge-readme`/`--purge-gitignore`/`--purge-version`을 함께 지정하세요.
+- `--dry-run`과 함께 쓰면 무엇이 지워질지 미리 볼 수 있습니다.
+
+```bash
+npx project-auto-wizard --mode uninstall                 # 대화형 체크리스트
+npx project-auto-wizard --mode uninstall --force         # 워크플로우·스크립트·coderabbit만 안전 삭제
+npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignore --purge-version  # 완전 삭제
+```
+
 ## API 키 0개 AI — 요약 엔진 체인
 
 릴리스 노트는 4단 엔진 체인으로 생성됩니다. **어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
@@ -111,7 +125,7 @@ flowchart LR
 ```
 npx project-auto-wizard [옵션]
 
-  -m, --mode MODE          full | version | workflows | revert | status | doctor  (기본: 대화형)
+  -m, --mode MODE          full | version | workflows | revert | uninstall | status | doctor  (기본: 대화형)
   -t, --type CSV           spring,react,... (미지정 시 자동 감지)
       --project-version V  초기 버전 (미지정 시 자동 감지)
       --paths "t=p,..."    모노레포 타입별 경로
@@ -122,6 +136,9 @@ npx project-auto-wizard [옵션]
       --coderabbit         CodeRabbit PR 요약을 릴리스 노트 1순위로
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
+      --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
+      --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
+      --purge-version       --mode uninstall --force 시 version.yml도 제거
       --force              전 질문 생략 (CI용)
 ```
 
