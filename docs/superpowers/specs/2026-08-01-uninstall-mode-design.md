@@ -1,10 +1,11 @@
 # `--mode uninstall` 신설 — 대화형 체크리스트 기반 완전 삭제 지원
 
 - 날짜: 2026-08-01
-- 상태: 브레인스토밍 완료 (사용자 승인 대기 — 코드 구현 착수 전)
+- 상태: 브레인스토밍 완료 → 구현 계획 작성 완료 → Fable 5 정밀 검토 반영(개정) — 코드 구현 착수 전
 - 이슈: `#5` (`.issue/#20260728_002_기능추가_uninstall_모드_추가.md`)
 - 브랜치: `20260801_#5_uninstall_신설_대화형_체크리스트_기반_완전_삭제_지원`
-- 참고: 이 문서는 **설계 스펙**이다. 실제 구현 순서/작업 단위는 별도 `writing-plans` 세션에서 다룬다.
+- 참고: 이 문서는 **설계 스펙**이다. 실제 구현 순서/작업 단위는 `docs/superpowers/plans/2026-08-01-uninstall-mode-implementation.md`에서 다룬다.
+- **개정 이력**: §6(README/.gitignore 제거 로직)이 Fable 5 정밀 검토(2026-08-01)에서 발견된 CRITICAL 결함 2건(마커부터 "파일 끝까지" 잘라내는 방식이 설치 이후 사용자가 덧붙인 콘텐츠를 삭제할 위험)과 HIGH 1건(CI가 삽입하는 구분자 없는 단독 마커 케이스 미처리)을 반영해 갱신됐다. 상세 내역은 구현 계획 문서의 "Fable 5 정밀 검토 반영 이력" 절 참조.
 
 ## 1. 배경 — 문제 정의
 
@@ -102,22 +103,23 @@ export async function runUninstallFlow(payloadRoot, targetRoot, io) {
 }
 ```
 
-- `interactive.js`: `if (mode === "uninstall") { await runUninstallFlow(payload, cwd, io); io.outro?.("완전 삭제를 마쳤습니다."); return 0; }` — revert 분기와 같은 위치(Breaking Changes 게이트보다 앞)에 둔다. 감지/타입질문 전부 불필요.
+- `interactive.js`: `if (mode === "uninstall") { const result = await runUninstallFlow(payload, cwd, io); if (result) io.outro?.("완전 삭제를 마쳤습니다."); return 0; }` — revert 분기와 같은 위치(Breaking Changes 게이트보다 앞)에 둔다. 감지/타입질문 전부 불필요. `runUninstallFlow`는 취소/항목없음 시 `null`을 반환하므로, 결과가 있을 때만 완료 outro를 출력한다(취소했는데 "완료" 메시지가 뜨면 안 됨).
 - `prompts.js`의 `selectMode()`에 `{ value: "uninstall", label: "완전 삭제 — 마법사가 설치·수정한 모든 항목 제거(확인 후, README·gitignore·version.yml 포함)" }` 옵션 추가.
 
 ## 6. README / .gitignore / version.yml 제거 로직
 
 **`readme.js` — `removeVersionSectionFromReadme(targetRoot)`**
-- `addVersionSectionToReadme`가 항상 파일 **맨 끝**에 `"\n---\n\n<!-- AUTO-VERSION-SECTION..."` 블록을 추가한다는 사실을 그대로 역이용한다.
-- MARKER 앞의 `"\n---\n\n"` 구분자 시작 위치부터 파일 끝까지를 잘라내고, 원래 파일이 개행으로 끝났는지 여부를 복원한다.
-- 반환값: `'removed' | 'skip-no-readme' | 'skip-no-marker'` (기존 `addVersionSectionToReadme`의 반환 스타일과 대칭)
-- `hasVersionSection(targetRoot)`: 존재 여부만 boolean으로 반환 (체크리스트 노출 판단용)
+- `addVersionSectionToReadme`가 항상 파일 **맨 끝**에 `"\n---\n\n<!-- AUTO-VERSION-SECTION..."` 블록을 추가하고, 이 블록은 항상 고정된 꼬리 문자열(`"[전체 버전 기록 보기](CHANGELOG.md)\n"`)로 끝난다는 사실을 이용한다.
+- MARKER 앞의 `"\n---\n\n"` 구분자 시작 위치부터 **꼬리 문자열까지만** 잘라내고, 그 이후(설치 이후 사용자가 덧붙인 콘텐츠)는 보존한다. "파일 끝까지" 잘라내면 사용자가 나중에 추가한 라이선스 절 등을 지워버리므로 반드시 바운딩해야 한다. 꼬리 문자열을 못 찾으면(사용자가 지웠다면) `skip-unexpected-format`으로 안전하게 포기한다.
+- **추가 케이스**: 설치되는 `PROJECT-COMMON-README-VERSION-UPDATE.yaml` CI는, 설치 시점에 사용자가 이미 자기 버전 라인을 갖고 있던 README(`addVersionSectionToReadme`가 `skip-version-line`으로 건너뛴 경우)에는 `"\n---\n\n"` 구분자 없이 마커 주석(`<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n`) 한 줄만 그 버전 라인 위에 끼워넣는다. 이 경우 버전 라인 자체는 사용자 소유이므로 건드리지 않고, 마커 주석 한 줄만 제거한다.
+- 반환값: `'removed' | 'skip-no-readme' | 'skip-no-marker' | 'skip-unexpected-format'` (기존 `addVersionSectionToReadme`의 반환 스타일과 대칭)
+- `hasVersionSection(targetRoot)`: 위 두 형태(구분자 있는 블록 / 구분자 없는 단독 마커) 중 하나라도 있으면 true (체크리스트 노출 판단용)
 
 **`gitignore.js` — `removeAutoAddedEntriesFromGitignore(targetRoot)`**
 - 두 가지 케이스를 구분한다:
-  1. **파일이 원래 없었는데 마법사가 새로 만든 경우**: 현재 내용이 `NEW_FILE_CONTENT`와 **완전히 동일**하면 → 파일 자체를 삭제(원래 존재하지 않았으므로 통째로 되돌리는 게 맞음)
-  2. **기존 파일에 배너 블록(`# project-auto-wizard: Auto-added entries`)이 추가된 경우**: 배너 3줄 + 그 뒤에 이어지는 `REQUIRED_ENTRIES` 라인들 + 블록 앞의 구분용 빈 줄만 제거하고, 그 이전 사용자 콘텐츠는 그대로 보존
-  3. 둘 다 해당 없으면(배너도 없고 신규생성 콘텐츠도 아님) → no-op
+  1. **파일이 원래 없었는데 마법사가 새로 만든 경우**: 현재 내용이 `NEW_FILE_CONTENT`로 **시작**하면(완전 일치든, 그 뒤에 사용자가 나중에 이어 쓴 형태든) → 그 접두 부분만 벗겨내고 나머지(사용자가 이어 쓴 내용)는 보존. 벗겨내고 남는 게 없으면 파일 자체를 삭제(원래 존재하지 않았으므로 통째로 되돌리는 게 맞음)
+  2. **기존 파일에 배너 블록(`# project-auto-wizard: Auto-added entries`)이 추가된 경우**: 배너 3줄 직후부터, `REQUIRED_ENTRIES`와 일치하는 라인이 **연속되는 동안만** 제거하고, 그 뒤(사용자가 나중에 추가한 항목)는 절대 건드리지 않는다. "배너부터 파일 끝까지" 잘라내면 사용자가 나중에 추가한 항목(`.env` 등)까지 삭제되므로 반드시 라인 단위로 바운딩해야 한다.
+  3. 둘 다 해당 없으면(배너도 없고 신규생성 접두도 아님) → no-op
 - 반환값: `'removed' | 'file-deleted' | 'skip-no-gitignore' | 'skip-not-found'`
 - `hasAutoAddedEntries(targetRoot)`: 위 1·2 케이스 중 하나라도 해당하면 true
 
