@@ -19,6 +19,16 @@ export function parseArgs(argv) {
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
     dryRun: false,        // --dry-run: 실제 변경 없이 미리보기만 (full/version/workflows/revert 공통)
+    // purge 전용 플래그 (숨김 모드 — HELP_TEXT에는 노출하지 않는다).
+    yes: false,               // --yes: purge 실행 확인 (필수, --force로 대체 불가)
+    allowDirty: false,        // --allow-dirty: git 작업트리 dirty 상태에서도 강행
+    deleteDevelopBranch: false, // --delete-develop-branch: 로컬 develop 브랜치까지 삭제
+    keepVersionYml: false,
+    keepReadme: false,
+    keepChangelog: false,
+    keepWorkflows: false,
+    keepScripts: false,
+    keepCoderabbit: false,
   };
   const args = [...argv];
   while (args.length > 0) {
@@ -52,6 +62,15 @@ export function parseArgs(argv) {
       }
       case "--force": result.force = true; break;
       case "--dry-run": result.dryRun = true; break;
+      case "--yes": result.yes = true; break;
+      case "--allow-dirty": result.allowDirty = true; break;
+      case "--delete-develop-branch": result.deleteDevelopBranch = true; break;
+      case "--keep-version-yml": result.keepVersionYml = true; break;
+      case "--keep-readme": result.keepReadme = true; break;
+      case "--keep-changelog": result.keepChangelog = true; break;
+      case "--keep-workflows": result.keepWorkflows = true; break;
+      case "--keep-scripts": result.keepScripts = true; break;
+      case "--keep-coderabbit": result.keepCoderabbit = true; break;
       case "--nexus": result.includeNexus = true; break;
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
