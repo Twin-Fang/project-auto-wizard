@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs } from "../../src/cli/args.js";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
@@ -235,4 +235,58 @@ test("run(): without --delete-develop-branch, no branch command is issued", asyn
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
+});
+
+// H1 (Fable 검토): .gitignore는 runFull()이 항상 새로 만들고 purge는 절대 건드리지 않으므로
+// (스펙 §2 비목표) 라운드트립 비교에서 .git과 함께 제외한다 — 자세한 이유는 Task 4의 동일 헬퍼 참고.
+function listAllFilesCli(dir, base = dir) {
+  let out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === ".git" || e.name === ".gitignore") continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) out = out.concat(listAllFilesCli(full, base));
+    else out.push(full.slice(base.length + 1));
+  }
+  return out.sort();
+}
+
+test("run(): full round-trip — install then purge returns the target to its pre-install state", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "README.md"), "# Test\n");
+  try {
+    const before = listAllFilesCli(target);
+    await run(["--mode", "full", "--force", "--type", "node"], {
+      cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+    });
+    const code = await run(["--mode", "purge", "--yes", "--force"], { cwd: target, exec: cleanExec });
+    assert.strictEqual(code, 0);
+    assert.deepStrictEqual(listAllFilesCli(target), before);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): --keep-version-yml via CLI preserves only version.yml", async () => {
+  const target = await installedTarget();
+  try {
+    const code = await run(["--mode", "purge", "--yes", "--force", "--keep-version-yml"], { cwd: target, exec: cleanExec });
+    assert.strictEqual(code, 0);
+    assert.ok(existsSync(join(target, "version.yml")));
+    assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): --mode purge is not mentioned in --help output (hidden mode)", async () => {
+  const originalLog = console.log;
+  let stdout = "";
+  console.log = (msg) => { stdout += msg; };
+  try {
+    await run(["--help"], { cwd: process.cwd() });
+  } finally {
+    console.log = originalLog;
+  }
+  assert.ok(!stdout.includes("purge"));
 });
