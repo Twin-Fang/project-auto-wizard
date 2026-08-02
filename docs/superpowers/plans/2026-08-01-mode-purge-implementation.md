@@ -1015,12 +1015,18 @@ Insert a new `purge` branch immediately after the closing `}` of the existing `r
       console.error("--yes 없이는 purge를 실행할 수 없습니다 (--force로 대체할 수 없습니다).");
       return 1;
     }
-    if (!opts.allowDirty) {
-      const st = await exec("git", ["status", "--porcelain"], { cwd });
-      if (st.stdout.trim() !== "") {
-        console.error("작업트리에 커밋되지 않은 변경 사항이 있습니다 — purge 후 복구할 수 없습니다. 커밋하거나 --allow-dirty를 사용하세요.");
-        return 1;
-      }
+    // exec 실패(git 없음·손상된 레포 등)를 "clean"으로 오인하면 안 된다 — 실패 시 항상 거부한다.
+    // --allow-dirty는 "dirty 내용을 알고도 진행"이지 "상태를 못 읽어도 진행"이 아니므로 exec 실패
+    // 체크는 --allow-dirty로도 우회되지 않는다 (구현 중 SDD 태스크 리뷰에서 발견·수정 — 최초 초안엔
+    // st.code 체크가 없었다).
+    const st = await exec("git", ["status", "--porcelain"], { cwd });
+    if (st.code !== 0) {
+      console.error("git 상태를 확인할 수 없습니다 — 안전을 위해 purge를 중단합니다.");
+      return 1;
+    }
+    if (!opts.allowDirty && st.stdout.trim() !== "") {
+      console.error("작업트리에 커밋되지 않은 변경 사항이 있습니다 — purge 후 복구할 수 없습니다. 커밋하거나 --allow-dirty를 사용하세요.");
+      return 1;
     }
     if (!opts.force) {
       if (!process.stdout.isTTY) {
