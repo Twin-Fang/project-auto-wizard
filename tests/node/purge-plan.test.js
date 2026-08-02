@@ -67,9 +67,10 @@ test("planPurge: keepFlags excludes categories from the plan", () => {
   }
 });
 
-// H1 (Fable 검토): runFull()은 항상 ensureGitignore()를 호출해 .gitignore가 없으면 새로 만든다.
-// purge는 스펙 §2 비목표에 따라 .gitignore를 절대 건드리지 않으므로, 라운드트립 비교에서
-// .gitignore는 "설치 전=없음 vs 설치 후=있음" 차이가 항상 발생한다 — .git과 마찬가지로 비교 대상에서 제외한다.
+// H1 (Fable 검토, 2026-08-01) → issue #7 갱신: runFull()은 이제 충돌 백업 부산물(.bak/.template.yaml)이
+// 실제로 생겼을 때만 .gitignore를 건드린다. 이 라운드트립 테스트의 설치는 충돌이 없어 .gitignore가
+// 전혀 생성되지 않으므로 아래 필터는 사실상 no-op이지만, 만약 다른 테스트가 충돌을 유발하도록 바뀌더라도
+// purge는 스펙 §2 비목표에 따라 .gitignore를 절대 건드리지 않으므로 안전하게 비교 대상에서 제외해 둔다.
 function listAllFiles(dir, base = dir) {
   let out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {

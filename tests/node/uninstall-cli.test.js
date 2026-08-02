@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseArgs } from "../../src/cli/args.js";
 import { run } from "../../src/index.js";
+import { ensureGitignore } from "../../src/core/copy/gitignore.js";
 
 test("parseArgs: --purge-readme/--purge-gitignore/--purge-version default to false", () => {
   const opts = parseArgs(["--mode", "uninstall", "--force"]);
@@ -32,6 +33,9 @@ test("run(): --mode uninstall --force removes only workflows/scripts/coderabbit 
     await run(["--mode", "full", "--force", "--type", "node", "--coderabbit"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
+    // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다(issue #7) — 이 테스트는
+    // uninstall의 gitignore 정리 동작 자체를 검증하는 것이 목적이므로 직접 만들어 둔다.
+    ensureGitignore(target);
     const code = await run(["--mode", "uninstall", "--force"], { cwd: target });
     assert.strictEqual(code, 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
@@ -51,6 +55,9 @@ test("run(): --mode uninstall --force --purge-readme --purge-gitignore --purge-v
     await run(["--mode", "full", "--force", "--type", "node", "--coderabbit"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
+    // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다(issue #7) — 이 테스트는
+    // --purge-gitignore가 실제로 지우는지를 검증하는 것이 목적이므로 직접 만들어 둔다.
+    ensureGitignore(target);
     const code = await run(
       ["--mode", "uninstall", "--force", "--purge-readme", "--purge-gitignore", "--purge-version"],
       { cwd: target },

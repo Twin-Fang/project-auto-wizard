@@ -237,8 +237,9 @@ test("run(): without --delete-develop-branch, no branch command is issued", asyn
   }
 });
 
-// H1 (Fable 검토): .gitignore는 runFull()이 항상 새로 만들고 purge는 절대 건드리지 않으므로
-// (스펙 §2 비목표) 라운드트립 비교에서 .git과 함께 제외한다 — 자세한 이유는 Task 4의 동일 헬퍼 참고.
+// H1 (Fable 검토, 2026-08-01) → issue #7 갱신: .gitignore는 이제 충돌 백업 부산물이 실제로 생겼을
+// 때만 만들어지고, purge는 어떤 경우든 절대 건드리지 않으므로(스펙 §2 비목표) 라운드트립 비교에서
+// .git과 함께 안전하게 제외한다 — 자세한 이유는 purge-plan.test.js의 동일 헬퍼 참고.
 function listAllFilesCli(dir, base = dir) {
   let out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
