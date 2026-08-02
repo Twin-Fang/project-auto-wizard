@@ -88,6 +88,7 @@ export function printPurgeResult(result) {
   if (result.versionYml) lines.push("파일: version.yml");
   if (result.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of result.changelog) lines.push(`파일: ${f}`);
+  lines.push("(.gitignore 자동 추가 블록은 보존됩니다 — 별도 이슈에서 다룸)");
   lines.push("");
   console.log(lines.join("\n"));
 }

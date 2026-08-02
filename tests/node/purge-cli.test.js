@@ -279,6 +279,28 @@ test("run(): --keep-version-yml via CLI preserves only version.yml", async () =>
   }
 });
 
+async function installedTrunkBasedTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main"], {
+    cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+  });
+  return target;
+}
+
+test("run(): --delete-develop-branch skips deletion in a trunk-based install (develop === main)", async () => {
+  const target = await installedTrunkBasedTarget();
+  const calls = [];
+  const exec = async (cmd, args) => { calls.push(args.join(" ")); return { code: 0, stdout: "", stderr: "" }; };
+  try {
+    const code = await run(["--mode", "purge", "--yes", "--force", "--delete-develop-branch"], { cwd: target, exec });
+    assert.strictEqual(code, 0);
+    assert.ok(!calls.some((c) => c.startsWith("branch")));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("run(): --mode purge is not mentioned in --help output (hidden mode)", async () => {
   const originalLog = console.log;
   let stdout = "";

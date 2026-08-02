@@ -116,12 +116,22 @@ export async function run(argv, {
       versionYml: opts.keepVersionYml, readme: opts.keepReadme, changelog: opts.keepChangelog,
       workflows: opts.keepWorkflows, scripts: opts.keepScripts, coderabbit: opts.keepCoderabbit,
     };
+    // version.yml은 여기서 미리 읽어둔다 — (a) executePurge()가 version.yml 자체를 지울 수 있어
+    // 실행 이후에는 읽을 수 없고, (b) 아래 dry-run 예고 문구도 trunk-based 여부(develop === main)를
+    // 알아야 실제 실행 시 삭제를 건너뛸지 미리 알릴 수 있기 때문에, 두 지점보다 앞서 읽어야 한다.
+    const vyPath = join(cwd, "version.yml");
+    const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     if (opts.dryRun) {
       printPurgePlan(planPurge(payload, cwd, keepFlags), { dryRun: true });
       // M4 (Fable 검토): develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
       // 판단 가능) 별도로 예고하지 않으면 dry-run 미리보기가 유일한 파괴적 동작을 사용자에게 숨기게 된다.
       if (opts.deleteDevelopBranch) {
-        console.log("(--delete-develop-branch 지정됨: 실제 실행 시 로컬 develop 브랜치도 삭제를 시도합니다)");
+        const developBranch = existing?.branches?.develop || "develop";
+        if (existing?.branches?.main && developBranch === existing.branches.main) {
+          console.log("(--delete-develop-branch 지정됨: trunk-based 구성(develop === main)이라 실제 실행 시에도 삭제를 건너뜁니다)");
+        } else {
+          console.log("(--delete-develop-branch 지정됨: 실제 실행 시 로컬 develop 브랜치도 삭제를 시도합니다)");
+        }
       }
       return 0;
     }
@@ -150,19 +160,21 @@ export async function run(argv, {
         return 1;
       }
     }
-    const vyPath = join(cwd, "version.yml");
-    const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     const plan = planPurge(payload, cwd, keepFlags);
     printPurgePlan(plan, { dryRun: false });
     const result = executePurge(payload, cwd, keepFlags);
     printPurgeResult(result);
     if (opts.deleteDevelopBranch) {
       const developBranch = existing?.branches?.develop || "develop";
-      const br = await exec("git", ["branch", "-d", developBranch], { cwd });
-      if (br.code !== 0) {
-        console.error(`⚠️  로컬 '${developBranch}' 브랜치 삭제 실패 (${(br.stderr || "").trim() || "이유 확인 불가"}) — 수동으로 확인하세요.`);
+      if (existing?.branches?.main && developBranch === existing.branches.main) {
+        console.error("trunk-based 구성(develop === main)입니다 — 릴리스 브랜치 삭제는 건너뜁니다.");
       } else {
-        console.error(`로컬 '${developBranch}' 브랜치를 삭제했습니다.`);
+        const br = await exec("git", ["branch", "-d", developBranch], { cwd });
+        if (br.code !== 0) {
+          console.error(`⚠️  로컬 '${developBranch}' 브랜치 삭제 실패 (${(br.stderr || "").trim() || "이유 확인 불가"}) — 수동으로 확인하세요.`);
+        } else {
+          console.error(`로컬 '${developBranch}' 브랜치를 삭제했습니다.`);
+        }
       }
     }
     return 0;
