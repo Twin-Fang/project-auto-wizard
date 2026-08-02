@@ -95,6 +95,7 @@ test("executePurge: round-trip returns target to its pre-install file tree", () 
     runFull(ctx, resolvePayloadRoot(), target);
     assert.ok(listAllFiles(target).length > before.length);
     const result = executePurge(resolvePayloadRoot(), target);
+    assert.strictEqual(result.readmeSection, true);
     assert.deepStrictEqual(listAllFiles(target), before);
     assert.strictEqual(readFile(join(target, "README.md"), "utf8"), "# Test Repo\n");
   } finally {
