@@ -188,3 +188,51 @@ test("run(): --mode purge rejects when `git status` itself fails, even with --al
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("run(): --delete-develop-branch deletes the local branch on success", async () => {
+  const target = await installedTarget();
+  const calls = [];
+  const exec = async (cmd, args) => {
+    calls.push(args.join(" "));
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  try {
+    const code = await run(["--mode", "purge", "--yes", "--force", "--delete-develop-branch"], { cwd: target, exec });
+    assert.strictEqual(code, 0);
+    assert.ok(calls.includes("branch -d develop"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): --delete-develop-branch failure (unmerged) logs a warning but still exits 0", async () => {
+  const target = await installedTarget();
+  let stderr = "";
+  const originalError = console.error;
+  console.error = (msg) => { stderr += msg; };
+  const exec = async (cmd, args) => {
+    if (args[0] === "status") return { code: 0, stdout: "", stderr: "" };
+    if (args[0] === "branch") return { code: 1, stdout: "", stderr: "error: branch 'develop' is not fully merged" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  try {
+    const code = await run(["--mode", "purge", "--yes", "--force", "--delete-develop-branch"], { cwd: target, exec });
+    assert.strictEqual(code, 0);
+    assert.ok(stderr.includes("삭제 실패"));
+  } finally {
+    console.error = originalError;
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): without --delete-develop-branch, no branch command is issued", async () => {
+  const target = await installedTarget();
+  const calls = [];
+  const exec = async (cmd, args) => { calls.push(args.join(" ")); return { code: 0, stdout: "", stderr: "" }; };
+  try {
+    await run(["--mode", "purge", "--yes", "--force"], { cwd: target, exec });
+    assert.ok(!calls.some((c) => c.startsWith("branch")));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

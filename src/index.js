@@ -150,10 +150,21 @@ export async function run(argv, {
         return 1;
       }
     }
+    const vyPath = join(cwd, "version.yml");
+    const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     const plan = planPurge(payload, cwd, keepFlags);
     printPurgePlan(plan, { dryRun: false });
     const result = executePurge(payload, cwd, keepFlags);
     printPurgeResult(result);
+    if (opts.deleteDevelopBranch) {
+      const developBranch = existing?.branches?.develop || "develop";
+      const br = await exec("git", ["branch", "-d", developBranch], { cwd });
+      if (br.code !== 0) {
+        console.error(`⚠️  로컬 '${developBranch}' 브랜치 삭제 실패 (${(br.stderr || "").trim() || "이유 확인 불가"}) — 수동으로 확인하세요.`);
+      } else {
+        console.error(`로컬 '${developBranch}' 브랜치를 삭제했습니다.`);
+      }
+    }
     return 0;
   }
   // status 모드 — 읽기 전용, TTY/--force 무관하게 항상 동작
