@@ -22,6 +22,8 @@
 - purge 전용 플래그(`--yes`, `--allow-dirty`, `--delete-develop-branch`, `--keep-*`)는 전역 파서에 등록되므로 다른 모드(`full`/`version`/`workflows`/`revert`)와 함께 지정해도 파서 에러 없이 조용히 무시된다 — 이는 기존 `--dry-run`과 동일한 전역 플래그 관례를 따른 의도된 트레이드오프이며 별도 검증 로직을 추가하지 않는다 (Fable 검토 M5).
 
 > **2026-08-01 Fable 모델 최종 검토 반영**: 아래 계획은 최초 초안에 대해 Fable 모델로 독립 검토를 받아 HIGH 3건(H1 `.gitignore` 라운드트립 테스트 불가, H2 README 마커 제거가 EOF까지 통째로 잘라내 데이터 손실 위험 + 스펙 위반, H3 `executePurge` 반환값이 실제 삭제 결과를 반영하지 않음)과 MEDIUM 5건(keep-플래그별 실행 레벨 테스트 공백, CHANGELOG 삭제 미검증, `printPurgeResult` 파일명 미표시, dry-run에 develop 브랜치 삭제 예고 누락, purge 전용 플래그의 타 모드 조용 수용 미문서화)을 확인하고 전부 아래 태스크에 직접 반영했다. 특히 H2는 이 저장소의 `payload/workflows/common/PROJECT-COMMON-README-VERSION-UPDATE.yaml`이 "README에 사용자가 이미 버전 라인을 써둔 상태로 마법사를 설치(→ `addVersionSectionToReadme`가 skip) → 이후 릴리스가 한 번 돌면 `---` 프리앰블·CHANGELOG 링크 없이 마커만 그 버전 라인 위에 삽입"하는 실제 경로가 있음을 코드로 직접 확인해 검증됐다.
+>
+> **2026-08-01 Fable 모델 2차(재검토) 반영**: 위 수정 사항을 Fable 모델로 다시 독립 재검토받아 H1/H2/H3·M1~M5가 전부 올바르게 반영됐음을 확인했다(회귀 없음). 재검토에서 신규 MEDIUM 2건이 추가로 나와 반영했다: **M-N1** — `removeVersionSectionFromReadme`가 쓰던 `VERSION_LINE_RE`(최신 버전|Version|버전만 인식)가 릴리스 워크플로우가 버전 라인이 아예 없던 README에 직접 삽입하는 `## Latest Version : vX.Y.Z` 헤더를 인식하지 못해, 마커만 지우고 버전 라인을 남긴 채로도 `"removed"`를 거짓 반환하는 문제(워크플로우의 7종 패턴과 정렬한 별도의 넓은 정규식으로 해결, `addVersionSectionToReadme`의 기존 skip 판정용 정규식은 그대로 둠). **M-N2** — `.coderabbit.yaml` 실제 삭제 + `.bak` 복원 경로가 어떤 테스트에서도 실행되지 않는 죽은 코드였던 문제(M2가 CHANGELOG에 대해 고친 것과 같은 유형 — 테스트 1건 추가). 겸사겸사 `purge.js`가 마커 문자열을 중복 하드코딩하던 것도 `readme.js`의 `MARKER` 상수를 export해 재사용하도록 정리했다.
 
 ---
 
@@ -142,8 +144,8 @@ EOF
 - Test: `tests/node/readme-purge.test.js` (new)
 
 **Interfaces:**
-- Consumes: nothing new (uses the existing `MARKER` constant already defined in this file).
-- Produces: `removeVersionSectionFromReadme(targetRoot = ".")` → returns `"removed" | "skip-no-readme" | "skip-no-marker"`. Task 4 (`executePurge`) imports this.
+- Consumes: the existing `MARKER` constant already defined in this file (now exported — see Step 3).
+- Produces: `removeVersionSectionFromReadme(targetRoot = ".")` → returns `"removed" | "skip-no-readme" | "skip-no-marker"`. Also exports `MARKER` (previously module-private) so Task 3's `purge.js` can reuse the exact same marker string instead of hardcoding a duplicate copy. Task 3 (`readmeHasVersionMarker`) and Task 4 (`executePurge`) both import from this file.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -216,6 +218,24 @@ test("removeVersionSectionFromReadme: marker-only shape (no --- preamble, insert
     },
   );
 });
+
+// M-N1 (Fable 2차 검토): PROJECT-COMMON-README-VERSION-UPDATE.yaml은 버전 라인이 아예 없던 README에
+// "## Latest Version : vX.Y.Z (날짜)" 헤더를 마커와 함께 직접 삽입한다. 기존 VERSION_LINE_RE는
+// "##" 바로 뒤에 "Latest"가 오는 이 형태를 인식하지 못해 버전 라인을 남긴 채로도 "removed"를
+// 거짓 반환하는 문제가 있었다 — 워크플로우의 패턴 목록과 정렬한 넓은 정규식으로 고쳐졌는지 검증한다.
+test("removeVersionSectionFromReadme: recognizes a 'Latest Version' header inserted by the release workflow when no version line existed before", () => {
+  withTempReadme(
+    "# My Project\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : v1.0.0 (2025-08-15)\n\nSome other content.\n",
+    (target) => {
+      const result = removeVersionSectionFromReadme(target);
+      assert.strictEqual(result, "removed");
+      assert.strictEqual(
+        readFileSync(join(target, "README.md"), "utf8"),
+        "# My Project\n\n\nSome other content.\n",
+      );
+    },
+  );
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -235,15 +255,28 @@ to:
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
 ```
 
-Then append at the end of the file. **Note (H2 fix):** the naive "marker to end-of-file" slice from the original draft was wrong — the marker isn't always at EOF (see the Fable-review callout in Global Constraints above), and slicing to EOF would delete real user content that happens to follow. Instead, match the marker line plus only its immediately-adjacent lines (the version line after it, and — only when present — the `---` preamble/CHANGELOG-link lines that `addVersionSectionToReadme` specifically creates):
+Also change the existing `const MARKER = ...` declaration to `export const MARKER = ...` (M-N1/L4 cleanup: `purge.js`'s Task 3 will reuse this exact constant instead of hardcoding a duplicate copy of the marker string):
 
 ```js
+export const MARKER = "<!-- AUTO-VERSION-SECTION";
+```
+
+Then append at the end of the file. **Note (H2 fix):** the naive "marker to end-of-file" slice from the original draft was wrong — the marker isn't always at EOF (see the Fable-review callout in Global Constraints above), and slicing to EOF would delete real user content that happens to follow. Instead, match the marker line plus only its immediately-adjacent lines (the version line after it, and — only when present — the `---` preamble/CHANGELOG-link lines that `addVersionSectionToReadme` specifically creates). **Note (M-N1 fix):** the existing `VERSION_LINE_RE` (used by `addVersionSectionToReadme`'s skip-check) only recognizes `최신 버전`/`Version`/`버전` headers — but `PROJECT-COMMON-README-VERSION-UPDATE.yaml`'s "no version line found" branch inserts `## Latest Version : vX.Y.Z` directly, which that regex doesn't match. Don't touch `VERSION_LINE_RE` itself (it governs `addVersionSectionToReadme`'s existing skip behavior) — add a second, wider regex used only by the remove path, aligned with the full `VERSION_PATTERNS` list in that workflow file:
+
+```js
+
+// removeVersionSectionFromReadme 전용 — PROJECT-COMMON-README-VERSION-UPDATE.yaml의 VERSION_PATTERNS
+// 전체와 정렬한다. VERSION_LINE_RE(=addVersionSectionToReadme의 skip 판정용)보다 넓다: 그 워크플로우는
+// 버전 라인이 아예 없던 README에 "## Latest Version : vX.Y.Z"를 직접 삽입하기도 하는데,
+// VERSION_LINE_RE는 이를 인식하지 못해 마커만 지우고 버전 라인을 남긴 채로 "removed"를
+// 거짓 반환하는 문제가 있었다 (M-N1, Fable 2차 검토).
+const REMOVE_VERSION_LINE_RE = /##\s*(최신\s*버전|최신버전|[Cc]urrent\s*[Vv]ersion|[Rr]ecent\s*[Vv]ersion|[Ll]atest\s*[Vv]ersion|Version|버전)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 
 // README AUTO-VERSION-SECTION 블록 제거 (addVersionSectionToReadme와 대칭, purge 모드용).
 // 마커는 항상 파일 끝에 있는 게 아니다 — PROJECT-COMMON-README-VERSION-UPDATE.yaml 워크플로우가
 // "사용자가 이미 버전 라인을 써 둔 레포"에서는 "---" 프리앰블·CHANGELOG 링크 없이 마커만
 // 그 버전 라인 바로 위에 삽입해 두기도 한다. 그래서 "마커~EOF"를 통째로 자르지 않고,
-// 마커 라인 + 그 직후 버전 라인(VERSION_LINE_RE 매칭)만 최소 단위로 제거하되,
+// 마커 라인 + 그 직후 버전 라인(REMOVE_VERSION_LINE_RE 매칭)만 최소 단위로 제거하되,
 // addVersionSectionToReadme가 만든 정확한 "\n---\n\n<마커>...\n\n[CHANGELOG 링크]\n" 형태일 때만
 // 앞뒤의 "---" 프리앰블·CHANGELOG 링크 라인까지 함께 정리해 바이트 단위로 원본을 복원한다.
 // 마커 없으면 no-op. README.md 없으면 no-op.
@@ -259,7 +292,7 @@ export function removeVersionSectionFromReadme(targetRoot = ".") {
   let end = markerIdx + 1; // 삭제 구간 [start, end) — 절반열림 구간
 
   // 마커 바로 다음 줄이 버전 라인이면 함께 제거 (설치 직후·릴리스 갱신 후 두 형태 모두 이 인접 관계를 보장한다).
-  if (end < lines.length && VERSION_LINE_RE.test(lines[end])) end += 1;
+  if (end < lines.length && REMOVE_VERSION_LINE_RE.test(lines[end])) end += 1;
 
   // addVersionSectionToReadme()가 만든 전체 블록("\n---\n\n<마커>...") 형태라면
   // 앞의 "---"·그 앞뒤 경계 빈 줄까지 함께 제거해야 원본과 바이트 단위로 복원된다.
@@ -283,7 +316,7 @@ export function removeVersionSectionFromReadme(targetRoot = ".") {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/node/readme-purge.test.js`
-Expected: PASS (4 tests)
+Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -304,7 +337,7 @@ EOF
 - Test: `tests/node/purge-plan.test.js` (new)
 
 **Interfaces:**
-- Consumes: `planRevert(payloadRoot, targetRoot)` from `src/commands/revert.js` → `{ workflows: string[], scripts: string[], coderabbit: boolean }` (existing, unchanged).
+- Consumes: `planRevert(payloadRoot, targetRoot)` from `src/commands/revert.js` → `{ workflows: string[], scripts: string[], coderabbit: boolean }` (existing, unchanged). `MARKER` from `src/core/copy/readme.js` (Task 2, now exported) — reused instead of hardcoding a duplicate marker string.
 - Produces: `planPurge(payloadRoot, targetRoot = ".", keepFlags = {})` → `{ workflows: string[], scripts: string[], coderabbit: boolean, versionYml: boolean, readmeSection: boolean, changelog: string[] }`. `keepFlags` shape: `{ versionYml?, readme?, changelog?, workflows?, scripts?, coderabbit? }` (all optional booleans). `printPurgePlan(plan, { dryRun = false } = {})` — logs to console, no return value. Task 4 (`executePurge`) and Task 5 (`index.js`) both import `planPurge` and `printPurgePlan`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -402,14 +435,16 @@ import { existsSync, readFileSync, renameSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRevert } from "./revert.js";
-import { removeVersionSectionFromReadme } from "../core/copy/readme.js";
+import { removeVersionSectionFromReadme, MARKER } from "../core/copy/readme.js";
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 
+// L4 (Fable 2차 검토): 마커 문자열을 여기서 다시 하드코딩하지 않고 readme.js의 MARKER를 그대로 재사용한다
+// (진실이 두 곳으로 갈리면 한쪽만 바뀌었을 때 plan 판정과 실제 제거 조건이 어긋날 수 있다).
 function readmeHasVersionMarker(targetRoot) {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return false;
-  return readFileSync(p, "utf8").includes("<!-- AUTO-VERSION-SECTION");
+  return readFileSync(p, "utf8").includes(MARKER);
 }
 
 // keepFlags: { versionYml, readme, changelog, workflows, scripts, coderabbit } — true인 카테고리는 후보에서 제외.
@@ -616,6 +651,35 @@ test("executePurge: --keep-coderabbit preserves .coderabbit.yaml while removing 
   }
 });
 
+// M-N2 (Fable 2차 검토): --keep-coderabbit 테스트는 "보존"만 검증하고, 라운드트립 테스트는
+// includeCodeRabbit:false로 설치해 .coderabbit.yaml 자체가 없다 — executePurge의 실제 삭제 +
+// .bak 복원 분기(runRevert가 아니라 purge.js 자체 로직)가 어떤 테스트에서도 실행되지 않는 죽은
+// 경로였다. coderabbit 설치 후 사용자가 직접 수정 → 재설치(force)로 .bak이 생기는 상황을 재현해
+// 삭제와 .bak 복원을 함께 검증한다.
+test("executePurge: deletes .coderabbit.yaml and restores a .bak backup when present", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
+  writeFileSync(join(target, "README.md"), "# Test Repo\n");
+  try {
+    const ctx = createContext({
+      mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+      paths: new Map(), includeCodeRabbit: true,
+      now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
+    });
+    runFull(ctx, resolvePayloadRoot(), target);
+    writeFileSync(join(target, ".coderabbit.yaml"), "custom: true\n"); // 사용자가 직접 수정
+    runFull(ctx, resolvePayloadRoot(), target); // force 재설치 → 덮어쓰기 + .bak 생성 (copyCoderabbit)
+    assert.ok(existsSync(join(target, ".coderabbit.yaml.bak")));
+
+    const result = executePurge(resolvePayloadRoot(), target);
+    assert.ok(!existsSync(join(target, ".coderabbit.yaml.bak")));
+    assert.strictEqual(readFile(join(target, ".coderabbit.yaml"), "utf8"), "custom: true\n");
+    assert.strictEqual(result.coderabbit, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("printPurgeResult: lists removed filenames, not just counts (M3)", () => {
   const originalLog = console.log;
   let stdout = "";
@@ -692,7 +756,7 @@ export function printPurgeResult(result) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/node/purge-plan.test.js`
-Expected: PASS (13 tests total — 3 from Task 3 + 10 from this task)
+Expected: PASS (14 tests total — 3 from Task 3 + 11 from this task)
 
 - [ ] **Step 5: Commit**
 
