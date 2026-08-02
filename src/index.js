@@ -4,6 +4,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
@@ -12,7 +13,7 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "./core/branches.js";
+import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec } from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
@@ -25,6 +26,7 @@ import { runInteractive } from "./commands/interactive.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
+import { planPurge, executePurge, printPurgePlan, printPurgeResult } from "./commands/purge.js";
 
 // 패키지 버전 읽기 (-v/--version 출력용). src/../package.json.
 function readPkgVersion() {
@@ -45,10 +47,24 @@ function utcNow(date = new Date()) {
   return { now: `${d} ${t}`, today: d };
 }
 
-// run(argv, opts) → exitCode. opts: { cwd, payloadRoot?, clock? }
+// purge TTY 확인 — 실제 stdin에서 한 줄 입력을 받는다 (테스트는 promptRepoName 주입으로 대체).
+async function defaultPromptRepoName(repoName) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await rl.question(`purge를 실행하려면 정확히 이 레포명을 입력하세요: ${repoName}\n> `);
+  } finally {
+    rl.close();
+  }
+}
+
+// run(argv, opts) → exitCode. opts: { cwd, payloadRoot?, clock?, exec?, promptRepoName? }
 //   payloadRoot: 테스트 픽스처 주입점 (기본: 패키지 동봉 payload/)
 //   clock: {now, today} 주입 (기본 현재 UTC).
-export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}) {
+//   exec/promptRepoName: purge 모드 안전장치 게이트용 주입점 (기본 실제 구현, 테스트는 mock 주입).
+export async function run(argv, {
+  cwd = process.cwd(), payloadRoot, clock,
+  exec = defaultExec, promptRepoName = defaultPromptRepoName,
+} = {}) {
   let opts;
   try {
     opts = parseArgs(argv);
@@ -89,6 +105,80 @@ export async function run(argv, { cwd = process.cwd(), payloadRoot, clock } = {}
     const r = runRevert({}, payload, cwd);
     console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개${r.coderabbit ? ", .coderabbit.yaml" : ""}`);
     console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
+    return 0;
+  }
+  // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
+  // 개발·테스트 전용 숨김 모드 — --help/대화형 메뉴에 노출하지 않는다 (issue #6).
+  if (opts.mode === "purge") {
+    if (!existsSync(join(cwd, ".git"))) {
+      console.error("git 레포가 아닙니다(.git 없음) — purge는 git 레포 안에서만 실행할 수 있습니다.");
+      return 1;
+    }
+    const keepFlags = {
+      versionYml: opts.keepVersionYml, readme: opts.keepReadme, changelog: opts.keepChangelog,
+      workflows: opts.keepWorkflows, scripts: opts.keepScripts, coderabbit: opts.keepCoderabbit,
+    };
+    // version.yml은 여기서 미리 읽어둔다 — (a) executePurge()가 version.yml 자체를 지울 수 있어
+    // 실행 이후에는 읽을 수 없고, (b) 아래 dry-run 예고 문구도 trunk-based 여부(develop === main)를
+    // 알아야 실제 실행 시 삭제를 건너뛸지 미리 알릴 수 있기 때문에, 두 지점보다 앞서 읽어야 한다.
+    const vyPath = join(cwd, "version.yml");
+    const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
+    if (opts.dryRun) {
+      printPurgePlan(planPurge(payload, cwd, keepFlags), { dryRun: true });
+      // M4 (Fable 검토): develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
+      // 판단 가능) 별도로 예고하지 않으면 dry-run 미리보기가 유일한 파괴적 동작을 사용자에게 숨기게 된다.
+      if (opts.deleteDevelopBranch) {
+        const developBranch = existing?.branches?.develop || "develop";
+        if (existing?.branches?.main && developBranch === existing.branches.main) {
+          console.log("(--delete-develop-branch 지정됨: trunk-based 구성(develop === main)이라 실제 실행 시에도 삭제를 건너뜁니다)");
+        } else {
+          console.log("(--delete-develop-branch 지정됨: 실제 실행 시 로컬 develop 브랜치도 삭제를 시도합니다)");
+        }
+      }
+      return 0;
+    }
+    if (!opts.yes) {
+      console.error("--yes 없이는 purge를 실행할 수 없습니다 (--force로 대체할 수 없습니다).");
+      return 1;
+    }
+    const st = await exec("git", ["status", "--porcelain"], { cwd });
+    if (st.code !== 0) {
+      console.error("git 상태를 확인할 수 없습니다 — 안전을 위해 purge를 중단합니다.");
+      return 1;
+    }
+    if (!opts.allowDirty && st.stdout.trim() !== "") {
+      console.error("작업트리에 커밋되지 않은 변경 사항이 있습니다 — purge 후 복구할 수 없습니다. 커밋하거나 --allow-dirty를 사용하세요.");
+      return 1;
+    }
+    if (!opts.force) {
+      if (!process.stdout.isTTY) {
+        console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+        return 1;
+      }
+      const repoName = detectRepoName(cwd);
+      const typed = await promptRepoName(repoName);
+      if (typed !== repoName) {
+        console.error("입력한 레포명이 일치하지 않습니다 — purge를 중단합니다.");
+        return 1;
+      }
+    }
+    const plan = planPurge(payload, cwd, keepFlags);
+    printPurgePlan(plan, { dryRun: false });
+    const result = executePurge(payload, cwd, keepFlags);
+    printPurgeResult(result);
+    if (opts.deleteDevelopBranch) {
+      const developBranch = existing?.branches?.develop || "develop";
+      if (existing?.branches?.main && developBranch === existing.branches.main) {
+        console.error("trunk-based 구성(develop === main)입니다 — 릴리스 브랜치 삭제는 건너뜁니다.");
+      } else {
+        const br = await exec("git", ["branch", "-d", developBranch], { cwd });
+        if (br.code !== 0) {
+          console.error(`⚠️  로컬 '${developBranch}' 브랜치 삭제 실패 (${(br.stderr || "").trim() || "이유 확인 불가"}) — 수동으로 확인하세요.`);
+        } else {
+          console.error(`로컬 '${developBranch}' 브랜치를 삭제했습니다.`);
+        }
+      }
+    }
     return 0;
   }
 

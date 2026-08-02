@@ -5,7 +5,7 @@
 import { execFile } from "node:child_process";
 
 // 기본 exec — git 명령 실행. 반환 {code, stdout, stderr}. 테스트는 mock 주입.
-function defaultExec(cmd, args, { cwd } = {}) {
+export function defaultExec(cmd, args, { cwd } = {}) {
   return new Promise((resolve) => {
     execFile(cmd, args, { cwd, windowsHide: true }, (err, stdout, stderr) => {
       resolve({ code: err ? (err.code ?? 1) : 0, stdout: String(stdout), stderr: String(stderr) });
