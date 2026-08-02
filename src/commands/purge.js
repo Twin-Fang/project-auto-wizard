@@ -80,7 +80,7 @@ export function printPurgeResult(result) {
   if (result.versionYml) lines.push("파일: version.yml");
   if (result.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of result.changelog) lines.push(`파일: ${f}`);
-  lines.push("(.gitignore 자동 추가 블록은 보존됩니다 — 별도 이슈에서 다룸)");
+  lines.push("(.gitignore에 추가된 백업 파일 제외 항목(*.bak/*.template.yaml)은 purge 대상에서 제외되어 그대로 보존됩니다)");
   lines.push("");
   console.log(lines.join("\n"));
 }
