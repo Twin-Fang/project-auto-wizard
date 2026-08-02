@@ -18,6 +18,7 @@ import { runFull } from "./full.js";
 import { runVersion } from "./version.js";
 import { runWorkflows } from "./workflows.js";
 import { runRevert } from "./revert.js";
+import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
 
 const CANCEL = prompts.CANCEL;
@@ -50,6 +51,14 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     const r = runRevert({}, payload, cwd);
     io.note?.(`워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개 제거${r.coderabbit ? " + .coderabbit.yaml" : ""}`, "되돌리기 완료");
     io.outro?.("되돌리기를 마쳤습니다.");
+    return 0;
+  }
+
+  // uninstall 모드 — 대화형 체크리스트로 항목별 opt-in 후 삭제. 감지·breaking 게이트 불필요.
+  // runUninstallFlow는 취소/항목없음 시 null을 반환한다 — 그때는 완료 outro를 찍지 않는다.
+  if (mode === "uninstall") {
+    const result = await runUninstallFlow(payload, cwd, io);
+    if (result) io.outro?.("완전 삭제를 마쳤습니다.");
     return 0;
   }
 

@@ -301,6 +301,9 @@ test("run(): --delete-develop-branch skips deletion in a trunk-based install (de
   }
 });
 
+// "purge"라는 부분 문자열 자체는 --help에 등장할 수 있다(예: uninstall의 공개 플래그
+// --purge-readme/--purge-gitignore/--purge-version). 이 테스트가 검증해야 할 것은
+// 오직 숨김 모드인 "--mode purge"(및 그 예시 실행문)가 노출되지 않는다는 것뿐이다.
 test("run(): --mode purge is not mentioned in --help output (hidden mode)", async () => {
   const originalLog = console.log;
   let stdout = "";
@@ -310,5 +313,6 @@ test("run(): --mode purge is not mentioned in --help output (hidden mode)", asyn
   } finally {
     console.log = originalLog;
   }
-  assert.ok(!stdout.includes("purge"));
+  assert.ok(!stdout.includes("mode purge"));
+  assert.ok(!stdout.includes("--mode purge"));
 });
