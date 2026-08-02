@@ -59,6 +59,10 @@ const dirtyExec = async (cmd, args) => {
   if (args[0] === "status") return { code: 0, stdout: " M some-file.txt\n", stderr: "" };
   return { code: 0, stdout: "", stderr: "" };
 };
+const failingStatusExec = async (cmd, args) => {
+  if (args[0] === "status") return { code: 1, stdout: "", stderr: "fatal: not a git repository" };
+  return { code: 0, stdout: "", stderr: "" };
+};
 
 test("run(): --mode purge outside a git repo is rejected even with --dry-run", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
@@ -170,6 +174,17 @@ test("run(): --mode purge --yes with TTY and a mismatched typed repo name aborts
     assert.ok(existsSync(join(target, "version.yml")));
   } finally {
     process.stdout.isTTY = originalIsTTY;
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): --mode purge rejects when `git status` itself fails, even with --allow-dirty", async () => {
+  const target = await installedTarget();
+  try {
+    const code = await run(["--mode", "purge", "--yes", "--allow-dirty", "--force"], { cwd: target, exec: failingStatusExec });
+    assert.strictEqual(code, 1);
+    assert.ok(existsSync(join(target, "version.yml")));
+  } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
