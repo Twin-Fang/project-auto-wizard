@@ -5,6 +5,7 @@ import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runFull } from "../../src/commands/full.js";
+import { runVersion } from "../../src/commands/version.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 
@@ -92,6 +93,19 @@ test("runFull: .coderabbit.yaml을 백업하며 덮어쓰면 .gitignore가 갱�
     assert.ok(existsSync(join(target, ".coderabbit.yaml.bak")));
     assert.strictEqual(result.gitignoreUpdated, true);
     assert.ok(readFileSync(join(target, ".gitignore"), "utf8").includes("*.bak"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("runVersion: 반복 설치해도 .gitignore를 절대 만들지 않는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-version-gitignore-"));
+  try {
+    const payloadRoot = resolvePayloadRoot();
+    const ctx = baseContext({ mode: "version" });
+    runVersion(ctx, payloadRoot, target);
+    runVersion(ctx, payloadRoot, target);
+    assert.ok(!existsSync(join(target, ".gitignore")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
