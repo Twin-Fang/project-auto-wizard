@@ -8,7 +8,7 @@ import { listYamlFiles } from "../core/fsutil.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx, targetRoot = ".") {
-  const { mode, types = [], version = "", counters = {}, branches = null, includeCodeRabbit = false } = ctx || {};
+  const { mode, types = [], version = "", counters = {}, branches = null, includeCodeRabbit = false, gitignoreUpdated = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 TTY일 때만 (.sh YELLOW/CYAN/NC 등가)
   const isTty = !!process.stderr.isTTY;
@@ -32,12 +32,11 @@ export function printSummary(ctx, targetRoot = ".") {
       err("  ✅ 버전 관리 시스템 (version.yml)");
       err("  ✅ README.md 자동 버전 업데이트");
       err("  ✅ GitHub Actions 워크플로우 (AI 릴리스 자동화 포함)");
-      err("  ✅ .gitignore 필수 항목");
+      if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
       break;
     case "version":
       err("  ✅ 버전 관리 시스템 (version.yml)");
       err("  ✅ README.md 자동 버전 업데이트");
-      err("  ✅ .gitignore 필수 항목");
       break;
     case "workflows":
       err("  ✅ GitHub Actions 워크플로우 (AI 릴리스 자동화 포함)");

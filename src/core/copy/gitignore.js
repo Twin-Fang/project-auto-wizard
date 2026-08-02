@@ -1,8 +1,17 @@
-// .gitignore 보장 (.sh ensure_gitignore + normalize/check 등가) — template_integrator.sh 3996~4111.
+// .gitignore 보장 — 마법사 자신이 만드는 충돌 백업 부산물(*.bak, *.template.yaml)만 대상으로 한다.
+// 마법사가 설치하는 것과 무관한 개인 개발환경 설정(IDE 등)은 마법사 책임 범위 밖 — issue #7.
+// 주의(의도된 트레이드오프): 이 변경 이전 버전으로 설치해 /.idea·/.claude/settings.local.json이 이미
+// 배너 블록에 남아있는 레포에서 removeAutoAddedEntriesFromGitignore()를 실행하면, 배너는 제거되지만
+// REQUIRED_ENTRIES가 더 이상 옛 항목과 일치하지 않아 그 두 줄은 지워지지 않고 배너 표시 없이 남는다.
+// 이슈 #7이 "이미 설치된 레포의 .gitignore는 소급 처리하지 않고 사용자 판단에 맡긴다"고 명시하므로
+// 별도 마이그레이션 로직을 추가하지 않는다 — 남은 항목은 무해하며 필요하면 사용자가 직접 지운다.
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 
-const REQUIRED_ENTRIES = ["/.idea", "/.claude/settings.local.json"];
+// issue #7: 마법사가 설치하는 것과 무관한 개인 개발환경 항목(/.idea 등)은 마법사 책임 밖이므로 제거.
+// 대신 마법사 자신의 충돌 처리(workflows.js backup/template 결정, coderabbit.js 덮어쓰기 백업)가
+// 실제로 만들어내는 부산물만 gitignore 대상으로 삼는다.
+const REQUIRED_ENTRIES = ["*.bak", "*.template.yaml"];
 
 // .sh normalize_gitignore_entry: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
 export function normalizeGitignoreEntry(entry) {
@@ -26,11 +35,9 @@ function entryExists(target, content) {
 }
 
 const NEW_FILE_CONTENT =
-  "# IDE Settings\n" +
-  "/.idea\n" +
-  "\n" +
-  "# Claude AI Settings\n" +
-  "/.claude/settings.local.json\n";
+  "# project-auto-wizard: 충돌 처리 시 생성되는 백업 파일 (안전하게 무시해도 됩니다)\n" +
+  "*.bak\n" +
+  "*.template.yaml\n";
 
 // 반환: {created, added:[...]}
 export function ensureGitignore(targetRoot = ".") {

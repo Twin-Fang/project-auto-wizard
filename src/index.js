@@ -311,6 +311,7 @@ export async function run(argv, {
     mode: opts.mode, types, version, branches,
     includeCodeRabbit: context.includeCodeRabbit === true,
     counters: { workflows: result?.workflows?.copied ?? 0 },
+    gitignoreUpdated: result?.gitignoreUpdated === true,
   }, cwd);
   return 0;
 }
