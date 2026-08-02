@@ -249,6 +249,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   io.summary?.({
     mode, types, version, branches, includeCodeRabbit,
     counters: { workflows: result?.workflows?.copied ?? 0 },
+    gitignoreUpdated: result?.gitignoreUpdated === true,
   }, cwd);
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
