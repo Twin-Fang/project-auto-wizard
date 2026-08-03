@@ -4,10 +4,10 @@
 
 // metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
 // 반환: { nexus: bool|null, secretBackup: bool|null } — null=미기재.
-// 구 synology 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다.
+// 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
 // (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
-  const out = { nexus: null, secretBackup: null, coderabbit: null, semverAuto: null };
+  const out = { nexus: null, secretBackup: null, semverAuto: null };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
   const strip = (s) => String(s).replace(/["']/g, "").trim();
   let inTemplate = false;
@@ -28,13 +28,6 @@ export function parseTemplateOptions(content) {
         const v = strip(m[1]);
         if (v === "true") out.secretBackup = true;
         if (v === "false") out.secretBackup = false;
-        continue;
-      }
-      m = line.match(/^\s+coderabbit:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.coderabbit = true;
-        if (v === "false") out.coderabbit = false;
         continue;
       }
       m = line.match(/^\s+semver_auto:\s*(.+)/);
@@ -132,7 +125,7 @@ export function parseTemplateBranches(content) {
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
 //   pathMarkers = Map<type, markerFilename> (project_paths 주석용)
-//   templateOptions = { templateVersion, includeNexus, includeSecretBackup, includeCodeRabbit?, optionsDate }
+//   templateOptions = { templateVersion, includeNexus, includeSecretBackup, optionsDate }
 export function buildVersionYml({
   templateText, version, types = [], primaryType, paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
@@ -144,7 +137,7 @@ export function buildVersionYml({
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
-    includeCodeRabbit = false, includeSemverAuto = true, optionsDate = today,
+    includeSemverAuto = true, optionsDate = today,
   } = templateOptions || {};
 
   // project_paths 블록 (full-line 토큰 {{PROJECT_PATHS}} — 없으면 라인 제거)
@@ -178,7 +171,7 @@ export function buildVersionYml({
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     OPT_NEXUS: String(includeNexus), OPT_SECRET_BACKUP: String(includeSecretBackup),
-    OPT_CODERABBIT: String(includeCodeRabbit), OPT_SEMVER_AUTO: String(includeSemverAuto),
+    OPT_SEMVER_AUTO: String(includeSemverAuto),
   };
 
   const out = [];

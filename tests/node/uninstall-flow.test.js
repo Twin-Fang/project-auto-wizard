@@ -16,7 +16,7 @@ function installFixture() {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: true,
+    paths: new Map(),
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
@@ -85,7 +85,7 @@ test("runUninstallFlow: checklist cancelled (ESC) -> nothing removed", async () 
 test("runUninstallFlow: checklist confirmed but final confirm is 'no' -> nothing removed", async () => {
   const target = installFixture();
   try {
-    const { io } = stubIo({ multiselectReturn: ["workflows", "scripts", "coderabbit"], confirmReturn: false });
+    const { io } = stubIo({ multiselectReturn: ["workflows", "scripts"], confirmReturn: false });
     const result = await runUninstallFlow(resolvePayloadRoot(), target, io);
     assert.strictEqual(result, null);
     assert.ok(existsSync(join(target, ".github/scripts/version_manager.py")));
@@ -131,7 +131,7 @@ test("runUninstallFlow: default checked items are exactly SAFE_ITEMS", async () 
     const call = multiselectCalls[0];
 
     // initialValues가 정확히 SAFE_ITEMS를 포함해야 함 (순서 중요)
-    assert.deepStrictEqual(call.initialValues, ["workflows", "scripts", "coderabbit"]);
+    assert.deepStrictEqual(call.initialValues, ["workflows", "scripts"]);
 
     // 선택한 항목만 제거되었는지 확인
     assert.strictEqual(result.workflows.length > 0, true);

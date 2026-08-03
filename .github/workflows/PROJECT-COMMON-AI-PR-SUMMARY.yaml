@@ -1,17 +1,12 @@
 # ===================================================================
 # PROJECT-COMMON-AI-PR-SUMMARY.yaml
-# Self-hosted AI PR summary bot — CodeRabbit-independent alternative.
+# Self-hosted AI PR summary bot — no third-party service required.
 # ===================================================================
 #
 # Posts an AI-generated summary comment on PRs targeting the default
 # branch, using the same zero-API-key engine chain as the release
 # changelog (user API key -> GitHub Models -> rule-based fallback).
 # The prompt includes commit subjects plus a capped `git diff --stat`.
-#
-# Mutually exclusive with CodeRabbit by design: if version.yml
-# metadata.template.options.coderabbit is true, this workflow no-ops
-# immediately — CodeRabbit already covers PR summaries, and posting
-# both on the same PR would be redundant/confusing.
 #
 # Independent from PROJECT-COMMON-AUTO-CHANGELOG-CONTROL: on release
 # PRs both workflows may call the AI engine once each, and when
@@ -46,14 +41,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Read coderabbit option from version.yml
-        id: options
-        run: |
-          CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?coderabbit:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
-          echo "coderabbit=$CODERABBIT" >> $GITHUB_OUTPUT
-
       - name: Generate and post AI summary
-        if: steps.options.outputs.coderabbit != 'true'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}

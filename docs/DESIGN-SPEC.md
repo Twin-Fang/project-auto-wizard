@@ -59,7 +59,7 @@ projectops/ (신규)
 
 - **감지**: 마커 파일(`build.gradle`/`pubspec.yaml`/`package.json`/`pyproject.toml` 등)로 타입 자동 감지. 9타입 + 멀티타입(csv) + 모노레포 경로(`project_paths` 맵, 서브폴더 마커 감지).
 - **대화형 계층**: 배너·현재 상태 카드 → 타입/버전/브랜치 확인·수정 → 충돌 3지선 → opt-in 질문들 → 완료 요약.
-- **비대화형**: `--force --type ... --paths ...` + 신규 `--main-branch <name>` / `--develop-branch <name>` / `--coderabbit` 플래그. CI 사용 가능. 플래그 생략 시 기본값: main-branch = 감지된 default branch, develop-branch = `develop`, coderabbit = false.
+- **비대화형**: `--force --type ... --paths ...` + 신규 `--main-branch <name>` / `--develop-branch <name>` 플래그. CI 사용 가능. 플래그 생략 시 기본값: main-branch = 감지된 default branch, develop-branch = `develop`.
 - **모드**: 신규 통합 / 업데이트 / 되돌리기 3모드.
 - **산출**: `.github/workflows` 타입별 배치 + `version.yml` 생성 + 충돌 처리.
 
@@ -74,15 +74,9 @@ projectops/ (신규)
 - 선택값은 `version.yml`의 `metadata.template.branches`에 저장 → 업데이트 모드에서 재질문 없이 동일 치환 재적용.
 - **브랜치 모드 저장**: 마법사가 `version.yml`의 `metadata.template.branches.mode`에 `pr-flow` 또는 `trunk-based` 기록. 워크플로우 설치 구성이 모드별로 갈린다:
   - **pr-flow** (기본): `VERSION-CONTROL`(main 직접 push 안전망) + `AUTO-CHANGELOG-CONTROL`(릴리스 PR) + `RELEASE-PUBLISH`(main push, 릴리스 머지 커밋 감지 시만 동작) 3종 설치.
-  - **trunk-based**: **`RELEASE-PUBLISH` 단독 설치** (`VERSION-CONTROL`·`AUTO-CHANGELOG` 설치 제외 — 역할 흡수). main push마다 RELEASE-PUBLISH 하나가 순서대로 처리: patch 증가 → CHANGELOG 갱신(엔진 체인, PR 컨텍스트 없으므로 1순위 CodeRabbit 자동 스킵) → `[skip ci]` 커밋 → **그 커밋에** tag → GitHub Release. 단일 워크플로우라 순서·경합 문제 없음, tag는 항상 bump 후 커밋을 가리킴.
+  - **trunk-based**: **`RELEASE-PUBLISH` 단독 설치** (`VERSION-CONTROL`·`AUTO-CHANGELOG` 설치 제외 — 역할 흡수). main push마다 RELEASE-PUBLISH 하나가 순서대로 처리: patch 증가 → CHANGELOG 갱신(엔진 체인) → `[skip ci]` 커밋 → **그 커밋에** tag → GitHub Release. 단일 워크플로우라 순서·경합 문제 없음, tag는 항상 bump 후 커밋을 가리킴.
   - **루프 가드**: 봇 커밋은 전부 `[skip ci]` — bump/CHANGELOG 커밋이 워크플로우를 재트리거하지 않는다 (원본 레포 방식 유지).
   - 마법사는 완료 요약에서 선택된 모드와 설치된 워크플로우 구성을 안내.
-
-### 신규 질문 ② — CodeRabbit opt-in
-
-- 질문: "CodeRabbit을 사용합니까? (PR AI 리뷰·요약)" — **기본 false**.
-- true면 changelog 워크플로우가 CodeRabbit PR summary를 1순위 소스로 사용.
-- `version.yml`의 `metadata.template.options.coderabbit`에 저장 (기존 nexus/secret_backup 패턴).
 
 ### 기존 opt-in 유지
 
@@ -103,13 +97,11 @@ projectops/ (신규)
 
 | 순위 | 엔진 | 조건 | 비용 |
 |---|---|---|---|
-| 1 | CodeRabbit PR summary | 마법사 opt-in true **이고 PR 컨텍스트 존재** (trunk-based push 실행 시 자동 스킵) | CodeRabbit 요금제 |
-| | └ 대기 정책: PR 코멘트를 30초 간격 폴링, **최대 5분**. 미도착 시 2순위로 전환 (원본 레포의 10분 대기 문제 재현 방지) | | |
-| 2 | 사용자 지정 provider | `AI_API_KEY` secret 존재 | 사용자 부담 |
-| 3 | **GitHub Models** (기본값) | `GITHUB_TOKEN` + `permissions: models: read` | **무료 사용량 (rate limit)** |
-| 4 | 규칙 fallback | 위 전부 실패/부재 | 0원, 항상 동작 |
+| 1 | 사용자 지정 provider | `AI_API_KEY` secret 존재 | 사용자 부담 |
+| 2 | **GitHub Models** (기본값) | `GITHUB_TOKEN` + `permissions: models: read` | **무료 사용량 (rate limit)** |
+| 3 | 규칙 fallback | 위 전부 실패/부재 | 0원, 항상 동작 |
 
-- 2·3은 동일 코드 경로: **OpenAI-호환 chat completions** 형식. `AI_API_BASE_URL`/`AI_MODEL` env로 엔드포인트 교체 (Groq·Gemini 호환모드·Ollama 등 무료 엔드포인트 지원). GitHub Models 엔드포인트: `https://models.github.ai/inference/chat/completions`.
+- 1·2는 동일 코드 경로: **OpenAI-호환 chat completions** 형식. `AI_API_BASE_URL`/`AI_MODEL` env로 엔드포인트 교체 (Groq·Gemini 호환모드·Ollama 등 무료 엔드포인트 지원). GitHub Models 엔드포인트: `https://models.github.ai/inference/chat/completions`.
 - 표준 라이브러리 `urllib`만 사용. `changelog_manager.py`에 `ai-summary` 서브커맨드 추가.
 - 실패(429/타임아웃/키없음/권한없음) → 경고 로그 + 다음 순위 자동 전환. **릴리스는 절대 안 막힘.**
 

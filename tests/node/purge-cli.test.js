@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs } from "../../src/cli/args.js";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
 
@@ -23,14 +23,13 @@ test("parseArgs: purge flags default to false", () => {
   assert.strictEqual(opts.keepChangelog, false);
   assert.strictEqual(opts.keepWorkflows, false);
   assert.strictEqual(opts.keepScripts, false);
-  assert.strictEqual(opts.keepCoderabbit, false);
 });
 
 test("parseArgs: all purge-only flags parse", () => {
   const opts = parseArgs([
     "--mode", "purge", "--yes", "--allow-dirty", "--delete-develop-branch",
     "--keep-version-yml", "--keep-readme", "--keep-changelog",
-    "--keep-workflows", "--keep-scripts", "--keep-coderabbit",
+    "--keep-workflows", "--keep-scripts",
   ]);
   assert.strictEqual(opts.allowDirty, true);
   assert.strictEqual(opts.deleteDevelopBranch, true);
@@ -39,7 +38,6 @@ test("parseArgs: all purge-only flags parse", () => {
   assert.strictEqual(opts.keepChangelog, true);
   assert.strictEqual(opts.keepWorkflows, true);
   assert.strictEqual(opts.keepScripts, true);
-  assert.strictEqual(opts.keepCoderabbit, true);
 });
 
 async function installedTarget() {
@@ -150,7 +148,7 @@ test("run(): --mode purge --yes with TTY and a matching typed repo name performs
   const originalIsTTY = process.stdout.isTTY;
   process.stdout.isTTY = true;
   try {
-    const repoName = target.split("/").pop();
+    const repoName = basename(target); // Windows 경로 구분자(백슬래시)에서도 동작
     const code = await run(["--mode", "purge", "--yes"], {
       cwd: target, exec: cleanExec, promptRepoName: async () => repoName,
     });

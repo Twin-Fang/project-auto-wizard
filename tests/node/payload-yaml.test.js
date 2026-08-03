@@ -71,24 +71,19 @@ test("AUTO-CHANGELOG-CONTROL passes PR title via --pr-title env (no inline inter
   assert.ok(!body.includes('--pr-title "${{'), "PR title must not be inline-interpolated into the shell");
 });
 
-test("@coderabbitai summary appears only inside the coderabbit-gated step", () => {
+test("AUTO-CHANGELOG-CONTROL의 AI 요약 step은 조건 없이 항상 실행된다", () => {
   const body = readFileSync(changelogPath, "utf8");
-  const occurrences = body.split("@coderabbitai summary").length - 1;
-  assert.strictEqual(occurrences, 1, "expected exactly one @coderabbitai summary occurrence");
   const lines = body.split("\n");
-  const idx = lines.findIndex((l) => l.includes("@coderabbitai summary"));
-  const preceding = lines.slice(Math.max(0, idx - 40), idx).join("\n");
-  assert.ok(
-    /if:.*coderabbit\s*==\s*'true'/.test(preceding),
-    "@coderabbitai summary must sit inside a step gated on the coderabbit option"
-  );
+  const idx = lines.findIndex((l) => l.includes("Generate summary with the AI engine chain"));
+  assert.ok(idx >= 0, "AI 요약 step이 있어야 한다");
+  const stepBlock = lines.slice(idx, idx + 4).join("\n");
+  assert.ok(!/^\s*if:/m.test(stepBlock), "AI 요약 step에는 게이팅 조건이 없어야 한다");
 });
 
-test("AUTO-CHANGELOG-CONTROL polls PR body 10 times x 30s (5 minutes)", () => {
+test("AUTO-CHANGELOG-CONTROL에 PR body 폴링 대기 로직이 없다", () => {
   const body = readFileSync(changelogPath, "utf8");
-  assert.ok(body.includes("MAX_POLLS=10"));
-  assert.ok(body.includes("POLL_INTERVAL=30"));
-  assert.ok(body.includes("5 minutes"));
+  assert.ok(!body.includes("MAX_POLLS"), "폴링 루프가 제거되어야 한다");
+  assert.ok(!body.includes("POLL_INTERVAL"), "폴링 간격이 제거되어야 한다");
 });
 
 // ---------------------------------------------------------------

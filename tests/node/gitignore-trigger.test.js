@@ -78,21 +78,11 @@ test("runFull: 타입별 워크플로우 충돌을 'template'으로 처리하면
   }
 });
 
-test("runFull: .coderabbit.yaml을 백업하며 덮어쓰면 .gitignore가 갱신된다", () => {
+test("runFull: 설치물에 .coderabbit.yaml이 생기지 않는다", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-full-gitignore-"));
   try {
-    const payloadRoot = resolvePayloadRoot();
-    const ctx = baseContext({ includeCodeRabbit: true });
-    runFull(ctx, payloadRoot, target);
-    assert.ok(existsSync(join(target, ".coderabbit.yaml")));
-    assert.ok(!existsSync(join(target, ".gitignore")));
-
-    // force:true 상태로 재설치 — 기존 .coderabbit.yaml을 .bak으로 백업 후 덮어쓴다.
-    const result = runFull(ctx, payloadRoot, target);
-
-    assert.ok(existsSync(join(target, ".coderabbit.yaml.bak")));
-    assert.strictEqual(result.gitignoreUpdated, true);
-    assert.ok(readFileSync(join(target, ".gitignore"), "utf8").includes("*.bak"));
+    runFull(baseContext(), resolvePayloadRoot(), target);
+    assert.ok(!existsSync(join(target, ".coderabbit.yaml")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

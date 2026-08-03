@@ -49,7 +49,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     const ok = await io.askYesNo("마법사가 설치한 워크플로우·스크립트를 제거할까요? (version.yml·README는 보존)", false);
     if (ok !== true) { io.cancelMessage?.("되돌리기를 취소했습니다."); return 0; }
     const r = runRevert({}, payload, cwd);
-    io.note?.(`워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개 제거${r.coderabbit ? " + .coderabbit.yaml" : ""}`, "되돌리기 완료");
+    io.note?.(`워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개 제거`, "되돌리기 완료");
     io.outro?.("되돌리기를 마쳤습니다.");
     return 0;
   }
@@ -78,7 +78,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
-  let includeCodeRabbit = existing?.options?.coderabbit ?? null;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
   const showOptional = mode === "full" || mode === "workflows";
   const realTty = process.stdout.isTTY === true;
@@ -97,12 +96,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     includeNexus = r.nexus;
     includeSecretBackup = r.secretBackup;
 
-    // 신규 질문 ② — CodeRabbit opt-in (DESIGN-SPEC §4, 기본 아니오). 저장값 있으면 재질문 생략.
-    if (includeCodeRabbit === null) {
-      const y = await io.askYesNo("CodeRabbit을 사용합니까? (PR AI 리뷰·요약을 릴리스 노트 1순위로 사용)", false);
-      includeCodeRabbit = y === true;
-    }
-
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
     // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
     if (mode === "full" && includeSemverAuto === null) {
@@ -110,7 +103,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       includeSemverAuto = y2 === true;
     }
   }
-  includeCodeRabbit = includeCodeRabbit === true;
   // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
   // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
   // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
@@ -209,7 +201,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const { now, today } = clock || utcNow();
   const ctx = createContext({
     mode, force: true, types, version, versionCode, branch, branches, paths,
-    includeNexus, includeSecretBackup, includeCodeRabbit,
+    includeNexus, includeSecretBackup,
     includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
   });
@@ -247,7 +239,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({
-    mode, types, version, branches, includeCodeRabbit,
+    mode, types, version, branches,
     counters: { workflows: result?.workflows?.copied ?? 0 },
     gitignoreUpdated: result?.gitignoreUpdated === true,
   }, cwd);

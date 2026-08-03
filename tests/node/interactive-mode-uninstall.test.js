@@ -15,7 +15,7 @@ function installFixture() {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: true,
+    paths: new Map(),
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
@@ -40,11 +40,10 @@ function stubIo({ multiselectReturn, confirmReturn }) {
 test("runInteractive: selecting 완전 삭제 then confirming removes the checked items", async () => {
   const target = installFixture();
   try {
-    const { io, outros } = stubIo({ multiselectReturn: ["workflows", "scripts", "coderabbit"], confirmReturn: true });
+    const { io, outros } = stubIo({ multiselectReturn: ["workflows", "scripts"], confirmReturn: true });
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml")));
     assert.ok(existsSync(join(target, "version.yml"))); // readme/gitignore/versionYml 미선택 -> 보존
     assert.ok(outros.some((t) => t.includes("완전 삭제")));
   } finally {

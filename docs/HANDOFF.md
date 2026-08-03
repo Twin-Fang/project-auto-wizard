@@ -42,7 +42,7 @@
 ## 핵심 계약 (구현 시 불변 — 요약)
 
 - payload 스크립트: stdlib only, stdout 마지막 줄=값(`| tail -n 1`), 릴리스 절대 안 막힘(ai-summary always exit 0)
-- ai-summary 엔진 체인: CodeRabbit(opt-in) → AI_API_KEY → GitHub Models → 3단 규칙 fallback. 입력 = cwd `pr_body.md` + env
+- ai-summary 엔진 체인: AI_API_KEY → GitHub Models → 3단 규칙 fallback. 입력 = cwd `pr_body.md` + env
 - 릴리스 머지 감지: 머지 커밋 subject `chore(release): vX.Y.Z (PR #N)` — 3파일 동기 유지
 - 브랜치: `{{MAIN_BRANCH}}`/`{{DEVELOP_BRANCH}}` placeholder → 설치 시 `src/core/branding.js` 치환. 봇 커밋 `[skip ci]`
 - payload 단일 진실: 설치 자산은 전부 `payload/` (버전 레이아웃 = `payload/version.yml.template`)

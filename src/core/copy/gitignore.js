@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 
 // issue #7: 마법사가 설치하는 것과 무관한 개인 개발환경 항목(/.idea 등)은 마법사 책임 밖이므로 제거.
-// 대신 마법사 자신의 충돌 처리(workflows.js backup/template 결정, coderabbit.js 덮어쓰기 백업)가
+// 대신 마법사 자신의 충돌 처리(workflows.js backup/template 결정)가
 // 실제로 만들어내는 부산물만 gitignore 대상으로 삼는다.
 const REQUIRED_ENTRIES = ["*.bak", "*.template.yaml"];
 

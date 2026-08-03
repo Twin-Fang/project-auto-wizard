@@ -1,10 +1,10 @@
-// purge 모드 — revert가 지우는 전부(워크플로우·스크립트·coderabbit) + version.yml·README
+// purge 모드 — revert가 지우는 전부(워크플로우·스크립트) + version.yml·README
 // AUTO-VERSION-SECTION 블록·CHANGELOG를 추가로 제거해 설치 이전 상태로 완전히 되돌린다.
 // 개발·테스트 전용 숨김 모드 — DESIGN-SPEC purge #6.
 // develop 브랜치 삭제는 파일 삭제와 성격이 달라(실행 시점 git 상태 판단 필요) 여기 plan에는
 // 포함하지 않고 index.js의 purge 분기에서 직접 처리한다.
 import { join } from "node:path";
-import { existsSync, renameSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRevert } from "./revert.js";
@@ -12,14 +12,13 @@ import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 
-// keepFlags: { versionYml, readme, changelog, workflows, scripts, coderabbit } — true인 카테고리는 후보에서 제외.
-// 반환: { workflows, scripts, coderabbit, versionYml, readmeSection, changelog } — 아무것도 지우지 않는 순수 함수.
+// keepFlags: { versionYml, readme, changelog, workflows, scripts } — true인 카테고리는 후보에서 제외.
+// 반환: { workflows, scripts, versionYml, readmeSection, changelog } — 아무것도 지우지 않는 순수 함수.
 export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const revertPlan = planRevert(payloadRoot, targetRoot);
   return {
     workflows: keepFlags.workflows ? [] : revertPlan.workflows,
     scripts: keepFlags.scripts ? [] : revertPlan.scripts,
-    coderabbit: keepFlags.coderabbit ? false : revertPlan.coderabbit,
     versionYml: !keepFlags.versionYml && existsSync(join(targetRoot, PATHS.versionFile)),
     readmeSection: !keepFlags.readme && hasVersionSection(targetRoot),
     changelog: keepFlags.changelog ? [] : CHANGELOG_FILES.filter((f) => existsSync(join(targetRoot, f))),
@@ -37,7 +36,6 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
   for (const f of plan.workflows) lines.push(`  - ${f}`);
   lines.push(`스크립트 (${plan.scripts.length}개):`);
   for (const f of plan.scripts) lines.push(`  - ${f}`);
-  if (plan.coderabbit) lines.push("파일: .coderabbit.yaml");
   if (plan.versionYml) lines.push("파일: version.yml");
   if (plan.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of plan.changelog) lines.push(`파일: ${f}`);
@@ -57,11 +55,6 @@ export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) remove(join(wfDir, name));
   for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  if (plan.coderabbit) {
-    const cr = join(targetRoot, ".coderabbit.yaml");
-    remove(cr);
-    if (existsSync(cr + ".bak")) renameSync(cr + ".bak", cr);
-  }
   if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
   for (const f of plan.changelog) remove(join(targetRoot, f));
@@ -76,7 +69,6 @@ export function printPurgeResult(result) {
   for (const f of result.workflows) lines.push(`  - ${f}`);
   lines.push(`스크립트 (${result.scripts.length}개):`);
   for (const f of result.scripts) lines.push(`  - ${f}`);
-  if (result.coderabbit) lines.push("파일: .coderabbit.yaml");
   if (result.versionYml) lines.push("파일: version.yml");
   if (result.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of result.changelog) lines.push(`파일: ${f}`);

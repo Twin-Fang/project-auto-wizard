@@ -46,6 +46,5 @@ metadata:
     options:
       nexus: {{OPT_NEXUS}}
       secret_backup: {{OPT_SECRET_BACKUP}}
-      coderabbit: {{OPT_CODERABBIT}}
       semver_auto: {{OPT_SEMVER_AUTO}}
 {{DEPLOY}}

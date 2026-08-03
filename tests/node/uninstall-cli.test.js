@@ -26,11 +26,11 @@ function emptyTarget() {
   return mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
 }
 
-test("run(): --mode uninstall --force removes only workflows/scripts/coderabbit by default", async () => {
+test("run(): --mode uninstall --force removes only workflows/scripts by default", async () => {
   const target = emptyTarget();
   try {
     writeFileSync(join(target, "README.md"), "# Test Project\n");
-    await run(["--mode", "full", "--force", "--type", "node", "--coderabbit"], {
+    await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
     // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다(issue #7) — 이 테스트는
@@ -39,7 +39,6 @@ test("run(): --mode uninstall --force removes only workflows/scripts/coderabbit 
     const code = await run(["--mode", "uninstall", "--force"], { cwd: target });
     assert.strictEqual(code, 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml")));
     assert.ok(existsSync(join(target, "version.yml")));
     assert.ok(existsSync(join(target, ".gitignore")));
     assert.ok(readFileSync(join(target, "README.md"), "utf8").includes("AUTO-VERSION-SECTION"));
@@ -52,7 +51,7 @@ test("run(): --mode uninstall --force --purge-readme --purge-gitignore --purge-v
   const target = emptyTarget();
   try {
     writeFileSync(join(target, "README.md"), "# Test Project\n");
-    await run(["--mode", "full", "--force", "--type", "node", "--coderabbit"], {
+    await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
     // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다(issue #7) — 이 테스트는
@@ -64,7 +63,6 @@ test("run(): --mode uninstall --force --purge-readme --purge-gitignore --purge-v
     );
     assert.strictEqual(code, 0);
     assert.ok(!existsSync(join(target, "version.yml")));
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml")));
     assert.ok(!existsSync(join(target, ".gitignore")));
     assert.ok(!readFileSync(join(target, "README.md"), "utf8").includes("AUTO-VERSION-SECTION"));
   } finally {

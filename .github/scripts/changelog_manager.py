@@ -5,7 +5,7 @@ changelog_manager.py
 통합 체인지로그 매니저 스크립트.
 
 서브커맨드:
-  - update-from-summary: CodeRabbit Summary Markdown을 파싱하여 CHANGELOG.json 갱신
+  - update-from-summary: 릴리즈 요약 Markdown을 파싱하여 CHANGELOG.json 갱신
   - generate-md        : CHANGELOG.json을 기반으로 CHANGELOG.md 재생성
   - export             : 특정 버전의 릴리즈 노트를 생성하여 stdout 또는 파일로 저장
   - ai-summary         : 커밋 목록으로부터 AI(또는 규칙 기반 폴백) 릴리즈 요약 생성
@@ -46,9 +46,8 @@ def _clean_summary_noise(text: str) -> str:
 
     제거 대상:
     1. HTML 주석 (<!-- ... -->)
-    2. CodeRabbit Tip 메시지
-    3. 남은 HTML 태그
-    4. 연속된 빈 줄
+    2. 남은 HTML 태그
+    3. 연속된 빈 줄
     """
     if not text:
         return text
@@ -56,15 +55,10 @@ def _clean_summary_noise(text: str) -> str:
     # 1. HTML 주석 제거
     text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
 
-    # 2. CodeRabbit Tip 줄 제거
-    text = re.sub(r'^.*?✏️\s*Tip:.*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'<sub>.*?Tip:.*?</sub>', '', text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'^\s*Tip:.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
-
-    # 3. 남은 HTML 태그 제거
+    # 2. 남은 HTML 태그 제거
     text = re.sub(r'<[^>]+>', '', text)
 
-    # 4. 연속된 빈 줄 정리 (3개 이상 → 2개)
+    # 3. 연속된 빈 줄 정리 (3개 이상 → 2개)
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     return text.strip()
@@ -80,27 +74,27 @@ def _make_safe_key(title: str, idx: int) -> str:
 
 def _parse_summary_markdown(md_content: str) -> dict:
     """
-    Markdown 형식의 CodeRabbit Summary 파싱.
+    릴리즈 요약 Markdown을 카테고리/항목으로 파싱.
 
     3단계 폴백 전략:
-    1. 정밀 파싱 (현재 CodeRabbit 형식)
-    2. 관대한 파싱 (형식 변형 대응)
+    1. 섹션 파싱 (AI 엔진 체인·규칙 기반 폴백이 실제로 생성하는 형식)
+    2. 관대한 파싱 (중첩 불릿 등 형식 변형 대응)
     3. 휴리스틱 파싱 (최후 수단)
 
-    예상 형식:
-    ## Summary by CodeRabbit
+    예상 형식 (_build_ai_prompt / render_fallback_md가 지정하는 형식):
+    ## [1.2.3]
 
-    * **버그 수정**
-      * OCR 입력 처리 개선
-      * 빈 콘텐츠 응답 오류 감지 강화
+    ### ✨ 기능
+    - 사용자 로그인 추가
+    - 대시보드 위젯 추가
 
-    * **Chores**
-      * 버전 0.1.39로 업그레이드
+    ### 🐛 수정
+    - 널 포인터 예외 수정
     """
-    # 1단계: 정밀 파싱
-    detected = _parse_markdown_precise(md_content)
+    # 1단계: 섹션 파싱
+    detected = _parse_markdown_sections(md_content)
     if detected:
-        print("  → 정밀 파서 성공")
+        print("  → 섹션 파서 성공")
         return detected
 
     # 2단계: 관대한 파싱
@@ -116,33 +110,51 @@ def _parse_summary_markdown(md_content: str) -> dict:
     return detected
 
 
-def _parse_markdown_precise(md_content: str) -> dict:
-    """
-    정밀 파서: 현재 CodeRabbit 형식에 최적화.
+# `## [1.2.3]` / `## v1.2.3` 처럼 카테고리가 아니라 릴리즈 버전을 가리키는 헤더
+_VERSION_HEADING_RE = re.compile(r'^\[?\s*v?\d+(?:\.\d+)*\s*\]?$')
 
-    형식: * **카테고리**\n  * 항목
+_HEADING_RE = re.compile(r'^\s{0,3}(#{2,6})\s+(.+?)\s*#*\s*$')
+_BULLET_RE = re.compile(r'^\s*[\*\-\+]\s+(.+?)\s*$')
+
+
+def _parse_markdown_sections(md_content: str) -> dict:
+    """
+    섹션 파서: `### 카테고리` 헤딩 + `- 항목` 불릿 형식.
+
+    AI 엔진 체인(사용자 지정 API → GitHub Models)과 규칙 기반 폴백이
+    동일하게 생성하는 형식이므로 1순위로 시도한다.
     """
     detected: dict[str, dict] = {}
+    order: list[str] = []
+    current_key = None
 
-    # 패턴: * **카테고리** (bold, 들여쓰기 2칸)
-    pattern = r'\*\s*\*\*(.+?)\*\*\s*\n((?:\s{2}\*\s+.+(?:\n|$))*)'
-    matches = re.findall(pattern, md_content, re.MULTILINE)
-
-    for idx, (category_title, items_text) in enumerate(matches):
-        category_title = category_title.strip()
-
-        # 항목 추출: "  * 항목 내용"
-        items = re.findall(r'\s{2}\*\s+(.+)', items_text)
-        items = [item.strip() for item in items if item.strip()]
-
-        if not category_title and not items:
+    for line in md_content.split('\n'):
+        heading = _HEADING_RE.match(line)
+        if heading:
+            title = heading.group(2).strip()
+            # 버전 헤더(`## [1.2.3]`)는 카테고리가 아니다
+            if not title or _VERSION_HEADING_RE.match(title):
+                current_key = None
+                continue
+            key = _make_safe_key(title, len(order))
+            if key not in detected:
+                detected[key] = {'title': title, 'items': []}
+                order.append(key)
+            current_key = key
             continue
 
-        safe_key = _make_safe_key(category_title, idx)
-        detected[safe_key] = {
-            'title': category_title,
-            'items': items,
-        }
+        if current_key is None:
+            continue
+
+        bullet = _BULLET_RE.match(line)
+        if bullet:
+            item = bullet.group(1).strip()
+            if item:
+                detected[current_key]['items'].append(item)
+
+    # 헤딩만 있고 항목이 하나도 없으면 이 형식이 아니라고 보고 다음 파서로 넘긴다
+    if not any(entry['items'] for entry in detected.values()):
+        return {}
 
     return detected
 

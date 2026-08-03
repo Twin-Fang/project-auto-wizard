@@ -13,7 +13,7 @@ import { markerForType } from "../core/detect.js";
 function versionYmlPreview(context, payloadRoot, targetRoot) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown",
-    includeNexus = false, includeSecretBackup = false, includeCodeRabbit = false,
+    includeNexus = false, includeSecretBackup = false,
     includeSemverAuto } = context;
   const pathMarkers = new Map();
   for (const [t] of paths) pathMarkers.set(t, markerForType(t));
@@ -22,7 +22,6 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
     version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
     templateOptions: {
       templateVersion, includeNexus, includeSecretBackup,
-      includeCodeRabbit: includeCodeRabbit === true,
       includeSemverAuto: includeSemverAuto !== false,
       optionsDate: today,
     },
@@ -57,14 +56,12 @@ export function printDryRun(plan) {
     for (const f of r.workflows) lines.push(`  - ${f}`);
     lines.push(`제거될 스크립트 (${r.scripts.length}개):`);
     for (const f of r.scripts) lines.push(`  - ${f}`);
-    if (r.coderabbit) lines.push("제거될 파일: .coderabbit.yaml");
   } else if (plan.mode === "uninstall") {
     const u = plan.uninstall;
     lines.push(`제거될 워크플로우 (${u.workflows.length}개):`);
     for (const f of u.workflows) lines.push(`  - ${f}`);
     lines.push(`제거될 스크립트 (${u.scripts.length}개):`);
     for (const f of u.scripts) lines.push(`  - ${f}`);
-    if (u.coderabbit) lines.push("제거될 파일: .coderabbit.yaml");
     if (u.readme) lines.push("제거될 항목: README.md 버전 섹션 (AUTO-VERSION-SECTION)");
     if (u.gitignore) lines.push("제거될 항목: .gitignore 자동 추가 항목");
     if (u.versionYml) lines.push("제거될 파일: version.yml");

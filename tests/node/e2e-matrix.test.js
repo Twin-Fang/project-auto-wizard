@@ -31,7 +31,7 @@ function assertBaseline(target, label) {
   // version.yml + branches/options 메타
   const vy = readFileSync(join(target, "version.yml"), "utf8");
   assert.ok(/main: "main"/.test(vy) && /develop: "develop"/.test(vy) && /mode: "pr-flow"/.test(vy), `${label}: branches metadata`);
-  assert.ok(/nexus: (true|false)/.test(vy) && /coderabbit: (true|false)/.test(vy), `${label}: options metadata`);
+  assert.ok(/nexus: (true|false)/.test(vy) && /semver_auto: (true|false)/.test(vy), `${label}: options metadata`);
   // 공통 워크플로우 4종 (pr-flow)
   for (const wf of [
     "PROJECT-COMMON-VERSION-CONTROL.yaml", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
