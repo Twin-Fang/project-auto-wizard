@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs } from "../../src/cli/args.js";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
 
@@ -148,7 +148,7 @@ test("run(): --mode purge --yes with TTY and a matching typed repo name performs
   const originalIsTTY = process.stdout.isTTY;
   process.stdout.isTTY = true;
   try {
-    const repoName = target.split("/").pop();
+    const repoName = basename(target); // Windows 경로 구분자(백슬래시)에서도 동작
     const code = await run(["--mode", "purge", "--yes"], {
       cwd: target, exec: cleanExec, promptRepoName: async () => repoName,
     });
