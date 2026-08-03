@@ -15,7 +15,7 @@ function installFixture() {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: false,
+    paths: new Map(),
     now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
@@ -54,11 +54,10 @@ test("planPurge: keepFlags excludes categories from the plan", () => {
   const target = installFixture();
   try {
     const plan = planPurge(resolvePayloadRoot(), target, {
-      versionYml: true, readme: true, workflows: true, scripts: true, coderabbit: true, changelog: true,
+      versionYml: true, readme: true, workflows: true, scripts: true, changelog: true,
     });
     assert.deepStrictEqual(plan.workflows, []);
     assert.deepStrictEqual(plan.scripts, []);
-    assert.strictEqual(plan.coderabbit, false);
     assert.strictEqual(plan.versionYml, false);
     assert.strictEqual(plan.readmeSection, false);
     assert.deepStrictEqual(plan.changelog, []);
@@ -90,7 +89,7 @@ test("executePurge: round-trip returns target to its pre-install file tree", () 
     const ctx = createContext({
       mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
       branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(), includeCodeRabbit: false,
+      paths: new Map(),
       now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
     });
     runFull(ctx, resolvePayloadRoot(), target);
@@ -182,55 +181,6 @@ test("executePurge: deletes CHANGELOG.json/.md when present and not kept", () =>
   }
 });
 
-test("executePurge: --keep-coderabbit preserves .coderabbit.yaml while removing the rest", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
-  writeFileSync(join(target, "README.md"), "# Test Repo\n");
-  try {
-    const ctx = createContext({
-      mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
-      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(), includeCodeRabbit: true,
-      now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
-    });
-    runFull(ctx, resolvePayloadRoot(), target);
-    assert.ok(existsSync(join(target, ".coderabbit.yaml")));
-    executePurge(resolvePayloadRoot(), target, { coderabbit: true });
-    assert.ok(existsSync(join(target, ".coderabbit.yaml")));
-    assert.ok(!existsSync(join(target, "version.yml")));
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
-
-// M-N2 (Fable 2차 검토): --keep-coderabbit 테스트는 "보존"만 검증하고, 라운드트립 테스트는
-// includeCodeRabbit:false로 설치해 .coderabbit.yaml 자체가 없다 — executePurge의 실제 삭제 +
-// .bak 복원 분기(runRevert가 아니라 purge.js 자체 로직)가 어떤 테스트에서도 실행되지 않는 죽은
-// 경로였다. coderabbit 설치 후 사용자가 직접 수정 → 재설치(force)로 .bak이 생기는 상황을 재현해
-// 삭제와 .bak 복원을 함께 검증한다.
-test("executePurge: deletes .coderabbit.yaml and restores a .bak backup when present", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
-  writeFileSync(join(target, "README.md"), "# Test Repo\n");
-  try {
-    const ctx = createContext({
-      mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
-      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(), includeCodeRabbit: true,
-      now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
-    });
-    runFull(ctx, resolvePayloadRoot(), target);
-    writeFileSync(join(target, ".coderabbit.yaml"), "custom: true\n"); // 사용자가 직접 수정
-    runFull(ctx, resolvePayloadRoot(), target); // force 재설치 → 덮어쓰기 + .bak 생성 (copyCoderabbit)
-    assert.ok(existsSync(join(target, ".coderabbit.yaml.bak")));
-
-    const result = executePurge(resolvePayloadRoot(), target);
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml.bak")));
-    assert.strictEqual(readFile(join(target, ".coderabbit.yaml"), "utf8"), "custom: true\n");
-    assert.strictEqual(result.coderabbit, true);
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
-
 test("printPurgeResult: lists removed filenames, not just counts (M3)", () => {
   const originalLog = console.log;
   let stdout = "";
@@ -238,7 +188,7 @@ test("printPurgeResult: lists removed filenames, not just counts (M3)", () => {
   try {
     printPurgeResult({
       workflows: ["PROJECT-RELEASE.yaml"], scripts: ["version_manager.py"],
-      coderabbit: true, versionYml: true, readmeSection: true, changelog: ["CHANGELOG.md"],
+      versionYml: true, readmeSection: true, changelog: ["CHANGELOG.md"],
     });
   } finally {
     console.log = originalLog;
@@ -249,5 +199,5 @@ test("printPurgeResult: lists removed filenames, not just counts (M3)", () => {
 });
 
 test("printPurgeResult: does not throw on an empty result", () => {
-  printPurgeResult({ workflows: [], scripts: [], coderabbit: false, versionYml: false, readmeSection: false, changelog: [] });
+  printPurgeResult({ workflows: [], scripts: [], versionYml: false, readmeSection: false, changelog: [] });
 });

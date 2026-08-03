@@ -10,8 +10,8 @@ import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { planUninstall, runUninstall } from "../../src/commands/uninstall.js";
 import { ensureGitignore } from "../../src/core/copy/gitignore.js";
 
-const FULL_SELECTION = { workflows: true, scripts: true, coderabbit: true, readme: true, gitignore: true, versionYml: true };
-const SAFE_SELECTION = { workflows: true, scripts: true, coderabbit: true, readme: false, gitignore: false, versionYml: false };
+const FULL_SELECTION = { workflows: true, scripts: true, readme: true, gitignore: true, versionYml: true };
+const SAFE_SELECTION = { workflows: true, scripts: true, readme: false, gitignore: false, versionYml: false };
 
 function installFixture() {
   const target = mkdtempSync(join(tmpdir(), "paw-uninstall-plan-"));
@@ -19,7 +19,7 @@ function installFixture() {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: true,
+    paths: new Map(),
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
@@ -35,12 +35,10 @@ test("planUninstall: full selection reports every installed item, deletes nothin
     const plan = planUninstall(resolvePayloadRoot(), target, FULL_SELECTION);
     assert.ok(plan.workflows.length > 0);
     assert.ok(plan.scripts.includes("version_manager.py"));
-    assert.strictEqual(plan.coderabbit, true);
     assert.strictEqual(plan.readme, true);
     assert.strictEqual(plan.gitignore, true);
     assert.strictEqual(plan.versionYml, true);
     assert.ok(existsSync(join(target, "version.yml")));
-    assert.ok(existsSync(join(target, ".coderabbit.yaml")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
@@ -59,13 +57,12 @@ test("planUninstall: safe selection excludes readme/gitignore/versionYml", () =>
   }
 });
 
-test("runUninstall: full selection removes workflows/scripts/coderabbit/readme-section/gitignore/version.yml", () => {
+test("runUninstall: full selection removes workflows/scripts/readme-section/gitignore/version.yml", () => {
   const target = installFixture();
   try {
     const result = runUninstall({}, resolvePayloadRoot(), target, FULL_SELECTION);
     assert.ok(result.workflows.length > 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml")));
     assert.ok(!existsSync(join(target, "version.yml")));
     assert.ok(!existsSync(join(target, ".gitignore"))); // 신규생성 케이스 -> 파일 자체 삭제
     const readme = readFileSync(join(target, "README.md"), "utf8");
@@ -112,7 +109,6 @@ test("planUninstall: nothing installed -> everything false/empty", () => {
     const plan = planUninstall(resolvePayloadRoot(), target, FULL_SELECTION);
     assert.deepStrictEqual(plan.workflows, []);
     assert.deepStrictEqual(plan.scripts, []);
-    assert.strictEqual(plan.coderabbit, false);
     assert.strictEqual(plan.readme, false);
     assert.strictEqual(plan.gitignore, false);
     assert.strictEqual(plan.versionYml, false);

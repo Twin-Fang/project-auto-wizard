@@ -13,7 +13,7 @@ function installFixture() {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: false,
+    paths: new Map(),
     now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
@@ -42,14 +42,14 @@ test("runStatus: fresh install reports version and no modified files", () => {
   }
 });
 
-test("printStatus: null nexus/secretBackup/coderabbit render as '미설정(기본 false)' not raw null", () => {
+test("printStatus: null nexus/secretBackup render as '미설정(기본 false)' not raw null", () => {
   const status = {
     installed: true,
     version: "1.0.0",
     templateVersion: "0.1.0",
     types: ["basic"],
     branches: null,
-    options: { nexus: null, secretBackup: null, coderabbit: null, semverAuto: null },
+    options: { nexus: null, secretBackup: null, semverAuto: null },
     modifiedFiles: [],
   };
   const originalLog = console.log;
@@ -62,10 +62,8 @@ test("printStatus: null nexus/secretBackup/coderabbit render as '미설정(기�
   }
   assert.ok(!output.includes("nexus=null"), "nexus=null must not leak into output");
   assert.ok(!output.includes("secret_backup=null"), "secret_backup=null must not leak into output");
-  assert.ok(!output.includes("coderabbit=null"), "coderabbit=null must not leak into output");
   assert.ok(output.includes("nexus=미설정(기본 false)"));
   assert.ok(output.includes("secret_backup=미설정(기본 false)"));
-  assert.ok(output.includes("coderabbit=미설정(기본 false)"));
   assert.ok(output.includes("semver_auto=미설정(기본 false)"));
 });
 

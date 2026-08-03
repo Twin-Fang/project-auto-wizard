@@ -23,14 +23,13 @@ test("parseArgs: purge flags default to false", () => {
   assert.strictEqual(opts.keepChangelog, false);
   assert.strictEqual(opts.keepWorkflows, false);
   assert.strictEqual(opts.keepScripts, false);
-  assert.strictEqual(opts.keepCoderabbit, false);
 });
 
 test("parseArgs: all purge-only flags parse", () => {
   const opts = parseArgs([
     "--mode", "purge", "--yes", "--allow-dirty", "--delete-develop-branch",
     "--keep-version-yml", "--keep-readme", "--keep-changelog",
-    "--keep-workflows", "--keep-scripts", "--keep-coderabbit",
+    "--keep-workflows", "--keep-scripts",
   ]);
   assert.strictEqual(opts.allowDirty, true);
   assert.strictEqual(opts.deleteDevelopBranch, true);
@@ -39,7 +38,6 @@ test("parseArgs: all purge-only flags parse", () => {
   assert.strictEqual(opts.keepChangelog, true);
   assert.strictEqual(opts.keepWorkflows, true);
   assert.strictEqual(opts.keepScripts, true);
-  assert.strictEqual(opts.keepCoderabbit, true);
 });
 
 async function installedTarget() {
