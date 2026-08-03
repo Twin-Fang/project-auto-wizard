@@ -10,13 +10,9 @@
 #      else patch; AI-assisted patch->minor upgrade for unclassified
 #      commits) and bumps accordingly.
 #    - Otherwise: always patch+1 (legacy behavior).
-# 2. Acquires a release summary:
-#    - If version.yml metadata.template.options.coderabbit is true:
-#      requests a CodeRabbit summary comment once and polls the PR body
-#      (30s x 10 polls = 5 minutes max)
-#    - Otherwise (or on poll timeout): generates the summary locally with
-#      changelog_manager.py ai-summary (engine chain: user API key ->
-#      GitHub Models -> rule-based fallback; always succeeds)
+# 2. Generates the release summary locally with changelog_manager.py
+#    ai-summary (engine chain: user API key -> GitHub Models -> rule-based
+#    fallback; always succeeds, no third-party service involved)
 #    - The AI prompt includes commit subjects plus a capped
 #      `git diff --stat` (file-level change summary, no diff body)
 #      for richer context without token-cost blowup.
@@ -80,15 +76,6 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-      - name: Read coderabbit option from version.yml
-        id: options
-        run: |
-          # scoped to the metadata: -> template: -> options: chain so an
-          # unrelated "coderabbit:" key can never hijack the value
-          CODERABBIT=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?coderabbit:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
-          echo "coderabbit=$CODERABBIT" >> $GITHUB_OUTPUT
-          echo "coderabbit option: $CODERABBIT"
-
       - name: Read semver_auto option from version.yml
         id: semver_options
         run: |
@@ -109,87 +96,6 @@ jobs:
           fi
           rm -f _full_diff_stat.txt
           echo "commits to summarize: $(wc -l < commits.txt)"
-
-      - name: Request CodeRabbit summary (PR-body-init protection)
-        id: coderabbit_request
-        if: steps.options.outputs.coderabbit == 'true'
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-
-          # The PR body can lag right after open (API replication) —
-          # retry the read up to 3 times before deciding.
-          CURRENT_BODY=""
-          for attempt in 1 2 3; do
-            CURRENT_BODY=$(curl -s -H "Authorization: token ${{ github.token }}" \
-                                "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}" | \
-                                jq -r '.body // ""')
-            if [ -n "$CURRENT_BODY" ] && [ "$CURRENT_BODY" != "null" ]; then
-              echo "[try $attempt] body length=$(printf '%s' "$CURRENT_BODY" | wc -c)"
-              break
-            fi
-            echo "[try $attempt] body empty — possible replication lag, retrying"
-            sleep 2
-          done
-
-          if printf '%s\n' "$CURRENT_BODY" | grep -q "Summary by CodeRabbit"; then
-            # Protection: a summary already exists — never wipe it, never re-request
-            echo "Summary by CodeRabbit already present — skipping request"
-            echo "already_found=true" >> $GITHUB_OUTPUT
-          else
-            echo "already_found=false" >> $GITHUB_OUTPUT
-            echo "requesting CodeRabbit summary on PR #$PR_NUMBER"
-            curl -s -H "Authorization: token ${{ github.token }}" \
-                 -H "Content-Type: application/json" \
-                 -X POST \
-                 -d '{"body": "@coderabbitai summary"}' \
-                 "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null
-            echo "CodeRabbit summary requested"
-          fi
-
-      - name: Poll PR body for CodeRabbit summary (30s x 10 polls = 5 minutes max)
-        id: poll
-        if: steps.options.outputs.coderabbit == 'true'
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-
-          if [ "${{ steps.coderabbit_request.outputs.already_found }}" = "true" ]; then
-            echo "summary already present — skipping poll"
-            curl -s -H "Authorization: token ${{ github.token }}" \
-                 "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}" | \
-                 jq -r '.body // ""' > pr_body.md
-            echo "summary_found=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          MAX_POLLS=10
-          POLL_INTERVAL=30
-          FOUND=false
-
-          for i in $(seq 1 $MAX_POLLS); do
-            echo "[$i/$MAX_POLLS] checking PR body... ($(date '+%H:%M:%S'))"
-
-            PR_BODY=$(curl -s -H "Authorization: token ${{ github.token }}" \
-                           "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}" | \
-                           jq -r '.body // ""')
-
-            if [ -n "$PR_BODY" ] && [ "$PR_BODY" != "null" ] && printf '%s\n' "$PR_BODY" | grep -q "Summary by CodeRabbit"; then
-              echo "CodeRabbit summary found"
-              printf '%s\n' "$PR_BODY" > pr_body.md
-              FOUND=true
-              break
-            fi
-
-            if [ "$i" -lt "$MAX_POLLS" ]; then
-              sleep $POLL_INTERVAL
-            fi
-          done
-
-          if [ "$FOUND" = "true" ]; then
-            echo "summary_found=true" >> $GITHUB_OUTPUT
-          else
-            echo "no CodeRabbit summary after 5 minutes — falling back to ai-summary"
-            echo "summary_found=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Confirm release version (bump + sync)
         id: bump
@@ -223,8 +129,7 @@ jobs:
           fi
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Generate summary with the AI engine chain (fallback path)
-        if: steps.options.outputs.coderabbit != 'true' || steps.poll.outputs.summary_found != 'true'
+      - name: Generate summary with the AI engine chain
         env:
           # PR title goes through the env block — never inline-interpolate
           # untrusted text into the shell string (quote injection).
@@ -243,8 +148,7 @@ jobs:
             --pr-title "$PR_TITLE" \
             --diff-stat-file diff_stat.txt
 
-          # Feed the generated summary through the same channel the
-          # CodeRabbit path uses: update-from-summary reads ./pr_body.md
+          # update-from-summary reads ./pr_body.md
           cp summary.md pr_body.md
 
       - name: Update CHANGELOG from summary
