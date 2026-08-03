@@ -45,4 +45,3 @@ metadata:
     options:
       nexus: false
       secret_backup: false
-      coderabbit: false
