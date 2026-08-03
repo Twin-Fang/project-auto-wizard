@@ -10,7 +10,6 @@ export function parseArgs(argv) {
     primaryType: "",
     includeNexus: null,      // null=미설정
     includeSecretBackup: null,
-    includeCodeRabbit: null, // --coderabbit / --no-coderabbit (기본 false — DESIGN-SPEC §4 질문②)
     includeSemverAuto: null,  // --semver-auto / --no-semver-auto (기본 true — 미지정 시 다운스트림에서 해석)
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
@@ -31,7 +30,6 @@ export function parseArgs(argv) {
     keepChangelog: false,
     keepWorkflows: false,
     keepScripts: false,
-    keepCoderabbit: false,
   };
   const args = [...argv];
   while (args.length > 0) {
@@ -76,13 +74,10 @@ export function parseArgs(argv) {
       case "--keep-changelog": result.keepChangelog = true; break;
       case "--keep-workflows": result.keepWorkflows = true; break;
       case "--keep-scripts": result.keepScripts = true; break;
-      case "--keep-coderabbit": result.keepCoderabbit = true; break;
       case "--nexus": result.includeNexus = true; break;
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
       case "--no-secret-backup": result.includeSecretBackup = false; break;
-      case "--coderabbit": result.includeCodeRabbit = true; break;
-      case "--no-coderabbit": result.includeCodeRabbit = false; break;
       case "--semver-auto": result.includeSemverAuto = true; break;
       case "--no-semver-auto": result.includeSemverAuto = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;

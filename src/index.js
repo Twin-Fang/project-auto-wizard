@@ -103,7 +103,7 @@ export async function run(argv, {
       return 0;
     }
     const r = runRevert({}, payload, cwd);
-    console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개${r.coderabbit ? ", .coderabbit.yaml" : ""}`);
+    console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개`);
     console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
     return 0;
   }
@@ -116,7 +116,7 @@ export async function run(argv, {
     }
     const keepFlags = {
       versionYml: opts.keepVersionYml, readme: opts.keepReadme, changelog: opts.keepChangelog,
-      workflows: opts.keepWorkflows, scripts: opts.keepScripts, coderabbit: opts.keepCoderabbit,
+      workflows: opts.keepWorkflows, scripts: opts.keepScripts,
     };
     // version.yml은 여기서 미리 읽어둔다 — (a) executePurge()가 version.yml 자체를 지울 수 있어
     // 실행 이후에는 읽을 수 없고, (b) 아래 dry-run 예고 문구도 trunk-based 여부(develop === main)를
@@ -185,7 +185,7 @@ export async function run(argv, {
   // uninstall 모드 — revert보다 넓게 README·gitignore·version.yml까지 선택적으로 제거.
   if (opts.mode === "uninstall") {
     const safeSelection = {
-      workflows: true, scripts: true, coderabbit: true,
+      workflows: true, scripts: true,
       readme: opts.purgeReadme, gitignore: opts.purgeGitignore, versionYml: opts.purgeVersion,
     };
     if (opts.dryRun) {
@@ -196,7 +196,7 @@ export async function run(argv, {
       const r = runUninstall({}, payload, cwd, safeSelection);
       const removed = [
         `워크플로우 ${r.workflows.length}개`, `스크립트 ${r.scripts.length}개`,
-        r.coderabbit && ".coderabbit.yaml", r.readme && "README 버전 섹션",
+        r.readme && "README 버전 섹션",
         r.gitignore && ".gitignore 자동 추가 항목", r.versionYml && "version.yml",
       ].filter(Boolean).join(", ");
       console.error(`제거됨 — ${removed}`);
@@ -271,7 +271,6 @@ export async function run(argv, {
     // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
     includeNexus: opts.includeNexus ?? existing?.options?.nexus ?? false,
     includeSecretBackup: opts.includeSecretBackup ?? existing?.options?.secretBackup ?? false,
-    includeCodeRabbit: opts.includeCodeRabbit ?? existing?.options?.coderabbit ?? false,
     // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
     // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
     // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
@@ -309,7 +308,6 @@ export async function run(argv, {
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
     mode: opts.mode, types, version, branches,
-    includeCodeRabbit: context.includeCodeRabbit === true,
     counters: { workflows: result?.workflows?.copied ?? 0 },
     gitignoreUpdated: result?.gitignoreUpdated === true,
   }, cwd);

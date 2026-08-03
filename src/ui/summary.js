@@ -1,5 +1,5 @@
 // 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
-// ctx: { mode, types:[], version, counters:{ workflows }, branches?, includeCodeRabbit? }
+// ctx: { mode, types:[], version, counters:{ workflows }, branches? }
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS, WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
@@ -8,7 +8,7 @@ import { listYamlFiles } from "../core/fsutil.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx, targetRoot = ".") {
-  const { mode, types = [], version = "", counters = {}, branches = null, includeCodeRabbit = false, gitignoreUpdated = false } = ctx || {};
+  const { mode, types = [], version = "", counters = {}, branches = null, gitignoreUpdated = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 TTY일 때만 (.sh YELLOW/CYAN/NC 등가)
   const isTty = !!process.stderr.isTTY;
@@ -56,8 +56,7 @@ export function printSummary(ctx, targetRoot = ".") {
   if (mode === "full" || mode === "workflows") {
     err("");
     err("릴리스 노트 요약 엔진:");
-    if (includeCodeRabbit) err("  🤖 1순위 CodeRabbit PR 요약 (opt-in) → AI_API_KEY → GitHub Models(무료) → 규칙 fallback");
-    else err("  🤖 AI_API_KEY(선택) → GitHub Models(기본·무료·API 키 불필요) → 규칙 fallback — 릴리스는 절대 막히지 않음");
+    err("  🤖 AI_API_KEY(선택) → GitHub Models(기본·무료·API 키 불필요) → 규칙 fallback — 릴리스는 절대 막히지 않음");
   }
 
   err("");

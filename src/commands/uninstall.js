@@ -1,7 +1,7 @@
 // uninstall 모드 — revert(payload 파일명 일치분)보다 넓게, README/.gitignore/version.yml까지 선택적으로 제거.
 // 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in. revert.js는 건드리지 않고 읽기 전용으로만 재사용한다.
 import { join } from "node:path";
-import { existsSync, renameSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRevert } from "./revert.js";
@@ -9,14 +9,13 @@ import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
 
-// selection: { workflows, scripts, coderabbit, readme, gitignore, versionYml } (모두 boolean).
+// selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
 export function planUninstall(payloadRoot, targetRoot, selection) {
   const revertPlan = planRevert(payloadRoot, targetRoot);
   return {
     workflows: selection.workflows ? revertPlan.workflows : [],
     scripts: selection.scripts ? revertPlan.scripts : [],
-    coderabbit: selection.coderabbit ? revertPlan.coderabbit : false,
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
     gitignore: selection.gitignore ? hasAutoAddedEntries(targetRoot) : false,
     versionYml: selection.versionYml ? existsSync(join(targetRoot, PATHS.versionFile)) : false,
@@ -29,11 +28,6 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) remove(join(wfDir, name));
   for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  if (plan.coderabbit) {
-    const cr = join(targetRoot, ".coderabbit.yaml");
-    remove(cr);
-    if (existsSync(cr + ".bak")) renameSync(cr + ".bak", cr);
-  }
   // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
   // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
   // 실제 결과로 plan을 덮어써서 호출부(CLI/대화형 요약)가 거짓 성공을 보고하지 않게 한다.
@@ -48,22 +42,20 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
 const ITEM_DEFS = [
   { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml)" },
   { key: "scripts", label: "스크립트 (.github/scripts/*.py)" },
-  { key: "coderabbit", label: ".coderabbit.yaml" },
   { key: "readme", label: "README.md 버전 섹션 (AUTO-VERSION-SECTION)" },
   { key: "gitignore", label: ".gitignore 자동 추가 항목" },
   { key: "versionYml", label: "version.yml (버전/브랜치 설정 전체)" },
 ];
 
-// 기본 체크 상태 — 설치 시 옵션(nexus/secret-backup/coderabbit)이 opt-in인 것과 대칭으로,
-// 여기서는 "안전 삭제" 3종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
-export const SAFE_ITEMS = ["workflows", "scripts", "coderabbit"];
+// 기본 체크 상태 — 설치 시 옵션(nexus/secret-backup)이 opt-in인 것과 대칭으로,
+// 여기서는 "안전 삭제" 2종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
+export const SAFE_ITEMS = ["workflows", "scripts"];
 
 function detectAvailableItems(payloadRoot, targetRoot) {
   const revertPlan = planRevert(payloadRoot, targetRoot);
   const presence = {
     workflows: revertPlan.workflows.length > 0,
     scripts: revertPlan.scripts.length > 0,
-    coderabbit: revertPlan.coderabbit,
     readme: hasVersionSection(targetRoot),
     gitignore: hasAutoAddedEntries(targetRoot),
     versionYml: existsSync(join(targetRoot, PATHS.versionFile)),
@@ -74,7 +66,7 @@ function detectAvailableItems(payloadRoot, targetRoot) {
 function toSelection(checkedKeys) {
   const set = new Set(checkedKeys);
   return {
-    workflows: set.has("workflows"), scripts: set.has("scripts"), coderabbit: set.has("coderabbit"),
+    workflows: set.has("workflows"), scripts: set.has("scripts"),
     readme: set.has("readme"), gitignore: set.has("gitignore"), versionYml: set.has("versionYml"),
   };
 }
@@ -89,7 +81,6 @@ function summarizeResult(result) {
   const lines = [];
   if (result.workflows.length) lines.push(`워크플로우 ${result.workflows.length}개 제거`);
   if (result.scripts.length) lines.push(`스크립트 ${result.scripts.length}개 제거`);
-  if (result.coderabbit) lines.push(".coderabbit.yaml 제거");
   if (result.readme) lines.push("README.md 버전 섹션 제거");
   if (result.gitignore) lines.push(".gitignore 자동 추가 항목 제거");
   if (result.versionYml) lines.push("version.yml 제거");
