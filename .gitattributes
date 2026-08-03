@@ -1,0 +1,25 @@
+# 크로스플랫폼 재현성 (issue #15)
+#
+# 이 레포는 payload/를 "바이트 그대로" 사용자 레포에 복사하는 설치 마법사다.
+# .gitattributes가 없으면 Git for Windows 기본값(core.autocrlf=true)에서
+# payload/**가 CRLF로 체크아웃되고, 그대로 설치 산출물이 되어
+# Windows와 macOS의 설치 결과가 달라진다("설치 재현성 100%" 원칙 위반).
+# npm pack/publish도 워킹트리에서 패킹하므로 Windows 배포 시 CRLF가 실린다.
+#
+# eol=lf는 core.autocrlf 설정과 무관하게 워킹트리를 LF로 고정한다.
+
+* text=auto eol=lf
+
+# 바이너리 — 줄바꿈 정규화 대상에서 제외
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tgz binary
+*.gz binary
+*.jar binary
+*.keystore binary
+*.pyc binary
