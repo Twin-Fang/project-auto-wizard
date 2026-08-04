@@ -1,7 +1,7 @@
 // tests/node/dry-run-cli.test.js
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseArgs } from "../../src/cli/args.js";
@@ -19,6 +19,7 @@ test("parseArgs: omitting --dry-run defaults to false", () => {
 
 test("run(): --dry-run --mode full writes nothing to an empty target", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     const code = await run(
       ["--mode", "full", "--force", "--type", "node", "--dry-run"],
@@ -54,6 +55,7 @@ test("run(): --dry-run with no --mode (interactive) errors instead of running th
 
 test("run(): --dry-run without --force bypasses the non-interactive --force gate", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     const code = await run(
       ["--mode", "full", "--type", "node", "--dry-run"],
@@ -79,6 +81,7 @@ test("run(): non-dry-run without --force still requires --force in a non-interac
 
 test("run(): --dry-run --mode revert on an installed repo removes nothing", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
@@ -94,6 +97,7 @@ test("run(): --dry-run --mode revert on an installed repo removes nothing", asyn
 
 test("run(): --dry-run --mode revert without --force also bypasses the --force gate", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },

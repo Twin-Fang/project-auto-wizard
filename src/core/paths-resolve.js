@@ -10,7 +10,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, extraMarkers } from "./detect.js";
-import { normalizePath } from "../cli/args.js";
+import { normalizePath, CliError } from "../cli/args.js";
 
 // 취소(ESC/Ctrl+C)는 CANCEL 심볼 — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
 const isCancel = (v) => typeof v === "symbol";
@@ -119,7 +119,7 @@ export function findTypePathCandidates(root, type) {
 //   ② 루트에 마커 존재 → "." 자동
 //   ③ existingPaths(version.yml 저장값)
 //   ④ 후보 스캔
-//   ⑤ 분기 — 비대화형: 기존값→후보1개→루트 폴백 / 대화형: 확인·선택·직접입력
+//   ⑤ 분기 — 비대화형: 기존값→후보1개→에러 / 대화형: 확인·선택·직접입력
 export async function resolveProjectPaths({
   root, types = [], paths = new Map(), existingPaths = new Map(),
   force = false, tty = true, io = {},
@@ -146,7 +146,11 @@ export async function resolveProjectPaths({
 
     // ① --paths 등으로 이미 지정됨 → 최우선 (.sh L1441~1446)
     if (result.get(t)) {
-      say(`  ${t} → ${result.get(t)} (--paths 지정)`);
+      const p = result.get(t);
+      if (!existsSync(join(root, p))) {
+        throw new CliError(`--paths로 지정한 경로가 존재하지 않습니다: '${t}=${p}'`);
+      }
+      say(`  ${t} → ${p} (--paths 지정)`);
       continue;
     }
 
@@ -165,7 +169,7 @@ export async function resolveProjectPaths({
     const candidates = findTypePathCandidates(root, t);
     let chosen = "";
 
-    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489) ──
+    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489 — M4: root 폴백 의도적 불포함) ──
     if (force || !tty) {
       if (existing) {
         chosen = existing;
@@ -173,9 +177,10 @@ export async function resolveProjectPaths({
       } else if (candidates.length === 1) {
         chosen = candidates[0];
         say(`  ${t} → ${chosen} (자동 감지)`);
+      } else if (candidates.length === 0) {
+        throw new CliError(`${t}: 프로젝트 경로를 찾지 못했습니다. --paths "${t}=경로"로 직접 지정하세요.`);
       } else {
-        chosen = ".";
-        say(`  ⚠️ ${t} → 후보 ${candidates.length}개로 자동 확정 불가, 루트(.)로 기록 (--paths "${t}=경로"로 지정 가능)`);
+        throw new CliError(`${t}: 경로 후보가 ${candidates.length}개로 모호합니다(${candidates.join(", ")}). --paths "${t}=경로"로 직접 지정하세요.`);
       }
       result.set(t, chosen);
       continue;

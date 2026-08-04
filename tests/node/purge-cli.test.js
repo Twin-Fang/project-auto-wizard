@@ -43,6 +43,7 @@ test("parseArgs: all purge-only flags parse", () => {
 async function installedTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   await run(["--mode", "full", "--force", "--type", "node"], {
     cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
   });
@@ -253,6 +254,7 @@ test("run(): full round-trip — install then purge returns the target to its pr
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
   writeFileSync(join(target, "README.md"), "# Test\n");
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 루트 마커 — before 스냅샷에 포함시켜야 라운드트립이 성립
   try {
     const before = listAllFilesCli(target);
     await run(["--mode", "full", "--force", "--type", "node"], {
@@ -281,6 +283,7 @@ test("run(): --keep-version-yml via CLI preserves only version.yml", async () =>
 async function installedTrunkBasedTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main"], {
     cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
   });

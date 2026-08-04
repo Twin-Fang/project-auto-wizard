@@ -32,6 +32,7 @@ export function parseArgs(argv) {
     keepScripts: false,
   };
   const args = [...argv];
+  const seenFlags = new Set(); // L7: --nexus류 상호 모순 플래그 검증용
   while (args.length > 0) {
     const a = args.shift();
     switch (a) {
@@ -74,15 +75,35 @@ export function parseArgs(argv) {
       case "--keep-changelog": result.keepChangelog = true; break;
       case "--keep-workflows": result.keepWorkflows = true; break;
       case "--keep-scripts": result.keepScripts = true; break;
-      case "--nexus": result.includeNexus = true; break;
-      case "--no-nexus": result.includeNexus = false; break;
-      case "--secret-backup": result.includeSecretBackup = true; break;
-      case "--no-secret-backup": result.includeSecretBackup = false; break;
-      case "--semver-auto": result.includeSemverAuto = true; break;
-      case "--no-semver-auto": result.includeSemverAuto = false; break;
+      case "--nexus":
+        if (seenFlags.has("--no-nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
+        seenFlags.add("--nexus"); result.includeNexus = true; break;
+      case "--no-nexus":
+        if (seenFlags.has("--nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-nexus"); result.includeNexus = false; break;
+      case "--secret-backup":
+        if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
+        seenFlags.add("--secret-backup"); result.includeSecretBackup = true; break;
+      case "--no-secret-backup":
+        if (seenFlags.has("--secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-secret-backup"); result.includeSecretBackup = false; break;
+      case "--semver-auto":
+        if (seenFlags.has("--no-semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
+        seenFlags.add("--semver-auto"); result.includeSemverAuto = true; break;
+      case "--no-semver-auto":
+        if (seenFlags.has("--semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-semver-auto"); result.includeSemverAuto = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
-      case "--main-branch": result.mainBranch = args.shift() ?? ""; break;
-      case "--develop-branch": result.developBranch = args.shift() ?? ""; break;
+      case "--main-branch": {
+        const v = args.shift();
+        if (!v) throw new CliError("--main-branch에 빈 값을 지정할 수 없습니다");
+        result.mainBranch = v; break;
+      }
+      case "--develop-branch": {
+        const v = args.shift();
+        if (!v) throw new CliError("--develop-branch에 빈 값을 지정할 수 없습니다");
+        result.developBranch = v; break;
+      }
       case "-h": case "--help": result.help = true; break;
       default:
         throw new CliError(`알 수 없는 옵션: ${a}`);
@@ -114,7 +135,7 @@ export function parsePathsCsv(csv) {
   for (const pair of csv.split(",")) {
     if (pair.trim() === "") continue;
     const eq = pair.indexOf("=");
-    const type = (eq >= 0 ? pair.slice(0, eq) : pair).trim();
+    const type = (eq >= 0 ? pair.slice(0, eq) : pair).replace(/\s/g, "");
     const rawPath = eq >= 0 ? pair.slice(eq + 1) : "";
     if (!VALID_TYPES.includes(type)) {
       throw new CliError(`--paths에 지원하지 않는 타입: '${type}'`);

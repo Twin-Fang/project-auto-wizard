@@ -25,6 +25,7 @@ test("parseArgs: omitted defaults to null (resolved to true downstream)", () => 
 
 test("run(): --no-semver-auto propagates to installed version.yml", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node", "--no-semver-auto"],
@@ -39,6 +40,7 @@ test("run(): --no-semver-auto propagates to installed version.yml", async () => 
 
 test("run(): omitted flag defaults to semver_auto: true", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node"],
@@ -56,6 +58,7 @@ test("run(): re-installing over a version.yml predating semver_auto (no key) saf
   // 애매한 커밋 하나로 조용히 major가 승격되지 않도록 false로 안전하게 폴백해야 한다
   // (완전 신규 설치만 true — 아래 "omitted flag defaults to semver_auto: true"와 대비).
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node"],
