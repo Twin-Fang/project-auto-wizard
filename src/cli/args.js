@@ -82,10 +82,10 @@ export function parseArgs(argv) {
         if (seenFlags.has("--nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
         seenFlags.add("--no-nexus"); result.includeNexus = false; break;
       case "--secret-backup":
-        if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup와 --no-secret-backup은 동시에 지정할 수 없습니다");
+        if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
         seenFlags.add("--secret-backup"); result.includeSecretBackup = true; break;
       case "--no-secret-backup":
-        if (seenFlags.has("--secret-backup")) throw new CliError("--secret-backup와 --no-secret-backup은 동시에 지정할 수 없습니다");
+        if (seenFlags.has("--secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
         seenFlags.add("--no-secret-backup"); result.includeSecretBackup = false; break;
       case "--semver-auto":
         if (seenFlags.has("--no-semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");

@@ -119,7 +119,7 @@ export function findTypePathCandidates(root, type) {
 //   ② 루트에 마커 존재 → "." 자동
 //   ③ existingPaths(version.yml 저장값)
 //   ④ 후보 스캔
-//   ⑤ 분기 — 비대화형: 기존값→후보1개→루트 폴백 / 대화형: 확인·선택·직접입력
+//   ⑤ 분기 — 비대화형: 기존값→후보1개→에러 / 대화형: 확인·선택·직접입력
 export async function resolveProjectPaths({
   root, types = [], paths = new Map(), existingPaths = new Map(),
   force = false, tty = true, io = {},
@@ -169,7 +169,7 @@ export async function resolveProjectPaths({
     const candidates = findTypePathCandidates(root, t);
     let chosen = "";
 
-    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489) ──
+    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489 — M4: root 폴백 의도적 불포함) ──
     if (force || !tty) {
       if (existing) {
         chosen = existing;

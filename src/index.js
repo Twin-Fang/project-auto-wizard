@@ -240,7 +240,7 @@ export async function run(argv, {
   const versionCode = existing?.versionCode ?? 1; // 기존 빌드번호 보존 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
-  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 루트 폴백)
+  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
   let paths;
   try {
     paths = await resolveProjectPaths({
