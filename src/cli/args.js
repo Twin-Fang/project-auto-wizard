@@ -114,7 +114,7 @@ export function parsePathsCsv(csv) {
   for (const pair of csv.split(",")) {
     if (pair.trim() === "") continue;
     const eq = pair.indexOf("=");
-    const type = (eq >= 0 ? pair.slice(0, eq) : pair).trim();
+    const type = (eq >= 0 ? pair.slice(0, eq) : pair).replace(/\s/g, "");
     const rawPath = eq >= 0 ? pair.slice(eq + 1) : "";
     if (!VALID_TYPES.includes(type)) {
       throw new CliError(`--paths에 지원하지 않는 타입: '${type}'`);
