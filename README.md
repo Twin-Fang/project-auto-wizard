@@ -16,7 +16,7 @@ npx project-auto-wizard
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.1.12 (2026-08-03)
+## 최신 버전 : v0.1.13 (2026-08-04)
 
 [전체 버전 기록 보기](CHANGELOG.md)
 
