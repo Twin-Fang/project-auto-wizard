@@ -115,3 +115,89 @@ test("resolveProjectPaths: 경로 후보가 정확히 1개면 정상적으로 �
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ── 이슈 #21 재현 커맨드 5개 최종 회귀 확인 ──────────────────────────
+test("이슈 재현 ①(M3): --paths react=does-not-exist는 exit 1로 거부된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "react", "--paths", "react=does-not-exist"],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 1);
+    assert.strictEqual(existsSync(join(target, "version.yml")), false);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("이슈 재현 ②(M4, 후보 0개): flutter인데 lib/ 없이 pubspec.yaml만 있으면 exit 1로 거부된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    mkdirSync(join(target, "app"));
+    writeFileSync(join(target, "app", "pubspec.yaml"), "name: demo\n");
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "flutter"],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("이슈 재현 ②(M4, 후보 2개 이상): react 마커가 있는 디렉터리 2개면 exit 1로 거부된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    mkdirSync(join(target, "client"));
+    writeFileSync(join(target, "client", "package.json"), "{}\n");
+    mkdirSync(join(target, "admin"));
+    writeFileSync(join(target, "admin", "package.json"), "{}\n");
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "react"],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("이슈 재현 ③(L5): --paths \"re act=.\"는 --type과 동일하게 정규화되어 정상 설치된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "react", "--paths", "re act=."],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 0);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("이슈 재현 ④(L6): --main-branch \"\"는 exit 1로 거부된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "node", "--main-branch", ""],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("이슈 재현 ⑤(L7): --nexus --no-nexus 동시 지정은 exit 1로 거부된다", async () => {
+  const target = tmpRepo("paw-issue21-");
+  try {
+    const code = await run(
+      ["--mode", "full", "--force", "--type", "spring", "--nexus", "--no-nexus"],
+      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
+    );
+    assert.strictEqual(code, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
