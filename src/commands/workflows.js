@@ -7,6 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { copyWorkflows } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
+import { escapeYamlDoubleQuoted } from "../core/wizard-env.js";
 
 export function runWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const wf = copyWorkflows(context, payloadRoot, targetRoot, hooks);
@@ -42,7 +43,9 @@ export function upsertDeployBlock(content, deployValues) {
     text += `\ndeploy:                          # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)\n`;
     for (const t of deployTypes) {
       text += `  ${t}:\n`;
-      for (const [k, v] of deployValues.get(t)) text += `    ${k}: "${v}"\n`;
+      // 동일한 이스케이프를 재사용 — deploy 값도 @wizard ask 값과 같은 경로로 들어오므로
+      // 큰따옴표가 섞이면 YAML이 깨진다 (issue #20 L9, 세 번째 지점).
+      for (const [k, v] of deployValues.get(t)) text += `    ${k}: "${escapeYamlDoubleQuoted(v)}"\n`;
     }
   }
   return text;

@@ -1,7 +1,7 @@
 // tests/node/revert-plan.test.js
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runFull } from "../../src/commands/full.js";
@@ -48,6 +48,78 @@ test("planRevert output matches what runRevert actually removes", () => {
     for (const name of plan.workflows) {
       assert.ok(!existsSync(join(target, ".github/workflows", name)));
     }
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRevert: recognizes a marker-carrying workflow file even if its name no longer exists in the current payload (issue #20 L12)", () => {
+  const target = installFixture();
+  try {
+    const wfDir = join(target, ".github/workflows");
+    const renamedPath = join(wfDir, "PROJECT-COMMON-RENAMED-IN-A-LATER-RELEASE.yaml");
+    // 실측: payload에는 이 파일명이 존재하지 않는다(과거 버전에서 설치된 뒤 이름이 바뀌었다고 가정) —
+    // 그래도 마커가 있으면 인식돼야 한다.
+    writeFileSync(renamedPath, "# project-auto-wizard:managed-workflow\nname: old-name\n");
+
+    const plan = planRevert(resolvePayloadRoot(), target);
+    assert.ok(plan.workflows.includes("PROJECT-COMMON-RENAMED-IN-A-LATER-RELEASE.yaml"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRevert: a workflow file without the managed marker (user-authored) is never listed for removal", () => {
+  const target = installFixture();
+  try {
+    const wfDir = join(target, ".github/workflows");
+    writeFileSync(join(wfDir, "MY-OWN-CUSTOM-WORKFLOW.yaml"), "name: custom\non: push\n");
+
+    const plan = planRevert(resolvePayloadRoot(), target);
+    assert.ok(!plan.workflows.includes("MY-OWN-CUSTOM-WORKFLOW.yaml"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRevert: recognizes .bak and .template.yaml variants created by a 'backup' decision", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-revert-plan-"));
+  try {
+    const ctx = createContext({
+      mode: "full", force: true, types: ["spring"], version: "1.0.0", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+      paths: new Map(),
+      now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
+    });
+    runFull(ctx, resolvePayloadRoot(), target); // spring server-deploy 파일 설치
+
+    const wfDir = join(target, ".github/workflows");
+    const targetFile = join(wfDir, "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");
+    writeFileSync(targetFile, readFileSync(targetFile, "utf8") + "\n# edit\n");
+    runFull(ctx, resolvePayloadRoot(), target, {
+      decisions: new Map([["PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml", "backup"]]),
+    });
+
+    const plan = planRevert(resolvePayloadRoot(), target);
+    assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml.bak"));
+    assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRevert: a pre-marker install whose filename still matches the current payload is still recognized (no regression for existing installs — issue #20 리뷰 반영)", () => {
+  const target = installFixture();
+  try {
+    // 이 수정 이전(마커가 없던 시절)에 설치된 상태를 흉내낸다 — 첫 줄의 마커를 지운다.
+    const wfDir = join(target, ".github/workflows");
+    const anyFile = readdirSync(wfDir)[0];
+    const p = join(wfDir, anyFile);
+    const withoutMarker = readFileSync(p, "utf8").replace(/^# project-auto-wizard:managed-workflow\n/, "");
+    writeFileSync(p, withoutMarker);
+
+    const plan = planRevert(resolvePayloadRoot(), target);
+    assert.ok(plan.workflows.includes(anyFile), "filename-matching fallback must still recognize marker-less existing installs");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

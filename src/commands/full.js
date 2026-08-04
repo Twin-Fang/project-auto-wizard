@@ -3,9 +3,10 @@
 // gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다 — issue #7.
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
-import { buildVersionYml } from "../core/version-yml.js";
+import { buildVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { markerForType } from "../core/detect.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
@@ -31,12 +32,16 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const wfCounters = copyWorkflows(context, payloadRoot, targetRoot, hooks);
   const deployValues = wfCounters.deployValues || new Map(); // Map<type, Map<key,value>>
 
+  // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다 (issue #20 M8).
+  const vyPath = join(targetRoot, PATHS.versionFile);
+  const extraTopLevel = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")).extraTopLevel : [];
+
   // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성 전략 D4)
   writeText(join(targetRoot, PATHS.versionFile),
     buildVersionYml({
       templateText: readVersionYmlTemplate(payloadRoot),
       version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
-      deployValues,
+      deployValues, extraTopLevel,
       templateOptions: { templateVersion, includeNexus, includeSecretBackup, includeSemverAuto: includeSemverAuto !== false, optionsDate: today },
     }));
 

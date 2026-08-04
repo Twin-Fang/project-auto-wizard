@@ -104,3 +104,20 @@ test("isUnchanged: user-edited installed content -> false", () => {
   const installed = `NAME: "user-edited-value"`;
   assert.strictEqual(isUnchanged(template, installed, {}), false);
 });
+
+test("setEnvLine: escapes double quotes in the substituted value so YAML structure stays intact", () => {
+  const out = setEnvLine(`KEY: "old" # @wizard ask:x`, "KEY", 'value with "quotes"');
+  assert.strictEqual(out, `KEY: "value with \\"quotes\\""`);
+});
+
+test("setEnvLine: escapes backslashes so a literal backslash isn't consumed by the quote-escape", () => {
+  const out = setEnvLine(`KEY: "old" # @wizard ask:x`, "KEY", "back\\slash");
+  assert.strictEqual(out, `KEY: "back\\\\slash"`);
+});
+
+test("substituteEnv: an ask value containing double quotes produces valid quoted YAML (issue #20 L9)", () => {
+  const content = `NAME: "default" # @wizard ask:default`;
+  const values = new Map([["NAME", 'a "quoted" value']]);
+  const out = substituteEnv(content, { values, useDefaults: false });
+  assert.strictEqual(out, `NAME: "a \\"quoted\\" value"`);
+});

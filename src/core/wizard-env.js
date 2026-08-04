@@ -16,6 +16,14 @@ export function parseWizardLine(line) {
   return { indent: km[1], key: km[2], action: marker[1], arg: marker[2].trim() };
 }
 
+// YAML 큰따옴표 문자열 안에 안전하게 넣기 위한 이스케이프(백슬래시 우선 — 그래야 그 다음에 붙이는
+// 큰따옴표 이스케이프가 깨지지 않는다). @wizard 치환(setEnvLine)과 version.yml의 deploy 블록
+// (buildVersionYml, src/core/version-yml.js) 양쪽에서 재사용한다 — issue #20 L9는 두 지점 모두에서
+// 발생하는 동일한 버그다.
+export function escapeYamlDoubleQuoted(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 // .sh _wf_set_env 등가: `KEY: "..."` 따옴표 안 값 치환 + 그 줄 끝 `# @wizard ...` 주석 제거.
 // 라인 하나에 대해 수행. value가 빈문자면 (.sh는 [ -n "$_val" ] 가드) 치환 스킵.
 export function setEnvLine(line, key, value) {
@@ -23,10 +31,11 @@ export function setEnvLine(line, key, value) {
   // CRLF 안전: 라인 끝 \r을 분리해 처리 후 복원 (autocrlf 프로젝트 대응)
   const cr = line.endsWith("\r") ? "\r" : "";
   const body = cr ? line.slice(0, -1) : line;
+  const escaped = escapeYamlDoubleQuoted(value);
   // 값 치환: KEY: "기존값" → KEY: "value"
   let out = body.replace(
     new RegExp(`^(\\s*${key}:\\s*")[^"]*(")`),
-    (_m, p1, p2) => `${p1}${value}${p2}`,
+    (_m, p1, p2) => `${p1}${escaped}${p2}`,
   );
   // 그 줄 끝 # @wizard ... 주석 제거 (앞 공백째)
   out = out.replace(/(\S)[^\S\r\n]*#[^\S\r\n]*@wizard[^\S\r\n].*$/, "$1");

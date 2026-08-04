@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { planWorkflows, copyWorkflows } from "../../src/core/copy/workflows.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
+import { upsertDeployBlock } from "../../src/commands/workflows.js";
 
 function baseContext(overrides = {}) {
   return {
@@ -22,7 +23,7 @@ test("planWorkflows: fresh target -> everything is newFiles, nothing changed/unc
     assert.ok(plan.newFiles.length > 0);
     assert.deepStrictEqual(plan.changed, []);
     assert.deepStrictEqual(plan.unchanged, []);
-    // common 워크플로우가 newFiles에 포함되는지 (listWorkflowConflicts와의 핵심 차이)
+    // common 워크플로우도 newFiles에 포함되는지 확인
     assert.ok(plan.newFiles.some((f) => f.type === "common"));
   } finally {
     rmSync(target, { recursive: true, force: true });
@@ -43,7 +44,7 @@ test("planWorkflows: after copyWorkflows, everything is unchanged", () => {
   }
 });
 
-test("planWorkflows: editing an installed COMMON file surfaces it as changed (unlike listWorkflowConflicts)", () => {
+test("planWorkflows: editing an installed COMMON file surfaces it as changed", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-plan-"));
   try {
     const ctx = baseContext();
@@ -79,4 +80,16 @@ test("planWorkflows: editing an installed type-specific file surfaces it as chan
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
+});
+
+test("upsertDeployBlock: escapes double quotes in deploy block values (issue #20 L9, third sink)", () => {
+  const versionYmlContent = `version: "1.0.0"
+version_code: 1
+project_types: ["node"]
+metadata:
+  last_updated: "2026-08-04"
+`;
+  const deployValues = new Map([["node", new Map([["HOST", 'a "quoted" host']])]]);
+  const result = upsertDeployBlock(versionYmlContent, deployValues);
+  assert.ok(result.includes('HOST: "a \\"quoted\\" host"'), "deploy block values must escape double quotes");
 });
