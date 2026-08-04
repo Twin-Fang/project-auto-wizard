@@ -10,7 +10,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, extraMarkers } from "./detect.js";
-import { normalizePath } from "../cli/args.js";
+import { normalizePath, CliError } from "../cli/args.js";
 
 // 취소(ESC/Ctrl+C)는 CANCEL 심볼 — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
 const isCancel = (v) => typeof v === "symbol";
@@ -146,7 +146,11 @@ export async function resolveProjectPaths({
 
     // ① --paths 등으로 이미 지정됨 → 최우선 (.sh L1441~1446)
     if (result.get(t)) {
-      say(`  ${t} → ${result.get(t)} (--paths 지정)`);
+      const p = result.get(t);
+      if (!existsSync(join(root, p))) {
+        throw new CliError(`--paths로 지정한 경로가 존재하지 않습니다: '${t}=${p}'`);
+      }
+      say(`  ${t} → ${p} (--paths 지정)`);
       continue;
     }
 

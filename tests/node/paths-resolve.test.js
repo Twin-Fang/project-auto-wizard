@@ -26,3 +26,35 @@ test("run(): --paths에 지원하지 않는 타입을 지정하면 스택트레�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+// ── M3: --paths로 지정한 경로의 존재 여부 검증 ──────────────────────
+test("resolveProjectPaths: --paths로 지정한 경로가 존재하지 않으면 CliError로 거부한다", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    await assert.rejects(
+      () => resolveProjectPaths({
+        root, types: ["react"],
+        paths: new Map([["react", "does-not-exist"]]),
+        existingPaths: new Map(), force: true, tty: false, io: {},
+      }),
+      CliError,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectPaths: --paths로 지정한 경로가 실제로 존재하면 그대로 확정된다", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    mkdirSync(join(root, "client"));
+    const result = await resolveProjectPaths({
+      root, types: ["react"],
+      paths: new Map([["react", "client"]]),
+      existingPaths: new Map(), force: true, tty: false, io: {},
+    });
+    assert.strictEqual(result.get("react"), "client");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
