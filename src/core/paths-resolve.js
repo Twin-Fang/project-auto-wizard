@@ -177,9 +177,10 @@ export async function resolveProjectPaths({
       } else if (candidates.length === 1) {
         chosen = candidates[0];
         say(`  ${t} → ${chosen} (자동 감지)`);
+      } else if (candidates.length === 0) {
+        throw new CliError(`${t}: 프로젝트 경로를 찾지 못했습니다. --paths "${t}=경로"로 직접 지정하세요.`);
       } else {
-        chosen = ".";
-        say(`  ⚠️ ${t} → 후보 ${candidates.length}개로 자동 확정 불가, 루트(.)로 기록 (--paths "${t}=경로"로 지정 가능)`);
+        throw new CliError(`${t}: 경로 후보가 ${candidates.length}개로 모호합니다(${candidates.join(", ")}). --paths "${t}=경로"로 직접 지정하세요.`);
       }
       result.set(t, chosen);
       continue;

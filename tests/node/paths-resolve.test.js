@@ -58,3 +58,56 @@ test("resolveProjectPaths: --paths로 지정한 경로가 실제로 존재하면
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ── M4: 모노레포 경로 후보 0개/2개 이상 구분 거부 ────────────────────
+test("resolveProjectPaths: 경로 후보가 0개(감지 실패)면 CliError로 거부한다", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    // pubspec.yaml은 있지만 lib/가 없어 flutter 후보 필터에서 걸러짐 → 후보 0개
+    mkdirSync(join(root, "app"));
+    writeFileSync(join(root, "app", "pubspec.yaml"), "name: demo\n");
+    await assert.rejects(
+      () => resolveProjectPaths({
+        root, types: ["flutter"], paths: new Map(),
+        existingPaths: new Map(), force: true, tty: false, io: {},
+      }),
+      CliError,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectPaths: 경로 후보가 2개 이상(모호함)이면 CliError로 거부한다", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    mkdirSync(join(root, "client"));
+    writeFileSync(join(root, "client", "package.json"), "{}\n");
+    mkdirSync(join(root, "admin"));
+    writeFileSync(join(root, "admin", "package.json"), "{}\n");
+    await assert.rejects(
+      () => resolveProjectPaths({
+        root, types: ["react"], paths: new Map(),
+        existingPaths: new Map(), force: true, tty: false, io: {},
+      }),
+      CliError,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectPaths: 경로 후보가 정확히 1개면 정상적으로 자동 확정된다(회귀 확인)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    mkdirSync(join(root, "client"));
+    writeFileSync(join(root, "client", "package.json"), "{}\n");
+    const result = await resolveProjectPaths({
+      root, types: ["react"], paths: new Map(),
+      existingPaths: new Map(), force: true, tty: false, io: {},
+    });
+    assert.strictEqual(result.get("react"), "client");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

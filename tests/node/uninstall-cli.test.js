@@ -23,7 +23,9 @@ test("parseArgs: purge flags set their respective booleans", () => {
 });
 
 function emptyTarget() {
-  return mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
+  const target = mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  return target;
 }
 
 test("run(): --mode uninstall --force removes only workflows/scripts by default", async () => {
