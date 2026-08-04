@@ -35,7 +35,7 @@ function markedWorkflowNames(wfDir) {
   if (!existsSync(wfDir)) return names;
   for (const entry of readdirSync(wfDir, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
-    const firstLine = readFileSync(join(wfDir, entry.name), "utf8").split("\n", 1)[0];
+    const firstLine = readFileSync(join(wfDir, entry.name), "utf8").split("\n", 1)[0].replace(/\r$/, "");
     if (firstLine === MANAGED_WORKFLOW_MARKER) names.add(entry.name);
   }
   return names;

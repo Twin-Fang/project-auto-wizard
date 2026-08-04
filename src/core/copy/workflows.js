@@ -82,7 +82,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   if (exists(commonDir)) {
     const notExcluded = (filename) => !(branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename));
     const { newFiles, unchanged, changed } = classify(commonDir, workflowsDir, envOptsFor("common"), srcText);
-    for (const f of unchanged.filter(notExcluded)) counters.skipped++;
+    counters.skipped += unchanged.filter(notExcluded).length;
     for (const f of newFiles.filter(notExcluded)) {
       writeText(join(workflowsDir, f), srcText(join(commonDir, f)));
       counters.copied++;
