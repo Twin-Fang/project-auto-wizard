@@ -3,7 +3,7 @@
 // 사용자가 직접 만든 워크플로우·version.yml·README·.gitignore는 건드리지 않는다
 // (version.yml은 사용자 버전 데이터 — 제거 대상이 아니라 산출물이다).
 import { join } from "node:path";
-import { existsSync, readdirSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 
@@ -37,25 +37,14 @@ export function planRevert(payloadRoot, targetRoot = ".") {
   for (const s of ["version_manager.py", "changelog_manager.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
-  let coderabbit = false;
-  const cr = join(targetRoot, ".coderabbit.yaml");
-  const crSrc = join(payloadRoot, "coderabbit.yaml");
-  if (existsSync(cr) && existsSync(crSrc) && readFileSync(cr, "utf8") === readFileSync(crSrc, "utf8")) {
-    coderabbit = true;
-  }
-  return { workflows: removedWf, scripts: removedScripts, coderabbit };
+  return { workflows: removedWf, scripts: removedScripts };
 }
 
-// 반환: { workflows: [...제거된 파일명], scripts: [...], coderabbit: bool } — planRevert와 동일한 형태.
+// 반환: { workflows: [...제거된 파일명], scripts: [...] } — planRevert와 동일한 형태.
 export function runRevert(context, payloadRoot, targetRoot = ".") {
   const plan = planRevert(payloadRoot, targetRoot);
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) remove(join(wfDir, name));
   for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  if (plan.coderabbit) {
-    const cr = join(targetRoot, ".coderabbit.yaml");
-    remove(cr);
-    if (existsSync(cr + ".bak")) renameSync(cr + ".bak", cr);
-  }
   return plan;
 }

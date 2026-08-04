@@ -45,7 +45,7 @@ test("removeAutoAddedEntriesFromGitignore: existing-file case removes only the b
     const after = readFileSync(join(target, ".gitignore"), "utf8");
     assert.ok(after.startsWith(original));
     assert.ok(!after.includes("project-auto-wizard: Auto-added entries"));
-    assert.ok(!after.includes("/.idea"));
+    assert.ok(!after.includes("*.bak"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

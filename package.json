@@ -1,6 +1,6 @@
 {
   "name": "project-auto-wizard",
-  "version": "0.1.9",
+  "version": "0.1.12",
   "description": "One command DevOps: npx wizard that installs GitHub-native AI Release Automation into any project",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
   "scripts": {
     "test": "npm run test:node && npm run test:py",
     "test:node": "node --test \"tests/node/**/*.test.js\"",
-    "test:py": "python3 -m unittest discover -s tests/py -v"
+    "test:py": "node scripts/run-py-tests.mjs"
   },
   "repository": {
     "type": "git",

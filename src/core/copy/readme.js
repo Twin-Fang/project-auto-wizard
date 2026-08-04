@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
 
-const MARKER = "<!-- AUTO-VERSION-SECTION";
+export const MARKER = "<!-- AUTO-VERSION-SECTION";
 // ## (최신 버전|최신버전|Version|버전) : vX.Y.Z (대소문자 무시)
 const VERSION_LINE_RE = /##\s*(최신\s*버전|최신버전|Version|버전)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 

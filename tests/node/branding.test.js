@@ -49,7 +49,7 @@ test("buildVersionYml renders the payload template with branches metadata", () =
   assert.ok(out.includes('mode: "pr-flow"'));
   assert.ok(out.includes("nexus: true"));
   assert.ok(out.includes("secret_backup: false"));
-  assert.ok(out.includes("coderabbit: false"));
+  assert.ok(out.includes("semver_auto: true"));
   assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
 });
 

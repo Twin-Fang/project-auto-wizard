@@ -13,7 +13,7 @@ function install(overrides = {}) {
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-    paths: new Map(), includeCodeRabbit: false,
+    paths: new Map(),
     now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
     ...overrides,
   });

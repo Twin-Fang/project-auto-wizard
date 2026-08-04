@@ -16,7 +16,7 @@ npx project-auto-wizard
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.1.9 (2026-08-01)
+## 최신 버전 : v0.1.12 (2026-08-03)
 
 [전체 버전 기록 보기](CHANGELOG.md)
 
@@ -75,26 +75,25 @@ flutter.APP_ARTIFACT_NAME:
 
 ### 완전 삭제(`--mode uninstall`)
 
-`npx project-auto-wizard --mode uninstall`은 `revert`보다 넓게 제거합니다 — 워크플로우·스크립트·`.coderabbit.yaml`은 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
+`npx project-auto-wizard --mode uninstall`은 `revert`보다 넓게 제거합니다 — 워크플로우·스크립트는 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
 
-- **대화형(TTY)**: 실제로 설치된 항목만 체크리스트로 보여줍니다. 워크플로우/스크립트/`.coderabbit.yaml`은 기본 체크, README·`.gitignore`·`version.yml`은 opt-in입니다. 선택 후 최종 확인(기본 "아니오")을 거쳐야 실제로 삭제됩니다.
-- **비대화형(`--force`)**: 워크플로우·스크립트·`.coderabbit.yaml`만 기본 삭제합니다. README·`.gitignore`·`version.yml`까지 지우려면 `--purge-readme`/`--purge-gitignore`/`--purge-version`을 함께 지정하세요.
+- **대화형(TTY)**: 실제로 설치된 항목만 체크리스트로 보여줍니다. 워크플로우·스크립트는 기본 체크, README·`.gitignore`·`version.yml`은 opt-in입니다. 선택 후 최종 확인(기본 "아니오")을 거쳐야 실제로 삭제됩니다.
+- **비대화형(`--force`)**: 워크플로우·스크립트만 기본 삭제합니다. README·`.gitignore`·`version.yml`까지 지우려면 `--purge-readme`/`--purge-gitignore`/`--purge-version`을 함께 지정하세요.
 - `--dry-run`과 함께 쓰면 무엇이 지워질지 미리 볼 수 있습니다.
 
 ```bash
 npx project-auto-wizard --mode uninstall                 # 대화형 체크리스트
-npx project-auto-wizard --mode uninstall --force         # 워크플로우·스크립트·coderabbit만 안전 삭제
+npx project-auto-wizard --mode uninstall --force         # 워크플로우·스크립트만 안전 삭제
 npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignore --purge-version  # 완전 삭제
 ```
 
 ## API 키 0개 AI — 요약 엔진 체인
 
-릴리스 노트는 4단 엔진 체인으로 생성됩니다. **어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
+릴리스 노트는 3단 엔진 체인으로 생성됩니다. **상용 서드파티 서비스에 전혀 의존하지 않으며, 어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
 
 ```mermaid
 flowchart LR
-    A["CodeRabbit PR 요약<br/>(opt-in, 30s×10 폴링)"] -->|"미도착/미사용"| B["사용자 지정 AI<br/>(AI_API_KEY)"]
-    B -->|"키 없음/실패"| C["GitHub Models<br/>(GITHUB_TOKEN만, 무료)"]
+    B["사용자 지정 AI<br/>(AI_API_KEY)"] -->|"키 없음/실패"| C["GitHub Models<br/>(GITHUB_TOKEN만, 무료)"]
     C -->|"rate limit/실패"| D["규칙 기반 fallback<br/>(항상 성공)"]
 ```
 
@@ -133,7 +132,6 @@ npx project-auto-wizard [옵션]
       --develop-branch B   개발 브랜치 (기본: develop)
       --nexus              Nexus 라이브러리 publish 워크플로우 포함
       --secret-backup      Secret 서버 백업 워크플로우 포함
-      --coderabbit         CodeRabbit PR 요약을 릴리스 노트 1순위로
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
@@ -171,7 +169,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 ### 자체 AI PR 요약봇
 
-CodeRabbit을 쓰지 않는 레포를 위한 대안입니다. `--coderabbit`을 켜지 않으면(기본값) 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다. `--coderabbit`을 켜면 CodeRabbit이 PR 요약을 전담하고 이 봇은 no-op으로 빠집니다(중복 방지, 상호 배타적).
+상용 PR 리뷰 SaaS 없이 동작하는 자체 요약봇입니다. 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다.
 
 기본 설치(pr-flow) 기준으로 일상적인 기능 PR은 `develop`을 대상으로 열리므로, 이 봇은 develop→main 릴리스 PR에서만 실제로 동작합니다 — 해당 PR에서는 `AUTO-CHANGELOG-CONTROL`이 이미 같은 엔진으로 체인지로그 요약을 생성하므로, 이 봇은 그 요약을 PR 코멘트 형태로도 남겨주는 보조 역할입니다. 릴리스 브랜치 = 개발 브랜치인 trunk-based 모드에서는 모든 PR이 곧 릴리스 대상 브랜치를 향하므로 매 PR마다 동작합니다.
 
@@ -207,7 +205,7 @@ flowchart TB
 ## 개발
 
 ```bash
-npm test          # node --test + python unittest (py 51 + node 59)
+npm test          # node --test + python unittest (node 219 + py 87)
 npm run test:node
 npm run test:py
 ```

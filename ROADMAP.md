@@ -9,7 +9,7 @@ project-auto-wizard가 다음에 어디로 향하는지 공유합니다. 우선�
 - `status` — 설치 상태·드리프트 확인 명령
 - `doctor` — 설치 환경 진단 명령
 - `--dry-run` — 실제 변경 없이 미리보기
-- 자체 AI PR 요약봇(CodeRabbit 비의존 대안)
+- 자체 AI PR 요약봇(상용 SaaS 비의존)
 - 자동 semver 승격(커밋 타입 기반 major/minor/patch)
 
 ## 검토 중

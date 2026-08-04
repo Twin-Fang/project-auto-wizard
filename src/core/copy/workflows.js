@@ -58,7 +58,7 @@ function classify(srcDir, workflowsDir, envOpts, srcText) {
 //            envValues?:Map<key,value>, envUseDefaults?:boolean }  ← env 계획(promptEnvPlan) 결과 주입점
 // hooks: { decisions?: Map<filename, 'skip'|'backup'|'template'> } — 기존 파일(changed) 충돌 결정.
 //        미지정 파일은 'skip'(현행 force 동작 100% 유지). 대화형 수집은 copyWorkflowsInteractive 참조.
-// 반환: {copied, skipped, templateAdded, optionalCopied}
+// 반환: {copied, skipped, templateAdded, optionalCopied, backupAdded}
 export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
   const decisions = hooks.decisions instanceof Map ? hooks.decisions : new Map();
@@ -66,7 +66,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   if (!exists(projectTypesDir)) throw new Error("패키지 구조 오류 — payload/workflows 폴더를 찾지 못했습니다.");
 
-  const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0 };
+  const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0, backupAdded: 0 };
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
   const srcText = makeSrcText(context.branches || null);
@@ -124,6 +124,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     renameSync(dst, dst + ".bak");
     writeText(dst, srcText(src));
     counters.copied++;
+    counters.backupAdded++;
     return;
   }
   if (decision === "template") {
@@ -213,7 +214,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
         counters.skipped++;
         continue;
       }
-      if (existsSync(dst)) renameSync(dst, dst + ".bak");
+      if (existsSync(dst)) { renameSync(dst, dst + ".bak"); counters.backupAdded++; }
       writeText(dst, body);
       counters.optionalCopied++;
       counters.copied++;

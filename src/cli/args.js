@@ -10,7 +10,6 @@ export function parseArgs(argv) {
     primaryType: "",
     includeNexus: null,      // null=미설정
     includeSecretBackup: null,
-    includeCodeRabbit: null, // --coderabbit / --no-coderabbit (기본 false — DESIGN-SPEC §4 질문②)
     includeSemverAuto: null,  // --semver-auto / --no-semver-auto (기본 true — 미지정 시 다운스트림에서 해석)
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
@@ -22,6 +21,15 @@ export function parseArgs(argv) {
     purgeReadme: false,       // --purge-readme: uninstall --force 시 README 버전 섹션도 제거
     purgeGitignore: false,    // --purge-gitignore: uninstall --force 시 .gitignore 자동 추가 항목도 제거
     purgeVersion: false,      // --purge-version: uninstall --force 시 version.yml도 제거
+    // purge 전용 플래그 (숨김 모드 — HELP_TEXT에는 노출하지 않는다).
+    yes: false,               // --yes: purge 실행 확인 (필수, --force로 대체 불가)
+    allowDirty: false,        // --allow-dirty: git 작업트리 dirty 상태에서도 강행
+    deleteDevelopBranch: false, // --delete-develop-branch: 로컬 develop 브랜치까지 삭제
+    keepVersionYml: false,
+    keepReadme: false,
+    keepChangelog: false,
+    keepWorkflows: false,
+    keepScripts: false,
   };
   const args = [...argv];
   while (args.length > 0) {
@@ -58,12 +66,18 @@ export function parseArgs(argv) {
       case "--purge-readme": result.purgeReadme = true; break;
       case "--purge-gitignore": result.purgeGitignore = true; break;
       case "--purge-version": result.purgeVersion = true; break;
+      case "--yes": result.yes = true; break;
+      case "--allow-dirty": result.allowDirty = true; break;
+      case "--delete-develop-branch": result.deleteDevelopBranch = true; break;
+      case "--keep-version-yml": result.keepVersionYml = true; break;
+      case "--keep-readme": result.keepReadme = true; break;
+      case "--keep-changelog": result.keepChangelog = true; break;
+      case "--keep-workflows": result.keepWorkflows = true; break;
+      case "--keep-scripts": result.keepScripts = true; break;
       case "--nexus": result.includeNexus = true; break;
       case "--no-nexus": result.includeNexus = false; break;
       case "--secret-backup": result.includeSecretBackup = true; break;
       case "--no-secret-backup": result.includeSecretBackup = false; break;
-      case "--coderabbit": result.includeCodeRabbit = true; break;
-      case "--no-coderabbit": result.includeCodeRabbit = false; break;
       case "--semver-auto": result.includeSemverAuto = true; break;
       case "--no-semver-auto": result.includeSemverAuto = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
