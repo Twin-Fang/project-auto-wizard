@@ -240,9 +240,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({
     mode, types, version, branches,
-    counters: { workflows: result?.workflows?.copied ?? 0 },
+    copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
-  }, cwd);
+  });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
 }

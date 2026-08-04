@@ -297,21 +297,20 @@ export async function run(argv, {
     return 0;
   }
 
+  // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/revert/purge/uninstall/status/doctor는
+  // 전부 위에서 조기 반환했으므로 이 시점엔 full/version/workflows 중 하나로 보장된다(issue #19 — default 분기 제거).
   let result = null;
   switch (opts.mode) {
     case "full": result = runFull(context, payload, cwd); break;
     case "version": result = runVersion(context, payload, cwd); break;
     case "workflows": result = runWorkflows(context, payload, cwd); break;
-    default:
-      // 알 수 없는 모드 → .sh와 동일하게 복사 0건, 에러 아님
-      break;
   }
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
     mode: opts.mode, types, version, branches,
-    counters: { workflows: result?.workflows?.copied ?? 0 },
+    copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
-  }, cwd);
+  });
   return 0;
 }
