@@ -81,8 +81,16 @@ export function parseArgs(argv) {
       case "--semver-auto": result.includeSemverAuto = true; break;
       case "--no-semver-auto": result.includeSemverAuto = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
-      case "--main-branch": result.mainBranch = args.shift() ?? ""; break;
-      case "--develop-branch": result.developBranch = args.shift() ?? ""; break;
+      case "--main-branch": {
+        const v = args.shift();
+        if (!v) throw new CliError("--main-branch에 빈 값을 지정할 수 없습니다");
+        result.mainBranch = v; break;
+      }
+      case "--develop-branch": {
+        const v = args.shift();
+        if (!v) throw new CliError("--develop-branch에 빈 값을 지정할 수 없습니다");
+        result.developBranch = v; break;
+      }
       case "-h": case "--help": result.help = true; break;
       default:
         throw new CliError(`알 수 없는 옵션: ${a}`);
