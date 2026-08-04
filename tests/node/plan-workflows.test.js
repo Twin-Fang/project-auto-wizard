@@ -22,7 +22,7 @@ test("planWorkflows: fresh target -> everything is newFiles, nothing changed/unc
     assert.ok(plan.newFiles.length > 0);
     assert.deepStrictEqual(plan.changed, []);
     assert.deepStrictEqual(plan.unchanged, []);
-    // common 워크플로우가 newFiles에 포함되는지 (listWorkflowConflicts와의 핵심 차이)
+    // common 워크플로우도 newFiles에 포함되는지 확인
     assert.ok(plan.newFiles.some((f) => f.type === "common"));
   } finally {
     rmSync(target, { recursive: true, force: true });
@@ -43,7 +43,7 @@ test("planWorkflows: after copyWorkflows, everything is unchanged", () => {
   }
 });
 
-test("planWorkflows: editing an installed COMMON file surfaces it as changed (unlike listWorkflowConflicts)", () => {
+test("planWorkflows: editing an installed COMMON file surfaces it as changed", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-plan-"));
   try {
     const ctx = baseContext();

@@ -74,24 +74,21 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // values/useDefaults는 치환 경로에서만 의미 (isUnchanged는 내부에서 useDefaults:true 강제 — 가상 비교 무손상)
   const envOptsFor = (type) => ({ type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults });
 
-  // (1) common — unchanged면 스킵, 아니면 무조건 덮어쓰기.
+  // (1) common — 타입별 워크플로우와 동일한 3지선(README 계약, issue #20 H3): unchanged면 스킵,
+  //     changed면 decisions Map 결정에 따름(미지정 시 skip — 기존 사용자 수정 보존).
   //     trunk-based 모드는 VERSION-CONTROL·AUTO-CHANGELOG 미설치 (RELEASE-PUBLISH 단독).
   const branchMode = context.branches?.mode || "pr-flow";
   const commonDir = join(projectTypesDir, "common");
   if (exists(commonDir)) {
-    for (const filename of listYamlFiles(commonDir)) {
-      if (branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename)) continue;
-      const src = join(commonDir, filename);
-      const dst = join(workflowsDir, filename);
-      const body = srcText(src);
-      if (existsSync(dst) && isUnchanged(body, readFileSync(dst, "utf8"), envOptsFor("common"))) {
-        counters.skipped++;
-        continue;
-      }
-      writeText(dst, body);
+    const notExcluded = (filename) => !(branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename));
+    const { newFiles, unchanged, changed } = classify(commonDir, workflowsDir, envOptsFor("common"), srcText);
+    for (const f of unchanged.filter(notExcluded)) counters.skipped++;
+    for (const f of newFiles.filter(notExcluded)) {
+      writeText(join(workflowsDir, f), srcText(join(commonDir, f)));
       counters.copied++;
-      counters.copiedFiles.push(filename);
+      counters.copiedFiles.push(f);
     }
+    for (const f of changed.filter(notExcluded)) applyDecision(decisions.get(f), commonDir, workflowsDir, f, counters, srcText);
   }
 
   // (2~4) 타입별
@@ -144,12 +141,24 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
 
 // 대상 워크플로우 디렉토리에서 changed(충돌) 파일 목록만 뽑는다 — copyWorkflowsInteractive의 사전 조사용.
 // copyWorkflows 본체와 동일한 classify 기준을 써야 결정 Map이 실제 처리 대상과 1:1로 맞는다.
+// common도 타입별과 동일하게 스캔한다 (issue #20 H3 — 이전에는 common 충돌이 질문조차 되지 않았다).
 export function listWorkflowConflicts(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const srcText = makeSrcText(context.branches || null);
-  const conflicts = []; // [{ filename, type }] — 엔진 처리 순서와 동일 (타입 순회 → 직하위 → server-deploy)
+  const branchMode = context.branches?.mode || "pr-flow";
+  const conflicts = []; // [{ filename, type }] — 엔진 처리 순서와 동일 (common → 타입 순회 → 직하위 → server-deploy)
+
+  const commonDir = join(projectTypesDir, "common");
+  if (exists(commonDir)) {
+    const envOpts = { type: "common", projectPath: ".", repoName, resolvers };
+    for (const f of classify(commonDir, workflowsDir, envOpts, srcText).changed) {
+      if (branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(f)) continue;
+      conflicts.push({ filename: f, type: "common" });
+    }
+  }
+
   for (const type of types) {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
@@ -248,8 +257,8 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
 }
 
 // 전체 워크플로우 분류(common + 타입별 + server-deploy + nexus opt-in) — status/dry-run 공용.
-// listWorkflowConflicts와 달리 common 디렉토리도 포함하고, changed뿐 아니라
-// newFiles/unchanged까지 전부 반환한다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
+// changed뿐 아니라 newFiles/unchanged까지 전부 반환한다는 점이 listWorkflowConflicts(changed만
+// 반환)와 다르다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
 export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
