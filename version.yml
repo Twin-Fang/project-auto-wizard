@@ -22,15 +22,15 @@
 # - basic: version.yml only
 # ===
 
-version: "0.1.12"
-version_code: 13  # app build number
+version: "0.1.13"
+version_code: 14  # app build number
 project_types: ["node"] # first entry is primary
 project_type: "node" # auto-mirror of project_types[0] — do not edit directly
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   node: "." # package.json
 metadata:
-  last_updated: "2026-08-03"
-  last_updated_by: "Cassiiopeia"
+  last_updated: "2026-08-04"
+  last_updated_by: "Chuseok22"
   default_branch: "main"
   integration_date: "2026-07-09"
   template:
