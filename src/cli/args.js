@@ -32,6 +32,7 @@ export function parseArgs(argv) {
     keepScripts: false,
   };
   const args = [...argv];
+  const seenFlags = new Set(); // L7: --nexus류 상호 모순 플래그 검증용
   while (args.length > 0) {
     const a = args.shift();
     switch (a) {
@@ -74,12 +75,24 @@ export function parseArgs(argv) {
       case "--keep-changelog": result.keepChangelog = true; break;
       case "--keep-workflows": result.keepWorkflows = true; break;
       case "--keep-scripts": result.keepScripts = true; break;
-      case "--nexus": result.includeNexus = true; break;
-      case "--no-nexus": result.includeNexus = false; break;
-      case "--secret-backup": result.includeSecretBackup = true; break;
-      case "--no-secret-backup": result.includeSecretBackup = false; break;
-      case "--semver-auto": result.includeSemverAuto = true; break;
-      case "--no-semver-auto": result.includeSemverAuto = false; break;
+      case "--nexus":
+        if (seenFlags.has("--no-nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
+        seenFlags.add("--nexus"); result.includeNexus = true; break;
+      case "--no-nexus":
+        if (seenFlags.has("--nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-nexus"); result.includeNexus = false; break;
+      case "--secret-backup":
+        if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup와 --no-secret-backup은 동시에 지정할 수 없습니다");
+        seenFlags.add("--secret-backup"); result.includeSecretBackup = true; break;
+      case "--no-secret-backup":
+        if (seenFlags.has("--secret-backup")) throw new CliError("--secret-backup와 --no-secret-backup은 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-secret-backup"); result.includeSecretBackup = false; break;
+      case "--semver-auto":
+        if (seenFlags.has("--no-semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
+        seenFlags.add("--semver-auto"); result.includeSemverAuto = true; break;
+      case "--no-semver-auto":
+        if (seenFlags.has("--semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-semver-auto"); result.includeSemverAuto = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
       case "--main-branch": {
         const v = args.shift();

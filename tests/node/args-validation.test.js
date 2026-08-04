@@ -39,3 +39,30 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.mainBranch, "release");
   assert.strictEqual(opts.developBranch, "dev");
 });
+
+// ── L7: --nexus/--secret-backup/--semver-auto 상호 모순 플래그 거부 ──
+test("parseArgs: --nexus --no-nexus 동시 지정은 CliError를 던진다", () => {
+  assert.throws(() => parseArgs(["--nexus", "--no-nexus"]), CliError);
+});
+
+test("parseArgs: --no-nexus --nexus (순서 반대)도 CliError를 던진다", () => {
+  assert.throws(() => parseArgs(["--no-nexus", "--nexus"]), CliError);
+});
+
+test("parseArgs: --secret-backup --no-secret-backup 동시 지정은 CliError를 던진다", () => {
+  assert.throws(() => parseArgs(["--secret-backup", "--no-secret-backup"]), CliError);
+});
+
+test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {
+  assert.throws(() => parseArgs(["--semver-auto", "--no-semver-auto"]), CliError);
+});
+
+test("parseArgs: --nexus 단독 지정은 정상 통과한다", () => {
+  const opts = parseArgs(["--nexus"]);
+  assert.strictEqual(opts.includeNexus, true);
+});
+
+test("parseArgs: --no-secret-backup 단독 지정은 정상 통과한다", () => {
+  const opts = parseArgs(["--no-secret-backup"]);
+  assert.strictEqual(opts.includeSecretBackup, false);
+});
