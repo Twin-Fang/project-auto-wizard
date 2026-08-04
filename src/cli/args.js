@@ -1,5 +1,5 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
-import { VALID_TYPES } from "../context.js";
+import { VALID_TYPES, VALID_MODES } from "../context.js";
 
 // argv(process.argv.slice(2)) → 파싱 결과. 오류 시 throw(호출부에서 exit 1).
 export function parseArgs(argv) {
@@ -87,6 +87,11 @@ export function parseArgs(argv) {
       default:
         throw new CliError(`알 수 없는 옵션: ${a}`);
     }
+  }
+  if (!VALID_MODES.includes(result.mode)) {
+    throw new CliError(
+      `지원하지 않는 모드: '${result.mode}'\n지원 모드: interactive full version workflows revert uninstall status doctor`
+    );
   }
   return result;
 }
