@@ -66,12 +66,14 @@ test("resolveProjectPaths: 경로 후보가 0개(감지 실패)면 CliError로 �
     // pubspec.yaml은 있지만 lib/가 없어 flutter 후보 필터에서 걸러짐 → 후보 0개
     mkdirSync(join(root, "app"));
     writeFileSync(join(root, "app", "pubspec.yaml"), "name: demo\n");
+    // 타입만이 아니라 "찾지 못했습니다" 메시지까지 확인해 2개 이상(모호함) 분기와
+    // 뒤섞이지 않는지 검증한다 (에러 타입만 보면 두 분기 메시지를 바꿔도 통과해버림).
     await assert.rejects(
       () => resolveProjectPaths({
         root, types: ["flutter"], paths: new Map(),
         existingPaths: new Map(), force: true, tty: false, io: {},
       }),
-      CliError,
+      (err) => err instanceof CliError && /찾지 못했습니다/.test(err.message),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -85,12 +87,14 @@ test("resolveProjectPaths: 경로 후보가 2개 이상(모호함)이면 CliErro
     writeFileSync(join(root, "client", "package.json"), "{}\n");
     mkdirSync(join(root, "admin"));
     writeFileSync(join(root, "admin", "package.json"), "{}\n");
+    // "모호합니다" 메시지와 후보 목록(admin, client)까지 포함되는지 확인해 0개(감지 실패)
+    // 분기와 뒤섞이지 않는지 검증한다.
     await assert.rejects(
       () => resolveProjectPaths({
         root, types: ["react"], paths: new Map(),
         existingPaths: new Map(), force: true, tty: false, io: {},
       }),
-      CliError,
+      (err) => err instanceof CliError && /모호합니다.*admin.*client/.test(err.message),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
