@@ -77,7 +77,7 @@ export function printSummary(ctx) {
   }
 
   if (commonWorkflows.length > 0 || typeWorkflows.length > 0) {
-    err(`  📦 새로 설치됨 (${copiedFiles.length}개):`);
+    err(`  📦 새로 설치됨 (${commonWorkflows.length + typeWorkflows.length}개):`);
     for (const wf of commonWorkflows) err(`     📌 ${wf}`);
     for (const wf of typeWorkflows) err(`     🎯 ${wf}`);
   }
