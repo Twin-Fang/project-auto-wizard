@@ -93,9 +93,10 @@ export async function run(argv, {
 
   // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
   if (opts.mode === "revert") {
+    // TTY 여부와 무관하게 --force가 없으면 거부한다 (issue #19 — TTY에서 확인 없이 즉시 실행되던 결함 수정).
     // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
-    if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
-      console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+    if (!opts.force && !opts.dryRun) {
+      console.error("revert 모드는 --force 없이 실행할 수 없습니다 (확인 절차가 없습니다).");
       return 1;
     }
     if (opts.dryRun) {
@@ -220,10 +221,11 @@ export async function run(argv, {
     printDoctorReport(runDoctor(cwd));
     return 0;
   }
-  // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
+  // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
+  // (issue #19 — TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
-  if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
-    console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+  if (!opts.force && !opts.dryRun) {
+    console.error("--force 없이는 이 모드를 실행할 수 없습니다 (확인 절차가 없습니다).");
     return 1;
   }
 
@@ -265,7 +267,7 @@ export async function run(argv, {
   const { now, today } = clock || utcNow();
 
   const context = createContext({
-    mode: opts.mode, force: true, types, version, versionCode, branch,
+    mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
     paths,
     // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
