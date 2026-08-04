@@ -89,7 +89,7 @@ export function banner(info) { _printBanner(info); }
 export function detectionLog(info) { _detLog(info); }
 export function analysisCard(info) { _card(info); }
 export function installKind(info) { _installKind(info); }
-export function summary(ctx, targetRoot) { _summary(ctx, targetRoot); }
+export function summary(ctx) { _summary(ctx); }
 
 // env 계획·경로 해석·충돌 메뉴가 쓰는 저수준 엔진 io (env-plan/paths-resolve의 io 계약)
 export const engineIo = {

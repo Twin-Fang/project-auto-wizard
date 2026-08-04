@@ -19,7 +19,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --nexus / --no-nexus            Nexus 라이브러리 publish 워크플로우 포함/제외
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
-      --force              모든 확인 생략, 비대화형 기본값 사용
+      --force              full/version/workflows/revert 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/version/workflows/revert/uninstall 전체 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
@@ -29,7 +29,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
 
 예시:
   npx project-auto-wizard --mode full --force --type spring,react
-  npx project-auto-wizard --mode workflows --type flutter --paths "flutter=app"
+  npx project-auto-wizard --mode workflows --force --type flutter --paths "flutter=app"
   npx project-auto-wizard --mode status
   npx project-auto-wizard --mode doctor
   npx project-auto-wizard --mode full --force --type node --dry-run

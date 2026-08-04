@@ -69,6 +69,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0, backupAdded: 0 };
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
+  counters.copiedFiles = []; // 이번 실행에서 실제로 새로 쓰여진 파일명 (issue #19 — printSummary 정확성용)
   const srcText = makeSrcText(context.branches || null);
   // values/useDefaults는 치환 경로에서만 의미 (isUnchanged는 내부에서 useDefaults:true 강제 — 가상 비교 무손상)
   const envOptsFor = (type) => ({ type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults });
@@ -89,6 +90,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
       }
       writeText(dst, body);
       counters.copied++;
+      counters.copiedFiles.push(filename);
     }
   }
 
@@ -108,6 +110,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
       writeText(dst, srcText(join(secretDir, filename)));
       counters.optionalCopied++;
       counters.copied++;
+      counters.copiedFiles.push(filename);
     }
   }
 
@@ -125,6 +128,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     writeText(dst, srcText(src));
     counters.copied++;
     counters.backupAdded++;
+    counters.copiedFiles.push(filename);
     return;
   }
   if (decision === "template") {
@@ -132,6 +136,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     const templateName = (filename.endsWith(".yaml") ? filename.slice(0, -".yaml".length) : filename) + ".template.yaml";
     writeText(join(workflowsDir, templateName), srcText(src)); // 기존 .template.yaml 덮어씀(.sh rm -f + cp 등가)
     counters.templateAdded++;
+    counters.copiedFiles.push(templateName);
     return;
   }
   counters.skipped++; // 'skip'/미지정/ESC → 기존 유지 (.sh S)·force 기본)
@@ -185,7 +190,11 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     const { newFiles, unchanged, changed } = classify(typeDir, workflowsDir, envOpts, srcText);
     unchangedNames = unchanged.slice();
     for (const f of unchanged) counters.skipped++;
-    for (const f of newFiles) { writeText(join(workflowsDir, f), srcText(join(typeDir, f))); counters.copied++; }
+    for (const f of newFiles) {
+      writeText(join(workflowsDir, f), srcText(join(typeDir, f)));
+      counters.copied++;
+      counters.copiedFiles.push(f);
+    }
     // changed: 결정 Map에 따라 처리 (미지정=skip → 현행 force 동작과 동일)
     for (const f of changed) applyDecision(decisions.get(f), typeDir, workflowsDir, f, counters, srcText);
   }
@@ -198,7 +207,11 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     } else {
       const { newFiles, unchanged, changed } = classify(serverDeployDir, workflowsDir, envOpts, srcText);
       for (const f of unchanged) counters.skipped++;
-      for (const f of newFiles) { writeText(join(workflowsDir, f), srcText(join(serverDeployDir, f))); counters.copied++; }
+      for (const f of newFiles) {
+        writeText(join(workflowsDir, f), srcText(join(serverDeployDir, f)));
+        counters.copied++;
+        counters.copiedFiles.push(f);
+      }
       for (const f of changed) applyDecision(decisions.get(f), serverDeployDir, workflowsDir, f, counters, srcText);
     }
   }
@@ -218,6 +231,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
       writeText(dst, body);
       counters.optionalCopied++;
       counters.copied++;
+      counters.copiedFiles.push(filename);
     }
   }
 

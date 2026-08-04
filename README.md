@@ -73,7 +73,7 @@ flutter.APP_ARTIFACT_NAME:
 
 ### 되돌리기(`--mode revert`)
 
-`npx project-auto-wizard --mode revert`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
+`npx project-auto-wizard --mode revert --force`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
 
 ### 완전 삭제(`--mode uninstall`)
 
@@ -139,7 +139,7 @@ npx project-auto-wizard [옵션]
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
       --purge-version       --mode uninstall --force 시 version.yml도 제거
-      --force              전 질문 생략 (CI용)
+      --force              full/version/workflows/revert 실행에 필수 (전 질문 생략, CI용)
 ```
 
 ## 설치 상태 확인 · 진단 · 미리보기
