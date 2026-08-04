@@ -100,3 +100,16 @@ test("integration: qa_custom_field survives a --mode version re-run (issue #20 r
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("buildVersionYml: escapes double quotes in deploy block values (issue #20 L9, second sink)", () => {
+  const deployValues = new Map([["node", new Map([["HOST", 'a "quoted" host']])]]);
+  const text = buildVersionYml({
+    templateText: readVersionYmlTemplate(PAYLOAD),
+    version: "1.0.0", types: ["node"], paths: new Map(), branch: "main",
+    branches: { main: "main", develop: "develop", mode: "pr-flow" },
+    versionCode: 1, now: "2026-08-04 00:00:00", today: "2026-08-04",
+    templateOptions: { templateVersion: "0.1.0" },
+    deployValues,
+  });
+  assert.ok(text.includes('HOST: "a \\"quoted\\" host"'));
+});

@@ -1,3 +1,5 @@
+import { escapeYamlDoubleQuoted } from "./wizard-env.js";
+
 // version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략 D4).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
@@ -186,7 +188,9 @@ export function buildVersionYml({
     const rows = ["", "deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)"];
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
-      for (const [k, v] of deployValues.get(t)) rows.push(`    ${k}: "${v}"`);
+      // 동일한 이스케이프를 재사용 — deploy 값도 @wizard ask 값과 같은 경로로 들어오므로
+      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (issue #20 L9, 두 번째 지점).
+      for (const [k, v] of deployValues.get(t)) rows.push(`    ${k}: "${escapeYamlDoubleQuoted(v)}"`);
     }
     deployBlock = rows.join("\n");
   }
