@@ -78,6 +78,15 @@
 - **신규 `tests/node/paths-resolve.test.js`**: M3(임시 디렉터리에 실제 존재/미존재 경로를 `--paths`로 지정해 `resolveProjectPaths` 직접 호출 → 존재 시 통과, 미존재 시 `CliError`), M4(0개 후보 fixture, 2개 이상 후보 fixture를 임시 디렉터리로 구성해 `force:true, tty:false`로 호출 → 각각 다른 메시지의 `CliError`) 단위 테스트. 기존 fixture(`tests/fixtures/monorepo`, `missing-target`)는 다른 테스트 목적으로 만들어져 있어 그대로 재사용하기 어려우므로, `mkdtempSync` 기반 임시 디렉터리로 최소 구성한다(`mode-validation.test.js`의 임시 디렉터리 패턴 참고).
 - **회귀 확인**: 이슈에 적힌 5개 재현 커맨드가 모두 이제 `exit 1` + `CliError` 메시지로 거부되는지 명시적으로 검증한다.
 
+## 8-0. 구현 계획 작성 중 정정된 사항
+
+`writing-plans` 단계에서 실제 코드를 재검토(및 Fable 5 모델의 계획 검토)한 결과, 아래 두 가지가 이 스펙의 §5/§6/§8과 다르게 확정됐다. 최종 근거는 `docs/superpowers/plans/2026-08-04-cli-args-validation-consistency.md`를 따른다.
+
+- **`src/index.js`는 "변경 없음"이 아니다.** §5/§6은 `resolveProjectPaths()`에서 던져지는 `CliError`가 `src/index.js:69-74`의 기존 catch로 자연스럽게 흡수된다고 가정했으나, 그 catch는 `parseArgs()` 호출만 감싸고 있어 `resolveProjectPaths()` 호출(243~247행)은 범위 밖이다. 계획의 Task 4에서 이 호출부에 별도 `try/catch`를 추가한다 — 그러지 않으면 M3/M4의 `CliError`가 처리되지 않은 예외(스택트레이스)로 새어나가 "깔끔한 exit 1"이 되지 않는다.
+- **§8의 회귀 분석이 M4를 놓쳤다.** "후보 0개 → 경고 후 루트(.)로 폴백"이라는 기존 관대한 동작에 마커 파일 없는 bare 임시 디렉터리로 `--force --type <t>` 설치를 검증하던 기존 테스트 7개 파일(`dry-run-cli`, `mode-force-gate`, `semver-auto-cli`, `summary-accuracy-cli`, `uninstall-cli`, `purge-cli`의 일부 테스트)과 `tests/fixtures/e2e/react-native/`(루트 마커 없음) fixture가 암묵적으로 의존하고 있었다. 계획의 Task 6에 각 위치별 루트 마커 파일 추가가 포함됐다.
+
+---
+
 ## 8. 회귀 위험
 
 브레인스토밍 단계에서 기존 테스트 스위트를 grep으로 선확인했다:

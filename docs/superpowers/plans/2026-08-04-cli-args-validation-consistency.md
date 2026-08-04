@@ -607,16 +607,269 @@ Expected: FAIL — 앞의 두 테스트(0개/2개 이상)는 현재 코드가 �
 Run: `node --test tests/node/paths-resolve.test.js`
 Expected: PASS (모든 테스트)
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 5: 기존 테스트가 "후보 0개 → 루트 폴백"에 암묵적으로 의존하고 있었는지 전체 스위트로 확인**
+
+Run: `npm run test:node`
+Expected: **FAIL** — Step 3의 변경 전에는 몰랐던 광범위한 회귀가 여기서 드러난다. 마커 파일(예: `package.json`) 없는 bare 임시 디렉터리에 `--force --type node`(또는 `spring`)로 설치하던 기존 테스트들은, 과거엔 "후보 0개 → 경고 후 루트(.)로 자동 확정"이라는 관대한 폴백 덕분에 통과했다. 이 폴백이 Step 3에서 `CliError`로 바뀌었으므로, 그 관대함에 의존하던 테스트들이 이제 실패한다. 전체 스위트를 grep(`--force`+`--type` 동시 사용 파일)해 아래 8개 파일을 특정했다:
+
+- `tests/node/e2e-matrix.test.js` — `tests/fixtures/e2e/react-native/` fixture에 루트 마커(package.json)가 없어서 실패 (영향 있음)
+- `tests/node/dry-run-cli.test.js` — 4개 테스트 영향 (아래 Step 6-1)
+- `tests/node/mode-force-gate.test.js` — 1개 테스트 영향 (아래 Step 6-2)
+- `tests/node/semver-auto-cli.test.js` — 3개 테스트 영향 (아래 Step 6-3)
+- `tests/node/summary-accuracy-cli.test.js` — 2개 테스트 영향 (아래 Step 6-4)
+- `tests/node/uninstall-cli.test.js` — 헬퍼 1곳 수정으로 3개 테스트 해결 (아래 Step 6-5)
+- `tests/node/purge-cli.test.js` — 헬퍼 2곳 + 독립 테스트 1곳 (아래 Step 6-6)
+- `tests/node/mode-validation.test.js` — **영향 없음** (유일한 `run()` 호출이 잘못된 `--mode` 값 검증용이라 경로 해석 이전에 이미 거부됨 — 수정 불필요, 확인만)
+
+각 파일에서 "마커 없는 bare 디렉터리 + `--force --type <t>` + 설치 성공(`code === 0`) 기대"인 테스트만 영향받는다. `--force` 없이 거부를 기대하는 테스트(예: `mode-force-gate.test.js`의 나머지 5개)는 경로 해석 이전 단계(`--force` 게이트)에서 이미 걸러지므로 영향이 없다 — 아래 Step 6에서 정확히 그 구분대로만 수정한다.
+
+- [ ] **Step 6: 영향받는 fixture/헬퍼에 루트 마커 파일 추가**
+
+**6-1. `tests/node/dry-run-cli.test.js`** — import에 `writeFileSync` 추가:
+
+```js
+// 변경 전
+import { mkdtempSync, existsSync, rmSync } from "node:fs";
+// 변경 후
+import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs";
+```
+
+아래 4개 테스트 각각에 `mkdtempSync` 직후 마커 라인을 추가한다(패턴 동일, 테스트명으로 구분):
+
+```js
+// 변경 전 (4곳 공통 패턴)
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  try {
+// 변경 후 (4곳 공통 패턴)
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  try {
+```
+
+적용 대상(각 `test(...)` 선언 바로 다음 줄의 위 패턴에 적용 — 4곳 모두 동일 패턴이므로 각 `test("...")` 이름으로 위치를 구분해 개별 적용한다):
+- `"run(): --dry-run --mode full writes nothing to an empty target"`
+- `"run(): --dry-run without --force bypasses the non-interactive --force gate"`
+- `"run(): --dry-run --mode revert on an installed repo removes nothing"`
+- `"run(): --dry-run --mode revert without --force also bypasses the --force gate"`
+
+다음 2곳은 **적용하지 않는다**(경로 해석 이전에 거부되므로 영향 없음):
+- `"run(): --dry-run with no --mode (interactive) errors instead of running the live wizard"` (`--mode` 미지정 → interactive 분기로 조기 반환)
+- `"run(): non-dry-run without --force still requires --force in a non-interactive environment"` (`--force`/`--dry-run` 둘 다 없어 게이트에서 즉시 거부)
+
+**6-2. `tests/node/mode-force-gate.test.js`** — import에 `writeFileSync` 추가:
+
+```js
+// 변경 전
+import { mkdtempSync, rmSync, existsSync } from "node:fs";
+// 변경 후
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from "node:fs";
+```
+
+`"run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진행된다"` 테스트 1곳만 수정(나머지 5개는 `--force` 없이 거부를 기대하는 테스트라 영향 없음):
+
+```js
+// 변경 전
+test("run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진행된다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-tty-full-force-"));
+  try {
+// 변경 후
+test("run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진행된다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-tty-full-force-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  try {
+```
+
+**6-3. `tests/node/semver-auto-cli.test.js`** — `writeFileSync`는 이미 import되어 있음. 3개 테스트 각각에 추가:
+
+```js
+// 변경 전
+test("run(): --no-semver-auto propagates to installed version.yml", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  try {
+// 변경 후
+test("run(): --no-semver-auto propagates to installed version.yml", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  try {
+```
+
+```js
+// 변경 전
+test("run(): omitted flag defaults to semver_auto: true", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  try {
+// 변경 후
+test("run(): omitted flag defaults to semver_auto: true", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  try {
+```
+
+```js
+// 변경 전
+test("run(): re-installing over a version.yml predating semver_auto (no key) safely defaults to false, not true", async () => {
+  // 기존 설치(semver_auto 기능 이전에 만들어진 version.yml)를 CLI로 재통합하면,
+  // 애매한 커밋 하나로 조용히 major가 승격되지 않도록 false로 안전하게 폴백해야 한다
+  // (완전 신규 설치만 true — 아래 "omitted flag defaults to semver_auto: true"와 대비).
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  try {
+// 변경 후
+test("run(): re-installing over a version.yml predating semver_auto (no key) safely defaults to false, not true", async () => {
+  // 기존 설치(semver_auto 기능 이전에 만들어진 version.yml)를 CLI로 재통합하면,
+  // 애매한 커밋 하나로 조용히 major가 승격되지 않도록 false로 안전하게 폴백해야 한다
+  // (완전 신규 설치만 true — 아래 "omitted flag defaults to semver_auto: true"와 대비).
+  const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  try {
+```
+
+**6-4. `tests/node/summary-accuracy-cli.test.js`** — import에 `writeFileSync` 추가, 마커는 `spring` 타입이므로 `build.gradle`:
+
+```js
+// 변경 전
+import { mkdtempSync, rmSync, readdirSync } from "node:fs";
+// 변경 후
+import { mkdtempSync, rmSync, readdirSync, writeFileSync } from "node:fs";
+```
+
+```js
+// 변경 전
+test("run(): full 모드 완료 요약의 '새로 설치됨' 목록이 실제 생성된 워크플로우 파일과 정확히 일치한다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-accuracy-"));
+  try {
+// 변경 후
+test("run(): full 모드 완료 요약의 '새로 설치됨' 목록이 실제 생성된 워크플로우 파일과 정확히 일치한다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-accuracy-"));
+  writeFileSync(join(target, "build.gradle"), ""); // M4: 경로 후보 0개 방지용 루트 마커 (spring)
+  try {
+```
+
+```js
+// 변경 전
+test("run(): 동일 옵션으로 재실행하면(전부 unchanged) '새로 설치됨' 목록이 아예 뜨지 않는다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-rerun-"));
+  try {
+// 변경 후
+test("run(): 동일 옵션으로 재실행하면(전부 unchanged) '새로 설치됨' 목록이 아예 뜨지 않는다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-rerun-"));
+  writeFileSync(join(target, "build.gradle"), ""); // M4: 경로 후보 0개 방지용 루트 마커 (spring)
+  try {
+```
+
+**6-5. `tests/node/uninstall-cli.test.js`** — 공용 헬퍼 1곳만 고치면 이 헬퍼를 쓰는 3개 테스트가 전부 해결된다(`writeFileSync`는 이미 import되어 있음):
+
+```js
+// 변경 전
+function emptyTarget() {
+  return mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
+}
+// 변경 후
+function emptyTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  return target;
+}
+```
+
+**6-6. `tests/node/purge-cli.test.js`** — `writeFileSync`는 이미 import되어 있음. 헬퍼 2곳 + 독립 테스트 1곳:
+
+```js
+// 변경 전
+async function installedTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  await run(["--mode", "full", "--force", "--type", "node"], {
+    cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+  });
+  return target;
+}
+// 변경 후
+async function installedTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  await run(["--mode", "full", "--force", "--type", "node"], {
+    cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+  });
+  return target;
+}
+```
+
+```js
+// 변경 전
+async function installedTrunkBasedTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main"], {
+    cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+  });
+  return target;
+}
+// 변경 후
+async function installedTrunkBasedTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main"], {
+    cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
+  });
+  return target;
+}
+```
+
+```js
+// 변경 전
+test("run(): full round-trip — install then purge returns the target to its pre-install state", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "README.md"), "# Test\n");
+  try {
+    const before = listAllFilesCli(target);
+// 변경 후
+test("run(): full round-trip — install then purge returns the target to its pre-install state", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
+  mkdirSync(join(target, ".git"));
+  writeFileSync(join(target, "README.md"), "# Test\n");
+  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 루트 마커 — before 스냅샷에 포함시켜야 라운드트립이 성립
+  try {
+    const before = listAllFilesCli(target);
+```
+
+**6-7. `tests/fixtures/e2e/react-native/package.json`** (신규 파일) — 이 fixture는 `ios/`·`android/`만 있고 실제 React Native 프로젝트라면 항상 있어야 할 루트 `package.json`이 원래 빠져 있었다:
+
+```json
+{
+  "name": "demo-react-native"
+}
+```
+
+(버전 필드는 의도적으로 넣지 않는다 — `detectVersion()`은 `package.json`에 유효한 `version` 필드가 없으면 기존과 동일하게 `build.gradle`/`pubspec.yaml`/`pyproject.toml`/git 태그를 거쳐 `"0.0.1"`로 폴백하므로, 버전 감지 동작은 이번 수정과 무관하게 그대로 유지된다.)
+
+- [ ] **Step 7: 전체 스위트 재실행으로 회귀 해소 확인**
+
+Run: `npm run test:node`
+Expected: PASS (전체) — Step 5에서 실패했던 8개 파일 모두 통과해야 한다. 하나라도 여전히 실패하면 Step 6에서 놓친 마커 추가 위치가 있는지 실패 메시지의 파일:테스트명으로 다시 추적한다.
+
+- [ ] **Step 8: 커밋**
 
 ```bash
-git add src/core/paths-resolve.js tests/node/paths-resolve.test.js
+git add src/core/paths-resolve.js tests/node/paths-resolve.test.js \
+  tests/node/dry-run-cli.test.js tests/node/mode-force-gate.test.js \
+  tests/node/semver-auto-cli.test.js tests/node/summary-accuracy-cli.test.js \
+  tests/node/uninstall-cli.test.js tests/node/purge-cli.test.js \
+  tests/fixtures/e2e/react-native/package.json
 git commit -m "$(cat <<'EOF'
 fix: 모노레포 경로 후보 0개/2개 이상을 구분해 거부하도록 수정
 
 후보 0개(감지 실패)와 2개 이상(모호함)이 원인이 다른데도 동일하게
 경고만 출력하고 조용히 루트(.)로 확정되던 문제를 수정. 비대화형
 경로에서는 두 경우 모두 서로 다른 메시지의 CliError로 거부한다.
+
+이 변경으로 마커 파일 없는 bare 디렉터리에서 "후보 0개 → 루트 폴백"에
+암묵적으로 의존하던 기존 테스트(dry-run-cli, mode-force-gate,
+semver-auto-cli, summary-accuracy-cli, uninstall-cli, purge-cli)와
+react-native e2e fixture가 함께 깨져 있어, 각각에 루트 마커 파일을
+추가해 원래 검증 의도를 유지하면서 회귀를 해소했다.
 EOF
 )"
 ```
