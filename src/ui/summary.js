@@ -1,21 +1,17 @@
 // 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
-// ctx: { mode, types:[], version, counters:{ workflows }, branches? }
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { PATHS, WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
-import { listYamlFiles } from "../core/fsutil.js";
+// ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated? }
+import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
-export function printSummary(ctx, targetRoot = ".") {
-  const { mode, types = [], version = "", counters = {}, branches = null, gitignoreUpdated = false } = ctx || {};
+export function printSummary(ctx) {
+  const { mode, types = [], version = "", copiedFiles = [], branches = null, gitignoreUpdated = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 TTY일 때만 (.sh YELLOW/CYAN/NC 등가)
   const isTty = !!process.stderr.isTTY;
   const YELLOW = isTty ? "\x1b[1;33m" : "";
   const CYAN = isTty ? "\x1b[0;36m" : "";
   const NC = isTty ? "\x1b[0m" : "";
-  const workflowsCopied = counters.workflows ?? 0;
 
   err("");
   err(SEPARATOR);
@@ -66,24 +62,22 @@ export function printSummary(ctx, targetRoot = ".") {
   err("");
   err("추가된 워크플로우:");
 
-  // 실제 복사된 워크플로우 분류
+  // 실제로 이번 실행에서 복사된 파일만 분류한다 (copyWorkflows()가 반환한 copiedFiles —
+  // 디렉터리 재스캔은 재실행 시 skip된 파일까지 "새로 설치됨"으로 보여주는 결함이 있었다, issue #19).
   const commonWorkflows = [];
   const typeWorkflows = [];
-  const workflowsDir = join(targetRoot, PATHS.workflowsDir);
-  if (existsSync(workflowsDir)) {
-    const typePrefixes = types.map((t) => `${WORKFLOW_PREFIX}-${t.toUpperCase()}-`);
-    for (const filename of listYamlFiles(workflowsDir)) {
-      if (!filename.startsWith(`${WORKFLOW_PREFIX}-`)) continue; // PROJECT-*.{yaml,yml}만
-      if (filename.startsWith(`${WORKFLOW_COMMON_PREFIX}-`)) {
-        commonWorkflows.push(filename);
-      } else if (typePrefixes.some((p) => filename.startsWith(p))) {
-        typeWorkflows.push(filename);
-      }
+  const typePrefixes = types.map((t) => `${WORKFLOW_PREFIX}-${t.toUpperCase()}-`);
+  for (const filename of copiedFiles) {
+    if (!filename.startsWith(`${WORKFLOW_PREFIX}-`)) continue; // PROJECT-*만
+    if (filename.startsWith(`${WORKFLOW_COMMON_PREFIX}-`)) {
+      commonWorkflows.push(filename);
+    } else if (typePrefixes.some((p) => filename.startsWith(p))) {
+      typeWorkflows.push(filename);
     }
   }
 
   if (commonWorkflows.length > 0 || typeWorkflows.length > 0) {
-    err(`  📦 새로 설치됨 (${workflowsCopied}개):`);
+    err(`  📦 새로 설치됨 (${copiedFiles.length}개):`);
     for (const wf of commonWorkflows) err(`     📌 ${wf}`);
     for (const wf of typeWorkflows) err(`     🎯 ${wf}`);
   }
