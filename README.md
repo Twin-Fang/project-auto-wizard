@@ -46,6 +46,7 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 
 - **멀티타입**: `--type spring,react,python` — 한 레포에 여러 타입 공존
 - **모노레포**: `--paths "flutter=app,react=client"` — 타입별 서브폴더 지정 (마커 파일 자동 감지)
+- `spring`/`flutter`/`react`/`next`/`python` 5개 타입은 아래 "타입별 워크플로우 구성"처럼 전용 CI/CD가 설치됩니다. `node`/`react-native`/`react-native-expo`/`basic`은 타입 전용 CI 없이 릴리스 자동화(버전 관리·체인지로그·AI 요약)를 담당하는 공통 워크플로우만 설치됩니다 — 빌드/배포 CI는 직접 추가해서 확장할 수 있습니다.
 
 ### 질문 문구 커스터마이징
 
@@ -65,7 +66,8 @@ flutter.APP_ARTIFACT_NAME:
 `spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
 
 - **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
-- **spring**: 무중단 배포 2종(Nginx/Traefik) + 단일 서버 배포 + PR 프리뷰 + Nexus publish(opt-in)
+- **spring**: 단일 서버 배포(SIMPLE-CICD, **기본 활성**) + 무중단 배포 2종(Nginx/Traefik, opt-in) + PR 프리뷰 + GitHub Packages publish(항상 설치) + Nexus publish(`--nexus` opt-in)
+  - 무중단 배포 워크플로우는 파일은 설치되지만 `push` 트리거가 기본적으로 비활성(`workflow_dispatch`만 활성)입니다. 기본 배포는 SIMPLE-CICD가 담당하며, 무중단 배포로 전환하려면 해당 워크플로우 YAML의 `push.branches` 주석을 해제하고 SIMPLE-CICD의 `push` 트리거는 주석 처리해야 합니다(각 YAML 상단 주석에 안내되어 있습니다).
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
 
@@ -205,7 +207,7 @@ flowchart TB
 ## 개발
 
 ```bash
-npm test          # node --test + python unittest (node 219 + py 87)
+npm test          # node --test + python unittest (node 222 + py 87)
 npm run test:node
 npm run test:py
 ```
