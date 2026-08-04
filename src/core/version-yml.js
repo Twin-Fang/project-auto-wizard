@@ -2,6 +2,32 @@
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
+// version.yml.template이 아는 최상위 키 — 이 밖의 최상위 키는 사용자가 직접 추가한 것으로 간주한다.
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  "version", "version_code", "project_types", "project_type", "project_paths", "metadata", "deploy",
+]);
+
+// 최상위 레벨의 알려지지 않은 필드(사용자가 직접 추가한 임의 필드)를 원본 그대로 보존한다
+// (issue #20 M8). 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
+// 캡처한다(중첩 구조가 있어도 유효한 YAML로 남기기 위함). metadata/project_paths/deploy처럼
+// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖 — issue #20 결정).
+export function parseExtraTopLevel(content) {
+  const blocks = [];
+  let current = null;
+  for (const line of String(content || "").split("\n")) {
+    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례) — issue #20 M8 리뷰에서 지적된 놓침 방지.
+    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):/);
+    if (m) {
+      if (current) blocks.push(current.join("\n"));
+      current = KNOWN_TOP_LEVEL_KEYS.has(m[1]) ? null : [line];
+      continue;
+    }
+    if (current) current.push(line);
+  }
+  if (current) blocks.push(current.join("\n"));
+  return blocks;
+}
+
 // metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
 // 반환: { nexus: bool|null, secretBackup: bool|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
@@ -92,7 +118,7 @@ export function parseExisting(content) {
   const options = parseTemplateOptions(text);
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
-  return { version, versionCode, types, paths, templateVersion, options, branches };
+  return { version, versionCode, types, paths, templateVersion, options, branches, extraTopLevel: parseExtraTopLevel(text) };
 }
 
 // metadata.template.branches 블록 파싱. 셋 다 있어야 유효 — 아니면 null.
@@ -120,7 +146,8 @@ export function parseTemplateBranches(content) {
 
 // version.yml 전체 생성 — payload/version.yml.template 렌더링.
 // opts: { templateText, version, types:[], primaryType?, paths:Map, pathMarkers?:Map,
-//         branch, branches?, versionCode, now, today, templateOptions?, deployValues? }
+//         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
+//         extraTopLevel?:string[] }  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존 (issue #20 M8)
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
@@ -129,7 +156,7 @@ export function parseTemplateBranches(content) {
 export function buildVersionYml({
   templateText, version, types = [], primaryType, paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
-  templateOptions = null, deployValues = new Map(),
+  templateOptions = null, deployValues = new Map(), extraTopLevel = [],
 }) {
   if (!templateText) throw new Error("version.yml.template 원문이 필요합니다 (payload/version.yml.template 누락?)");
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -185,6 +212,10 @@ export function buildVersionYml({
     }));
   }
   let text = out.join("\n");
+  if (extraTopLevel.length) {
+    if (!text.endsWith("\n")) text += "\n";
+    text += "\n" + extraTopLevel.join("\n\n");
+  }
   if (!text.endsWith("\n")) text += "\n";
   return text.replace(/\n{3,}$/, "\n"); // 말미 과잉 빈 줄 정리
 }

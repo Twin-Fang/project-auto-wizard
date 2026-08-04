@@ -6,7 +6,7 @@ import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { planRevert } from "./revert.js";
 import { planUninstall } from "./uninstall.js";
-import { buildVersionYml } from "../core/version-yml.js";
+import { buildVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { markerForType } from "../core/detect.js";
 
@@ -17,18 +17,22 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
     includeSemverAuto } = context;
   const pathMarkers = new Map();
   for (const [t] of paths) pathMarkers.set(t, markerForType(t));
+
+  const vyPath = join(targetRoot, PATHS.versionFile);
+  const existingRaw = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
+  const extraTopLevel = existingRaw !== null ? parseExisting(existingRaw).extraTopLevel : [];
+
   const wouldBe = buildVersionYml({
     templateText: readVersionYmlTemplate(payloadRoot),
     version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
+    extraTopLevel,
     templateOptions: {
       templateVersion, includeNexus, includeSecretBackup,
       includeSemverAuto: includeSemverAuto !== false,
       optionsDate: today,
     },
   });
-  const vyPath = join(targetRoot, PATHS.versionFile);
-  const existing = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
-  return { existed: existing !== null, changed: existing !== wouldBe };
+  return { existed: existingRaw !== null, changed: existingRaw !== wouldBe };
 }
 
 // mode: "full" | "version" | "workflows" | "revert" | "uninstall". 읽기 전용 — 아무 파일도 쓰지 않는다.
