@@ -27,13 +27,12 @@ export function detectTypes(root) {
   return detectTypesFromMarkers({ has: hasFile(root), read: readFile(root) });
 }
 
-// 버전 감지 — .sh detect_version 순서. jq 유무는 command 존재로 판정.
-export function detectVersion(root, { hasJq } = {}) {
+// 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다(이슈 #22 L4).
+export function detectVersion(root, { warn = (m) => console.error(m) } = {}) {
   const read = readFile(root);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
-  const jq = hasJq ?? hasCommand("jq");
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
-  return detectVersionFromFiles({ read, readJson, hasJq: jq, gitTag });
+  return detectVersionFromFiles({ read, readJson, gitTag, warn });
 }
 
 // 기본 브랜치 감지 — symbolic-ref → remote show → main.
@@ -54,13 +53,6 @@ export function detectRepoName(root) {
     if (seg) return seg;
   }
   return basename(root);
-}
-
-function hasCommand(cmd) {
-  try {
-    execFileSync(process.platform === "win32" ? "where" : "which", [cmd], { stdio: "ignore" });
-    return true;
-  } catch { return false; }
 }
 
 // Spring application*.yml 탐색 (.sh resolve_spring_app_yml_dir/path L2767~2780 등가)
