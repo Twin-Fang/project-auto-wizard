@@ -15,7 +15,10 @@ const c = {
   reset: `${ESC}0m`, dim: `${ESC}2m`, bold: `${ESC}1m`,
   cyan: `${ESC}36m`, green: `${ESC}32m`, gray: `${ESC}90m`, yellow: `${ESC}33m`,
 };
-const paint = (s, color) => `${color}${s}${c.reset}`;
+// NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙(존재 여부만 체크, 값 무관)이지만
+// 의존성 0 유지를 위해 자체 구현.
+const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY;
+const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
 const hideCursor = () => stdout.write(`${ESC}?25l`);
 const showCursor = () => stdout.write(`${ESC}?25h`);
 
