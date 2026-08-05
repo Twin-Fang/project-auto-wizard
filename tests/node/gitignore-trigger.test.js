@@ -30,10 +30,10 @@ test("runFull: 충돌 없는 최초 설치는 .gitignore를 전혀 만들지 않
   }
 });
 
-// NOTE (Fable 검토 반영): PROJECT-COMMON-*.yaml은 "common" 워크플로우라 copyWorkflows()의
-// common 분기(workflows.js:80-93)에서 changed여도 decisions Map을 거치지 않고 무조건 덮어쓴다 —
-// backup/template 결정은 오직 타입별(copyWorkflowsForType) 워크플로우에서만 적용된다.
-// 그래서 아래 두 테스트는 타입별 파일(PROJECT-PYTHON-CI.yaml, payload/workflows/python/에 존재 확인)을 써야 한다.
+// NOTE: 아래 두 테스트는 PROJECT-PYTHON-CI.yaml(타입별 워크플로우)을 예시로 쓴다 — 특정 파일로
+// 고정해 테스트를 안정적으로 만든 것일 뿐, issue #20 H3 수정 이후로는 PROJECT-COMMON-*.yaml도
+// 동일한 3지선(backup/template 결정)을 거치므로 common 파일로도 이 테스트가 성립한다.
+// (payload/workflows/python/에 파일이 존재하는지는 확인됨.)
 test("runFull: 타입별 워크플로우 충돌을 'backup'으로 처리하면 .gitignore에 *.bak이 추가된다", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-full-gitignore-"));
   try {

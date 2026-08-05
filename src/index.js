@@ -93,9 +93,10 @@ export async function run(argv, {
 
   // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
   if (opts.mode === "revert") {
+    // TTY 여부와 무관하게 --force가 없으면 거부한다 (issue #19 — TTY에서 확인 없이 즉시 실행되던 결함 수정).
     // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
-    if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
-      console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+    if (!opts.force && !opts.dryRun) {
+      console.error("revert 모드는 --force 없이 실행할 수 없습니다 (확인 절차가 없습니다).");
       return 1;
     }
     if (opts.dryRun) {
@@ -220,10 +221,11 @@ export async function run(argv, {
     printDoctorReport(runDoctor(cwd));
     return 0;
   }
-  // 명시 모드인데 --force 없으면 (비대화형 CLI는 --force 필요)
+  // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
+  // (issue #19 — TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
-  if (!opts.force && !opts.dryRun && !process.stdout.isTTY) {
-    console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
+  if (!opts.force && !opts.dryRun) {
+    console.error("--force 없이는 이 모드를 실행할 수 없습니다 (확인 절차가 없습니다).");
     return 1;
   }
 
@@ -238,11 +240,17 @@ export async function run(argv, {
   const versionCode = existing?.versionCode ?? 1; // 기존 빌드번호 보존 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
-  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 루트 폴백)
-  const paths = await resolveProjectPaths({
-    root: cwd, types, paths: parsePathsCsv(opts.pathsCsv),
-    existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
-  });
+  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
+  let paths;
+  try {
+    paths = await resolveProjectPaths({
+      root: cwd, types, paths: parsePathsCsv(opts.pathsCsv),
+      existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
+    });
+  } catch (e) {
+    if (e instanceof CliError) { console.error(e.message); return 1; }
+    throw e;
+  }
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   const branches = resolveBranchConfig({
@@ -265,7 +273,7 @@ export async function run(argv, {
   const { now, today } = clock || utcNow();
 
   const context = createContext({
-    mode: opts.mode, force: true, types, version, versionCode, branch,
+    mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
     paths,
     // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
@@ -295,21 +303,20 @@ export async function run(argv, {
     return 0;
   }
 
+  // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/revert/purge/uninstall/status/doctor는
+  // 전부 위에서 조기 반환했으므로 이 시점엔 full/version/workflows 중 하나로 보장된다(issue #19 — default 분기 제거).
   let result = null;
   switch (opts.mode) {
     case "full": result = runFull(context, payload, cwd); break;
     case "version": result = runVersion(context, payload, cwd); break;
     case "workflows": result = runWorkflows(context, payload, cwd); break;
-    default:
-      // 알 수 없는 모드 → .sh와 동일하게 복사 0건, 에러 아님
-      break;
   }
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
     mode: opts.mode, types, version, branches,
-    counters: { workflows: result?.workflows?.copied ?? 0 },
+    copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
-  }, cwd);
+  });
   return 0;
 }
