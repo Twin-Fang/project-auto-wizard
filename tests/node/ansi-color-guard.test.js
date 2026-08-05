@@ -13,6 +13,17 @@ test("colorEnabled: NO_COLOR가 설정되면 TTY 여부와 무관하게 false", 
   }
 });
 
+// no-color.org 규격: NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — 빈 문자열도 설정된 것으로 취급해야 한다.
+test("colorEnabled: NO_COLOR가 빈 문자열이어도(존재는 함) false", () => {
+  const original = process.env.NO_COLOR;
+  process.env.NO_COLOR = "";
+  try {
+    assert.strictEqual(colorEnabled({ isTTY: true }), false);
+  } finally {
+    if (original === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = original;
+  }
+});
+
 test("colorEnabled: NO_COLOR 없고 스트림이 TTY면 true", () => {
   const original = process.env.NO_COLOR;
   delete process.env.NO_COLOR;

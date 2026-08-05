@@ -12,8 +12,10 @@ export const A = {
 };
 
 // NO_COLOR(https://no-color.org) 환경변수 또는 대상 스트림이 TTY가 아니면 색상을 끈다.
+// no-color.org 규격상 NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — NO_COLOR=""(빈 문자열)도
+// "설정됨"으로 취급해야 하므로 truthy 체크(`!process.env.NO_COLOR`)가 아니라 존재 체크를 쓴다.
 export function colorEnabled(stream = process.stdout) {
-  return !process.env.NO_COLOR && !!stream.isTTY;
+  return process.env.NO_COLOR === undefined && !!stream.isTTY;
 }
 
 export const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${A.reset}` : String(s));
