@@ -1,4 +1,4 @@
-// 공용 ANSI 헬퍼 — banner/status-cards가 공유 (readline-engine 내부 헬퍼와 독립, 의존성 0)
+// 공용 ANSI 헬퍼 — banner/status-cards/summary가 공유 (readline-engine 내부 헬퍼와 독립, 의존성 0)
 const E = "\x1b[";
 export const A = {
   reset: `${E}0m`,
@@ -10,7 +10,13 @@ export const A = {
   magenta: `${E}35m`,
   gray: `${E}90m`,
 };
-export const paint = (s, color) => `${color}${s}${A.reset}`;
+
+// NO_COLOR(https://no-color.org) 환경변수 또는 대상 스트림이 TTY가 아니면 색상을 끈다.
+export function colorEnabled(stream = process.stdout) {
+  return !process.env.NO_COLOR && !!stream.isTTY;
+}
+
+export const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${A.reset}` : String(s));
 
 // 대략적 표시 폭 (CJK 2칸 · ANSI 시퀀스 0칸) — 박스 우변 정렬용
 export function visualWidth(s) {
