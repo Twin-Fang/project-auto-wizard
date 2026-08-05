@@ -72,8 +72,8 @@ function keySession(renderFn, onKey) {
 
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / ESC
-      if ((key.ctrl && key.name === "c") || key.name === "escape") {
+      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
+      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") {
         cleanup();
         resolve(CANCEL);
         return;
@@ -219,7 +219,8 @@ export async function text({ message, defaultValue = "" }) {
 
     const handler = (str, key) => {
       key = key || {};
-      if ((key.ctrl && key.name === "c") || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
+      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
+      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
       if (key.name === "return" || key.name === "enter") {
         cleanup();
         resolve(buf.length ? buf : defaultValue);

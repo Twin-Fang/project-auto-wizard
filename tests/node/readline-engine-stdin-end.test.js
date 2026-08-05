@@ -60,3 +60,24 @@ test("text(): 정상 완료 후에는 'end' 리스너가 해제되어 리스너�
     assert.strictEqual(process.stdin.listenerCount("end"), before);
   });
 });
+
+test("text(): Ctrl+D 키 입력은 raw mode에서 stdin 'end'가 아니라 keypress로 들어오지만 CANCEL로 처리된다", async () => {
+  await withFakeTty(async () => {
+    const p = engine.text({ message: "이름을 입력하세요", defaultValue: "기본값" });
+    process.stdin.emit("keypress", "", { name: "d", ctrl: true, sequence: "" });
+    const result = await p;
+    assert.strictEqual(result, engine.CANCEL);
+  });
+});
+
+test("select(): Ctrl+D 키 입력은 CANCEL로 처리된다", async () => {
+  await withFakeTty(async () => {
+    const p = engine.select({
+      message: "선택하세요",
+      options: [{ value: "a", label: "A" }, { value: "b", label: "B" }],
+    });
+    process.stdin.emit("keypress", "", { name: "d", ctrl: true, sequence: "" });
+    const result = await p;
+    assert.strictEqual(result, engine.CANCEL);
+  });
+});
