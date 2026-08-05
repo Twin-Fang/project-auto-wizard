@@ -29,6 +29,8 @@
 - Consumes: 없음 (기존 `CANCEL` 심볼, `stdin`/`stdout`은 이미 파일 내부에 있음)
 - Produces: `keySession()`/`text()`가 stdin `"end"` 이벤트 시 `CANCEL`로 resolve — 이 파일이 export하는 `select`/`multiselect`/`confirm`/`text`가 전부 이 계약을 상속받는다. 이후 태스크에서 참조할 이름 변경 없음.
 
+**설계 노트 (스펙 §7 대비 변경)**: 스펙은 자식 프로세스 spawn 방식을 제안했지만, `readline-engine.js`가 `node:process`의 `stdin`/`stdout` 싱글턴을 직접 참조하는 구조상 **인프로세스 몽키패치가 더 간단하고 결정적**이다. `stdin.on(...)` 리스너는 `keySession`/`text`의 Promise executor 안에서 **동기적으로** 등록되므로(함수 호출이 반환되는 시점엔 이미 리스너가 붙어 있음), 호출 직후 `process.stdin.emit("end")`로 안전하게 트리거할 수 있다. `node --test`는 파일 단위로 별도 프로세스를 띄우고 파일 내부는 기본적으로 순차 실행되므로 전역 `process.stdin` 오버라이드가 다른 파일의 테스트와 경합하지 않는다.
+
 - [ ] **Step 1: 실패하는 테스트 작성**
 
 `tests/node/readline-engine-stdin-end.test.js` 신규 생성:
@@ -60,7 +62,10 @@ function withFakeTty(fn) {
     });
 }
 
-test("text(): stdin이 종료(EOF)되면 CANCEL로 resolve된다", async () => {
+// timeout 지정 필수: 수정 전 코드는 "end" 리스너가 없어 Promise가 영원히 pending되므로,
+// timeout이 없으면 FAIL이 아니라 node --test 전체가 멈춘다(hang). 수정 후에는 즉시 resolve되어
+// 여유 있게 통과한다.
+test("text(): stdin이 종료(EOF)되면 CANCEL로 resolve된다", { timeout: 2000 }, async () => {
   await withFakeTty(async () => {
     const p = engine.text({ message: "이름을 입력하세요", defaultValue: "기본값" });
     process.stdin.emit("end");
@@ -69,7 +74,7 @@ test("text(): stdin이 종료(EOF)되면 CANCEL로 resolve된다", async () => {
   });
 });
 
-test("select(): stdin이 종료(EOF)되면 CANCEL로 resolve된다", async () => {
+test("select(): stdin이 종료(EOF)되면 CANCEL로 resolve된다", { timeout: 2000 }, async () => {
   await withFakeTty(async () => {
     const p = engine.select({
       message: "선택하세요",
@@ -98,7 +103,7 @@ test("text(): 정상 완료 후에는 'end' 리스너가 해제되어 리스너�
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/readline-engine-stdin-end.test.js`
-Expected: 앞 두 테스트가 FAIL — `result`가 `CANCEL`이 아니라 `pending`(timeout) 또는 다른 값. (`"end"` 리스너가 아직 없으므로 Promise가 절대 resolve되지 않아 테스트가 타임아웃으로 실패한다.)
+Expected: 앞 두 테스트가 **FAIL with a timeout error**(`"end"` 리스너가 아직 없어 `text()`/`select()`의 Promise가 `emit("end")`에 반응하지 않고 pending 상태로 남기 때문 — `{ timeout: 2000 }`이 없으면 FAIL 대신 테스트 러너 자체가 멈추므로 반드시 필요하다). 세 번째 테스트("정상 완료 후...")는 이미 통과한다(회귀 아님, 리스너 정리 자체는 기존 로직에도 있었음).
 
 - [ ] **Step 3: `keySession()`에 `"end"` 핸들러 추가**
 
@@ -285,12 +290,29 @@ test("paint: enabled=false면 ANSI 코드 없이 원문 그대로 반환", () =>
 test("paint: enabled=true면 색상 코드로 감싼다", () => {
   assert.strictEqual(paint("hello", A.green, true), `${A.green}hello${A.reset}`);
 });
+
+// 이슈 #22 L2의 실제 재현 케이스(NO_COLOR=1 + `printBannerCompact` 출력에 ESC 바이트 혼입)를
+// 그대로 회귀 테스트로 고정한다. banner.js 자체는 이 계획에서 수정하지 않지만, ansi.js의 paint()가
+// 고쳐지면 banner.js도 무수정으로 함께 고쳐져야 한다.
+test("printBannerCompact: NO_COLOR=1이면 TTY여도 ESC 바이트가 출력에 섞이지 않는다", async () => {
+  const { printBannerCompact } = await import("../../src/ui/banner.js");
+  const originalNoColor = process.env.NO_COLOR;
+  process.env.NO_COLOR = "1";
+  try {
+    let output = "";
+    printBannerCompact({ version: "1.0.0", mode: "full" }, (s) => { output += s; });
+    assert.ok(!output.includes("\x1b["));
+    assert.ok(output.includes("project-auto-wizard"));
+  } finally {
+    if (originalNoColor === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = originalNoColor;
+  }
+});
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/ansi-color-guard.test.js`
-Expected: FAIL — `colorEnabled`가 `ansi.js`에서 export되지 않아 `undefined is not a function` 에러.
+Expected: FAIL — `colorEnabled`가 `ansi.js`에서 export되지 않아 `undefined is not a function` 에러(첫 5개 테스트). 마지막 `printBannerCompact` 테스트는 이슈의 원래 재현 케이스 그대로이므로, `paint()`가 무조건 색을 칠하는 현재 코드에서는 `out` 문자열에 ESC 바이트가 포함돼 FAIL한다.
 
 - [ ] **Step 3: `ansi.js`에 가드 추가**
 
@@ -334,7 +356,7 @@ export function visualWidth(s) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `node --test tests/node/ansi-color-guard.test.js`
-Expected: PASS (5 tests)
+Expected: PASS (6 tests)
 
 - [ ] **Step 5: 전체 회귀 확인 후 커밋**
 
@@ -354,7 +376,7 @@ EOF
 ### Task 3: `summary.js` — 공용 색상 가드로 리팩터링
 
 **Files:**
-- Modify: `src/ui/summary.js:1-17`, `src/ui/summary.js:111`, `src/ui/summary.js:123`
+- Modify: `src/ui/summary.js:1-18`, `src/ui/summary.js:111`, `src/ui/summary.js:123`
 - Test: `tests/node/summary-output.test.js` (기존 파일 확장)
 
 **Interfaces:**
@@ -415,11 +437,11 @@ test("printSummary: 비TTY면 NO_COLOR 미설정이어도 ANSI 색상 코드가 
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/summary-output.test.js`
-Expected: 첫 번째 신규 테스트(TTY + NO_COLOR 미설정)가 FAIL — 현재 `summary.js`는 `process.stderr.isTTY`만 보고 테스트 환경(비TTY)에서는 이미 색상이 꺼져 있어 `\x1b[`가 포함되지 않음. (TTY를 강제해도 여전히 색이 없다면 그 자체가 버그 재현 — 수정 전에는 이 케이스가 실패해야 정상.)
+Expected: **두 번째** 신규 테스트("NO_COLOR=1이면 TTY여도...")가 FAIL — 현재 `summary.js`는 `process.stderr.isTTY`만 보고 `NO_COLOR`를 전혀 확인하지 않으므로, TTY를 강제하면 `NO_COLOR=1`이어도 `\x1b[`가 그대로 포함돼 `!output.includes("\x1b[")` assertion이 깨진다. (첫 번째 테스트는 TTY만 강제하고 NO_COLOR는 안 건드리므로 현재 코드에서도 이미 통과한다 — 회귀 방지용으로 남겨둔다. 세 번째 테스트도 비TTY 조건은 기존 로직이 이미 처리하므로 통과한다.)
 
 - [ ] **Step 3: `summary.js`를 공용 가드로 리팩터링**
 
-`src/ui/summary.js` 1~17행을 다음으로 교체:
+`src/ui/summary.js` 1~18행을 다음으로 교체:
 
 ```js
 // 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
@@ -585,13 +607,15 @@ EOF
 ### Task 5: 대화형 최상위 메뉴에 status/doctor 노출
 
 **Files:**
-- Modify: `src/ui/prompts.js:9-20`
+- Modify: `src/ui/prompts.js:8-20`
 - Modify: `src/commands/interactive.js` (import 구간 + 모드 분기)
 - Test: `tests/node/interactive-mode-status-doctor.test.js` (신규)
 
 **Interfaces:**
 - Consumes: `src/commands/status.js`의 `runStatus(payloadRoot, targetRoot)`/`printStatus(status)` (기존, 변경 없음), `src/commands/doctor.js`의 `runDoctor(cwd, opts?)`/`printDoctorReport(results)` (기존, 변경 없음)
 - Produces: `selectMode()`가 `"status"`/`"doctor"`를 반환할 수 있게 됨 — `runInteractive()`가 이 두 값을 처리.
+
+**테스트 노트**: `interactive.js`의 doctor 분기는 `src/index.js`의 CLI `--mode doctor` 경로와 동일하게 `runDoctor(cwd)`를 exec 주입 없이 호출한다(`tests/node/doctor.test.js`의 `fakeExec` 주입 패턴과 달리 실제 `gh`/`git` 서브프로세스를 스폰함). 아래 doctor 테스트는 개별 점검 항목의 OK/WARN/FAIL 상태를 단언하지 않고 헤더 문자열만 확인하므로, `gh` CLI 설치/인증 여부와 무관하게 항상 통과한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -672,7 +696,7 @@ Expected: FAIL — `runInteractive`가 `"status"`/`"doctor"` 분기를 모르므
 
 - [ ] **Step 3: `prompts.js`에 메뉴 항목 추가**
 
-`src/ui/prompts.js` 9~20행(`selectMode` 함수 전체)을 다음으로 교체:
+`src/ui/prompts.js` 8~20행(선행 주석 1줄 + `selectMode` 함수 전체)을 다음으로 교체:
 
 ```js
 // 모드 선택 — 한국어 라벨, 내부 키 반환. 취소 시 CANCEL.
@@ -756,8 +780,8 @@ EOF
 ### Task 6: jq 미설치 시 버전 감지 폴백 수정
 
 **Files:**
-- Modify: `src/core/detect.js:37-54` (`detectVersionFromFiles`)
-- Modify: `src/core/detect-fs.js:31-36` (`detectVersion`), `src/core/detect-fs.js:59-64` (`hasCommand` 제거)
+- Modify: `src/core/detect.js:35-54` (`VERSION_RE` + `detectVersionFromFiles`)
+- Modify: `src/core/detect-fs.js:30-37` (`detectVersion`), `src/core/detect-fs.js:59-64` (`hasCommand` 제거)
 - Test: `tests/node/detect-version.test.js` (신규)
 
 **Interfaces:**
@@ -835,7 +859,7 @@ Expected: 첫 번째 테스트("package.json의 버전은 jq 여부와 무관하
 
 - [ ] **Step 3: `detect.js`에서 `hasJq` 게이트 제거, `warn` 콜백 추가**
 
-`src/core/detect.js` 37~54행을 다음으로 교체:
+`src/core/detect.js` 35~54행(`VERSION_RE` 상수 선언부터 `detectVersionFromFiles` 끝까지)을 다음으로 교체:
 
 ```js
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
@@ -864,7 +888,7 @@ export function detectVersionFromFiles({ read, readJson, gitTag, warn }) {
 
 - [ ] **Step 4: `detect-fs.js`에서 `hasJq`/`hasCommand` 제거, `warn` 배선**
 
-`src/core/detect-fs.js` 31~36행을 다음으로 교체:
+`src/core/detect-fs.js` 30~37행(선행 주석 + `detectVersion` 함수 전체)을 다음으로 교체:
 
 ```js
 // 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다(이슈 #22 L4).

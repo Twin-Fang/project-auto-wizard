@@ -64,7 +64,7 @@ export function paint(s, color, enabled = colorEnabled()) {
 ```
 
 - `enabled` 인자를 생략하면 기존 `paint(s, color)` 호출부는 그대로 동작하되, 내부적으로 `NO_COLOR`/`stdout.isTTY`를 체크하게 된다.
-- **부수 효과(무수정으로 해결)**: `src/ui/banner.js`, `src/ui/status-cards.js`는 이미 `ansi.js`의 `paint`를 그대로 사용하므로 시그니처 확장만으로 자동 수정된다. 특히 `status-cards.js`는 모듈 최상단에서 `paint()`를 즉시 호출해 상수를 만드는데(`const GUT = paint("│", A.gray)` 등), 이 파일은 대화형 모드(`process.stdout.isTTY`가 이미 보장된 경로)에서만 로드되므로 모듈 로드 시점 평가가 문제되지 않는다.
+- **부수 효과(무수정으로 해결)**: `src/ui/banner.js`, `src/ui/status-cards.js`는 이미 `ansi.js`의 `paint`를 그대로 사용하므로 시그니처 확장만으로 자동 수정된다. 특히 `status-cards.js`는 모듈 최상단에서 `paint()`를 즉시 호출해 상수를 만드는데(`const GUT = paint("│", A.gray)` 등), `process.stdout.isTTY`/`NO_COLOR`는 프로세스 시작 시점에 이미 고정되는 값이라 이 모듈이 언제 로드되든(대화형이든 아니든) 그 시점의 값이 프로세스 전체에서 유효한 최종값과 같다 — 모듈 로드 시점 평가가 문제되지 않는다.
 - `src/ui/summary.js`는 자체 계산하던 `YELLOW`/`CYAN`/`NC`(현재 `stderr.isTTY`만 체크, `NO_COLOR` 미확인)를 제거하고 `ansi.js`의 `paint`/`colorEnabled`를 재사용하도록 리팩터링한다. `summary.js`는 항상 `stderr`에 쓰므로 `colorEnabled(process.stderr)`를 명시적으로 넘긴다.
 - `src/ui/readline-engine.js`는 파일 헤더 주석에 명시된 "ansi.js와 독립적인 의존성 0 헬퍼" 설계를 존중해 **`ansi.js`를 import하지 않는다**. 대신 동일한 `NO_COLOR` + 대상 스트림(`stdout`) TTY 가드 로직을 파일 내부에 소규모로 복제한다. 동작은 통일되지만 파일 간 의존성은 늘리지 않는다.
 
