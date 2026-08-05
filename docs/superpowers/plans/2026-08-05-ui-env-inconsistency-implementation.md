@@ -262,6 +262,17 @@ test("colorEnabled: NO_COLOR가 설정되면 TTY 여부와 무관하게 false", 
   }
 });
 
+// no-color.org 규격: NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — 빈 문자열도 설정된 것으로 취급해야 한다.
+test("colorEnabled: NO_COLOR가 빈 문자열이어도(존재는 함) false", () => {
+  const original = process.env.NO_COLOR;
+  process.env.NO_COLOR = "";
+  try {
+    assert.strictEqual(colorEnabled({ isTTY: true }), false);
+  } finally {
+    if (original === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = original;
+  }
+});
+
 test("colorEnabled: NO_COLOR 없고 스트림이 TTY면 true", () => {
   const original = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
@@ -333,8 +344,10 @@ export const A = {
 };
 
 // NO_COLOR(https://no-color.org) 환경변수 또는 대상 스트림이 TTY가 아니면 색상을 끈다.
+// no-color.org 규격상 NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — NO_COLOR=""(빈 문자열)도
+// "설정됨"으로 취급해야 하므로 truthy 체크(`!process.env.NO_COLOR`)가 아니라 존재 체크를 쓴다.
 export function colorEnabled(stream = process.stdout) {
-  return !process.env.NO_COLOR && !!stream.isTTY;
+  return process.env.NO_COLOR === undefined && !!stream.isTTY;
 }
 
 export const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${A.reset}` : String(s));
@@ -356,7 +369,7 @@ export function visualWidth(s) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `node --test tests/node/ansi-color-guard.test.js`
-Expected: PASS (6 tests)
+Expected: PASS (7 tests)
 
 - [ ] **Step 5: 전체 회귀 확인 후 커밋**
 
@@ -579,8 +592,9 @@ const c = {
   reset: `${ESC}0m`, dim: `${ESC}2m`, bold: `${ESC}1m`,
   cyan: `${ESC}36m`, green: `${ESC}32m`, gray: `${ESC}90m`, yellow: `${ESC}33m`,
 };
-// NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙이지만 의존성 0 유지를 위해 자체 구현.
-const colorEnabled = () => !process.env.NO_COLOR && !!stdout.isTTY;
+// NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙(존재 여부만 체크, 값 무관)이지만
+// 의존성 0 유지를 위해 자체 구현.
+const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY;
 const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
 ```
 

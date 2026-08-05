@@ -56,7 +56,8 @@
 
 ```js
 export function colorEnabled(stream = process.stdout) {
-  return !process.env.NO_COLOR && !!stream.isTTY;
+  // no-color.org 규격: NO_COLOR는 값과 무관하게 "존재 여부"만 본다(NO_COLOR=""도 설정된 것으로 취급).
+  return process.env.NO_COLOR === undefined && !!stream.isTTY;
 }
 export function paint(s, color, enabled = colorEnabled()) {
   return enabled ? `${color}${s}${A.reset}` : String(s);
