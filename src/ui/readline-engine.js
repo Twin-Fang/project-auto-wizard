@@ -55,9 +55,16 @@ function keySession(renderFn, onKey) {
 
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
+      stdin.removeListener("end", onEnd);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       showCursor();
+    };
+
+    // stdin 종료(EOF/Ctrl+D, SSH 연결 끊김 등) — 취소(ESC/Ctrl+C)와 동일하게 처리해 무한 대기를 방지한다.
+    const onEnd = () => {
+      cleanup();
+      resolve(CANCEL);
     };
 
     const handler = (str, key) => {
@@ -77,6 +84,7 @@ function keySession(renderFn, onKey) {
       }
     };
     stdin.on("keypress", handler);
+    stdin.on("end", onEnd);
     renderFn(); // 최초 렌더
   });
 }
@@ -194,9 +202,16 @@ export async function text({ message, defaultValue = "" }) {
 
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
+      stdin.removeListener("end", onEnd);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       stdout.write("\n");
+    };
+
+    // stdin 종료(EOF/Ctrl+D) — 취소와 동일하게 처리해 무한 대기를 방지한다.
+    const onEnd = () => {
+      cleanup();
+      resolve(CANCEL);
     };
 
     const handler = (str, key) => {
@@ -212,6 +227,7 @@ export async function text({ message, defaultValue = "" }) {
       if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") { buf += str; prompt(); return; }
     };
     stdin.on("keypress", handler);
+    stdin.on("end", onEnd);
     prompt();
   });
 }
