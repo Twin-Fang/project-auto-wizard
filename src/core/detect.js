@@ -35,9 +35,10 @@ export function detectTypesFromMarkers({ has, read }) {
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 
 // 버전 감지 (동작명세 §3.3) — 순서대로 첫 성공. read(relpath)=>string|null 주입.
-export function detectVersionFromFiles({ read, readJson, hasJq, gitTag }) {
+// package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다(이슈 #22 L4).
+export function detectVersionFromFiles({ read, readJson, gitTag, warn }) {
   const pkg = readJson?.("package.json");
-  if (hasJq && pkg?.version && VERSION_RE.test(pkg.version)) return pkg.version;
+  if (pkg?.version && VERSION_RE.test(pkg.version)) return pkg.version;
   const grab = (content, re) => {
     for (const line of (content || "").split("\n")) {
       const m = line.match(re);
@@ -50,6 +51,7 @@ export function detectVersionFromFiles({ read, readJson, hasJq, gitTag }) {
   if ((v = grab(read("pubspec.yaml"), /^version:\s*(\d+\.\d+\.\d+)/))) return v;
   if ((v = grab(read("pyproject.toml"), /version\s*=\s*["']?(\d+\.\d+\.\d+)/))) return v;
   if (gitTag) { const t = String(gitTag).replace(/^v/, ""); if (VERSION_RE.test(t)) return t; }
+  warn?.("⚠️  버전을 자동 감지하지 못해 기본값 0.0.1을 사용합니다 — --project-version으로 직접 지정하거나 version.yml을 확인하세요.");
   return "0.0.1";
 }
 

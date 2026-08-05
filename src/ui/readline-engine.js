@@ -15,7 +15,10 @@ const c = {
   reset: `${ESC}0m`, dim: `${ESC}2m`, bold: `${ESC}1m`,
   cyan: `${ESC}36m`, green: `${ESC}32m`, gray: `${ESC}90m`, yellow: `${ESC}33m`,
 };
-const paint = (s, color) => `${color}${s}${c.reset}`;
+// NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙(존재 여부만 체크, 값 무관)이지만
+// 의존성 0 유지를 위해 자체 구현.
+const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY;
+const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
 const hideCursor = () => stdout.write(`${ESC}?25l`);
 const showCursor = () => stdout.write(`${ESC}?25h`);
 
@@ -55,15 +58,22 @@ function keySession(renderFn, onKey) {
 
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
+      stdin.removeListener("end", onEnd);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       showCursor();
     };
 
+    // stdin 종료(EOF/Ctrl+D, SSH 연결 끊김 등) — 취소(ESC/Ctrl+C)와 동일하게 처리해 무한 대기를 방지한다.
+    const onEnd = () => {
+      cleanup();
+      resolve(CANCEL);
+    };
+
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / ESC
-      if ((key.ctrl && key.name === "c") || key.name === "escape") {
+      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
+      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") {
         cleanup();
         resolve(CANCEL);
         return;
@@ -77,6 +87,7 @@ function keySession(renderFn, onKey) {
       }
     };
     stdin.on("keypress", handler);
+    stdin.on("end", onEnd);
     renderFn(); // 최초 렌더
   });
 }
@@ -194,14 +205,22 @@ export async function text({ message, defaultValue = "" }) {
 
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
+      stdin.removeListener("end", onEnd);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       stdout.write("\n");
     };
 
+    // stdin 종료(EOF/Ctrl+D) — 취소와 동일하게 처리해 무한 대기를 방지한다.
+    const onEnd = () => {
+      cleanup();
+      resolve(CANCEL);
+    };
+
     const handler = (str, key) => {
       key = key || {};
-      if ((key.ctrl && key.name === "c") || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
+      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
+      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
       if (key.name === "return" || key.name === "enter") {
         cleanup();
         resolve(buf.length ? buf : defaultValue);
@@ -212,6 +231,7 @@ export async function text({ message, defaultValue = "" }) {
       if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") { buf += str; prompt(); return; }
     };
     stdin.on("keypress", handler);
+    stdin.on("end", onEnd);
     prompt();
   });
 }
