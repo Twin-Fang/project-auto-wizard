@@ -15,6 +15,8 @@ export async function selectMode() {
       { value: "workflows", label: "워크플로우만 — 빌드·배포 GitHub Actions만 설치" },
       { value: "revert", label: "되돌리기 — 마법사가 설치한 워크플로우·스크립트 제거" },
       { value: "uninstall", label: "완전 삭제 — 마법사가 설치·수정한 모든 항목 제거(확인 후, README·gitignore·version.yml 포함)" },
+      { value: "status", label: "설치 상태 확인 — 읽기 전용, 버전·타입·드리프트 확인" },
+      { value: "doctor", label: "환경 진단 — 읽기 전용, gh CLI·권한·secret 설정 점검" },
     ],
   });
 }

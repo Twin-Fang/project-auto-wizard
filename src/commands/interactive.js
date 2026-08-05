@@ -20,6 +20,8 @@ import { runWorkflows } from "./workflows.js";
 import { runRevert } from "./revert.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
+import { runStatus, printStatus } from "./status.js";
+import { runDoctor, printDoctorReport } from "./doctor.js";
 
 const CANCEL = prompts.CANCEL;
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
@@ -43,6 +45,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 1) 모드 선택
   const mode = await io.selectMode();
   if (mode === CANCEL || mode == null) { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
+
+  // status/doctor — 읽기 전용, 감지·breaking 게이트 불필요. CLI --mode status/doctor(index.js)와 동일하게 즉시 종료.
+  if (mode === "status") { printStatus(runStatus(payload, cwd)); return 0; }
+  if (mode === "doctor") { printDoctorReport(runDoctor(cwd)); return 0; }
 
   // revert 모드 — 확인 질문(기본 아니오) 후 payload 유래 파일 제거. 감지·breaking 게이트 불필요.
   if (mode === "revert") {
