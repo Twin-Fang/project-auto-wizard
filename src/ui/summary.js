@@ -4,17 +4,15 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS, WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { listYamlFiles } from "../core/fsutil.js";
+import { paint, A, colorEnabled } from "./ansi.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx, targetRoot = ".") {
   const { mode, types = [], version = "", counters = {}, branches = null, gitignoreUpdated = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
-  // 색상은 TTY일 때만 (.sh YELLOW/CYAN/NC 등가)
-  const isTty = !!process.stderr.isTTY;
-  const YELLOW = isTty ? "\x1b[1;33m" : "";
-  const CYAN = isTty ? "\x1b[0;36m" : "";
-  const NC = isTty ? "\x1b[0m" : "";
+  // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
+  const enabled = colorEnabled(process.stderr);
   const workflowsCopied = counters.workflows ?? 0;
 
   err("");
@@ -108,7 +106,7 @@ export function printSummary(ctx, targetRoot = ".") {
   // 필수 작업 안내
   err(SEPARATOR);
   err("");
-  err(`${YELLOW}⚠️  다음 작업을 확인해주세요:${NC}`);
+  err(paint(paint("⚠️  다음 작업을 확인해주세요:", A.yellow, enabled), A.bold, enabled));
   err("");
   err("  1️⃣  릴리스 automerge용 PAT (선택 — 없으면 GITHUB_TOKEN 사용)");
   err("     → Repository Settings > Secrets > Actions");
@@ -120,6 +118,6 @@ export function printSummary(ctx, targetRoot = ".") {
   err("");
   err(SEPARATOR);
   err("");
-  err(`${CYAN}📖 워크플로우 구성과 릴리스 흐름은 README를 참고하세요.${NC}`);
+  err(paint("📖 워크플로우 구성과 릴리스 흐름은 README를 참고하세요.", A.cyan, enabled));
   err("");
 }

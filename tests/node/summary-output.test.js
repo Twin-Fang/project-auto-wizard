@@ -35,3 +35,48 @@ test("printSummary: version 모드는 .gitignore를 절대 언급하지 않는�
   });
   assert.ok(!output.includes(".gitignore"));
 });
+
+function withStderrTTY(isTTY, fn) {
+  const original = process.stderr.isTTY;
+  process.stderr.isTTY = isTTY;
+  try { return fn(); } finally { process.stderr.isTTY = original; }
+}
+
+test("printSummary: TTY + NO_COLOR 미설정 -> ANSI 색상 코드 포함", () => {
+  const originalNoColor = process.env.NO_COLOR;
+  delete process.env.NO_COLOR;
+  try {
+    const output = withStderrTTY(true, () => captureStderr(() => {
+      printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
+    }));
+    assert.ok(output.includes("\x1b["));
+  } finally {
+    if (originalNoColor !== undefined) process.env.NO_COLOR = originalNoColor;
+  }
+});
+
+test("printSummary: NO_COLOR=1이면 TTY여도 ANSI 색상 코드가 전혀 섞이지 않는다", () => {
+  const originalNoColor = process.env.NO_COLOR;
+  process.env.NO_COLOR = "1";
+  try {
+    const output = withStderrTTY(true, () => captureStderr(() => {
+      printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
+    }));
+    assert.ok(!output.includes("\x1b["));
+  } finally {
+    if (originalNoColor === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = originalNoColor;
+  }
+});
+
+test("printSummary: 비TTY면 NO_COLOR 미설정이어도 ANSI 색상 코드가 없다", () => {
+  const originalNoColor = process.env.NO_COLOR;
+  delete process.env.NO_COLOR;
+  try {
+    const output = withStderrTTY(false, () => captureStderr(() => {
+      printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
+    }));
+    assert.ok(!output.includes("\x1b["));
+  } finally {
+    if (originalNoColor !== undefined) process.env.NO_COLOR = originalNoColor;
+  }
+});
