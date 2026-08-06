@@ -51,7 +51,7 @@ jobs:
     steps:
       # 1. 소스코드 체크아웃
       - name: 코드 체크아웃
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # 2. 환경변수 파일 생성
       - name: 환경변수 파일 생성 (${{ env.ENV_FILE }})
@@ -61,14 +61,14 @@ jobs:
 
       # 3. Node.js 설정
       - name: Node.js 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
       # 4. npm 의존성 캐싱
       - name: npm 의존성 캐싱
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
@@ -78,7 +78,7 @@ jobs:
       # 5. node_modules 캐싱
       - name: node_modules 캐싱
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
@@ -96,7 +96,7 @@ jobs:
       # 7. Next.js 빌드 캐싱 (.next/cache)
       # 증분 빌드를 위해 .next/cache 폴더를 캐싱합니다
       - name: Next.js 빌드 캐싱
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
@@ -156,7 +156,7 @@ jobs:
       # 10. 빌드 로그 아티팩트 업로드
       - name: 빌드 로그 업로드
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-log
           path: build_log.txt

@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: 댓글에 👀 리액션 추가
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -72,7 +72,7 @@ jobs:
 
       - name: 빌드 타입 판별
         id: build_type
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -129,7 +129,7 @@ jobs:
 
       - name: PR/이슈 정보 확인 및 추출
         id: source_info
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           CUSTOM_BRANCH: ${{ steps.build_type.outputs.customBranch }}
         with:
@@ -249,7 +249,7 @@ jobs:
 
       - name: 브랜치 정보를 찾을 수 없는 경우 에러 댓글 작성
         if: steps.source_info.outputs.found != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -278,7 +278,7 @@ jobs:
       - name: 브랜치 존재 여부 확인
         id: check_branch
         if: steps.source_info.outputs.found == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -310,7 +310,7 @@ jobs:
 
       - name: 브랜치가 존재하지 않는 경우 에러 댓글 작성
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -347,7 +347,7 @@ jobs:
       - name: 빌드 횟수 조회 및 빌드 번호 생성
         id: build_number_calc
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -420,7 +420,7 @@ jobs:
           steps.source_info.outputs.found == 'true' &&
           steps.check_branch.outputs.exists == 'true' &&
           steps.build_type.outputs.buildAndroid == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -458,7 +458,7 @@ jobs:
           steps.source_info.outputs.found == 'true' &&
           steps.check_branch.outputs.exists == 'true' &&
           steps.build_type.outputs.buildIos == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
