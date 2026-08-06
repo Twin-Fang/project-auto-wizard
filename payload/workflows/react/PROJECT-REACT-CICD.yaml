@@ -40,11 +40,11 @@ jobs:
     steps:
       # 1. 소스코드 체크아웃
       - name: 코드 체크아웃
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # 2. Node.js 개발 환경 설정
       - name: Node.js 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -59,7 +59,7 @@ jobs:
 
       # 4. npm 의존성 캐싱
       - name: npm 의존성 캐싱
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
@@ -69,7 +69,7 @@ jobs:
       # 5. node_modules 캐싱
       - name: node_modules 캐싱
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
@@ -83,7 +83,7 @@ jobs:
 
       # 7. Next.js 빌드 캐싱
       - name: Next.js 빌드 캐싱
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
@@ -108,7 +108,7 @@ jobs:
 
       # 11. Docker 레이어 캐싱
       - name: Cache Docker layers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile') }}-${{ hashFiles('package-lock.json') }}

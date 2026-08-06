@@ -155,7 +155,7 @@ jobs:
       - name: 진행 상황 댓글 생성
         id: comment
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -238,13 +238,13 @@ jobs:
     steps:
       - name: 분석 시작 시간 기록
         id: analyze_start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             core.setOutput('time', Date.now().toString());
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # .env 파일 생성
       - name: Create .env file
@@ -268,7 +268,7 @@ jobs:
 
       # Flutter 캐시
       - name: Cache Flutter dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.pub-cache
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
@@ -292,7 +292,7 @@ jobs:
       - name: 분석 결과 기록
         id: result
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const analyzeStart = parseInt('${{ steps.analyze_start.outputs.time }}');
@@ -326,13 +326,13 @@ jobs:
     steps:
       - name: 빌드 시작 시간 기록
         id: build_start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             core.setOutput('time', Date.now().toString());
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # .env 파일 생성
       - name: Create .env file
@@ -356,7 +356,7 @@ jobs:
 
       # Flutter 캐시
       - name: Cache Flutter dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.pub-cache
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
@@ -364,7 +364,7 @@ jobs:
 
       # Gradle 캐시
       - name: Cache Gradle dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -381,7 +381,7 @@ jobs:
 
       # Java 설정
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
@@ -411,7 +411,7 @@ jobs:
       - name: 빌드 결과 기록
         id: result
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
@@ -445,13 +445,13 @@ jobs:
     steps:
       - name: 빌드 시작 시간 기록
         id: build_start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             core.setOutput('time', Date.now().toString());
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -478,7 +478,7 @@ jobs:
 
       # Flutter 캐시
       - name: Cache Flutter dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.pub-cache
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
@@ -515,7 +515,7 @@ jobs:
       - name: 빌드 결과 기록
         id: result
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
@@ -542,7 +542,7 @@ jobs:
 
     steps:
       - name: 최종 결과 댓글 업데이트
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
