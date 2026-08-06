@@ -63,18 +63,18 @@ jobs:
           echo "배포 대상: $TAG (버전 ${TAG#v})"
 
       - name: 저장소 체크아웃 (릴리스 태그 기준)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.tag }}
 
       - name: Node.js 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
       - name: Python 설정 (test:py용)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 

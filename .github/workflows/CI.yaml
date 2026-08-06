@@ -45,15 +45,15 @@ jobs:
 
     steps:
       - name: 저장소 체크아웃
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Node.js ${{ matrix.node }} 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
 
       - name: Python 설정 (test:py용)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
