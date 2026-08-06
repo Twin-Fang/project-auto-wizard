@@ -1,0 +1,67 @@
+# ===================================================================
+# CI.yaml
+# 테스트 실행 워크플로우 (이 레포 전용 — payload에 복제하지 않는다)
+# ===================================================================
+#
+# 동작:
+# - PR과 main push에서 npm test(Node + Python)를 실행한다
+# - Node 20·22·24 × ubuntu·windows 6조합 매트릭스
+#
+# Windows를 포함하는 이유: 이슈 #15가 Windows CRLF 회귀였고
+# tests/node/line-endings.test.js가 그 회귀 가드다. Linux에서만 돌리면
+# 그 테스트의 존재 의의가 사라진다.
+#
+# Node 20이 하한인 이유: package.json의 engines(">=20.12")와
+# bin/project-auto-wizard.js의 런타임 게이트가 20.12를 요구한다.
+#
+# 의존성이 0개이고 package-lock.json이 없으므로 설치 단계가 없다.
+# ===================================================================
+
+name: CI
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 테스트 (Node ${{ matrix.node }} · ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # 한 조합이 깨져도 나머지를 봐야 "Windows만"인지 "Node 24만"인지 좁혀진다.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22, 24]
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v5
+
+      - name: Node.js ${{ matrix.node }} 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Python 설정 (test:py용)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 버전 확인
+        run: |
+          node --version
+          npm --version
+          python --version
+
+      - name: 테스트 실행
+        run: npm test
