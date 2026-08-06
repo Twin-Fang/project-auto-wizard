@@ -154,6 +154,30 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 | `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
 | `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
 
+`doctor`는 항목마다 **그 설정이 무엇을 담당하는지**를 라벨에 함께 표시하고, 문제가 있는 항목만 `현상 → 그대로 두면 무엇이 안 되는지 → 어디를 눌러 고치는지 → 문서 링크` 순으로 펼쳐 보여줍니다. 정상 항목은 한 줄로 압축됩니다. GitHub 설정 화면에 실제로 표시되는 문자열(`Read and write permissions` 등)은 화면에서 찾을 수 있도록 원문 그대로 출력합니다.
+
+```
+◆  환경 진단 — project-auto-wizard doctor
+
+  [✓] gh CLI — 레포 설정 조회용                    gh version 2.96.0
+  [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
+  [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
+
+  [!] Workflow permissions — 버전 커밋 자동 push
+      ✗ 현재 read 입니다.
+        워크플로가 버전 올림 커밋을 push하지 못해 릴리스가 중단됩니다.
+      → 레포 Settings → Actions → General → Workflow permissions
+      → "Read and write permissions" 선택 후 Save
+      → 자세히: https://github.com/Twin-Fang/project-auto-wizard#post-install
+
+  [i] GitHub Models — AI 릴리스 노트 생성
+      조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
+      차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
+
+  ! 1개 항목에서 문제를 찾았습니다.
+    설치 자체는 지금 진행할 수 있고, 위 1개는 나중에 설정해도 됩니다.
+```
+
 > **드리프트 판정 기준**: `--mode status`는 설치된 워크플로우 파일이 "설치 시점 기본값 템플릿"과 바이트 단위로 일치하는지만 비교합니다 — 파일을 직접 편집했는지는 추적하지 않습니다. 대화형 설치에서 `@wizard ask` 질문(예: 배포 포트)에 기본값이 아닌 값으로 응답했다면, 파일을 전혀 수정하지 않았더라도 설치 직후부터 항상 "사용자가 수정한 워크플로우 파일"로 표시됩니다. 정상 동작이며, 파일을 직접 편집했는지 구분하려면 해당 값이 예상한 응답과 일치하는지 직접 확인하세요.
 
 `--dry-run`을 어떤 모드와도 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다(`full`/`version`/`workflows`/`revert` 전체 지원):
@@ -176,6 +200,8 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 상용 PR 리뷰 SaaS 없이 동작하는 자체 요약봇입니다. 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다.
 
 기본 설치(pr-flow) 기준으로 일상적인 기능 PR은 `develop`을 대상으로 열리므로, 이 봇은 develop→main 릴리스 PR에서만 실제로 동작합니다 — 해당 PR에서는 `AUTO-CHANGELOG-CONTROL`이 이미 같은 엔진으로 체인지로그 요약을 생성하므로, 이 봇은 그 요약을 PR 코멘트 형태로도 남겨주는 보조 역할입니다. 릴리스 브랜치 = 개발 브랜치인 trunk-based 모드에서는 모든 PR이 곧 릴리스 대상 브랜치를 향하므로 매 PR마다 동작합니다.
+
+<a id="post-install"></a>
 
 ## 설치 후 확인할 것
 

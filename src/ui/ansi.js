@@ -7,6 +7,7 @@ export const A = {
   cyan: `${E}36m`,
   green: `${E}32m`,
   yellow: `${E}33m`,
+  red: `${E}31m`,
   magenta: `${E}35m`,
   gray: `${E}90m`,
 };
