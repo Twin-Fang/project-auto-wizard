@@ -11,6 +11,7 @@ npx project-auto-wizard
 <!-- TODO: 30초 데모 GIF (docs/assets/demo.gif) -->
 <!-- TODO: 3분 데모 YouTube 링크 -->
 
+[![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
