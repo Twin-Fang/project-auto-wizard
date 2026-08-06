@@ -118,6 +118,8 @@ flowchart LR
     end
 ```
 
+릴리스 PR이 머지되면 `RELEASE-PUBLISH`가 태그와 GitHub Release를 발행합니다. 이 저장소 자신은 그 **Release 발행 이벤트**를 받아 npm에 배포합니다 — 태그가 불변 스냅샷이므로 "무엇이 배포되는가"가 워크플로우 실행 타이밍에 좌우되지 않고, 배포처를 늘릴 때도 같은 이벤트에 워크플로우를 하나 더 붙이면 됩니다.
+
 - **pr-flow** (기본): `VERSION-CONTROL`(main 직접 push 안전망) + `AUTO-CHANGELOG-CONTROL`(릴리스 PR) + `RELEASE-PUBLISH`(tag+Release) 3종 설치
 - **trunk-based** (릴리스 브랜치 = 개발 브랜치): `RELEASE-PUBLISH` 하나가 main push마다 버전확정 → 체인지로그 → tag → Release를 순차 처리
 - 마법사가 브랜치를 묻고(`--main-branch`/`--develop-branch`) 없으면 **생성 + push**까지. 선택은 `version.yml`에 저장되어 업데이트 시 재질문 없음
