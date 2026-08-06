@@ -164,13 +164,17 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
   [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
   [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
 
-  [!] Workflow permissions — 버전 커밋 자동 push
-      ✗ 현재 read 입니다.
-        워크플로가 버전 올림 커밋을 push하지 못해 릴리스가 중단됩니다.
-      → 레포 Settings → Actions → General → Workflow permissions
-      → "Read and write permissions" 선택 후 Save
+  [!] WORKFLOW_PAT — 자동 태그·Release 발행
+      ✗ secret이 등록되어 있지 않습니다.
+        PR 자동 머지 뒤 태그·Release 워크플로가 이어지지 않습니다.
+        (GitHub 정책상 기본 토큰으로 만든 커밋은 다음 워크플로를 깨우지 못합니다)
+      → 개인 액세스 토큰 발급 (scopes: repo, workflow)
+      → 레포 Settings → Secrets and variables → Actions
+      → New repository secret · 이름은 WORKFLOW_PAT
       → 자세히: https://github.com/Twin-Fang/project-auto-wizard#post-install
 
+  [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
+      현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
   [i] GitHub Models — AI 릴리스 노트 생성
       조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
       차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
