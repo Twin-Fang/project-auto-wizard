@@ -322,7 +322,10 @@ jobs:
       - name: Create GitHub Release
         if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # WORKFLOW_PAT으로 발행해야 release 이벤트가 후속 워크플로우(npm 배포 등)를 트리거한다.
+          # GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 깨우지 못한다.
+          # PAT이 없는 레포에서도 릴리스 자체는 계속 동작해야 하므로 기본 토큰으로 폴백한다.
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md

@@ -1,14 +1,27 @@
 # ===================================================================
 # NPM-PUBLISH.yaml
-# project-auto-wizard npm 자동 배포 워크플로우
+# project-auto-wizard npm 자동 배포 워크플로우 (이 레포 전용)
 # ===================================================================
 #
 # 동작:
-# - main 기준으로 version.yml 버전을 읽어 package.json에 주입 후 npm publish
+# - GitHub Release가 발행되면 그 태그를 체크아웃해 npm에 배포한다
+# - 태그에서 버전을 뽑고 version.yml과 대조해 불일치 시 실패시킨다
+# - 배포 전 테스트를 실행한다 (검증된 것만 배포)
 # - 이미 레지스트리에 있는 버전이면 성공 종료 (멱등)
+# - provenance를 첨부해 어느 커밋·워크플로우에서 빌드됐는지 검증 가능하게 한다
 #
-# 트리거: main 브랜치 push 시 (+ 수동 실행)
-# 필요 Secret: NPM_TOKEN (npm Granular Access Token, 2FA bypass 허용)
+# 트리거: GitHub Release published (+ 수동 재배포는 workflow_dispatch)
+#
+# main push를 트리거로 쓰지 않는 이유(이슈 #35):
+#   VERSION-CONTROL의 버전 bump와 동시에 시작해 경쟁했고, 지면 [skip ci] 때문에
+#   재트리거되지 않아 그 버전이 영영 배포되지 않았다. 실제로 0.1.13·0.1.15·0.1.19가
+#   누락됐다. 태그는 불변 스냅샷이라 무엇이 배포되는지가 타이밍과 무관해진다.
+#
+# 전제: RELEASE-PUBLISH가 WORKFLOW_PAT으로 Release를 발행해야 이 워크플로우가 뜬다.
+#   GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 트리거하지 않는다.
+#
+# 필요 Secret: NPM_TOKEN (npm Granular Access Token)
+#   ※ npmjs.com에서 Trusted Publisher를 등록하면 이 시크릿 없이 OIDC로 배포할 수 있다.
 # ===================================================================
 
 name: NPM-PUBLISH
@@ -18,9 +31,14 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  push:
-    branches: ["main"]
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "재배포할 릴리스 태그 (예: v0.1.20)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -32,36 +50,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 저장소 체크아웃 (main 기준)
-        uses: actions/checkout@v5
+      - name: 배포 대상 태그 확정
+        id: target
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "배포 대상 태그를 확정할 수 없습니다"
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "배포 대상: $TAG (버전 ${TAG#v})"
+
+      - name: 저장소 체크아웃 (릴리스 태그 기준)
+        uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ steps.target.outputs.tag }}
 
       - name: Node.js 설정
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: version.yml에서 버전 추출
-        id: version
+      - name: Python 설정 (test:py용)
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      - name: 태그와 version.yml 일치 확인
         run: |
-          VERSION=$(python3 payload/scripts/version_manager.py get | tail -n 1)
-          if [ -z "$VERSION" ]; then
-            echo "version.yml에서 버전을 추출할 수 없습니다"
+          FILE_VERSION=$(python3 payload/scripts/version_manager.py get | tail -n 1)
+          TAG_VERSION="${{ steps.target.outputs.version }}"
+          if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
+            echo "태그($TAG_VERSION)와 version.yml($FILE_VERSION)이 다릅니다 — 배포를 중단합니다"
             exit 1
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "배포 대상 버전: $VERSION"
+          echo "버전 일치 확인: $TAG_VERSION"
+
+      - name: 테스트 실행 (배포 게이트)
+        run: npm test
 
       - name: package.json 버전 주입
-        run: npm pkg set version=${{ steps.version.outputs.version }}
+        run: npm pkg set version=${{ steps.target.outputs.version }}
 
       - name: 이미 배포된 버전인지 확인 (멱등)
         id: check
         run: |
           PKG_NAME=$(npm pkg get name | tr -d '"')
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.target.outputs.version }}"
           if npm view "${PKG_NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "${PKG_NAME}@${VERSION} 은 이미 배포되어 있습니다. 건너뜁니다."
@@ -69,12 +106,16 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: 배포 내용 미리 확인
+        if: steps.check.outputs.skip == 'false'
+        run: npm publish --dry-run --access public
+
       - name: npm 배포
         if: steps.check.outputs.skip == 'false'
-        run: npm publish --access public
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: 배포 결과 요약
         if: steps.check.outputs.skip == 'false'
-        run: echo "project-auto-wizard@${{ steps.version.outputs.version }} npm 배포 완료"
+        run: echo "project-auto-wizard@${{ steps.target.outputs.version }} npm 배포 완료 (provenance 첨부)"

@@ -148,3 +148,28 @@ test("RELEASE-PUBLISH passes --diff-stat-file to ai-summary", () => {
   const body = readFileSync(releasePath, "utf8");
   assert.ok(body.includes("--diff-stat-file diff_stat.txt"));
 });
+
+// #35: Release는 WORKFLOW_PAT으로 발행해야 후속 워크플로우(npm 배포)가 트리거된다.
+// GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 깨우지 못한다.
+// PAT이 없는 사용자 레포에서도 릴리스 자체는 동작해야 하므로 폴백이 필수다.
+test("RELEASE-PUBLISH의 Release 생성은 WORKFLOW_PAT 폴백을 쓴다", () => {
+  const p = join("payload", "workflows", "common", "PROJECT-COMMON-RELEASE-PUBLISH.yaml");
+  const text = readFileSync(p, "utf8");
+  const idx = text.indexOf("name: Create GitHub Release");
+  assert.ok(idx > -1, "Create GitHub Release 스텝을 찾지 못했습니다");
+  const block = text.slice(idx, idx + 700);
+  assert.match(
+    block,
+    /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/,
+    "Release 생성 스텝이 WORKFLOW_PAT 폴백을 쓰지 않습니다",
+  );
+});
+
+// 도그푸딩 레포 규칙 — payload를 고치면 이 레포의 .github 사본도 함께 고쳐야 한다.
+test("RELEASE-PUBLISH의 도그푸딩 사본도 같은 토큰 폴백을 쓴다", () => {
+  const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "utf8");
+  const idx = text.indexOf("name: Create GitHub Release");
+  assert.ok(idx > -1, "Create GitHub Release 스텝을 찾지 못했습니다");
+  const block = text.slice(idx, idx + 700);
+  assert.match(block, /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/);
+});
