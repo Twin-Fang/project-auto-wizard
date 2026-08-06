@@ -83,26 +83,31 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
 
   const perm = exec("gh", ["api", `repos/${owner}/${repo}/actions/permissions/workflow`, "--jq", ".default_workflow_permissions"]);
   const permValue = (perm.stdout || "").trim();
+  // 이 값은 "워크플로우가 permissions를 생략했을 때 적용되는 기본값"이지 상한이 아니다(#34).
+  // 마법사가 설치하는 워크플로우는 전부 자체 permissions를 선언하므로(회귀 가드:
+  // tests/node/payload-workflow-permissions.test.js) read여도 정상 동작한다 — 이 레포 자체가
+  // read인데 VERSION-CONTROL이 버전 커밋 push에 성공하는 것이 그 증거다.
+  const PERM_PURPOSE = "직접 추가한 워크플로우의 기본 권한";
   if (perm.status !== 0) {
+    // 조회 실패는 오진이 아니라 실제로 정보를 얻지 못한 상태다 — 관리자 확인이라는 조치가 있다.
     add({
-      name: "Workflow permissions", purpose: "버전 커밋 자동 push", status: "WARN",
+      name: "Workflow permissions", purpose: PERM_PURPOSE, status: "WARN",
       value: "설정을 조회하지 못했습니다.",
       impact: ["레포 관리자 권한이 없으면 이 설정은 조회되지 않습니다 — 값 자체는 정상일 수 있습니다."],
       actions: ["레포 관리자에게 Settings → Actions → General → Workflow permissions 값을 확인하세요"],
       doc: DOC.postInstall,
     });
   } else if (permValue === "write") {
-    add({ name: "Workflow permissions", purpose: "버전 커밋 자동 push", status: "OK", value: "Read and write" });
+    add({ name: "Workflow permissions", purpose: PERM_PURPOSE, status: "OK", value: "Read and write" });
   } else {
+    // 조치가 필요 없으므로 WARN이 아니라 INFO다. 경고로 띄우면 없는 장애를 알리고
+    // 불필요한 권한 상향을 유도해 최소 권한 원칙에 역행한다.
     add({
-      name: "Workflow permissions", purpose: "버전 커밋 자동 push", status: "WARN",
-      value: `현재 ${permValue || "확인불가"} 입니다.`,
-      impact: ["워크플로가 버전 올림 커밋을 push하지 못해 릴리스가 중단됩니다."],
-      actions: [
-        "레포 Settings → Actions → General → Workflow permissions",
-        '"Read and write permissions" 선택 후 Save',
+      name: "Workflow permissions", purpose: PERM_PURPOSE, status: "INFO",
+      note: [
+        `현재 ${permValue || "확인불가"} 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.`,
+        "직접 추가한 워크플로우에서 permissions를 생략했다면 이 기본값을 따르므로, 그때만 Read and write로 올리세요.",
       ],
-      doc: DOC.postInstall,
     });
   }
 

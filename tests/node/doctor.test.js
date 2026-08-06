@@ -99,7 +99,8 @@ test("runDoctor: missing WORKFLOW_PAT and non-write permissions -> WARN", () => 
       [".allow_merge_commit", { status: 0, stdout: "false", stderr: "" }],
     ]);
     const results = runDoctor(dir, { exec });
-    assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "WARN");
+    // Workflow permissions는 read여도 조치가 불필요하므로 INFO다 (#34).
+    assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "INFO");
     assert.strictEqual(results.find((r) => r.name === "WORKFLOW_PAT secret").status, "WARN");
     assert.strictEqual(results.find((r) => r.name === "automerge 호환성(merge commit 허용)").status, "WARN");
   } finally {
@@ -154,9 +155,9 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
-      ...ALL_OK_EXEC.filter(([k]) => !k.includes("permissions/workflow") && !k.includes("secret list")),
-      ["actions/permissions/workflow", { status: 0, stdout: "read", stderr: "" }],
+      ...ALL_OK_EXEC.filter(([k]) => !k.includes("secret list") && !k.includes(".allow_merge_commit")),
       ["secret list", { status: 0, stdout: "AI_API_KEY\tUpdated 2026-01-01\n", stderr: "" }],
+      [".allow_merge_commit", { status: 0, stdout: "false", stderr: "" }],
     ]);
     const problems = runDoctor(dir, { exec }).filter((r) => r.status === "WARN" || r.status === "FAIL");
     assert.ok(problems.length >= 2);
@@ -164,8 +165,9 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
       assert.ok(r.impact?.length, `${r.name}에 영향 설명이 없습니다`);
       assert.ok(r.actions?.length, `${r.name}에 조치 단계가 없습니다`);
     }
-    const perm = problems.find((r) => r.name === "Workflow permissions");
-    assert.strictEqual(perm.doc, DOC.postInstall);
+    // Workflow permissions는 #34에서 INFO로 내려갔으므로, 실제 조치가 필요한 항목으로 검증한다.
+    const pat = problems.find((r) => r.name === "WORKFLOW_PAT secret");
+    assert.strictEqual(pat.doc, DOC.postInstall);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -228,6 +230,60 @@ test("printDoctorReport: color=false면 ESC 바이트가 섞이지 않는다", (
   try {
     const output = render(runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }), { color: false });
     assert.ok(!output.includes("\x1b["));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- 이슈 #34: Workflow permissions 오진 수정 -----------------------------------------
+
+// 마법사 워크플로우는 자체 permissions 선언으로 동작하므로 레포 기본값이 read여도 문제가 아니다.
+// 조치가 필요 없는 항목에 WARN을 붙이면 없는 장애를 알리고 불필요한 권한 상향을 유도한다.
+test("runDoctor: Workflow permissions가 read여도 경고가 아니라 INFO다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    const exec = fakeExec([
+      ...ALL_OK_EXEC.filter(([k]) => !k.includes("permissions/workflow")),
+      ["actions/permissions/workflow", { status: 0, stdout: "read", stderr: "" }],
+    ]);
+    const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
+    assert.strictEqual(perm.status, "INFO");
+    assert.ok(perm.note?.length, "INFO 항목에는 note가 있어야 합니다");
+    assert.ok(perm.note.join(" ").includes("read"), "현재값이 안내에 남아 있어야 합니다");
+    assert.ok(!perm.impact, "조치가 불필요하므로 impact를 붙이지 않는다");
+    assert.ok(!perm.actions?.length, "조치가 불필요하므로 actions를 붙이지 않는다");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// "릴리스가 중단된다"는 거짓 진술이므로 어떤 경로에서도 나오면 안 된다.
+test("runDoctor: Workflow permissions 안내에 릴리스 중단 표현을 쓰지 않는다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    const exec = fakeExec([
+      ...ALL_OK_EXEC.filter(([k]) => !k.includes("permissions/workflow")),
+      ["actions/permissions/workflow", { status: 0, stdout: "read", stderr: "" }],
+    ]);
+    const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
+    const all = [perm.value, ...(perm.note || []), ...(perm.impact || [])].filter(Boolean).join(" ");
+    assert.ok(!all.includes("중단"), `거짓 진술이 남아 있습니다: ${all}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 조회 자체가 실패한 경우는 오진이 아니라 실제로 정보를 얻지 못한 상태다 — WARN 유지.
+test("runDoctor: Workflow permissions 조회 실패는 WARN을 유지한다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    const exec = fakeExec([
+      ...ALL_OK_EXEC.filter(([k]) => !k.includes("permissions/workflow")),
+      ["actions/permissions/workflow", { status: 1, stdout: "", stderr: "forbidden" }],
+    ]);
+    const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
+    assert.strictEqual(perm.status, "WARN");
+    assert.ok(perm.actions?.length);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
