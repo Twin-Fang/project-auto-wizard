@@ -116,7 +116,7 @@ jobs:
     steps:
       - name: 댓글에 👀 리액션 추가
         if: contains(github.event.comment.body, '@suh-lab') && contains(github.event.comment.body, 'server')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -197,7 +197,7 @@ jobs:
     steps:
       - name: PR 정보 가져오기
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pr = await github.rest.pulls.get({
@@ -214,7 +214,7 @@ jobs:
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - name: 진행 상황 댓글 생성
         id: progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = context.issue.number;
@@ -247,12 +247,12 @@ jobs:
             core.setOutput('start_time', startTime);
 
       - name: 코드 체크아웃
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.ref }}
 
       - name: JDK 설정
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -309,7 +309,7 @@ jobs:
 
       - name: 진행 상황 - 빌드 완료
         id: build_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -367,7 +367,7 @@ jobs:
 
       - name: 진행 상황 - Docker 완료
         id: docker_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -555,7 +555,7 @@ jobs:
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: 배포 완료 코멘트
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -633,7 +633,7 @@ jobs:
 
       - name: 빌드/배포 실패 시 에러 코멘트
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
@@ -734,7 +734,7 @@ jobs:
     steps:
       - name: Issue 댓글에서 브랜치명 추출
         id: extract
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNumber = context.issue.number;
@@ -776,7 +776,7 @@ jobs:
 
       - name: 브랜치 없음 알림
         if: steps.extract.outputs.found == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNumber = context.issue.number;
@@ -822,7 +822,7 @@ jobs:
     steps:
       - name: 브랜치 존재 확인
         id: check_branch
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
@@ -893,7 +893,7 @@ jobs:
       - name: 진행 상황 댓글 생성
         if: steps.check_branch.outputs.exists == 'true'
         id: progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
@@ -930,13 +930,13 @@ jobs:
 
       - name: 코드 체크아웃
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.get-branch-from-issue.outputs.branch_name }}
 
       - name: JDK 설정
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -967,7 +967,7 @@ jobs:
       - name: 진행 상황 - 빌드 완료
         if: steps.check_branch.outputs.exists == 'true'
         id: build_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -1032,7 +1032,7 @@ jobs:
       - name: 진행 상황 - Docker 완료
         if: steps.check_branch.outputs.exists == 'true'
         id: docker_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -1225,7 +1225,7 @@ jobs:
 
       - name: 배포 완료 코멘트
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -1305,7 +1305,7 @@ jobs:
 
       - name: 빌드/배포 실패 시 에러 코멘트
         if: failure() && steps.check_branch.outputs.exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
@@ -1460,7 +1460,7 @@ jobs:
           github.event_name == 'issue_comment' ||
           (github.event_name == 'pull_request' && github.event.action == 'closed') ||
           (github.event_name == 'issues' && github.event.action == 'closed')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const number = ${{ steps.pr_number.outputs.number }};
@@ -1546,7 +1546,7 @@ jobs:
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
       - name: 상태 코멘트 작성
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const number = context.issue.number;
@@ -1619,7 +1619,7 @@ jobs:
     steps:
       - name: 브랜치명에서 Issue 번호 추출
         id: extract
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
@@ -1646,7 +1646,7 @@ jobs:
 
       - name: 브랜치 존재 여부 확인
         id: check_branch
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ steps.extract.outputs.branch_name }}';
@@ -1667,7 +1667,7 @@ jobs:
 
       - name: 브랜치 없음 에러 코멘트
         if: steps.check_branch.outputs.exists == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ steps.extract.outputs.branch_name }}';
@@ -1699,7 +1699,7 @@ jobs:
 
       - name: 체크아웃
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.extract.outputs.branch_name }}
 
@@ -1711,7 +1711,7 @@ jobs:
       - name: 진행 상황 코멘트 작성
         if: steps.check_branch.outputs.exists == 'true'
         id: progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const projectName = '${{ env.PROJECT_NAME }}';
@@ -1746,14 +1746,14 @@ jobs:
 
       - name: JDK 설정
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
 
       - name: Gradle 캐시
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -1776,7 +1776,7 @@ jobs:
       - name: 빌드 완료 진행 상황 업데이트
         if: steps.check_branch.outputs.exists == 'true'
         id: build_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -1834,7 +1834,7 @@ jobs:
       - name: Docker 완료 진행 상황 업데이트
         if: steps.check_branch.outputs.exists == 'true'
         id: docker_progress
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -1936,7 +1936,7 @@ jobs:
 
       - name: 배포 완료 코멘트
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
@@ -2001,7 +2001,7 @@ jobs:
 
       - name: 빌드/배포 실패 시 에러 코멘트
         if: failure() && steps.check_branch.outputs.exists == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
@@ -2086,7 +2086,7 @@ jobs:
     steps:
       - name: 브랜치명에서 컨테이너 suffix 추출
         id: extract
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
@@ -2138,7 +2138,7 @@ jobs:
             fi
 
       - name: 삭제 확인 코멘트
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const projectName = '${{ env.PROJECT_NAME }}';
@@ -2178,7 +2178,7 @@ jobs:
     steps:
       - name: 브랜치명에서 컨테이너 suffix 추출
         id: extract
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
@@ -2219,7 +2219,7 @@ jobs:
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
       - name: 상태 코멘트 작성
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const projectName = '${{ env.PROJECT_NAME }}';
