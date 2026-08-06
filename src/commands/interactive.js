@@ -43,12 +43,17 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   io.installKind?.({ currentTemplateVersion: existing?.templateVersion || "", templateVersion });
 
   // 1) 모드 선택
-  const mode = await io.selectMode();
-  if (mode === CANCEL || mode == null) { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
-
-  // status/doctor — 읽기 전용, 감지·breaking 게이트 불필요. CLI --mode status/doctor(index.js)와 동일하게 즉시 종료.
-  if (mode === "status") { printStatus(runStatus(payload, cwd)); return 0; }
-  if (mode === "doctor") { printDoctorReport(runDoctor(cwd)); return 0; }
+  // status/doctor — 읽기 전용이라 감지·breaking 게이트가 필요 없다. 결과를 보여준 뒤 메뉴로
+  // 돌아온다(이슈 #31): 진단의 목적이 설치 준비이므로 확인 → 설치를 한 세션에서 끝내야 한다.
+  // CLI 경로(index.js의 --mode status/doctor)는 단발 명령이므로 지금처럼 즉시 종료한다.
+  let mode;
+  for (let round = 0; ; round++) {
+    mode = await io.selectMode({ again: round > 0 });
+    if (mode === CANCEL || mode == null) { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
+    if (mode === "status") { printStatus(runStatus(payload, cwd)); continue; }
+    if (mode === "doctor") { printDoctorReport(runDoctor(cwd)); continue; }
+    break;
+  }
 
   // revert 모드 — 확인 질문(기본 아니오) 후 payload 유래 파일 제거. 감지·breaking 게이트 불필요.
   if (mode === "revert") {
