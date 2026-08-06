@@ -10,7 +10,7 @@ function boxLine(out, content = "") {
 }
 
 // 대화형 첫 화면 배너 — 박스 타이틀 + 메타 4줄 (.ps1 Print-Banner 등가, #446 확정 시안 A)
-export function printBanner({ version, modeLabel }, out = (s) => process.stdout.write(s)) {
+export function printBanner({ version, modeLabel }, out = (s) => process.stderr.write(s)) {
   out("\n");
   out(paint(`╔${"═".repeat(INNER)}╗`, A.cyan) + "\n");
   boxLine(out);
@@ -24,6 +24,6 @@ export function printBanner({ version, modeLabel }, out = (s) => process.stdout.
 }
 
 // 비대화형(--force/CI) 축약 배너 — 1줄 (사용자 확정: 로그 오염 최소 + 버전 추적)
-export function printBannerCompact({ version, mode }, out = (s) => process.stdout.write(s)) {
+export function printBannerCompact({ version, mode }, out = (s) => process.stderr.write(s)) {
   out(`${paint("✦", A.yellow)} ${paint("project-auto-wizard", A.bold)} v${version} — ${mode} 모드 (--force)\n`);
 }

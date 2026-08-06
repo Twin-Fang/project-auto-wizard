@@ -9,7 +9,7 @@ const HEAD = paint("◆", A.cyan);
 const OK = paint("✓", A.green);
 
 // 층2 — 감지 로그 (.ps1 감지 진행 표시 등가)
-export function printDetectionLog({ types = [], version = "", branch = "" }, out = (s) => process.stdout.write(s)) {
+export function printDetectionLog({ types = [], version = "", branch = "" }, out = (s) => process.stderr.write(s)) {
   out(`${paint("┌", A.gray)}  🔍 프로젝트를 살펴보는 중...\n`);
   if (types.length && !(types.length === 1 && types[0] === "basic")) {
     for (const t of types) {
@@ -26,7 +26,7 @@ export function printDetectionLog({ types = [], version = "", branch = "" }, out
 // 층3 — 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
   includeNexus = null, includeSecretBackup = null, paths = new Map(), showOptional = false },
-  out = (s) => process.stdout.write(s)) {
+  out = (s) => process.stderr.write(s)) {
   out(`${HEAD}  ${paint("프로젝트 분석 결과", A.bold)}\n`);
   const row = (icon, label, value) => out(`${GUT}  ${icon} ${label.padEnd(10)} ${value}\n`);
   row("📂", types.length > 1 ? "타입(멀티)" : "타입", paint(types.join(", ") || "basic", A.bold));
@@ -46,7 +46,7 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
 }
 
 // 층5 — 신규 통합 vs 업데이트 판별 라인 (Breaking 박스는 breaking-check.js)
-export function printInstallKind({ currentTemplateVersion = "", templateVersion = "" }, out = (s) => process.stdout.write(s)) {
+export function printInstallKind({ currentTemplateVersion = "", templateVersion = "" }, out = (s) => process.stderr.write(s)) {
   if (currentTemplateVersion) {
     out(`${GUT}  ♻️  ${paint("업데이트", A.bold)} — 템플릿 ${paint(`v${currentTemplateVersion}`, A.dim)} → ${paint(`v${templateVersion}`, A.green)}\n`);
   } else {
