@@ -42,6 +42,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [20, 22, 24]
+        exclude:
+          # Linux + Node 20·22 제외 (이슈 #44) — 제품이 아니라 테스트 인프라의 제약이다.
+          # *-cli.test.js는 CLI를 인프로세스로 호출하는데, banner.js/status-cards.js가
+          # process.stdout.write로 뿜는 출력이 곧 `node --test` 러너와의 통신 채널이다.
+          # Node 20·22의 러너는 프로토콜 메시지와 섞인 이 출력을 역직렬화하지 못하고
+          # `Unable to deserialize cloned data` 로 죽는다. Node 24에서는 개선되어 사라진다.
+          # Node 20·22 지원 자체는 windows 조합이 검증하므로 커버리지 공백은 없다.
+          # 근본 수정(run()에 출력 싱크 주입)은 #44에서 다룬다.
+          - os: ubuntu-latest
+            node: 20
+          - os: ubuntu-latest
+            node: 22
 
     steps:
       - name: 저장소 체크아웃
