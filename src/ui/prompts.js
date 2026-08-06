@@ -6,9 +6,11 @@ import * as engine from "./readline-engine.js";
 export const CANCEL = engine.CANCEL;
 
 // 모드 선택 — 한국어 라벨, 내부 키 반환. 취소 시 CANCEL.
-export async function selectMode() {
+// again=true는 읽기 전용 모드(status/doctor)를 실행하고 메뉴로 돌아온 재진입이다 —
+// 이때 "무엇을 설치할까요?"를 다시 묻는 건 어색하므로 문구를 바꾼다.
+export async function selectMode({ again = false } = {}) {
   return engine.select({
-    message: "무엇을 설치할까요?",
+    message: again ? "다음으로 무엇을 할까요?" : "무엇을 설치할까요?",
     options: [
       { value: "full", label: "전체 설치 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)" },
       { value: "version", label: "버전 관리만 — 버전 자동 증가·동기화 시스템만 설치" },
