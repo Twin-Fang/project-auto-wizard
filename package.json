@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "test": "npm run test:node && npm run test:py",
-    "test:node": "node --test \"tests/node/**/*.test.js\"",
+    "test:node": "node --test --test-concurrency=1 \"tests/node/**/*.test.js\"",
     "test:py": "node scripts/run-py-tests.mjs"
   },
   "repository": {
