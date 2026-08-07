@@ -173,3 +173,51 @@ test("RELEASE-PUBLISH의 도그푸딩 사본도 같은 토큰 폴백을 쓴다",
   const block = text.slice(idx, idx + 700);
   assert.match(block, /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/);
 });
+
+// ---------------------------------------------------------------
+// PROJECT-FLUTTER-CI: Android 빌드는 서명 불필요한 debug APK를 사용해야
+// 한다 (issue #38 — keystore 없이 --release 실행 시 release 서명이
+// 구성된 프로젝트에서 항상 빌드 실패)
+// ---------------------------------------------------------------
+const flutterCiPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-CI.yaml"
+);
+
+test("PROJECT-FLUTTER-CI exists in payload", () => {
+  assert.ok(files.includes(flutterCiPath), `${flutterCiPath} missing`);
+});
+
+test("PROJECT-FLUTTER-CI의 Android 빌드는 --release를 사용하지 않는다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(
+    !body.includes("flutter build apk --release"),
+    "keystore 없이 --release로 빌드하면 release 서명이 구성된 프로젝트에서 항상 실패한다"
+  );
+});
+
+test("PROJECT-FLUTTER-CI의 Android 빌드는 --debug를 사용한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(body.includes("flutter build apk --debug"));
+});
+
+// ---------------------------------------------------------------
+// #39: build-ios 잡에 iOS 플랫폼 SDK 설치 스텝이 없어 "Platform Not
+// Installed"로 빌드 실패 — Select Xcode version 직후 설치 스텝 필요.
+// ---------------------------------------------------------------
+test("FLUTTER-CI의 build-ios 잡은 Select Xcode version 직후 iOS 플랫폼을 설치한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  const selectXcodeIdx = body.indexOf("name: Select Xcode version");
+  const installPlatformIdx = body.indexOf("name: Install iOS device platform");
+  assert.ok(selectXcodeIdx > -1, "Select Xcode version 스텝을 찾지 못했습니다");
+  assert.ok(installPlatformIdx > -1, "Install iOS device platform 스텝을 찾지 못했습니다");
+  assert.ok(
+    installPlatformIdx > selectXcodeIdx,
+    "Install iOS device platform 스텝이 Select Xcode version 스텝보다 먼저 나오면 안 됩니다",
+  );
+});
+
+test("FLUTTER-CI의 iOS 플랫폼 설치 스텝은 xcodebuild -downloadPlatform iOS를 실행한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(body.includes("xcodebuild -downloadPlatform iOS"));
+});
