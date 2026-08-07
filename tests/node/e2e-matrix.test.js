@@ -72,6 +72,14 @@ for (const { name, args, expect = [], absent = [] } of MATRIX) {
   });
 }
 
+test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 version_code에 반영된다 (issue #41)", () => {
+  const t = installFixture("flutter", ["--type", "flutter"]);
+  try {
+    const vy = readFileSync(join(t, "version.yml"), "utf8");
+    assert.ok(/version_code:\s*71\b/.test(vy), `version_code가 71이어야 함:\n${vy}`);
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
 test("e2e spring --nexus: server-deploy excluded, nexus included, option recorded", () => {
   const t = installFixture("spring", ["--type", "spring", "--nexus"]);
   try {
