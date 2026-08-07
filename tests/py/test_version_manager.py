@@ -1,5 +1,18 @@
-import subprocess, sys, shutil, tempfile, unittest
+import contextlib
+import io as _io
+import os
+import subprocess
+import sys
+import shutil
+import tempfile
+import unittest
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parents[2] / "payload" / "scripts"
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+import version_manager  # noqa: E402
 
 SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "version_manager.py"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -82,3 +95,28 @@ class TestCore(unittest.TestCase):
         self.assertEqual(data.count(b"\n"), data.count(b"\r\n"))
         self.assertGreater(data.count(b"\r\n"), 0)
         self.assertIn(b'version: "2.3.4"', data)
+
+
+class TestSetVersionCodeRegressionGuard(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.cwd = Path.cwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, self.cwd)
+        Path("version.yml").write_text('version: "1.0.0"\nversion_code: 71\n', encoding="utf-8")
+
+    def test_lower_code_still_written_but_warns(self):
+        stderr = _io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            version_manager.set_version_code(2)
+        self.assertIn("version_code: 2", Path("version.yml").read_text(encoding="utf-8"))
+        self.assertIn("WARNING", stderr.getvalue())
+        self.assertIn("71", stderr.getvalue())
+
+    def test_higher_code_written_without_warning(self):
+        stderr = _io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            version_manager.set_version_code(72)
+        self.assertIn("version_code: 72", Path("version.yml").read_text(encoding="utf-8"))
+        self.assertNotIn("WARNING", stderr.getvalue())

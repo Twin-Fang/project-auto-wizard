@@ -221,6 +221,13 @@ def get_version_code():
 
 
 def set_version_code(new_code):
+    current = read_scalar_key("version_code", None)
+    if current not in (None, "", "null"):
+        try:
+            if int(new_code) < int(current):
+                log(f"WARNING: version_code {new_code} is lower than current {current} — writing anyway (regression?)")
+        except ValueError:
+            pass
     text = read_text()
     pattern = re.compile(r'^version_code:[ \t]*.*$', re.MULTILINE)
     replacement = f'version_code: {new_code}  # app build number'
