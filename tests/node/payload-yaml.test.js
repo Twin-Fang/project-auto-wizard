@@ -173,3 +173,30 @@ test("RELEASE-PUBLISH의 도그푸딩 사본도 같은 토큰 폴백을 쓴다",
   const block = text.slice(idx, idx + 700);
   assert.match(block, /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/);
 });
+
+// ---------------------------------------------------------------
+// PROJECT-FLUTTER-CI: Android 빌드는 서명 불필요한 debug APK를 사용해야
+// 한다 (issue #38 — keystore 없이 --release 실행 시 release 서명이
+// 구성된 프로젝트에서 항상 빌드 실패)
+// ---------------------------------------------------------------
+const flutterCiPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-CI.yaml"
+);
+
+test("PROJECT-FLUTTER-CI exists in payload", () => {
+  assert.ok(files.includes(flutterCiPath), `${flutterCiPath} missing`);
+});
+
+test("PROJECT-FLUTTER-CI의 Android 빌드는 --release를 사용하지 않는다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(
+    !body.includes("flutter build apk --release"),
+    "keystore 없이 --release로 빌드하면 release 서명이 구성된 프로젝트에서 항상 실패한다"
+  );
+});
+
+test("PROJECT-FLUTTER-CI의 Android 빌드는 --debug를 사용한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(body.includes("flutter build apk --debug"));
+});
