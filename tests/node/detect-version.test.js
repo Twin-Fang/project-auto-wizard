@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { detectVersionFromFiles, detectBuildNumberFromFiles } from "../../src/core/detect.js";
-import { detectVersion } from "../../src/core/detect-fs.js";
+import { detectVersion, detectBuildNumber } from "../../src/core/detect-fs.js";
 
 test("detectVersionFromFiles: package.json의 버전은 jq 여부와 무관하게 즉시 감지된다", () => {
   const read = () => null;
@@ -120,4 +120,28 @@ test("detectBuildNumberFromFiles: types 배열에서 먼저 매칭되는 첫 타
   };
   const code = detectBuildNumberFromFiles({ types: ["flutter", "react-native"], read, readJson: () => null, warn: () => {} });
   assert.strictEqual(code, 5);
+});
+
+test("detectBuildNumber: 실 파일시스템에서 flutter pubspec.yaml의 빌드 번호를 감지한다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-detect-buildnum-"));
+  try {
+    writeFileSync(join(dir, "pubspec.yaml"), "name: x\nversion: 1.2.39+71\n");
+    const code = detectBuildNumber(dir, { types: ["flutter"] });
+    assert.strictEqual(code, 71);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("detectBuildNumber: 감지 실패 시 주입한 warn이 호출된다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-detect-buildnum-warn-"));
+  try {
+    writeFileSync(join(dir, "pubspec.yaml"), "name: x\nversion: 1.2.39\n");
+    const warned = [];
+    const code = detectBuildNumber(dir, { types: ["flutter"], warn: (m) => warned.push(m) });
+    assert.strictEqual(code, null);
+    assert.strictEqual(warned.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
