@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 tmp/
 .idea/
+.worktrees/
 
 # ====================================================================
 # project-auto-wizard: Auto-added entries
