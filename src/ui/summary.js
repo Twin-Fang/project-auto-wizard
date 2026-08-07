@@ -6,7 +6,7 @@ import { paint, A, colorEnabled } from "./ansi.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx) {
-  const { mode, types = [], version = "", copiedFiles = [], branches = null, gitignoreUpdated = false } = ctx || {};
+  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -56,6 +56,10 @@ export function printSummary(ctx) {
   err("");
   err("추가된 파일:");
   err(`  📄 version.yml (버전: ${version}, 타입: ${types.join(",")})`);
+  const BUILD_NUMBER_TYPES = new Set(["flutter", "react-native", "react-native-expo"]);
+  if (versionCode != null && types.some((t) => BUILD_NUMBER_TYPES.has(t))) {
+    err(`     빌드 번호: ${versionCode}`);
+  }
   err("  📝 README.md (버전 섹션 추가)");
   err("");
   err("추가된 워크플로우:");

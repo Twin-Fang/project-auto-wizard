@@ -106,3 +106,31 @@ test("printSummary: copiedFiles 미지정 시에도 예외 없이 동작한다(�
   });
   assert.ok(!output.includes("📦 새로 설치됨"));
 });
+
+test("printSummary: flutter 타입 + versionCode 지정 시 빌드 번호 줄을 출력한다", () => {
+  const output = captureStderr(() => {
+    printSummary({ mode: "full", types: ["flutter"], version: "1.2.39", versionCode: 71 });
+  });
+  assert.ok(output.includes("빌드 번호: 71"));
+});
+
+test("printSummary: react-native-expo 타입도 빌드 번호 줄을 출력한다", () => {
+  const output = captureStderr(() => {
+    printSummary({ mode: "full", types: ["react-native-expo"], version: "1.0.0", versionCode: 5 });
+  });
+  assert.ok(output.includes("빌드 번호: 5"));
+});
+
+test("printSummary: 빌드 번호 개념이 없는 타입(spring)은 versionCode가 있어도 줄을 출력하지 않는다", () => {
+  const output = captureStderr(() => {
+    printSummary({ mode: "full", types: ["spring"], version: "1.0.0", versionCode: 1 });
+  });
+  assert.ok(!output.includes("빌드 번호"));
+});
+
+test("printSummary: versionCode 미지정 시에도 예외 없이 동작하고 빌드 번호 줄이 없다", () => {
+  const output = captureStderr(() => {
+    printSummary({ mode: "full", types: ["flutter"], version: "1.2.39" });
+  });
+  assert.ok(!output.includes("빌드 번호"));
+});

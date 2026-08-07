@@ -250,7 +250,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({
-    mode, types, version, branches,
+    mode, types, version, versionCode, branches,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
   });

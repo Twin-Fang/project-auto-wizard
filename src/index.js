@@ -314,7 +314,7 @@ export async function run(argv, {
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version, branches,
+    mode: opts.mode, types, version, versionCode, branches,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
   });
