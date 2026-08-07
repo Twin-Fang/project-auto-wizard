@@ -43,6 +43,96 @@ test("no .sh script references in payload", () => {
 });
 
 // ---------------------------------------------------------------
+// #40: heredoc이 블록 스칼라(`run: |`)를 이탈해 YAML 파싱이 깨지는
+// 회귀를 막는 가드. 완전한 YAML 파서가 아니라, "블록 스칼라 본문이
+// 컬럼 0 등으로 갑자기 얕아지는" 이번 버그 클래스에 특화된 검사다.
+// ---------------------------------------------------------------
+const COMMENT_LINE = /^\s*#/;
+const STRUCTURAL_RESUME = /^\s*(-\s|[A-Za-z_][\w./-]*:(\s|$))/;
+
+function findBlockScalarIndentationViolations(text) {
+  const lines = text.split("\n");
+  const violations = [];
+  let keyIndent = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") continue;
+    const indent = line.match(/^ */)[0].length;
+
+    if (keyIndent !== null) {
+      if (indent > keyIndent) continue;
+      const looksStructural =
+        COMMENT_LINE.test(line) || (indent > 0 && STRUCTURAL_RESUME.test(line));
+      if (!looksStructural) violations.push({ line: i + 1, content: line });
+      keyIndent = null;
+    }
+
+    if (keyIndent === null && !line.trim().startsWith("#")) {
+      const opener = line.match(/^(\s*)\S.*:\s*[|>][+-]?\s*$/);
+      if (opener) keyIndent = opener[1].length;
+    }
+  }
+
+  return violations;
+}
+
+test("findBlockScalarIndentationViolations는 컬럼 0으로 이탈한 heredoc 본문을 잡아낸다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: Broken step",
+    "        run: |",
+    '          echo "start"',
+    "storeFile=oops",
+    '          echo "end"',
+  ].join("\n");
+  const violations = findBlockScalarIndentationViolations(fixture);
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].line, 7);
+});
+
+test("findBlockScalarIndentationViolations는 올바르게 들여쓴 heredoc에 오탐하지 않는다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: OK step",
+    "        run: |",
+    "          cat > file.txt << EOF",
+    "          content line",
+    "          EOF",
+    "      - name: Next step",
+    "        run: echo done",
+  ].join("\n");
+  assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
+});
+
+test("findBlockScalarIndentationViolations는 같은 스텝의 형제 키(if: 등)로 끝나는 블록 스칼라에 오탐하지 않는다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: Step with if after run",
+    "        run: |",
+    "          echo hi",
+    "        if: always()",
+  ].join("\n");
+  assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
+});
+
+test("payload 워크플로우 전체에 블록 스칼라 이탈(#40) 회귀가 없다", () => {
+  for (const f of files) {
+    const violations = findBlockScalarIndentationViolations(readFileSync(f, "utf8"));
+    if (violations.length > 0) {
+      const first = violations[0];
+      assert.fail(`${f}:${first.line} — 블록 스칼라 본문이 이탈했습니다: ${first.content}`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------
 // AUTO-CHANGELOG-CONTROL: summary engine chain rewrite (Task 8)
 // ---------------------------------------------------------------
 const changelogPath = join(

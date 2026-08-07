@@ -9,7 +9,7 @@ import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers } from "./core/detect-fs.js";
+import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
@@ -237,7 +237,7 @@ export async function run(argv, {
   const types = opts.types.length ? opts.types : detectTypes(cwd);
   // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
   const version = (existing?.version) || opts.version || detectVersion(cwd);
-  const versionCode = existing?.versionCode ?? 1; // 기존 빌드번호 보존 (.sh L2208~2221)
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221, 이슈 #41)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
   // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
@@ -314,7 +314,7 @@ export async function run(argv, {
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version, branches,
+    mode: opts.mode, types, version, versionCode, branches,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
   });

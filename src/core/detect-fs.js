@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import { execFileSync } from "node:child_process";
-import { detectTypesFromMarkers, detectVersionFromFiles } from "./detect.js";
+import { detectTypesFromMarkers, detectVersionFromFiles, detectBuildNumberFromFiles } from "./detect.js";
 import { parseExisting } from "./version-yml.js";
 
 const hasFile = (root) => (rel) => existsSync(join(root, rel));
@@ -33,6 +33,13 @@ export function detectVersion(root, { warn = (m) => console.error(m) } = {}) {
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
   return detectVersionFromFiles({ read, readJson, gitTag, warn });
+}
+
+// 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다 (이슈 #41).
+export function detectBuildNumber(root, { types = [], warn = (m) => console.error(m) } = {}) {
+  const read = readFile(root);
+  const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
+  return detectBuildNumberFromFiles({ types, read, readJson, warn });
 }
 
 // 기본 브랜치 감지 — symbolic-ref → remote show → main.
