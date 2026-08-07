@@ -34,11 +34,15 @@
 
 - [ ] **Step 1: 실패하는 단위 테스트 작성**
 
-`tests/node/detect-version.test.js` 끝(58번째 줄 뒤)에 추가:
+`tests/node/detect-version.test.js`는 57줄짜리 파일이다. 7번째 줄의 기존 import에 `detectBuildNumberFromFiles`를 추가한다(신규 mid-file import를 만들지 않고 기존 import를 확장 — 파일 스타일과 일치):
 
 ```js
-import { detectBuildNumberFromFiles } from "../../src/core/detect.js";
+import { detectVersionFromFiles, detectBuildNumberFromFiles } from "../../src/core/detect.js";
+```
 
+파일 끝(57번째 줄 뒤)에 테스트를 추가:
+
+```js
 test("detectBuildNumberFromFiles: flutter — pubspec.yaml의 +N을 빌드 번호로 감지한다", () => {
   const read = (rel) => (rel === "pubspec.yaml" ? "name: x\nversion: 1.2.39+71\n" : null);
   const code = detectBuildNumberFromFiles({ types: ["flutter"], read, readJson: () => null, warn: () => {} });
@@ -109,7 +113,7 @@ test("detectBuildNumberFromFiles: types 배열에서 먼저 매칭되는 첫 타
 - [ ] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test:node -- tests/node/detect-version.test.js`
-Expected: FAIL — `detectBuildNumberFromFiles is not a function` (아직 export되지 않음)
+Expected: FAIL — Node ESM은 존재하지 않는 named export를 모듈 인스턴스화 단계에서 잡는다: `SyntaxError: The requested module '../../src/core/detect.js' does not provide an export named 'detectBuildNumberFromFiles'`. 이 에러는 **파일 전체**를 실패시켜 이 파일의 기존 통과 테스트 5개도 이 RED 단계에서 함께 FAIL로 표시된다 — 아직 구현이 없으니 정상이며, Step 4에서 전부 PASS로 돌아온다.
 
 - [ ] **Step 3: 최소 구현 작성**
 
@@ -132,7 +136,9 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
   const tryReactNative = () => {
     const content = read("android/app/build.gradle");
     if (content == null) return null;
-    const m = content.match(/versionCode\s+(\d+)/);
+    // 앵커 + m 플래그로 한 줄 전체가 "versionCode N"인 라인만 매칭 — 주석 처리된
+    // "// versionCode 2"나 다른 블록의 versionCode 참조에 오매칭되지 않도록 함.
+    const m = content.match(/^\s*versionCode\s+(\d+)\s*$/m);
     if (m) return parseInt(m[1], 10);
     warn?.("⚠️  android/app/build.gradle에 versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
     return null;
@@ -180,11 +186,15 @@ git commit -m "feat: pubspec/build.gradle/app.json에서 빌드 번호를 감지
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`tests/node/detect-version.test.js`에 추가 (기존 `detectVersion` 실fs 테스트들과 같은 스타일):
+`tests/node/detect-version.test.js`의 기존 `detect-fs.js` import(8번째 줄, `import { detectVersion } from "../../src/core/detect-fs.js";`)에 `detectBuildNumber`를 추가:
 
 ```js
-import { detectBuildNumber } from "../../src/core/detect-fs.js";
+import { detectVersion, detectBuildNumber } from "../../src/core/detect-fs.js";
+```
 
+같은 파일에 테스트 추가 (기존 `detectVersion` 실fs 테스트들과 같은 스타일):
+
+```js
 test("detectBuildNumber: 실 파일시스템에서 flutter pubspec.yaml의 빌드 번호를 감지한다", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-detect-buildnum-"));
   try {
@@ -213,7 +223,7 @@ test("detectBuildNumber: 감지 실패 시 주입한 warn이 호출된다", () =
 - [ ] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm run test:node -- tests/node/detect-version.test.js`
-Expected: FAIL — `detectBuildNumber is not a function`
+Expected: FAIL — Node ESM은 존재하지 않는 named export를 모듈 인스턴스화 단계에서 잡는다: `SyntaxError: The requested module '../../src/core/detect-fs.js' does not provide an export named 'detectBuildNumber'`. 이 에러는 파일 전체를 실패시켜 이 파일의 기존 통과 테스트들도 이 RED 단계에서 함께 FAIL로 표시된다 — 아직 구현이 없으니 정상이며, Step 4에서 전부 PASS로 돌아온다.
 
 - [ ] **Step 3: 최소 구현 작성**
 
@@ -416,7 +426,7 @@ git commit -m "feat: 통합 요약에 감지된 빌드 번호 표시"
 **Interfaces:**
 - Consumes: Task 3에서 연결된 `src/commands/interactive.js`/`src/index.js`의 신규 통합 경로 (CLI를 subprocess로 실행하므로 함수 시그니처가 아니라 CLI 인자/`version.yml` 출력이 인터페이스)
 
-- [ ] **Step 1: 실패하는 e2e 테스트 작성**
+- [ ] **Step 1: e2e 테스트 작성**
 
 `tests/fixtures/e2e/flutter/pubspec.yaml`을 다음으로 교체 (기존 `version: 1.0.0+1` → 이슈의 실제 재현값):
 
@@ -425,21 +435,7 @@ name: fixture
 version: 1.2.39+71
 ```
 
-`tests/node/e2e-matrix.test.js`의 `MATRIX` 루프(64-73번째 줄) 뒤에 신규 테스트 추가:
-
-```js
-test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 version_code에 반영된다 (issue #41)", () => {
-  const t = installFixture("flutter-buildnum", ["--type", "flutter"]);
-  try {
-    const vy = readFileSync(join(t, "version.yml"), "utf8");
-    assert.ok(/version_code:\s*71\b/.test(vy), `version_code가 71이어야 함:\n${vy}`);
-  } finally { rmSync(t, { recursive: true, force: true }); }
-});
-```
-
-`installFixture`는 `tests/fixtures/e2e/<name>` 디렉터리를 그대로 복사하므로(20-25번째 줄), 이 테스트는 기존 `flutter` fixture(방금 `1.2.39+71`로 바꾼 것)를 `flutter-buildnum`이라는 다른 임시 접두사로 재사용한다 — `installFixture(name, args)`의 첫 인자는 `join(FIXTURES, name)`로 fixture 디렉터리를 찾는 데도 쓰이므로, 실제로는 `installFixture("flutter", ["--type", "flutter"])`로 호출해야 한다. 위 스니펫의 `"flutter-buildnum"`을 `"flutter"`로 고쳐서 사용한다.
-
-정정된 최종 형태:
+`tests/node/e2e-matrix.test.js`의 `MATRIX` 루프(64-73번째 줄) 뒤에 신규 테스트 추가. `installFixture(name, args)`의 첫 인자는 `join(FIXTURES, name)`으로 fixture 디렉터리를 찾는 키이므로(20-25번째 줄), 반드시 실제 fixture 디렉터리명인 `"flutter"`를 그대로 써야 한다:
 
 ```js
 test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 version_code에 반영된다 (issue #41)", () => {
@@ -453,30 +449,17 @@ test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 versi
 
 - [ ] **Step 2: 테스트 실행 → 통과 확인**
 
-이 플랜은 Task 3에서 감지 로직을 이미 연결했으므로, 이 e2e 테스트는 RED 없이 바로 PASS한다 — 이 태스크의 목적은 새 동작을 TDD로 만드는 것이 아니라, 이슈 #41의 정확한 재현 시나리오(신규 flutter 통합 + `pubspec.yaml`의 `+71`)를 고정된 회귀 테스트로 박아 넣는 것이다(트래킹 이슈 #37이 명시적으로 요청한 테스트).
+이 플랜은 Task 3에서 감지 로직을 이미 연결했으므로, 이 e2e 테스트는 RED 없이 바로 PASS한다 — 이 태스크의 목적은 새 동작을 TDD로 만드는 것이 아니라, 이슈 #41의 정확한 재현 시나리오(신규 flutter 통합 + `pubspec.yaml`의 `+71`)를 고정된 회귀 테스트로 박아 넣는 것이다(트래킹 이슈 #37이 명시적으로 요청한 테스트). Task 1·2의 단위 테스트가 이미 감지 로직 자체의 RED→GREEN을 증명했으므로, 여기서 다시 RED를 재현할 필요는 없다.
 
 Run: `npm run test:node -- tests/node/e2e-matrix.test.js`
 Expected: PASS — 기존 `e2e flutter: full install is complete and token-free` 테스트를 포함해 전부 통과 (fixture의 `pubspec.yaml` 버전 문자열만 바뀌었을 뿐 다른 단언은 영향받지 않음)
 
-- [ ] **Step 3: 회귀 방지 확인(선택) — Task 3 변경분을 임시로 되돌려 이 테스트가 실제로 버그를 잡는지 검증**
-
-```bash
-git stash push -- src/commands/interactive.js src/index.js
-npm run test:node -- tests/node/e2e-matrix.test.js
-git stash pop
-```
-
-Expected: `git stash` 직후 실행에서는 `version_code: 1`이 생성되어 새 e2e 테스트가 FAIL하고(신규 통합 감지 로직이 빠졌으므로), `git stash pop` 이후 재실행하면 다시 PASS한다. 이 스텝은 검증용이며 최종 코드 상태를 바꾸지 않는다(`git stash pop`으로 원복).
-
-Run: `npm run test:node -- tests/node/e2e-matrix.test.js`
-Expected: PASS — 기존 `e2e flutter: full install is complete and token-free` 테스트를 포함해 전부 통과 (fixture의 `pubspec.yaml` 버전 문자열만 바뀌었을 뿐 다른 단언은 영향받지 않음)
-
-- [ ] **Step 4: 전체 node 스위트 확인**
+- [ ] **Step 3: 전체 node 스위트 확인**
 
 Run: `npm run test:node`
 Expected: PASS (전체 그린)
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 4: 커밋**
 
 ```bash
 git add tests/fixtures/e2e/flutter/pubspec.yaml tests/node/e2e-matrix.test.js
@@ -592,6 +575,12 @@ git commit -m "feat: version_code를 낮은 값으로 덮어쓸 때 경고 로�
 ```
 
 ---
+
+## 알려진 한계 (Fable 5 리뷰에서 확인 — 이번 스코프에서 고치지 않음)
+
+- **요약 줄 표현이 스펙 예시와 다르다.** 스펙 3.3의 예시는 `빌드 번호: 71 (pubspec.yaml에서 감지)`처럼 출처를 명시하지만, Task 4의 실제 구현은 `빌드 번호: ${versionCode}`만 출력한다. 감지값/기존값 보존/기본값(1) 폴백을 요약 단계에서 구분할 방법이 없어 의도적으로 단순화한 것이다 — 출처 라벨이 꼭 필요하면 별도 후속 작업으로 다룬다.
+- **모노레포는 감지 대상이 아니다.** 감지는 레포 루트의 `pubspec.yaml`/`android/app/build.gradle`/`app.json`만 읽는다. `--paths flutter=app`처럼 타입별 하위 경로가 있는 모노레포에서는 루트에 해당 파일이 없으므로 조용히 `null`(경고 없이 — "이 타입이 아님"과 구분이 안 됨)로 폴백해 결국 `1`이 된다. 기존 `monorepo` e2e fixture(예: `tests/fixtures/e2e/monorepo/app/pubspec.yaml`)로는 이 사실이 드러나지 않으므로 테스트가 깨지진 않지만, 실제 모노레포 사용자는 이슈 #41과 동일한 결함을 여전히 겪는다. 별도 이슈로 다룬다.
+- **react-native-expo의 기존 e2e 테스트에 새 stderr 경고가 추가된다.** `tests/fixtures/e2e/react-native-expo/app.json`에 `expo.android.versionCode`가 없으므로, Task 3 적용 후 기존 `e2e react-native-expo` 매트릭스 테스트 실행 시 stderr에 새 경고가 찍힌다. 어떤 테스트도 stderr 내용을 단언하지 않으므로 테스트는 깨지지 않지만, CI 로그에 새 경고 줄이 보이는 것은 정상 동작이다.
 
 ## 최종 확인
 
