@@ -122,6 +122,16 @@ test("findBlockScalarIndentationViolations는 같은 스텝의 형제 키(if: �
   assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
 });
 
+test("payload 워크플로우 전체에 블록 스칼라 이탈(#40) 회귀가 없다", () => {
+  for (const f of files) {
+    const violations = findBlockScalarIndentationViolations(readFileSync(f, "utf8"));
+    if (violations.length > 0) {
+      const first = violations[0];
+      assert.fail(`${f}:${first.line} — 블록 스칼라 본문이 이탈했습니다: ${first.content}`);
+    }
+  }
+});
+
 // ---------------------------------------------------------------
 // AUTO-CHANGELOG-CONTROL: summary engine chain rewrite (Task 8)
 // ---------------------------------------------------------------
