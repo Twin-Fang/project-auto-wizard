@@ -85,7 +85,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let version = (existing?.version) || detectVersion(cwd);
   let branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (이슈 #41)
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
@@ -165,6 +164,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       }
     }
   }
+
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (이슈 #41)
 
   // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
   // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
