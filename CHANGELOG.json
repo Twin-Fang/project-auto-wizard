@@ -1,15 +1,27 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-06T08:11:23Z",
-    "currentVersion": "0.1.25",
+    "lastUpdated": "2026-08-07T06:25:06Z",
+    "currentVersion": "0.1.26",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 4
+    "totalReleases": 5
   },
   "releases": [
+    {
+      "version": "0.1.26",
+      "project_type": "node",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-07",
+      "pr_number": 55,
+      "raw_summary": "## [0.1.26]",
+      "parsed_changes": {},
+      "parse_method": "markdown_failed"
+    },
     {
       "version": "0.1.25",
       "project_type": "node",
