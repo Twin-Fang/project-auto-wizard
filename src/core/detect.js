@@ -62,3 +62,42 @@ export function markerForType(type) {
 export function extraMarkers(type) {
   return { python: ["setup.py", "requirements.txt"], spring: ["build.gradle.kts", "pom.xml"] }[type] || [];
 }
+
+// 빌드 번호 감지 (이슈 #41) — 신규 통합 시 pubspec.yaml/build.gradle/app.json에 이미 기록된
+// 빌드 번호를 읽어 version_code가 항상 1로 초기화되는 걸 막는다. types 배열에서 먼저 매칭되는
+// 첫 타입만 사용한다(다른 감지 로직의 types[0]=primary 관례와 동일). read(rel)=>string|null,
+// readJson(rel)=>object|null 로 주입.
+export function detectBuildNumberFromFiles({ types = [], read, readJson, warn }) {
+  const tryFlutter = () => {
+    const content = read("pubspec.yaml");
+    if (content == null) return null;
+    const m = content.match(/^version:\s*\d+\.\d+\.\d+\+(\d+)/m);
+    if (m) return parseInt(m[1], 10);
+    warn?.("⚠️  pubspec.yaml에 빌드 번호(+N)가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    return null;
+  };
+  const tryReactNative = () => {
+    const content = read("android/app/build.gradle");
+    if (content == null) return null;
+    // 앵커 + m 플래그로 한 줄 전체가 "versionCode N"인 라인만 매칭 — 주석 처리된
+    // "// versionCode 2"나 다른 블록의 versionCode 참조에 오매칭되지 않도록 함.
+    const m = content.match(/^\s*versionCode\s+(\d+)\s*$/m);
+    if (m) return parseInt(m[1], 10);
+    warn?.("⚠️  android/app/build.gradle에 versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    return null;
+  };
+  const tryExpo = () => {
+    const data = readJson?.("app.json");
+    if (data == null) return null;
+    const code = data?.expo?.android?.versionCode;
+    if (Number.isInteger(code)) return code;
+    warn?.("⚠️  app.json의 expo.android.versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    return null;
+  };
+  for (const t of types) {
+    if (t === "flutter") return tryFlutter();
+    if (t === "react-native") return tryReactNative();
+    if (t === "react-native-expo") return tryExpo();
+  }
+  return null;
+}
