@@ -5,7 +5,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers } from "../core/detect-fs.js";
+import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber } from "../core/detect-fs.js";
 import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
@@ -85,7 +85,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let version = (existing?.version) || detectVersion(cwd);
   let branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
-  const versionCode = existing?.versionCode ?? 1; // 기존 빌드번호 보존
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (이슈 #41)
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
