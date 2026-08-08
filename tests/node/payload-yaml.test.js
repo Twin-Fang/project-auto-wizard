@@ -356,3 +356,12 @@ const flutterSelfhostedCicdPath = join(
 test("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterSelfhostedCicdPath);
 });
+
+const flutterTestApkPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-TEST-APK: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterTestApkPath);
+});
