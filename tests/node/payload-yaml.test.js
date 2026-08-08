@@ -311,3 +311,79 @@ test("FLUTTER-CI의 iOS 플랫폼 설치 스텝은 xcodebuild -downloadPlatform 
   const body = readFileSync(flutterCiPath, "utf8");
   assert.ok(body.includes("xcodebuild -downloadPlatform iOS"));
 });
+
+// ---------------------------------------------------------------
+// #42: build_runner를 쓰는 프로젝트(freezed/riverpod_generator/drift/
+// json_serializable)가 CI에서 생성 파일(*.g.dart/*.freezed.dart) 부재로
+// 실패하지 않도록, flutter pub get 직후 조건부 코드 생성이 있어야 한다.
+// ---------------------------------------------------------------
+function assertBuildRunnerGuardFollowsEveryPubGet(path) {
+  const body = readFileSync(path, "utf8");
+  const pattern = /flutter pub get\n( *)if grep -q "build_runner" pubspec\.yaml; then\n *dart run build_runner build --delete-conflicting-outputs\n *fi/g;
+  const matches = body.match(pattern) || [];
+  const pubGetCount = (body.match(/flutter pub get/g) || []).length;
+  assert.strictEqual(
+    matches.length,
+    pubGetCount,
+    `${path}: flutter pub get가 ${pubGetCount}곳인데 build_runner 조건부 코드 생성 가드는 ${matches.length}곳뿐입니다`
+  );
+  assert.ok(pubGetCount > 0, `${path}: flutter pub get이 존재해야 합니다`);
+}
+
+const flutterFirebaseCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-FIREBASE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterFirebaseCicdPath);
+});
+
+const flutterPlaystoreCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterPlaystoreCicdPath);
+});
+
+const flutterSelfhostedCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterSelfhostedCicdPath);
+});
+
+const flutterTestApkPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-TEST-APK: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterTestApkPath);
+});
+
+test("PROJECT-FLUTTER-CI: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterCiPath);
+});
+
+const flutterIosTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestflightPath);
+});
+
+const flutterIosTestTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestTestflightPath);
+});

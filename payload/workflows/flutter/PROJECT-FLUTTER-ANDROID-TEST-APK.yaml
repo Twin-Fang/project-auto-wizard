@@ -388,6 +388,9 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
           echo "✅ Dependencies installed"
 
       # Gradle 셋업

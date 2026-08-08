@@ -97,7 +97,11 @@ jobs:
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
 
       # version_manager.py를 사용하여 현재 버전 정보 가져오기
       - name: 현재 버전 정보 가져오기
@@ -255,7 +259,11 @@ jobs:
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -318,6 +326,9 @@ jobs:
           echo "🔄 Flutter clean 및 의존성 재설치..."
           flutter clean
           flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
 
           # local.properties에 버전 정보 추가 (Flutter 플래그가 무시되는 문제 해결)
           echo "🔧 local.properties에 버전 정보 설정..."
