@@ -378,3 +378,12 @@ const flutterIosTestflightPath = join(
 test("PROJECT-FLUTTER-IOS-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestflightPath);
 });
+
+const flutterIosTestTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestTestflightPath);
+});
