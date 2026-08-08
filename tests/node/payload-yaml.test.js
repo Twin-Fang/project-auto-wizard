@@ -387,3 +387,52 @@ const flutterIosTestTestflightPath = join(
 test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestTestflightPath);
 });
+
+// ---------------------------------------------------------------
+// #50: FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
+// 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
+// 비어 배포 잡이 실패한다. FLUTTER_PROJECT_DIR로 개명하고, 경로가
+// 비었을 때 즉시 실패하도록 모든 upload-artifact 스텝에
+// if-no-files-found: error를 강제한다.
+// ---------------------------------------------------------------
+function assertFlutterRootRenamedToProjectDir(path) {
+  const body = readFileSync(path, "utf8");
+  assert.ok(
+    !body.includes("FLUTTER_ROOT"),
+    `${path}: FLUTTER_ROOT가 남아있으면 subosito/flutter-action의 SDK 경로 export와 충돌합니다`
+  );
+  assert.ok(
+    /^\s*FLUTTER_PROJECT_DIR:\s*"\."/m.test(body),
+    `${path}: FLUTTER_PROJECT_DIR env 정의를 찾지 못했습니다`
+  );
+}
+
+function assertUploadArtifactStepsFailOnMissingFiles(path) {
+  const body = readFileSync(path, "utf8");
+  const steps = body.split(/\n(?=      - name: )/);
+  const uploadSteps = steps.filter((s) => s.includes("uses: actions/upload-artifact"));
+  assert.ok(uploadSteps.length > 0, `${path}: upload-artifact 스텝을 찾지 못했습니다`);
+  for (const step of uploadSteps) {
+    const stepName = (step.match(/^ {6}- name: (.+)$/m) || [, "(이름 없음)"])[1];
+    assert.ok(
+      step.includes("if-no-files-found: error"),
+      `${path}: '${stepName}' 스텝에 if-no-files-found: error가 없습니다`
+    );
+  }
+}
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+  assertFlutterRootRenamedToProjectDir(flutterPlaystoreCicdPath);
+});
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+  assertUploadArtifactStepsFailOnMissingFiles(flutterPlaystoreCicdPath);
+});
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+  assertFlutterRootRenamedToProjectDir(flutterIosTestflightPath);
+});
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+  assertUploadArtifactStepsFailOnMissingFiles(flutterIosTestflightPath);
+});
