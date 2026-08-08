@@ -338,3 +338,12 @@ const flutterFirebaseCicdPath = join(
 test("PROJECT-FLUTTER-ANDROID-FIREBASE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterFirebaseCicdPath);
 });
+
+const flutterPlaystoreCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterPlaystoreCicdPath);
+});
