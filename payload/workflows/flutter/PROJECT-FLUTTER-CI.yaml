@@ -278,6 +278,9 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
           echo "✅ Dependencies installed"
 
       # Flutter Analyze 실행
@@ -377,6 +380,9 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
           echo "✅ Dependencies installed"
 
       # Java 설정
@@ -505,6 +511,9 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
+          if grep -q "build_runner" pubspec.yaml; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
           echo "✅ Dependencies installed"
 
       # Ruby 및 CocoaPods 설정
