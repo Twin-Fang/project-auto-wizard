@@ -75,7 +75,7 @@ on:
 # 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
 # ============================================
 env:
-  FLUTTER_ROOT: "."  # @wizard auto:flutter-root
+  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
   FLUTTER_VERSION: "3.35.5"
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
@@ -102,7 +102,7 @@ jobs:
     runs-on: macos-26
     defaults:
       run:
-        working-directory: ${{ env.FLUTTER_ROOT }}
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
 
     outputs:
@@ -211,6 +211,7 @@ jobs:
           name: release-notes
           path: final_release_notes.txt
           retention-days: 1
+          if-no-files-found: error
 
       - name: Upload project files
         uses: actions/upload-artifact@v7
@@ -223,6 +224,7 @@ jobs:
             lib/
             assets/
           retention-days: 1
+          if-no-files-found: error
 
   # ============================================
   # iOS 빌드 (xcodebuild 직접 사용)
@@ -232,7 +234,7 @@ jobs:
     runs-on: macos-26
     defaults:
       run:
-        working-directory: ${{ env.FLUTTER_ROOT }}
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     needs: prepare-build
 
     steps:
@@ -369,8 +371,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
-          path: ${{ env.FLUTTER_ROOT }}/ios/build/ipa/*.ipa
+          path: ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/*.ipa
           retention-days: 1
+          if-no-files-found: error
 
   # ============================================
   # TestFlight 배포 (마법사 생성 Fastfile 사용)
@@ -380,7 +383,7 @@ jobs:
     runs-on: macos-26
     defaults:
       run:
-        working-directory: ${{ env.FLUTTER_ROOT }}
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     needs: [prepare-build, build-ios]
 
     steps:
@@ -399,7 +402,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ios-ipa
-          path: ${{ env.FLUTTER_ROOT }}/ios/build/ipa/
+          path: ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/
 
       - name: Download release notes
         uses: actions/download-artifact@v8
@@ -418,7 +421,7 @@ jobs:
           echo "✅ Fastfile 확인됨: ios/fastlane/Fastfile"
 
       - name: Install Fastlane
-        working-directory: ${{ env.FLUTTER_ROOT }}/ios
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/ios
         run: |
           # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
           printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
@@ -432,14 +435,14 @@ jobs:
           SKIP_WAITING_FOR_BUILD_PROCESSING: ${{ env.SKIP_WAITING_FOR_BUILD_PROCESSING }}
         run: |
           # IPA 절대경로 탐색
-          IPA_PATH=$(find "$GITHUB_WORKSPACE/${FLUTTER_ROOT}/ios/build/ipa" -name "*.ipa" | head -1)
+          IPA_PATH=$(find "$GITHUB_WORKSPACE/${FLUTTER_PROJECT_DIR}/ios/build/ipa" -name "*.ipa" | head -1)
           echo "📦 Found IPA at: $IPA_PATH"
 
           if [ ! -f "$IPA_PATH" ]; then
             echo "❌ IPA 파일을 찾을 수 없습니다!"; ls -la ios/build/ipa/ || true; exit 1
           fi
 
-          # Release notes 준비 (final_release_notes.txt·truncate 스크립트는 레포 루트 기준 — working-directory가 FLUTTER_ROOT이므로 절대경로 사용)
+          # Release notes 준비 (final_release_notes.txt·truncate 스크립트는 레포 루트 기준 — working-directory가 FLUTTER_PROJECT_DIR이므로 절대경로 사용)
           if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]; then
             # App Store Connect "What to Test" 한도(4000 바이트)에 맞춰 절단 (마진 두어 3800byte)
             bash "$GITHUB_WORKSPACE/.github/scripts/truncate_release_notes.sh" "$GITHUB_WORKSPACE/final_release_notes.txt" 3800 byte
