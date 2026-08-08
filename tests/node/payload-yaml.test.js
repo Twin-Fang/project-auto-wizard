@@ -369,3 +369,12 @@ test("PROJECT-FLUTTER-ANDROID-TEST-APK: flutter pub get 직후 build_runner 조�
 test("PROJECT-FLUTTER-CI: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterCiPath);
 });
+
+const flutterIosTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestflightPath);
+});
