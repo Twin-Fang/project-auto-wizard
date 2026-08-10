@@ -1,4 +1,8 @@
+import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -7,6 +11,8 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import issue_helper  # noqa: E402
+
+SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "issue_helper.py"
 
 
 class TestExtractIssueNumber(unittest.TestCase):
@@ -110,6 +116,60 @@ class TestNormalizeAll(unittest.TestCase):
             commit_message,
             "버그_발견 : feat : {설명} https://github.com/o/r/issues/68",
         )
+
+
+def run_cli(event_payload, env_extra=None):
+    with tempfile.TemporaryDirectory() as tmp:
+        event_path = Path(tmp) / "event.json"
+        event_path.write_text(json.dumps(event_payload), encoding="utf-8")
+        env = {
+            **os.environ,
+            "GITHUB_EVENT_PATH": str(event_path),
+            "GITHUB_REPOSITORY": "o/r",
+        }
+        if env_extra:
+            env.update(env_extra)
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "run"],
+            capture_output=True, text=True, env=env,
+        )
+
+
+class TestRunGuards(unittest.TestCase):
+    def test_missing_event_path_exits_1(self):
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_EVENT_PATH"}
+        env["GITHUB_REPOSITORY"] = "o/r"
+        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 1)
+
+    def test_irrelevant_action_exits_0_without_token(self):
+        r = run_cli({"action": "closed", "issue": {"number": 1, "title": "t", "html_url": "u"}})
+        self.assertEqual(r.returncode, 0)
+
+    def test_edited_without_title_change_exits_0(self):
+        r = run_cli({
+            "action": "edited",
+            "issue": {"number": 1, "title": "t", "html_url": "u"},
+            "changes": {"body": {"from": "old"}},
+        })
+        self.assertEqual(r.returncode, 0)
+
+    def test_opened_without_token_exits_1(self):
+        # env_extra는 델타만 넘긴다 — os.environ 전체를 스프레드하면 CI(GitHub Actions
+        # 러너)에서 실제 GITHUB_EVENT_PATH가 run_cli의 임시 이벤트 경로를 덮어써
+        # 러너 자신의 트리거 이벤트(action이 'opened'가 아님)를 읽게 되어 플레이키해진다.
+        r = run_cli(
+            {"action": "opened", "issue": {"number": 1, "title": "t", "html_url": "u"}},
+            env_extra={"GITHUB_TOKEN": ""},
+        )
+        self.assertEqual(r.returncode, 1)
+
+    def test_malformed_repository_env_exits_1(self):
+        r = run_cli(
+            {"action": "opened", "issue": {"number": 1, "title": "t", "html_url": "u"}},
+            env_extra={"GITHUB_REPOSITORY": "not-a-repo-slug", "GITHUB_TOKEN": "x"},
+        )
+        self.assertEqual(r.returncode, 1)
 
 
 if __name__ == "__main__":
