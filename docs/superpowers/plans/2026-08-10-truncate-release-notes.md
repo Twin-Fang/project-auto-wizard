@@ -152,7 +152,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: 테스트 실행해서 실패 확인**
 
 Run: `python3 -m unittest tests.py.test_truncate_release_notes -v` (레포 루트에서 실행)
-Expected: 전부 실패 또는 에러 — `payload/scripts/truncate_release_notes.py` 파일이 아직 없으므로 subprocess가 `FileNotFoundError`류로 죽거나 nonzero returncode를 반환.
+Expected: 12개 중 대다수 FAIL — `payload/scripts/truncate_release_notes.py`가 아직 없어 subprocess가 exit 2(`can't open file`)를 반환한다. 단 `test_lf_preserved`/`test_crlf_preserved`는 returncode를 assert하지 않고 "파일 내용이 그대로인지"만 보므로 이 2개는 구현 전에도 우연히 PASS할 수 있다 — 정상이니 당황하지 말 것.
 
 - [ ] **Step 3: 최소 구현 작성**
 
@@ -253,16 +253,17 @@ if __name__ == "__main__":
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
 Run: `python3 -m unittest tests.py.test_truncate_release_notes -v` (레포 루트에서 실행)
-Expected: 전부 PASS (13개 테스트)
+Expected: 전부 PASS (12개 테스트)
 
 전체 Python 스위트도 함께 돌려 회귀가 없는지 확인:
 Run: `npm run test:py`
 Expected: 전부 PASS
 
-- [ ] **Step 5: 실행 권한 부여 및 커밋**
+- [ ] **Step 5: 커밋**
+
+기존 `version_manager.py`·`changelog_manager.py`도 실행 비트 없이(100644) 추적되고 있고, 설치 시 실행권한은 `copyScripts()`가 `chmodSync(dst, 0o755)`로 부여하므로(`src/core/copy/simple.js:19`) `chmod +x`는 불필요 — 하지 않는다.
 
 ```bash
-chmod +x payload/scripts/truncate_release_notes.py
 git add payload/scripts/truncate_release_notes.py tests/py/test_truncate_release_notes.py
 git commit -m "feat: truncate_release_notes.py 스크립트 추가 (#51)
 
@@ -419,6 +420,7 @@ Expected: `copyScripts installs payload python scripts into .github/scripts/` �
 `src/core/copy/simple.js`의:
 
 ```js
+// version_manager.py, changelog_manager.py 무조건 덮어쓰기 (+chmod — Windows에선 무의미하나 무해).
 export function copyScripts(payloadRoot, targetRoot = ".") {
   const scripts = ["version_manager.py", "changelog_manager.py"];
 ```
@@ -426,11 +428,12 @@ export function copyScripts(payloadRoot, targetRoot = ".") {
 를:
 
 ```js
+// version_manager.py, changelog_manager.py, truncate_release_notes.py 무조건 덮어쓰기 (+chmod — Windows에선 무의미하나 무해).
 export function copyScripts(payloadRoot, targetRoot = ".") {
   const scripts = ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py"];
 ```
 
-로 교체.
+로 교체 (주석과 배열 둘 다 갱신).
 
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
