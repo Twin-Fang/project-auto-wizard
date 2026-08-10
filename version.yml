@@ -24,8 +24,8 @@
 # - basic: version.yml only
 # ===
 
-version: "0.1.34"
-version_code: 35  # app build number
+version: "0.2.0"
+version_code: 36  # app build number
 project_types: ["node"] # first entry is primary
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   node: "." # package.json
