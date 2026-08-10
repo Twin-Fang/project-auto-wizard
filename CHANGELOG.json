@@ -1,15 +1,40 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-10T06:28:54Z",
-    "currentVersion": "0.1.34",
+    "lastUpdated": "2026-08-10T06:50:28Z",
+    "currentVersion": "0.2.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 8
+    "totalReleases": 9
   },
   "releases": [
+    {
+      "version": "0.2.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-10",
+      "pr_number": 74,
+      "raw_summary": "## [0.2.0]\n\n### ✨ 기능\n- 설치 시점 baseline 기반 3-way 분류로 업데이트 지원 (#69)\n\n### 🔧 변경사항\n- develop 최신 내용을 #69 작업 브랜치에 동기화\n- wip: baseline 모듈 초안 (#69)",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "설치 시점 baseline 기반 3-way 분류로 업데이트 지원 (#69)"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "develop 최신 내용을 #69 작업 브랜치에 동기화",
+            "wip: baseline 모듈 초안 (#69)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.1.34",
       "project_types": [

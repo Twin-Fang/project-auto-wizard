@@ -33,7 +33,17 @@ export function runStatus(payloadRoot, targetRoot = ".") {
     types: existing.types,
     branches: existing.branches,
     options: existing.options,
-    modifiedFiles: plan.changed.map((f) => f.filename),
+    // 사용자가 손댄 파일 = 진짜 충돌(changed) + 업스트림은 그대로인데 내가 고친 것(localOnly).
+    // baseline이 없으면 localOnly는 항상 비어 있어 종전과 동일하게 동작한다 (issue #69).
+    modifiedFiles: [...plan.changed, ...plan.localOnly].map((f) => f.filename),
+    // 업데이트 시 무슨 일이 일어날지 미리 보여주는 버킷들 — 판단 재료가 없어 사용자가
+    // 직접 git diff를 떠야 했던 문제를 없앤다.
+    buckets: {
+      autoUpdatable: plan.upstreamOnly.map((f) => f.filename), // 질문 없이 최신으로 교체됨
+      localKept: plan.localOnly.map((f) => f.filename),        // 질문 없이 내 수정본 유지됨
+      conflicts: plan.changed.map((f) => f.filename),          // 양쪽 변경 — 검토 필요
+      removed: plan.removed.map((f) => f.filename),            // 내가 지웠고 복원하지 않음
+    },
   };
 }
 
@@ -58,6 +68,16 @@ export function printStatus(status) {
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);
   } else {
     lines.push("", "모든 워크플로우 파일이 설치 시점 기본값과 동일합니다 (수정 없음).");
+  }
+
+  // 업데이트하면 무슨 일이 일어나는지 (issue #69). baseline이 없는 설치는 전부 0이라 출력하지 않는다.
+  const b = status.buckets || { autoUpdatable: [], localKept: [], conflicts: [], removed: [] };
+  if (b.autoUpdatable.length || b.localKept.length || b.conflicts.length || b.removed.length) {
+    lines.push("", "지금 업데이트하면:");
+    lines.push(`  업스트림 변경 — 자동 적용 가능   ${String(b.autoUpdatable.length).padStart(3)}`);
+    lines.push(`  내가 수정 · 업스트림 그대로      ${String(b.localKept.length).padStart(3)}   (유지)`);
+    lines.push(`  양쪽 변경 — 검토 필요            ${String(b.conflicts.length).padStart(3)}`);
+    lines.push(`  내가 삭제함 — 복원 안 함         ${String(b.removed.length).padStart(3)}`);
   }
   lines.push("");
   console.log(lines.join("\n"));

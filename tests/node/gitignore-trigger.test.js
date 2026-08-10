@@ -18,6 +18,16 @@ function baseContext(overrides = {}) {
   });
 }
 
+// issue #69 — baseline 3-way 도입 이후 "사용자만 수정"은 질문 없이 유지되므로(localOnly)
+// 충돌 결정(backup/template) 경로를 검증하려면 진짜 충돌을 만들어야 한다.
+// baseline의 rendered 해시를 어긋나게 해 "업스트림도 바뀐 것"으로 만든다.
+function forceUpstreamChange(target, filename) {
+  const bp = join(target, ".github/.wizard/baseline.json");
+  const bl = JSON.parse(readFileSync(bp, "utf8"));
+  bl.files[filename].rendered = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+  writeFileSync(bp, JSON.stringify(bl, null, 2));
+}
+
 test("runFull: 충돌 없는 최초 설치는 .gitignore를 전혀 만들지 않는다", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-full-gitignore-"));
   try {
@@ -42,6 +52,7 @@ test("runFull: 타입별 워크플로우 충돌을 'backup'으로 처리하면 .
     const wfPath = join(target, ".github/workflows/PROJECT-PYTHON-CI.yaml");
     assert.ok(existsSync(wfPath));
     writeFileSync(wfPath, readFileSync(wfPath, "utf8") + "\n# user edit\n");
+    forceUpstreamChange(target, "PROJECT-PYTHON-CI.yaml");
 
     const result = runFull(ctx, payloadRoot, target, {
       decisions: new Map([["PROJECT-PYTHON-CI.yaml", "backup"]]),
@@ -64,6 +75,7 @@ test("runFull: 타입별 워크플로우 충돌을 'template'으로 처리하면
     runFull(ctx, payloadRoot, target);
     const wfPath = join(target, ".github/workflows/PROJECT-PYTHON-CI.yaml");
     writeFileSync(wfPath, readFileSync(wfPath, "utf8") + "\n# user edit\n");
+    forceUpstreamChange(target, "PROJECT-PYTHON-CI.yaml");
 
     const result = runFull(ctx, payloadRoot, target, {
       decisions: new Map([["PROJECT-PYTHON-CI.yaml", "template"]]),
