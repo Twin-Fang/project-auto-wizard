@@ -301,7 +301,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `python3 -m unittest discover -s tests/py -p "test_issue_helper.py" -v`
-Expected: 모든 테스트 PASS (18개)
+Expected: 모든 테스트 PASS (20개)
 
 - [ ] **Step 5: 전체 Python 테스트 스위트 회귀 확인**
 
@@ -335,23 +335,33 @@ EOF
 - Produces:
   - `cmd_run() -> int` — 이벤트 1건 처리 (댓글 upsert + 옵션 브랜치 생성)
   - `main(argv=None) -> int` — argparse 진입점, `run` 서브커맨드만 지원
-  - 내부: `_headers(token)`, `_api_request(method, path, token, body=None)`, `list_comments(owner, repo, issue_number, token)`, `upsert_comment(owner, repo, issue_number, token, marker, body)`, `create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch, token)`
+  - 내부: `_headers(token, has_body)`, `_api_request(method, url, token, body=None)`, `list_comments(owner, repo, issue_number, token)`, `upsert_comment(owner, repo, issue_number, token, marker, body)`, `create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch, token)`
 
 - [ ] **Step 1: 실패하는 테스트 작성 (네트워크 없이 검증 가능한 가드 경로만)**
 
-`tests/py/test_issue_helper.py`에 추가:
+`tests/py/test_issue_helper.py` 상단의 임포트 블록(Task 1에서 작성한 `import sys` / `import unittest` / `from pathlib import Path`)을 아래로 교체한다(항목 추가, 기존 3개는 그대로 유지):
 
 ```python
 import json
 import os
 import subprocess
-import sys as _sys
+import sys
 import tempfile
+import unittest
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parents[2] / "payload" / "scripts"
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+import issue_helper  # noqa: E402
+
 SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "issue_helper.py"
+```
 
+그 아래, 기존 테스트 클래스들 뒤에 다음을 추가:
 
+```python
 def run_cli(event_payload, env_extra=None):
     with tempfile.TemporaryDirectory() as tmp:
         event_path = Path(tmp) / "event.json"
@@ -364,7 +374,7 @@ def run_cli(event_payload, env_extra=None):
         if env_extra:
             env.update(env_extra)
         return subprocess.run(
-            [_sys.executable, str(SCRIPT), "run"],
+            [sys.executable, str(SCRIPT), "run"],
             capture_output=True, text=True, env=env,
         )
 
@@ -373,7 +383,7 @@ class TestRunGuards(unittest.TestCase):
     def test_missing_event_path_exits_1(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_EVENT_PATH"}
         env["GITHUB_REPOSITORY"] = "o/r"
-        r = subprocess.run([_sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, env=env)
+        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, env=env)
         self.assertEqual(r.returncode, 1)
 
     def test_irrelevant_action_exits_0_without_token(self):
@@ -389,10 +399,12 @@ class TestRunGuards(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
     def test_opened_without_token_exits_1(self):
-        env = {k: v for k, v in os.environ.items() if k != "GITHUB_TOKEN"}
+        # env_extra는 델타만 넘긴다 — os.environ 전체를 스프레드하면 CI(GitHub Actions
+        # 러너)에서 실제 GITHUB_EVENT_PATH가 run_cli의 임시 이벤트 경로를 덮어써
+        # 러너 자신의 트리거 이벤트(action이 'opened'가 아님)를 읽게 되어 플레이키해진다.
         r = run_cli(
             {"action": "opened", "issue": {"number": 1, "title": "t", "html_url": "u"}},
-            env_extra={**env, "GITHUB_TOKEN": ""},
+            env_extra={"GITHUB_TOKEN": ""},
         )
         self.assertEqual(r.returncode, 1)
 
@@ -403,8 +415,6 @@ class TestRunGuards(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 1)
 ```
-
-이 클래스는 파일 상단의 `import unittest`를 재사용한다(Task 1에서 이미 임포트됨). `import json`/`os`/`subprocess`/`tempfile`도 파일 상단으로 옮겨 정리한다(아래 최종 임포트 블록 참고).
 
 - [ ] **Step 2: 테스트 실패 확인**
 
@@ -646,7 +656,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `python3 -m unittest discover -s tests/py -p "test_issue_helper.py" -v`
-Expected: 모든 테스트 PASS (23개 — Task 1의 18개 + Task 2의 5개)
+Expected: 모든 테스트 PASS (25개 — Task 1의 20개 + Task 2의 5개)
 
 - [ ] **Step 5: 수동 스모크 테스트 (네트워크 없이 guard 경로만)**
 
@@ -926,6 +936,8 @@ EOF
 - Modify: `src/ui/summary.js:89-91`
 - Modify: `tests/node/assets.test.js:61-72`
 - Modify: `tests/node/removal-plan.test.js:40-41`
+- Modify: `docs/DESIGN-SPEC.md:43`
+- Modify: `docs/license-report.md:32-38`
 
 **Interfaces:**
 - Consumes: 없음(기존 배열에 문자열 하나 추가하는 수정)
@@ -987,26 +999,61 @@ Expected: FAIL — `assets.test.js`는 `copied`가 여전히 3, `issue_helper.py
 ```
 (기존 `truncate_release_notes.py` 줄의 `└─`를 `├─`로 바꾸고, `issue_helper.py`를 마지막 `└─`로 추가.)
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [ ] **Step 4: 문서 동기화 (`docs/DESIGN-SPEC.md`, `docs/license-report.md`)**
+
+이 레포는 payload 스크립트가 추가될 때 이 두 문서를 함께 갱신하는 관례가 있다(직전 사례: 커밋 a7af411 "docs: 설계 문서와 라이선스 리포트에 truncate_release_notes.py 반영"). `docs/DESIGN-SPEC.md:43`을 수정:
+
+```diff
+-│   ├── scripts/                 # version_manager.py, changelog_manager.py, truncate_release_notes.py (전부 Python)
++│   ├── scripts/                 # version_manager.py, changelog_manager.py, truncate_release_notes.py, issue_helper.py (전부 Python)
+```
+
+`docs/license-report.md`의 27~38행(`## Python (payload/scripts/)` 섹션)을 수정. 먼저 실제 import를 확인:
+
+Run: `grep -rnE "^import |^from " payload/scripts/*.py`
+Expected 출력에 다음 줄이 추가됨(Task 2에서 작성한 임포트 블록과 일치해야 함):
+```
+issue_helper.py:       argparse, json, os, re, sys, unicodedata, urllib.error, urllib.request, datetime
+```
+
+grep 결과를 그대로 반영해 `docs/license-report.md:32-38`을 갱신:
+
+```diff
+ ```
+ $ grep -rnE "^import |^from " payload/scripts/*.py
+ changelog_manager.py: argparse, html, json, os, re, sys, traceback, urllib.error, urllib.request
++issue_helper.py:      argparse, json, os, re, sys, unicodedata, urllib.error, urllib.request, datetime
+ truncate_release_notes.py: argparse, sys
+ version_manager.py:   argparse, datetime, json, os, re, sys, pathlib
+ ```
+
+-`version_manager.py`/`changelog_manager.py`/`truncate_release_notes.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다.
++`version_manager.py`/`changelog_manager.py`/`truncate_release_notes.py`/`issue_helper.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다. `issue_helper.py`는 Chuseok22/github-issue-helper(동일 작성자, 라이선스 미설정 저장소)의 Python 재작성이며, 서드파티 런타임 의존성 없이 GitHub REST API를 `urllib.request`로 직접 호출합니다.
+```
+
+grep 실측 출력과 diff의 import 목록이 다르면(정렬 순서, 실제 사용 모듈 등) diff가 아니라 **실측 grep 결과를 그대로** 반영한다 — 이 문서의 목적은 실제 코드를 정확히 반영하는 것이지 예상치를 박아넣는 것이 아니다.
+
+- [ ] **Step 5: 테스트 통과 확인**
 
 Run: `node --test tests/node/assets.test.js tests/node/removal-plan.test.js`
 Expected: 전부 PASS
 
-- [ ] **Step 5: 전체 스위트 회귀 확인**
+- [ ] **Step 6: 전체 스위트 회귀 확인**
 
 Run: `npm test`
 Expected: 전부 PASS — 특히 `e2e-matrix.test.js`, `purge-plan.test.js`, `uninstall-*.test.js` 등 `version_manager.py`를 canary로 쓰는 기존 테스트들이 `issue_helper.py` 추가로 깨지지 않는지 확인(이들은 특정 파일명을 지정해 검사하므로 개수 무관하게 안전할 것으로 예상되나, 실행으로 확정)
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
-git add src/core/copy/simple.js src/core/removal-plan.js src/ui/summary.js tests/node/assets.test.js tests/node/removal-plan.test.js
+git add src/core/copy/simple.js src/core/removal-plan.js src/ui/summary.js tests/node/assets.test.js tests/node/removal-plan.test.js docs/DESIGN-SPEC.md docs/license-report.md
 git commit -m "$(cat <<'EOF'
 fix: 설치·제거·안내 파이프라인에 issue_helper.py 배선 (#68)
 
 payload/scripts/issue_helper.py가 사용자 레포 .github/scripts/에
 실제로 설치되도록 copyScripts()/removal-plan.js/summary.js의
-하드코딩 배열에 등록한다 (#51에서 확인된 동일 함정).
+하드코딩 배열에 등록한다 (#51에서 확인된 동일 함정). 설계 문서와
+라이선스 리포트도 함께 갱신한다.
 EOF
 )"
 ```
@@ -1029,7 +1076,7 @@ Expected: `test:node` + `test:py` 전부 PASS
 - [x] `uses: Chuseok22/github-issue-helper@v1` 제거 — Task 4에서 `.github/workflows/GITHUB-ISSUE-HELPER.yml` 삭제로 확인
 - [x] 로직이 레포 안에 존재, 워크플로우는 로컬 스크립트만 호출 — `payload/scripts/issue_helper.py` + `python3 .github/scripts/issue_helper.py run`
 - [x] 댓글 마커·제목에서 외부 브랜딩 제거 — `<!-- project-auto-wizard issue helper -->`, `## Issue Helper`
-- [x] 정규화 로직 단위 테스트 — Task 1의 18개 테스트(한글/이모지/`[태그]`/길이 제한/특수문자 전부 커버)
+- [x] 정규화 로직 단위 테스트 — Task 1의 20개 테스트(한글/이모지/`[태그]`/길이 제한/특수문자 전부 커버)
 - [x] 원저작자 동의/출처 표기 — `issue_helper.py` docstring에 명시(Task 1 Step 3)
 - [ ] 실제 이슈로 동작 확인 — **PR 머지 후 실제 GitHub 이슈로 수동 검증 필요** (아래 Step 3)
 
