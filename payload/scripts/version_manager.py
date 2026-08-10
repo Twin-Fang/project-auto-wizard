@@ -157,8 +157,11 @@ def get_project_types_csv():
     falling back to a singular key."""
     text = read_text()
 
-    # Inline array form: project_types: ["a", "b"]
-    m = re.search(r'^project_types:[ \t]*\[(.*?)\][ \t]*$', text, re.MULTILINE)
+    # Inline array form: project_types: ["a", "b"]  # trailing comment allowed
+    # The template always appends "# first entry is primary", so anchoring at
+    # end-of-line made this branch never match — every install silently fell
+    # through to the singular key instead (issue #62).
+    m = re.search(r'^project_types:[ \t]*\[(.*?)\][ \t]*(?:#.*)?$', text, re.MULTILINE)
     if m:
         inner = m.group(1)
         items = re.findall(r'"([^"]*)"|\'([^\']*)\'', inner)
@@ -172,7 +175,8 @@ def get_project_types_csv():
     m = re.search(r'^project_types:[ \t]*\n((?:[ \t]+-[ \t]*.*\n?)+)', text, re.MULTILINE)
     if m:
         block = m.group(1)
-        types = re.findall(r'-\s*["\']?([^"\'\n]+?)["\']?\s*$', block, re.MULTILINE)
+        # trailing comments are allowed on list items too
+        types = re.findall(r'-[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$', block, re.MULTILINE)
         return [t.strip() for t in types if t.strip()]
 
     return []
