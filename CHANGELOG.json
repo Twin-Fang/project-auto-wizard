@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-10T01:03:52Z",
-    "currentVersion": "0.1.32",
+    "lastUpdated": "2026-08-10T01:34:49Z",
+    "currentVersion": "0.1.33",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 6
+    "totalReleases": 7
   },
   "releases": [
+    {
+      "version": "0.1.33",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-10",
+      "pr_number": 67,
+      "raw_summary": "## [0.1.33]\n\n### 🐛 수정\n- 릴리스가 스킵될 때 버전-태그 드리프트를 감지해 실패시킴 (#61)",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "릴리스가 스킵될 때 버전-태그 드리프트를 감지해 실패시킴 (#61)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.1.32",
       "project_types": [

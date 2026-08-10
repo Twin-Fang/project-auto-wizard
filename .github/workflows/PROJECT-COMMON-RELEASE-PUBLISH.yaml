@@ -105,9 +105,40 @@ jobs:
           echo "proceed=$PROCEED" >> $GITHUB_OUTPUT
           if [ "$PROCEED" = "true" ]; then
             echo "release gate open (mode=$MODE, event=$EVENT)"
-          else
-            echo "not a release-confirm push in pr-flow mode — skipping (clean exit)"
+            exit 0
           fi
+
+          echo "not a release-confirm push in pr-flow mode — skipping"
+
+          # Drift guard (issue #61): skipping is normal, but a version.yml that
+          # has run ahead of the newest tag is not — it means the version was
+          # bumped without a release, so npm silently stays behind. Six versions
+          # (0.1.26~0.1.31) went missing this way with every workflow green.
+          FILE_VERSION=$(grep -m1 '^version:' version.yml | sed 's/version:[ \t]*"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/')
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          LATEST_VERSION="${LATEST_TAG#v}"
+
+          if [ -z "$FILE_VERSION" ] || [ -z "$LATEST_VERSION" ]; then
+            echo "drift guard skipped (no version.yml version or no tag yet)"
+            exit 0
+          fi
+
+          HIGHER=$(printf '%s\n%s\n' "$FILE_VERSION" "$LATEST_VERSION" | sort -V | tail -n 1)
+          if [ "$FILE_VERSION" != "$LATEST_VERSION" ] && [ "$HIGHER" = "$FILE_VERSION" ]; then
+            echo "::error::version.yml($FILE_VERSION) is ahead of the newest tag($LATEST_TAG) but no release was published — this version will never reach npm. Recover with: Actions → PROJECT-RELEASE-PUBLISH → Run workflow (workflow_dispatch bypasses this gate)."
+            {
+              echo "### ⚠️ 릴리스 누락 감지"
+              echo ""
+              echo "- version.yml: \`$FILE_VERSION\`"
+              echo "- 최신 태그: \`$LATEST_TAG\`"
+              echo ""
+              echo "릴리스 확정 없이 버전만 올라갔습니다. 이 버전은 npm에 배포되지 않습니다."
+              echo "복구: Actions → PROJECT-RELEASE-PUBLISH → Run workflow"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "drift guard ok (version.yml=$FILE_VERSION, latest tag=$LATEST_TAG)"
 
       - name: Read semver_auto option from version.yml
         id: semver_options
