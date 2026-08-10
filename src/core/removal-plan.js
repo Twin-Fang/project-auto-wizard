@@ -62,7 +62,7 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
     // (b) 관리 마커로 시작하는 것 — payload에서 이름이 바뀌거나 삭제된 파일도 인식 (issue #20 L12).
     for (const name of markedWorkflowNames(wfDir)) removedWf.add(name);
   }
-  for (const s of ["version_manager.py", "changelog_manager.py"]) {
+  for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
   return { workflows: [...removedWf], scripts: removedScripts };

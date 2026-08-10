@@ -87,7 +87,8 @@ export function printSummary(ctx) {
   err("");
   err("  🔧 .github/scripts/");
   err("     ├─ version_manager.py");
-  err("     └─ changelog_manager.py");
+  err("     ├─ changelog_manager.py");
+  err("     └─ truncate_release_notes.py");
   err("");
 
   // 프로젝트 타입별 안내
