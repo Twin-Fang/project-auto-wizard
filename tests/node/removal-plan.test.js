@@ -1,4 +1,4 @@
-// tests/node/revert-plan.test.js
+// tests/node/removal-plan.test.js
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -7,10 +7,11 @@ import { tmpdir } from "node:os";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
-import { planRevert, runRevert } from "../../src/commands/revert.js";
+import { planRemoval } from "../../src/core/removal-plan.js";
+import { runUninstall } from "../../src/commands/uninstall.js";
 
 function installFixture() {
-  const target = mkdtempSync(join(tmpdir(), "paw-revert-plan-"));
+  const target = mkdtempSync(join(tmpdir(), "paw-removal-plan-"));
   const ctx = createContext({
     mode: "full", force: true, types: ["basic"], version: "1.0.0", versionCode: 1,
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
@@ -21,10 +22,10 @@ function installFixture() {
   return target;
 }
 
-test("planRevert: lists files without deleting anything", () => {
+test("planRemoval: lists files without deleting anything", () => {
   const target = installFixture();
   try {
-    const plan = planRevert(resolvePayloadRoot(), target);
+    const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.length > 0);
     assert.ok(plan.scripts.includes("version_manager.py"));
     // 아무것도 지워지지 않았어야 함
@@ -39,12 +40,14 @@ test("planRevert: lists files without deleting anything", () => {
   }
 });
 
-test("planRevert output matches what runRevert actually removes", () => {
+test("planRemoval output matches what uninstall actually removes", () => {
   const target = installFixture();
   try {
-    const plan = planRevert(resolvePayloadRoot(), target);
-    const result = runRevert({}, resolvePayloadRoot(), target);
-    assert.deepStrictEqual(result, plan);
+    const plan = planRemoval(resolvePayloadRoot(), target);
+    const result = runUninstall({}, resolvePayloadRoot(), target,
+      { workflows: true, scripts: true, readme: false, gitignore: false, versionYml: false });
+    assert.deepStrictEqual(result.workflows, plan.workflows);
+    assert.deepStrictEqual(result.scripts, plan.scripts);
     for (const name of plan.workflows) {
       assert.ok(!existsSync(join(target, ".github/workflows", name)));
     }
@@ -53,7 +56,7 @@ test("planRevert output matches what runRevert actually removes", () => {
   }
 });
 
-test("planRevert: recognizes a marker-carrying workflow file even if its name no longer exists in the current payload (issue #20 L12)", () => {
+test("planRemoval: recognizes a marker-carrying workflow file even if its name no longer exists in the current payload (issue #20 L12)", () => {
   const target = installFixture();
   try {
     const wfDir = join(target, ".github/workflows");
@@ -62,28 +65,28 @@ test("planRevert: recognizes a marker-carrying workflow file even if its name no
     // 그래도 마커가 있으면 인식돼야 한다.
     writeFileSync(renamedPath, "# project-auto-wizard:managed-workflow\nname: old-name\n");
 
-    const plan = planRevert(resolvePayloadRoot(), target);
+    const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.includes("PROJECT-COMMON-RENAMED-IN-A-LATER-RELEASE.yaml"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("planRevert: a workflow file without the managed marker (user-authored) is never listed for removal", () => {
+test("planRemoval: a workflow file without the managed marker (user-authored) is never listed for removal", () => {
   const target = installFixture();
   try {
     const wfDir = join(target, ".github/workflows");
     writeFileSync(join(wfDir, "MY-OWN-CUSTOM-WORKFLOW.yaml"), "name: custom\non: push\n");
 
-    const plan = planRevert(resolvePayloadRoot(), target);
+    const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(!plan.workflows.includes("MY-OWN-CUSTOM-WORKFLOW.yaml"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("planRevert: recognizes .bak and .template.yaml variants created by a 'backup' decision", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-revert-plan-"));
+test("planRemoval: recognizes .bak and .template.yaml variants created by a 'backup' decision", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-removal-plan-"));
   try {
     const ctx = createContext({
       mode: "full", force: true, types: ["spring"], version: "1.0.0", versionCode: 1,
@@ -100,7 +103,7 @@ test("planRevert: recognizes .bak and .template.yaml variants created by a 'back
       decisions: new Map([["PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml", "backup"]]),
     });
 
-    const plan = planRevert(resolvePayloadRoot(), target);
+    const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml.bak"));
     assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
   } finally {
@@ -108,7 +111,7 @@ test("planRevert: recognizes .bak and .template.yaml variants created by a 'back
   }
 });
 
-test("planRevert: a pre-marker install whose filename still matches the current payload is still recognized (no regression for existing installs — issue #20 리뷰 반영)", () => {
+test("planRemoval: a pre-marker install whose filename still matches the current payload is still recognized (no regression for existing installs — issue #20 리뷰 반영)", () => {
   const target = installFixture();
   try {
     // 이 수정 이전(마커가 없던 시절)에 설치된 상태를 흉내낸다 — 첫 줄의 마커를 지운다.
@@ -118,7 +121,7 @@ test("planRevert: a pre-marker install whose filename still matches the current 
     const withoutMarker = readFileSync(p, "utf8").replace(/^# project-auto-wizard:managed-workflow\n/, "");
     writeFileSync(p, withoutMarker);
 
-    const plan = planRevert(resolvePayloadRoot(), target);
+    const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.includes(anyFile), "filename-matching fallback must still recognize marker-less existing installs");
   } finally {
     rmSync(target, { recursive: true, force: true });

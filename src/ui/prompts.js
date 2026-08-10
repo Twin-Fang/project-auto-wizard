@@ -12,10 +12,7 @@ export async function selectMode({ again = false } = {}) {
   return engine.select({
     message: again ? "다음으로 무엇을 할까요?" : "무엇을 설치할까요?",
     options: [
-      { value: "full", label: "전체 설치 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)" },
-      { value: "version", label: "버전 관리만 — 버전 자동 증가·동기화 시스템만 설치" },
-      { value: "workflows", label: "워크플로우만 — 빌드·배포 GitHub Actions만 설치" },
-      { value: "revert", label: "되돌리기 — 마법사가 설치한 워크플로우·스크립트 제거" },
+      { value: "full", label: "설치 / 업데이트 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)" },
       { value: "uninstall", label: "완전 삭제 — 마법사가 설치·수정한 모든 항목 제거(확인 후, README·gitignore·version.yml 포함)" },
       { value: "status", label: "설치 상태 확인 — 읽기 전용, 버전·타입·드리프트 확인" },
       { value: "doctor", label: "환경 진단 — 읽기 전용, gh CLI·권한·secret 설정 점검" },

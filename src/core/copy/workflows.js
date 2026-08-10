@@ -175,7 +175,7 @@ export function listWorkflowConflicts(context, payloadRoot, targetRoot = ".") {
 
 // 대화형 진입점 (async) — 충돌마다 onConflict(filename, type)를 await해 결정 Map을 만든 뒤
 // 동기 엔진에 위임한다. WHY 분리: copyWorkflows를 async로 바꾸면 await 없이 호출하는
-// 기존 호출부(runFull/runWorkflows)가 깨진다 — 시그니처 무변경 원칙.
+// 기존 호출부(runFull)가 깨진다 — 시그니처 무변경 원칙.
 // onConflict 반환값: 'template' | 'skip' | 'backup' (그 외/미지정 → 'skip').
 export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot = ".", { onConflict } = {}) {
   const decisions = new Map();

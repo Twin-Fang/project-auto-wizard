@@ -1,6 +1,6 @@
 // Task 20 게이트 — 11개 fixture에 실제 CLI(subprocess)를 돌려 설치 산출물을 검증한다.
 // 검증: 종료코드 0 / 타입별 워크플로우 배치 / py 스크립트 설치(배선 누락 검출) /
-//       version.yml branches·options 메타 / {{ 잔존 0 / trunk-based 단독 설치 / revert 제거.
+//       version.yml branches·options 메타 / {{ 잔존 0 / trunk-based 단독 설치 / uninstall 제거.
 import { test } from "node:test";
 import assert from "node:assert";
 import { execFileSync } from "node:child_process";
@@ -109,13 +109,13 @@ test("e2e trunk-based (--main-branch main --develop-branch main): RELEASE-PUBLIS
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 
-test("e2e revert: removes payload-originated files, keeps user data", () => {
+test("e2e uninstall: removes payload-originated files, keeps user data", () => {
   const t = installFixture("spring", ["--type", "spring"]);
   try {
-    // 사용자 자체 워크플로우 심기 — revert가 건드리면 안 된다
+    // 사용자 자체 워크플로우 심기 — uninstall이 건드리면 안 된다
     const userWf = join(t, ".github", "workflows", "my-custom.yaml");
     writeFileSync(userWf, "name: custom\n");
-    runCli(t, ["--mode", "revert", "--force"]);
+    runCli(t, ["--mode", "uninstall", "--force"]);
     const wfDir = join(t, ".github", "workflows");
     const left = existsSync(wfDir) ? readdirSync(wfDir).filter((f) => f.startsWith("PROJECT-")) : [];
     assert.deepStrictEqual(left, [], "payload workflows must be gone");
