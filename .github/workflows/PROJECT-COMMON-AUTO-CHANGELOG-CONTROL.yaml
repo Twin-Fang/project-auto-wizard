@@ -156,13 +156,11 @@ jobs:
         run: |
           # note: `grep | sed || echo default` never fires the default (the
           # pipeline exits with sed's 0) — default via ${var:-} instead
-          PROJECT_TYPE=$(grep "^project_type:" version.yml 2>/dev/null | sed 's/project_type: *"\([^"]*\)".*/\1/')
-          PROJECT_TYPE=${PROJECT_TYPE:-unknown}
           PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ')
-          PROJECT_TYPES=${PROJECT_TYPES:-$PROJECT_TYPE}
+          PROJECT_TYPES=${PROJECT_TYPES:-unknown}
 
           export VERSION="${{ steps.bump.outputs.new_version }}"
-          export PROJECT_TYPE PROJECT_TYPES
+          export PROJECT_TYPES
           export TODAY=$(date '+%Y-%m-%d')
           export PR_NUMBER="${{ github.event.pull_request.number }}"
           export TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%SZ')

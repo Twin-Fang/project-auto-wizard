@@ -114,21 +114,16 @@ jobs:
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new version: $NEW_VERSION"
 
-      - name: Read project type
+      - name: Read project types
         id: project_info
         if: steps.release_guard.outputs.skip != 'true'
         run: |
           if [ -f "version.yml" ]; then
-            PROJECT_TYPE=$(grep "^project_type:" version.yml | sed 's/project_type: *"\([^"]*\)".*/\1/' || echo "unknown")
-            PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ' || echo "")
-            if [ -z "$PROJECT_TYPES" ]; then
-              PROJECT_TYPES="$PROJECT_TYPE"
-            fi
-            echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
+            PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ')
+            PROJECT_TYPES=${PROJECT_TYPES:-unknown}
             echo "project_types=$PROJECT_TYPES" >> $GITHUB_OUTPUT
-            echo "project type: $PROJECT_TYPE (types: $PROJECT_TYPES)"
+            echo "project types: $PROJECT_TYPES"
           else
-            echo "project_type=unknown" >> $GITHUB_OUTPUT
             echo "project_types=unknown" >> $GITHUB_OUTPUT
             echo "version.yml not found"
           fi
