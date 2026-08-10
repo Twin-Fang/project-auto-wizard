@@ -483,3 +483,29 @@ test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개
 test("PROJECT-FLUTTER-IOS-TESTFLIGHT: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
   assertUploadArtifactStepsFailOnMissingFiles(flutterIosTestflightPath);
 });
+
+// ---------------------------------------------------------------
+// 도그푸딩 사본 — payload를 고치면 .github 사본도 함께 고쳐야 한다.
+// ---------------------------------------------------------------
+test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 호출이 없다", () => {
+  const selfHostedFiles = readdirSync(".github/workflows")
+    .filter((f) => /\.ya?ml$/.test(f))
+    .map((f) => join(".github/workflows", f));
+  for (const f of selfHostedFiles) {
+    const body = readFileSync(f, "utf8");
+    // 출처 표기 주석은 허용 — uses:로 실제 호출하는 것만 금지
+    assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"), `${f}: 외부 액션 호출이 남아있음`);
+  }
+});
+
+test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER는 {{MAIN_BRANCH}}가 main으로 치환되어 있다", () => {
+  const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
+  assert.ok(!text.includes("{{MAIN_BRANCH}}"), "플레이스홀더가 치환되지 않았습니다");
+  assert.match(text, /ISSUE_HELPER_BASE_BRANCH:\s*"main"/);
+});
+
+test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", () => {
+  const payloadSrc = readFileSync(join("payload", "scripts", "issue_helper.py"), "utf8");
+  const selfHostedSrc = readFileSync(join(".github", "scripts", "issue_helper.py"), "utf8");
+  assert.strictEqual(selfHostedSrc, payloadSrc);
+});
