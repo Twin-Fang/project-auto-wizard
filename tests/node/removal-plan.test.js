@@ -38,6 +38,7 @@ test("planRemoval: lists files without deleting anything", () => {
     const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.length > 0);
     assert.ok(plan.scripts.includes("version_manager.py"));
+    assert.ok(plan.scripts.includes("truncate_release_notes.py"));
     // 아무것도 지워지지 않았어야 함
     for (const name of plan.workflows) {
       assert.ok(existsSync(join(target, ".github/workflows", name)));

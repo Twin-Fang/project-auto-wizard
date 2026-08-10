@@ -31,10 +31,11 @@ $ npm exec --yes -- license-checker --production
 ```
 $ grep -rnE "^import |^from " payload/scripts/*.py
 changelog_manager.py: argparse, html, json, os, re, sys, traceback, urllib.error, urllib.request
+truncate_release_notes.py: argparse, sys
 version_manager.py:   argparse, datetime, json, os, re, sys, pathlib
 ```
 
-`version_manager.py`/`changelog_manager.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다.
+`version_manager.py`/`changelog_manager.py`/`truncate_release_notes.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다.
 
 ## 결론
 
