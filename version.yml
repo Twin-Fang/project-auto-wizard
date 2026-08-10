@@ -2,8 +2,10 @@
 # Version format: x.y.z (semantic versioning)
 # - patch: auto-incremented by the release workflows
 # - version_code: monotonically increasing build number, bumped alongside version
-# - major/minor: NOT bumped automatically — edit this file manually
-#   (e.g., 1.0.5 -> 1.1.0 or 2.0.0)
+# - major/minor: auto-bumped when metadata.template.options.semver_auto is true
+#   (default) — feat: commits bump minor, a `!` breaking marker on any commit
+#   type bumps major. Set semver_auto: false to always patch-bump instead
+#   (then edit major/minor manually, e.g., 1.0.5 -> 1.1.0 or 2.0.0).
 # ===
 # Supported project types: spring, flutter, next, react, react-native,
 #                          react-native-expo, node, python, basic
@@ -22,14 +24,14 @@
 # - basic: version.yml only
 # ===
 
-version: "0.1.26"
-version_code: 27  # app build number
+version: "0.1.31"
+version_code: 32  # app build number
 project_types: ["node"] # first entry is primary
 project_type: "node" # auto-mirror of project_types[0] — do not edit directly
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   node: "." # package.json
 metadata:
-  last_updated: "2026-08-07"
+  last_updated: "2026-08-08"
   last_updated_by: "Chuseok22"
   default_branch: "main"
   integration_date: "2026-07-09"
@@ -45,3 +47,4 @@ metadata:
     options:
       nexus: false
       secret_backup: false
+      semver_auto: true
