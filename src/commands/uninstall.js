@@ -1,10 +1,11 @@
-// uninstall 모드 — revert(payload 파일명 일치분)보다 넓게, README/.gitignore/version.yml까지 선택적으로 제거.
-// 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in. revert.js는 건드리지 않고 읽기 전용으로만 재사용한다.
+// uninstall 모드 — 마법사가 설치한 파일(planRemoval 판별분)에 더해 README/.gitignore/version.yml까지
+// 선택적으로 제거한다. 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in.
+// core/removal-plan.js는 읽기 전용으로만 재사용한다(아무것도 지우지 않는 순수 함수).
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
-import { planRevert } from "./revert.js";
+import { planRemoval } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
@@ -12,10 +13,10 @@ import { CANCEL } from "../ui/prompts.js";
 // selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
 export function planUninstall(payloadRoot, targetRoot, selection) {
-  const revertPlan = planRevert(payloadRoot, targetRoot);
+  const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
-    workflows: selection.workflows ? revertPlan.workflows : [],
-    scripts: selection.scripts ? revertPlan.scripts : [],
+    workflows: selection.workflows ? removalPlan.workflows : [],
+    scripts: selection.scripts ? removalPlan.scripts : [],
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
     gitignore: selection.gitignore ? hasAutoAddedEntries(targetRoot) : false,
     versionYml: selection.versionYml ? existsSync(join(targetRoot, PATHS.versionFile)) : false,
@@ -52,10 +53,10 @@ const ITEM_DEFS = [
 export const SAFE_ITEMS = ["workflows", "scripts"];
 
 function detectAvailableItems(payloadRoot, targetRoot) {
-  const revertPlan = planRevert(payloadRoot, targetRoot);
+  const removalPlan = planRemoval(payloadRoot, targetRoot);
   const presence = {
-    workflows: revertPlan.workflows.length > 0,
-    scripts: revertPlan.scripts.length > 0,
+    workflows: removalPlan.workflows.length > 0,
+    scripts: removalPlan.scripts.length > 0,
     readme: hasVersionSection(targetRoot),
     gitignore: hasAutoAddedEntries(targetRoot),
     versionYml: existsSync(join(targetRoot, PATHS.versionFile)),

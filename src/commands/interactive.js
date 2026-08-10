@@ -15,9 +15,6 @@ import { promptEnvPlan } from "../ui/env-plan.js";
 import { listWorkflowConflicts } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
 import { runFull } from "./full.js";
-import { runVersion } from "./version.js";
-import { runWorkflows } from "./workflows.js";
-import { runRevert } from "./revert.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
@@ -55,16 +52,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     break;
   }
 
-  // revert 모드 — 확인 질문(기본 아니오) 후 payload 유래 파일 제거. 감지·breaking 게이트 불필요.
-  if (mode === "revert") {
-    const ok = await io.askYesNo("마법사가 설치한 워크플로우·스크립트를 제거할까요? (version.yml·README는 보존)", false);
-    if (ok !== true) { io.cancelMessage?.("되돌리기를 취소했습니다."); return 0; }
-    const r = runRevert({}, payload, cwd);
-    io.note?.(`워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개 제거`, "되돌리기 완료");
-    io.outro?.("되돌리기를 마쳤습니다.");
-    return 0;
-  }
-
   // uninstall 모드 — 대화형 체크리스트로 항목별 opt-in 후 삭제. 감지·breaking 게이트 불필요.
   // runUninstallFlow는 취소/항목없음 시 null을 반환한다 — 그때는 완료 outro를 찍지 않는다.
   if (mode === "uninstall") {
@@ -89,7 +76,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
-  const showOptional = mode === "full" || mode === "workflows";
+  const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
   // 층2 — 감지 로그 (#446)
@@ -188,8 +175,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  // 경로 확정 (.sh resolve_project_paths L1362~1589 — full/version만. 저장값·후보 스캔·질문)
-  if (mode === "full" || mode === "version") {
+  // 경로 확정 (.sh resolve_project_paths L1362~1589 — 저장값·후보 스캔·질문)
+  if (mode === "full") {
     paths = await resolveProjectPaths({
       root: cwd, types, paths, existingPaths: existing?.paths ?? new Map(),
       force: false, tty: realTty, io: io.engineIo ?? {},
@@ -244,10 +231,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  let result = null;
-  if (mode === "full") result = runFull(ctx, payload, cwd, hooks);
-  else if (mode === "version") result = runVersion(ctx, payload, cwd);
-  else if (mode === "workflows") result = runWorkflows(ctx, payload, cwd, hooks);
+  const result = runFull(ctx, payload, cwd, hooks);
 
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({

@@ -5,7 +5,6 @@ import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runFull } from "../../src/commands/full.js";
-import { runVersion } from "../../src/commands/version.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 
@@ -88,15 +87,3 @@ test("runFull: 설치물에 .coderabbit.yaml이 생기지 않는다", () => {
   }
 });
 
-test("runVersion: 반복 설치해도 .gitignore를 절대 만들지 않는다", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-version-gitignore-"));
-  try {
-    const payloadRoot = resolvePayloadRoot();
-    const ctx = baseContext({ mode: "version" });
-    runVersion(ctx, payloadRoot, target);
-    runVersion(ctx, payloadRoot, target);
-    assert.ok(!existsSync(join(target, ".gitignore")));
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
