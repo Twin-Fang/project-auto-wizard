@@ -10,7 +10,6 @@
 
 version: "0.0.1"
 version_code: 1
-project_type: "react-native-expo"
 project_types:
   - "react-native-expo"
 metadata:

@@ -24,14 +24,12 @@ class TestGenerateMd(unittest.TestCase):
             "metadata": {
                 "lastUpdated": "2026-01-01T00:00:00Z",
                 "currentVersion": "1.2.3",
-                "projectType": "spring",
                 "projectTypes": ["spring"],
                 "totalReleases": 1,
             },
             "releases": [
                 {
                     "version": "1.2.3",
-                    "project_type": "spring",
                     "project_types": ["spring"],
                     "date": "2026-01-01",
                     "pr_number": 42,
@@ -77,7 +75,7 @@ class TestUpdateFromSummaryDegenerateJson(unittest.TestCase):
         Path(self.tmp, "CHANGELOG.json").write_text('{"versions": []}', encoding="utf-8")
         Path(self.tmp, "pr_body.md").write_text("### Features\n- add thing\n", encoding="utf-8")
         env = {**os.environ,
-               "VERSION": "0.1.3", "PROJECT_TYPE": "node", "PROJECT_TYPES": "node",
+               "VERSION": "0.1.3", "PROJECT_TYPES": "node",
                "TODAY": "2026-07-09", "PR_NUMBER": "1", "TIMESTAMP": "2026-07-09T00:00:00Z",
                "PYTHONIOENCODING": "utf-8"}
         r = subprocess.run([sys.executable, str(SCRIPT), "update-from-summary"],

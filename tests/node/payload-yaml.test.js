@@ -43,6 +43,96 @@ test("no .sh script references in payload", () => {
 });
 
 // ---------------------------------------------------------------
+// #40: heredoc이 블록 스칼라(`run: |`)를 이탈해 YAML 파싱이 깨지는
+// 회귀를 막는 가드. 완전한 YAML 파서가 아니라, "블록 스칼라 본문이
+// 컬럼 0 등으로 갑자기 얕아지는" 이번 버그 클래스에 특화된 검사다.
+// ---------------------------------------------------------------
+const COMMENT_LINE = /^\s*#/;
+const STRUCTURAL_RESUME = /^\s*(-\s|[A-Za-z_][\w./-]*:(\s|$))/;
+
+function findBlockScalarIndentationViolations(text) {
+  const lines = text.split("\n");
+  const violations = [];
+  let keyIndent = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") continue;
+    const indent = line.match(/^ */)[0].length;
+
+    if (keyIndent !== null) {
+      if (indent > keyIndent) continue;
+      const looksStructural =
+        COMMENT_LINE.test(line) || (indent > 0 && STRUCTURAL_RESUME.test(line));
+      if (!looksStructural) violations.push({ line: i + 1, content: line });
+      keyIndent = null;
+    }
+
+    if (keyIndent === null && !line.trim().startsWith("#")) {
+      const opener = line.match(/^(\s*)\S.*:\s*[|>][+-]?\s*$/);
+      if (opener) keyIndent = opener[1].length;
+    }
+  }
+
+  return violations;
+}
+
+test("findBlockScalarIndentationViolations는 컬럼 0으로 이탈한 heredoc 본문을 잡아낸다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: Broken step",
+    "        run: |",
+    '          echo "start"',
+    "storeFile=oops",
+    '          echo "end"',
+  ].join("\n");
+  const violations = findBlockScalarIndentationViolations(fixture);
+  assert.strictEqual(violations.length, 1);
+  assert.strictEqual(violations[0].line, 7);
+});
+
+test("findBlockScalarIndentationViolations는 올바르게 들여쓴 heredoc에 오탐하지 않는다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: OK step",
+    "        run: |",
+    "          cat > file.txt << EOF",
+    "          content line",
+    "          EOF",
+    "      - name: Next step",
+    "        run: echo done",
+  ].join("\n");
+  assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
+});
+
+test("findBlockScalarIndentationViolations는 같은 스텝의 형제 키(if: 등)로 끝나는 블록 스칼라에 오탐하지 않는다", () => {
+  const fixture = [
+    "jobs:",
+    "  test:",
+    "    steps:",
+    "      - name: Step with if after run",
+    "        run: |",
+    "          echo hi",
+    "        if: always()",
+  ].join("\n");
+  assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
+});
+
+test("payload 워크플로우 전체에 블록 스칼라 이탈(#40) 회귀가 없다", () => {
+  for (const f of files) {
+    const violations = findBlockScalarIndentationViolations(readFileSync(f, "utf8"));
+    if (violations.length > 0) {
+      const first = violations[0];
+      assert.fail(`${f}:${first.line} — 블록 스칼라 본문이 이탈했습니다: ${first.content}`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------
 // AUTO-CHANGELOG-CONTROL: summary engine chain rewrite (Task 8)
 // ---------------------------------------------------------------
 const changelogPath = join(
@@ -199,4 +289,150 @@ test("PROJECT-FLUTTER-CI의 Android 빌드는 --release를 사용하지 않는�
 test("PROJECT-FLUTTER-CI의 Android 빌드는 --debug를 사용한다", () => {
   const body = readFileSync(flutterCiPath, "utf8");
   assert.ok(body.includes("flutter build apk --debug"));
+});
+
+// ---------------------------------------------------------------
+// #39: build-ios 잡에 iOS 플랫폼 SDK 설치 스텝이 없어 "Platform Not
+// Installed"로 빌드 실패 — Select Xcode version 직후 설치 스텝 필요.
+// ---------------------------------------------------------------
+test("FLUTTER-CI의 build-ios 잡은 Select Xcode version 직후 iOS 플랫폼을 설치한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  const selectXcodeIdx = body.indexOf("name: Select Xcode version");
+  const installPlatformIdx = body.indexOf("name: Install iOS device platform");
+  assert.ok(selectXcodeIdx > -1, "Select Xcode version 스텝을 찾지 못했습니다");
+  assert.ok(installPlatformIdx > -1, "Install iOS device platform 스텝을 찾지 못했습니다");
+  assert.ok(
+    installPlatformIdx > selectXcodeIdx,
+    "Install iOS device platform 스텝이 Select Xcode version 스텝보다 먼저 나오면 안 됩니다",
+  );
+});
+
+test("FLUTTER-CI의 iOS 플랫폼 설치 스텝은 xcodebuild -downloadPlatform iOS를 실행한다", () => {
+  const body = readFileSync(flutterCiPath, "utf8");
+  assert.ok(body.includes("xcodebuild -downloadPlatform iOS"));
+});
+
+// ---------------------------------------------------------------
+// #42: build_runner를 쓰는 프로젝트(freezed/riverpod_generator/drift/
+// json_serializable)가 CI에서 생성 파일(*.g.dart/*.freezed.dart) 부재로
+// 실패하지 않도록, flutter pub get 직후 조건부 코드 생성이 있어야 한다.
+// ---------------------------------------------------------------
+function assertBuildRunnerGuardFollowsEveryPubGet(path) {
+  const body = readFileSync(path, "utf8");
+  const pattern = /flutter pub get\n( *)if grep -q "build_runner" pubspec\.yaml; then\n *dart run build_runner build --delete-conflicting-outputs\n *fi/g;
+  const matches = body.match(pattern) || [];
+  const pubGetCount = (body.match(/flutter pub get/g) || []).length;
+  assert.strictEqual(
+    matches.length,
+    pubGetCount,
+    `${path}: flutter pub get가 ${pubGetCount}곳인데 build_runner 조건부 코드 생성 가드는 ${matches.length}곳뿐입니다`
+  );
+  assert.ok(pubGetCount > 0, `${path}: flutter pub get이 존재해야 합니다`);
+}
+
+const flutterFirebaseCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-FIREBASE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterFirebaseCicdPath);
+});
+
+const flutterPlaystoreCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterPlaystoreCicdPath);
+});
+
+const flutterSelfhostedCicdPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterSelfhostedCicdPath);
+});
+
+const flutterTestApkPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"
+);
+
+test("PROJECT-FLUTTER-ANDROID-TEST-APK: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterTestApkPath);
+});
+
+test("PROJECT-FLUTTER-CI: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterCiPath);
+});
+
+const flutterIosTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestflightPath);
+});
+
+const flutterIosTestTestflightPath = join(
+  "payload/workflows/flutter",
+  "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"
+);
+
+test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+  assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestTestflightPath);
+});
+
+// ---------------------------------------------------------------
+// #50: FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
+// 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
+// 비어 배포 잡이 실패한다. FLUTTER_PROJECT_DIR로 개명하고, 경로가
+// 비었을 때 즉시 실패하도록 모든 upload-artifact 스텝에
+// if-no-files-found: error를 강제한다.
+// ---------------------------------------------------------------
+function assertFlutterRootRenamedToProjectDir(path) {
+  const body = readFileSync(path, "utf8");
+  assert.ok(
+    !body.includes("FLUTTER_ROOT"),
+    `${path}: FLUTTER_ROOT가 남아있으면 subosito/flutter-action의 SDK 경로 export와 충돌합니다`
+  );
+  assert.ok(
+    /^\s*FLUTTER_PROJECT_DIR:\s*"\."/m.test(body),
+    `${path}: FLUTTER_PROJECT_DIR env 정의를 찾지 못했습니다`
+  );
+}
+
+function assertUploadArtifactStepsFailOnMissingFiles(path) {
+  const body = readFileSync(path, "utf8");
+  const steps = body.split(/\n(?=      - name: )/);
+  const uploadSteps = steps.filter((s) => s.includes("uses: actions/upload-artifact"));
+  assert.ok(uploadSteps.length > 0, `${path}: upload-artifact 스텝을 찾지 못했습니다`);
+  for (const step of uploadSteps) {
+    const stepName = (step.match(/^ {6}- name: (.+)$/m) || [, "(이름 없음)"])[1];
+    assert.ok(
+      step.includes("if-no-files-found: error"),
+      `${path}: '${stepName}' 스텝에 if-no-files-found: error가 없습니다`
+    );
+  }
+}
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+  assertFlutterRootRenamedToProjectDir(flutterPlaystoreCicdPath);
+});
+
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+  assertUploadArtifactStepsFailOnMissingFiles(flutterPlaystoreCicdPath);
+});
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+  assertFlutterRootRenamedToProjectDir(flutterIosTestflightPath);
+});
+
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+  assertUploadArtifactStepsFailOnMissingFiles(flutterIosTestflightPath);
 });

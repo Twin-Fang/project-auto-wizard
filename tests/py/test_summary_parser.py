@@ -107,7 +107,6 @@ class TestUpdateFromSummaryEndToEnd(unittest.TestCase):
         env = {
             **os.environ,
             "VERSION": "0.2.0",
-            "PROJECT_TYPE": "node",
             "PROJECT_TYPES": "node",
             "TODAY": "2026-08-03",
             "PR_NUMBER": "14",

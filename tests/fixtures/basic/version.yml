@@ -10,7 +10,6 @@
 
 version: "0.1.0"
 version_code: 1
-project_type: "node"
 project_types:
   - "node"
 metadata:

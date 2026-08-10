@@ -10,7 +10,7 @@
 # Supported project types: spring, flutter, next, react, react-native,
 #                          react-native-expo, node, python, basic
 # Multi-type projects: list every type in the project_types array
-#   -> project_type (singular) always mirrors project_types[0] — do not edit it directly
+#   -> the first entry is the primary type (project_types is the single source of truth)
 # Monorepo paths: project_paths maps each type to its subdir relative to the repo root
 #   (e.g., flutter: "app", react: "client"). Omitted -> repo root.
 #
@@ -27,7 +27,6 @@
 version: "{{VERSION}}"
 version_code: {{VERSION_CODE}} # app build number
 project_types: {{PROJECT_TYPES}} # first entry is primary
-project_type: "{{PROJECT_TYPE}}" # auto-mirror of project_types[0] — do not edit directly
 {{PROJECT_PATHS}}
 metadata:
   last_updated: "{{NOW}}"
