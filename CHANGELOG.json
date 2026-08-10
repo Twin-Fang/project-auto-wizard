@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-10T01:34:49Z",
-    "currentVersion": "0.1.33",
+    "lastUpdated": "2026-08-10T06:28:54Z",
+    "currentVersion": "0.1.34",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 7
+    "totalReleases": 8
   },
   "releases": [
+    {
+      "version": "0.1.34",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-10",
+      "pr_number": 72,
+      "raw_summary": "## [0.1.34]\n\n### ♻️ 리팩토링\n- 부분 설치·되돌리기 모드 제거 — full/uninstall/status/doctor로 정리 (#70)",
+      "parsed_changes": {
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "부분 설치·되돌리기 모드 제거 — full/uninstall/status/doctor로 정리 (#70)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.1.33",
       "project_types": [
