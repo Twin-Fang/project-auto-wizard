@@ -722,9 +722,11 @@ test("PROJECT-COMMON-ISSUE-HELPER exists in payload", () => {
   assert.ok(files.includes(issueHelperPath), `${issueHelperPath} missing`);
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER는 외부 액션을 참조하지 않는다", () => {
+test("PROJECT-COMMON-ISSUE-HELPER는 외부 액션을 호출하지 않는다", () => {
   const body = readFileSync(issueHelperPath, "utf8");
-  assert.ok(!body.includes("Chuseok22/github-issue-helper"));
+  // 출처 표기 주석(Chuseok22/github-issue-helper 언급)은 남아도 된다 — 여기서 금지하는 것은
+  // 그 액션을 "호출"(uses:)하는 것이지, 출처를 "언급"하는 것이 아니다.
+  assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"));
   assert.ok(body.includes("python3 .github/scripts/issue_helper.py run"));
 });
 
@@ -865,13 +867,14 @@ EOF
 // ---------------------------------------------------------------
 // 도그푸딩 사본 — payload를 고치면 .github 사본도 함께 고쳐야 한다.
 // ---------------------------------------------------------------
-test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 참조가 없다", () => {
+test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 호출이 없다", () => {
   const selfHostedFiles = readdirSync(".github/workflows")
     .filter((f) => /\.ya?ml$/.test(f))
     .map((f) => join(".github/workflows", f));
   for (const f of selfHostedFiles) {
     const body = readFileSync(f, "utf8");
-    assert.ok(!body.includes("Chuseok22/github-issue-helper"), `${f}: 외부 액션 참조가 남아있음`);
+    // 출처 표기 주석은 허용 — uses:로 실제 호출하는 것만 금지
+    assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"), `${f}: 외부 액션 호출이 남아있음`);
   }
 });
 
