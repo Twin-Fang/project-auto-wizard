@@ -24,12 +24,13 @@ test("readTemplateVersion returns the package.json version", () => {
   assert.strictEqual(readTemplateVersion(), pkg.version);
 });
 
-test("listCommonWorkflows returns the 5 common workflows incl. RELEASE-PUBLISH", () => {
+test("listCommonWorkflows returns the 6 common workflows incl. RELEASE-PUBLISH and ISSUE-HELPER", () => {
   const names = listCommonWorkflows();
-  assert.strictEqual(names.length, 5, `expected 5, got ${names.length}: ${names}`);
+  assert.strictEqual(names.length, 6, `expected 6, got ${names.length}: ${names}`);
   for (const wf of [
     "PROJECT-COMMON-AI-PR-SUMMARY.yaml",
     "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
+    "PROJECT-COMMON-ISSUE-HELPER.yaml",
     "PROJECT-COMMON-README-VERSION-UPDATE.yaml",
     "PROJECT-COMMON-RELEASE-PUBLISH.yaml",
     "PROJECT-COMMON-VERSION-CONTROL.yaml",
