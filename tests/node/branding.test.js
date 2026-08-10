@@ -42,7 +42,8 @@ test("buildVersionYml renders the payload template with branches metadata", () =
   assert.ok(out.includes('version: "1.2.3"'));
   assert.ok(out.includes("version_code: 7"));
   assert.ok(out.includes('project_types: ["spring", "react"]'));
-  assert.ok(out.includes('project_type: "spring"'));
+  // 레거시 단수 키는 더 이상 렌더되지 않는다 (issue #62)
+  assert.ok(!/^project_type:/m.test(out), `legacy singular project_type must not be rendered:\n${out}`);
   assert.ok(out.includes('spring: "api"'));
   assert.ok(out.includes('main: "main"'));
   assert.ok(out.includes('develop: "develop"'));

@@ -5,6 +5,9 @@ import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
 // version.yml.template이 아는 최상위 키 — 이 밖의 최상위 키는 사용자가 직접 추가한 것으로 간주한다.
+// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다 (issue #62):
+// 빼면 기존 파일의 단수 줄이 "사용자가 추가한 필드"로 오인돼 재생성 때 되살아난다. 아는 키로
+// 둬야 재통합 시 흡수되어 사라진다.
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "version", "version_code", "project_types", "project_type", "project_paths", "metadata", "deploy",
 ]);
@@ -147,7 +150,7 @@ export function parseTemplateBranches(content) {
 }
 
 // version.yml 전체 생성 — payload/version.yml.template 렌더링.
-// opts: { templateText, version, types:[], primaryType?, paths:Map, pathMarkers?:Map,
+// opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
 //         extraTopLevel?:string[] }  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존 (issue #20 M8)
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
@@ -156,13 +159,12 @@ export function parseTemplateBranches(content) {
 //   pathMarkers = Map<type, markerFilename> (project_paths 주석용)
 //   templateOptions = { templateVersion, includeNexus, includeSecretBackup, optionsDate }
 export function buildVersionYml({
-  templateText, version, types = [], primaryType, paths = new Map(), pathMarkers = new Map(),
+  templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
   templateOptions = null, deployValues = new Map(), extraTopLevel = [],
 }) {
   if (!templateText) throw new Error("version.yml.template 원문이 필요합니다 (payload/version.yml.template 누락?)");
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
-  const primary = primaryType || types[0] || "basic";
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
@@ -197,7 +199,7 @@ export function buildVersionYml({
 
   const scalars = {
     VERSION: version, VERSION_CODE: String(versionCode),
-    PROJECT_TYPES: typesJson, PROJECT_TYPE: primary,
+    PROJECT_TYPES: typesJson,
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,

@@ -1,15 +1,57 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-06T08:11:23Z",
-    "currentVersion": "0.1.25",
+    "lastUpdated": "2026-08-10T01:03:52Z",
+    "currentVersion": "0.1.32",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 4
+    "totalReleases": 6
   },
   "releases": [
+    {
+      "version": "0.1.32",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-10",
+      "pr_number": 64,
+      "raw_summary": "## [0.1.32]\n\n### 🐛 수정\n- project_types 인라인 주석 때문에 파싱이 항상 실패하던 문제 수정 (#62)\n\n### ♻️ 리팩토링\n- version.yml 레거시 단수 키 project_type 제거 (#62)\n\n### 🔧 변경사항\n- main 최신 릴리스(v0.1.31) 내용을 develop에 동기화",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "project_types 인라인 주석 때문에 파싱이 항상 실패하던 문제 수정 (#62)"
+          ]
+        },
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "version.yml 레거시 단수 키 project_type 제거 (#62)"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "main 최신 릴리스(v0.1.31) 내용을 develop에 동기화"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
+    {
+      "version": "0.1.26",
+      "project_type": "node",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-07",
+      "pr_number": 55,
+      "raw_summary": "## [0.1.26]",
+      "parsed_changes": {},
+      "parse_method": "markdown_failed"
+    },
     {
       "version": "0.1.25",
       "project_type": "node",

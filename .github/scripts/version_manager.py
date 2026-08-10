@@ -146,21 +146,22 @@ def get_current_version():
     return read_scalar_key("version", "0.0.0")
 
 
-def get_project_type():
-    return read_scalar_key("project_type", "basic")
-
-
 def get_project_types_csv():
     """Return project_types as a list. Supports both:
       project_types: ["a", "b"]
       project_types:
         - "a"
         - "b"
-    Returns [] if key absent (legacy single-type mode)."""
+    Returns [] if the key is absent — project_types is the single source of
+    truth (issue #62), so callers must treat [] as a hard error rather than
+    falling back to a singular key."""
     text = read_text()
 
-    # Inline array form: project_types: ["a", "b"]
-    m = re.search(r'^project_types:[ \t]*\[(.*?)\][ \t]*$', text, re.MULTILINE)
+    # Inline array form: project_types: ["a", "b"]  # trailing comment allowed
+    # The template always appends "# first entry is primary", so anchoring at
+    # end-of-line made this branch never match — every install silently fell
+    # through to the singular key instead (issue #62).
+    m = re.search(r'^project_types:[ \t]*\[(.*?)\][ \t]*(?:#.*)?$', text, re.MULTILINE)
     if m:
         inner = m.group(1)
         items = re.findall(r'"([^"]*)"|\'([^\']*)\'', inner)
@@ -174,7 +175,8 @@ def get_project_types_csv():
     m = re.search(r'^project_types:[ \t]*\n((?:[ \t]+-[ \t]*.*\n?)+)', text, re.MULTILINE)
     if m:
         block = m.group(1)
-        types = re.findall(r'-\s*["\']?([^"\'\n]+?)["\']?\s*$', block, re.MULTILINE)
+        # trailing comments are allowed on list items too
+        types = re.findall(r'-[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$', block, re.MULTILINE)
         return [t.strip() for t in types if t.strip()]
 
     return []
@@ -430,7 +432,9 @@ def sync_for_type(project_type, new_version, version_code_getter):
 def sync_all_project_files(new_version):
     types = get_project_types_csv()
     if not types:
-        types = [get_project_type()]
+        # No silent fallback: an unreadable project_types used to degrade to
+        # "basic" and skip every sync without a word (issue #62).
+        raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
     for t in types:
         sync_for_type(t, new_version, get_version_code)
 
@@ -510,7 +514,10 @@ def get_project_file_version(project_type):
 
 def sync_versions():
     yml_version = get_current_version()
-    primary_type = get_project_type()
+    types = get_project_types_csv()
+    if not types:
+        raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync versions")
+    primary_type = types[0]
     project_version = get_project_file_version(primary_type)
 
     log("Version sync check")

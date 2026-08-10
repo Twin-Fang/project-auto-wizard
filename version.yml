@@ -2,13 +2,15 @@
 # Version format: x.y.z (semantic versioning)
 # - patch: auto-incremented by the release workflows
 # - version_code: monotonically increasing build number, bumped alongside version
-# - major/minor: NOT bumped automatically — edit this file manually
-#   (e.g., 1.0.5 -> 1.1.0 or 2.0.0)
+# - major/minor: auto-bumped when metadata.template.options.semver_auto is true
+#   (default) — feat: commits bump minor, a `!` breaking marker on any commit
+#   type bumps major. Set semver_auto: false to always patch-bump instead
+#   (then edit major/minor manually, e.g., 1.0.5 -> 1.1.0 or 2.0.0).
 # ===
 # Supported project types: spring, flutter, next, react, react-native,
 #                          react-native-expo, node, python, basic
 # Multi-type projects: list every type in the project_types array
-#   -> project_type (singular) always mirrors project_types[0] — do not edit it directly
+#   -> the first entry is the primary type (project_types is the single source of truth)
 # Monorepo paths: project_paths maps each type to its subdir relative to the repo root
 #   (e.g., flutter: "app", react: "client"). Omitted -> repo root.
 #
@@ -22,15 +24,14 @@
 # - basic: version.yml only
 # ===
 
-version: "0.1.31"
-version_code: 32  # app build number
+version: "0.1.32"
+version_code: 33  # app build number
 project_types: ["node"] # first entry is primary
-project_type: "node" # auto-mirror of project_types[0] — do not edit directly
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   node: "." # package.json
 metadata:
-  last_updated: "2026-08-08"
-  last_updated_by: "Chuseok22"
+  last_updated: "2026-08-10"
+  last_updated_by: "Cassiiopeia"
   default_branch: "main"
   integration_date: "2026-07-09"
   template:
@@ -45,3 +46,4 @@ metadata:
     options:
       nexus: false
       secret_backup: false
+      semver_auto: true

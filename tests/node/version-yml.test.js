@@ -28,6 +28,23 @@ test("parseExtraTopLevel: captures an unknown top-level key containing a hyphen 
   assert.deepStrictEqual(parseExtraTopLevel(content), ["deploy-notes: keep this"]);
 });
 
+// issue #62 — 레거시 단수 키는 렌더되지 않지만 KNOWN_TOP_LEVEL_KEYS에는 남아 있어야 한다.
+// 빼면 기존 파일의 단수 줄이 "사용자 필드"로 오인돼 재생성 때 되살아난다.
+test("parseExtraTopLevel: the legacy singular project_type is absorbed, not preserved (issue #62)", () => {
+  const content = ['version: "1.0.0"', 'project_types: ["node"]', 'project_type: "node"'].join("\n");
+  assert.deepStrictEqual(parseExtraTopLevel(content), []);
+});
+
+test("buildVersionYml: never renders the legacy singular project_type (issue #62)", () => {
+  const out = buildVersionYml({
+    templateText: readVersionYmlTemplate(PAYLOAD),
+    version: "1.0.0", versionCode: 1, types: ["spring", "react"],
+    branch: "main", now: "2026-08-10 00:00:00", today: "2026-08-10",
+  });
+  assert.ok(out.includes('project_types: ["spring", "react"]'));
+  assert.ok(!/^project_type:/m.test(out), `legacy singular key leaked into:\n${out}`);
+});
+
 test("parseExtraTopLevel: known top-level keys (version/project_paths/metadata/deploy) are never captured", () => {
   const content = [
     'version: "1.0.0"',

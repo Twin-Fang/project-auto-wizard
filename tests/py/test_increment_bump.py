@@ -38,7 +38,9 @@ class TestCmdIncrementBumpFlag(unittest.TestCase):
         import os
         os.chdir(self.tmp)
         self.addCleanup(os.chdir, self.cwd)
-        Path("version.yml").write_text('version: "1.0.0"\nversion_code: 1\n', encoding="utf-8")
+        # project_types는 필수 키다 (issue #62) — 없으면 sync가 명시적으로 실패한다
+        Path("version.yml").write_text(
+            'version: "1.0.0"\nversion_code: 1\nproject_types: ["basic"]\n', encoding="utf-8")
 
     def _run(self, extra_args=None):
         out = io.StringIO()

@@ -97,6 +97,37 @@ class TestCore(unittest.TestCase):
         self.assertIn(b'version: "2.3.4"', data)
 
 
+class TestProjectTypesParsing(unittest.TestCase):
+    """issue #62 — 템플릿이 붙이는 인라인 주석 때문에 project_types 파싱이 늘 실패했고,
+    단수 키 폴백이 그 사실을 가려주고 있었다. 폴백이 사라진 지금은 회귀가 곧 배포 실패다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.cwd = Path.cwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, self.cwd)
+
+    def _write(self, body):
+        Path("version.yml").write_text(body, encoding="utf-8")
+
+    def test_inline_array_with_trailing_comment(self):
+        self._write('version: "1.0.0"\nproject_types: ["node"] # first entry is primary\n')
+        self.assertEqual(version_manager.get_project_types_csv(), ["node"])
+
+    def test_inline_array_without_comment(self):
+        self._write('version: "1.0.0"\nproject_types: ["flutter", "spring"]\n')
+        self.assertEqual(version_manager.get_project_types_csv(), ["flutter", "spring"])
+
+    def test_block_list_with_trailing_comment(self):
+        self._write('version: "1.0.0"\nproject_types:\n  - "flutter" # app\n  - "spring"\n')
+        self.assertEqual(version_manager.get_project_types_csv(), ["flutter", "spring"])
+
+    def test_missing_key_returns_empty(self):
+        self._write('version: "1.0.0"\n')
+        self.assertEqual(version_manager.get_project_types_csv(), [])
+
+
 class TestSetVersionCodeRegressionGuard(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
