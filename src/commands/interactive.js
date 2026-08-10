@@ -12,7 +12,7 @@ import { resolveProjectPaths } from "../core/paths-resolve.js";
 import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "../core/branches.js";
 import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
-import { listWorkflowConflicts } from "../core/copy/workflows.js";
+import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
 import { runFull } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
@@ -206,17 +206,37 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   });
   ctx.templateVersion = templateVersion;
 
-  // 기존 워크플로우 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용 (.sh L3440~3508 UX 등가)
+  // 사용자가 답해야 하는 것만 묻는다 (issue #69). baseline 3-way가 자동으로 안전한 경우를
+  // 걸러내므로, 여기 오는 것은 (a) 양쪽이 다 바뀐 진짜 충돌과 (b) 사용자가 지운 파일뿐이다.
   let hooks = {};
   if (showOptional && io.engineIo?.select) {
-    const conflicts = listWorkflowConflicts(ctx, payload, cwd);
+    const { conflicts, removed } = surveyWorkflows(ctx, payload, cwd);
+
+    // (b) 지운 파일 — 조용히 되살리지 않는다. 되살리는 쪽이 기본이 아니라는 점이 핵심이다.
+    const restoreRemoved = new Set();
+    if (removed.length) {
+      io.note?.(removed.map((r) => `  - ${r.filename}`).join("\n"),
+        `이전 설치에는 있었지만 지금 없는 워크플로우 (${removed.length}개)`);
+      for (const { filename } of removed) {
+        const sel = await io.engineIo.select({
+          message: `${filename} — 직접 지우신 것으로 보입니다. 다시 추가할까요?`,
+          options: [
+            { value: "keep", label: "추가하지 않음 — 지운 상태 유지 (기본)" },
+            { value: "restore", label: "다시 추가 — 최신 버전으로 설치" },
+          ],
+        });
+        if (!isCancel(sel) && sel === "restore") restoreRemoved.add(filename); // ESC = 유지
+      }
+    }
+
+    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용 (.sh L3440~3508 UX 등가)
+    const decisions = new Map();
     if (conflicts.length) {
       const perType = new Map();
-      const decisions = new Map();
       for (const { filename, type } of conflicts) {
         if (!perType.has(type)) {
           const sel = await io.engineIo.select({
-            message: `기존 워크플로우와 내용이 다른 파일이 있습니다 (${type}) — 어떻게 할까요?`,
+            message: `내 수정과 업스트림 변경이 겹칩니다 (${type}) — 어떻게 할까요?`,
             options: [
               { value: "skip", label: "건너뛰기 — 기존 파일 유지 (기본)" },
               { value: "backup", label: ".bak 백업 후 새 버전으로 교체" },
@@ -227,8 +247,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
         }
         decisions.set(filename, perType.get(type));
       }
-      hooks = { decisions };
     }
+    hooks = { decisions, restoreRemoved };
   }
 
   const result = runFull(ctx, payload, cwd, hooks);

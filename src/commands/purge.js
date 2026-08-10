@@ -18,6 +18,7 @@ export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
     workflows: keepFlags.workflows ? [] : removalPlan.workflows,
+    baseline: keepFlags.workflows ? [] : removalPlan.baseline,
     scripts: keepFlags.scripts ? [] : removalPlan.scripts,
     versionYml: !keepFlags.versionYml && existsSync(join(targetRoot, PATHS.versionFile)),
     readmeSection: !keepFlags.readme && hasVersionSection(targetRoot),
@@ -55,6 +56,7 @@ export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) remove(join(wfDir, name));
   for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
+  for (const p of plan.baseline || []) remove(join(targetRoot, p));
   if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
   for (const f of plan.changelog) remove(join(targetRoot, f));

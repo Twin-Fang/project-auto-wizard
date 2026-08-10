@@ -10,9 +10,10 @@ import { buildVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { markerForType } from "../core/detect.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
-import { copyWorkflows } from "../core/copy/workflows.js";
+import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
+import { readBaseline, writeBaseline } from "../core/baseline.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
 //            force, repoName, resolvers, now, today }
@@ -55,6 +56,20 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다 — issue #7.
   const gitignoreUpdated = wfCounters.backupAdded > 0 || wfCounters.templateAdded > 0;
   if (gitignoreUpdated) ensureGitignore(targetRoot);
+
+  // 6. baseline 기록 (issue #69) — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
+  //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
+  //    아니라 여기서 기록한다.
+  //    기존 baseline은 병합 대상 — 이번에 건드리지 않은 파일의 기준점을 잃지 않는다.
+  writeBaseline(targetRoot, {
+    templateVersion,
+    installedAt: now || today || "",
+    entries: computeBaselineEntries(
+      wfCounters.baselineTargets || new Map(),
+      join(targetRoot, PATHS.workflowsDir),
+      makeSrcText(context.branches || null)),
+    previous: readBaseline(targetRoot),
+  });
 
   return { workflows: wfCounters, gitignoreUpdated };
 }

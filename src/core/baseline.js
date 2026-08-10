@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { writeText } from "./fsutil.js";
 
+export const BASELINE_DIR = ".github/.wizard";
 export const BASELINE_PATH = ".github/.wizard/baseline.json";
 
 export function sha256(text) {
