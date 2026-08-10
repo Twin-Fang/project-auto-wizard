@@ -16,6 +16,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { PATHS, PAYLOAD } from "./paths.js";
+import { BASELINE_DIR, BASELINE_PATH } from "./baseline.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
@@ -65,5 +66,8 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
   for (const s of ["version_manager.py", "changelog_manager.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
-  return { workflows: [...removedWf], scripts: removedScripts };
+  // baseline은 마법사가 만든 내부 상태 파일이다 — 설치물을 지우면 함께 사라져야 한다.
+  // 남겨두면 다음 설치가 "예전에 깔았다가 사용자가 지운 파일"로 오인해 전부 removed로 분류한다.
+  const baseline = existsSync(join(targetRoot, BASELINE_PATH)) ? [BASELINE_DIR] : [];
+  return { workflows: [...removedWf], scripts: removedScripts, baseline };
 }
