@@ -24,12 +24,13 @@ test("readTemplateVersion returns the package.json version", () => {
   assert.strictEqual(readTemplateVersion(), pkg.version);
 });
 
-test("listCommonWorkflows returns the 5 common workflows incl. RELEASE-PUBLISH", () => {
+test("listCommonWorkflows returns the 6 common workflows incl. RELEASE-PUBLISH and ISSUE-HELPER", () => {
   const names = listCommonWorkflows();
-  assert.strictEqual(names.length, 5, `expected 5, got ${names.length}: ${names}`);
+  assert.strictEqual(names.length, 6, `expected 6, got ${names.length}: ${names}`);
   for (const wf of [
     "PROJECT-COMMON-AI-PR-SUMMARY.yaml",
     "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
+    "PROJECT-COMMON-ISSUE-HELPER.yaml",
     "PROJECT-COMMON-README-VERSION-UPDATE.yaml",
     "PROJECT-COMMON-RELEASE-PUBLISH.yaml",
     "PROJECT-COMMON-VERSION-CONTROL.yaml",
@@ -62,10 +63,11 @@ test("copyScripts installs payload python scripts into .github/scripts/", () => 
   const target = mkdtempSync(join(tmpdir(), "paw-scripts-"));
   try {
     const copied = copyScripts(resolvePayloadRoot(), target);
-    assert.strictEqual(copied, 3);
+    assert.strictEqual(copied, 4);
     assert.ok(existsSync(join(target, ".github", "scripts", "version_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "changelog_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "truncate_release_notes.py")));
+    assert.ok(existsSync(join(target, ".github", "scripts", "issue_helper.py")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
