@@ -208,6 +208,18 @@ test("RELEASE-PUBLISH merges GitHub generate-notes into the release notes", () =
   assert.ok(body.includes("generate-notes"));
 });
 
+// issue #61 — 게이트가 닫혀 릴리스가 스킵되는 것 자체는 정상이지만, version.yml이
+// 최신 태그보다 앞선 채 스킵되면 그 버전은 npm에 영영 닿지 않는다. 0.1.26~0.1.31
+// 여섯 버전이 모든 워크플로우가 초록불인 채로 이렇게 사라졌다.
+test("RELEASE-PUBLISH fails loudly when version.yml has drifted ahead of the newest tag (issue #61)", () => {
+  const body = readFileSync(releasePath, "utf8");
+  assert.ok(body.includes("Drift guard"), "drift guard block missing");
+  assert.ok(body.includes("git tag --list 'v*' --sort=-v:refname"), "newest tag lookup missing");
+  assert.ok(body.includes("GITHUB_STEP_SUMMARY"), "job summary warning missing");
+  // 조용히 넘어가지 않는다는 것이 이 가드의 전부다 — exit 1이 빠지면 의미가 없다
+  assert.ok(/::error::[^\n]*ahead of the newest tag/.test(body), "error annotation missing");
+});
+
 // ---------------------------------------------------------------
 // RELEASE-PUBLISH trunk-based semver_auto + diff-stat parity with
 // AUTO-CHANGELOG-CONTROL (final review fix)
