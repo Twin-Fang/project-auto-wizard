@@ -79,34 +79,4 @@ test("run(): non-dry-run without --force still requires --force in a non-interac
   }
 });
 
-test("run(): --dry-run --mode revert on an installed repo removes nothing", async () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
-  try {
-    await run(["--mode", "full", "--force", "--type", "node"], {
-      cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
-    });
-    const code = await run(["--mode", "revert", "--force", "--dry-run"], { cwd: target });
-    assert.strictEqual(code, 0);
-    assert.ok(existsSync(join(target, "version.yml")));
-    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py")));
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
 
-test("run(): --dry-run --mode revert without --force also bypasses the --force gate", async () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
-  try {
-    await run(["--mode", "full", "--force", "--type", "node"], {
-      cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
-    });
-    const code = await run(["--mode", "revert", "--dry-run"], { cwd: target });
-    assert.strictEqual(code, 0);
-    assert.ok(existsSync(join(target, "version.yml")));
-    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py")));
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});

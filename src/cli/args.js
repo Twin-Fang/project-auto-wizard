@@ -17,7 +17,7 @@ export function parseArgs(argv) {
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
-    dryRun: false,        // --dry-run: 실제 변경 없이 미리보기만 (full/version/workflows/revert 공통)
+    dryRun: false,        // --dry-run: 실제 변경 없이 미리보기만 (full/uninstall)
     purgeReadme: false,       // --purge-readme: uninstall --force 시 README 버전 섹션도 제거
     purgeGitignore: false,    // --purge-gitignore: uninstall --force 시 .gitignore 자동 추가 항목도 제거
     purgeVersion: false,      // --purge-version: uninstall --force 시 version.yml도 제거
@@ -111,7 +111,7 @@ export function parseArgs(argv) {
   }
   if (!VALID_MODES.includes(result.mode)) {
     throw new CliError(
-      `지원하지 않는 모드: '${result.mode}'\n지원 모드: interactive full version workflows revert uninstall status doctor`
+      `지원하지 않는 모드: '${result.mode}'\n지원 모드: interactive full uninstall status doctor`
     );
   }
   return result;

@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { planWorkflows, copyWorkflows } from "../../src/core/copy/workflows.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
-import { upsertDeployBlock } from "../../src/commands/workflows.js";
 
 function baseContext(overrides = {}) {
   return {
@@ -82,14 +81,3 @@ test("planWorkflows: editing an installed type-specific file surfaces it as chan
   }
 });
 
-test("upsertDeployBlock: escapes double quotes in deploy block values (issue #20 L9, third sink)", () => {
-  const versionYmlContent = `version: "1.0.0"
-version_code: 1
-project_types: ["node"]
-metadata:
-  last_updated: "2026-08-04"
-`;
-  const deployValues = new Map([["node", new Map([["HOST", 'a "quoted" host']])]]);
-  const result = upsertDeployBlock(versionYmlContent, deployValues);
-  assert.ok(result.includes('HOST: "a \\"quoted\\" host"'), "deploy block values must escape double quotes");
-});

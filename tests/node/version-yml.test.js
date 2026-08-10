@@ -8,7 +8,6 @@ import { tmpdir } from "node:os";
 import { parseExisting, parseExtraTopLevel, buildVersionYml } from "../../src/core/version-yml.js";
 import { readVersionYmlTemplate, resolvePayloadRoot } from "../../src/core/assets.js";
 import { runFull } from "../../src/commands/full.js";
-import { runVersion } from "../../src/commands/version.js";
 import { createContext } from "../../src/context.js";
 
 const PAYLOAD = resolvePayloadRoot();
@@ -109,10 +108,10 @@ test("integration: qa_custom_field survives a --mode version re-run (issue #20 r
     const vyPath = join(target, "version.yml");
     writeFileSync(vyPath, readFileSync(vyPath, "utf8") + "qa_custom_field: hello\n");
 
-    runVersion(baseCtx, PAYLOAD, target);
+    runFull(baseCtx, PAYLOAD, target);
 
     const after = readFileSync(vyPath, "utf8");
-    assert.ok(after.includes("qa_custom_field: hello"), "user-added field must survive a version-mode re-run");
+    assert.ok(after.includes("qa_custom_field: hello"), "user-added field must survive a re-run");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

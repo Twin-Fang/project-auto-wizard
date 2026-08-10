@@ -46,16 +46,6 @@ test("planDryRun('full', ...) after a real install: nothing new, version.yml unc
   }
 });
 
-test("planDryRun('version', ...) only computes versionYml preview, not workflows", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
-  try {
-    const plan = planDryRun("version", baseContext(), resolvePayloadRoot(), target);
-    assert.strictEqual(plan.workflows, undefined);
-    assert.ok(plan.versionYml);
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
 
 test("printDryRun() warns that version.yml preview may be inaccurate for deploy-block types", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
@@ -87,17 +77,3 @@ test("planDryRun('full', ...) with semver_auto:false preserved -> versionYml unc
   }
 });
 
-test("planDryRun('revert', ...) delegates to planRevert and writes nothing", () => {
-  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
-  try {
-    const ctx = baseContext();
-    runFull(ctx, resolvePayloadRoot(), target);
-    const before = readdirSync(join(target, ".github/workflows")).length;
-    const plan = planDryRun("revert", ctx, resolvePayloadRoot(), target);
-    assert.ok(plan.revert.workflows.length > 0);
-    const after = readdirSync(join(target, ".github/workflows")).length;
-    assert.strictEqual(before, after);
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});

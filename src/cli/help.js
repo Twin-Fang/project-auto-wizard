@@ -5,8 +5,8 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
   npx project-auto-wizard [옵션]
 
 옵션:
-  -m, --mode MODE          통합 모드 (full | version | workflows | revert | uninstall | status | doctor)
-                           기본: interactive (대화형). revert = 설치물 제거(되돌리기)
+  -m, --mode MODE          통합 모드 (full | uninstall | status | doctor)
+                           기본: interactive (대화형). full = 설치 및 업데이트
                            uninstall = 완전 삭제(대화형 체크리스트, --force 시 --purge-*로 opt-in)
                            status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
@@ -19,8 +19,8 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --nexus / --no-nexus            Nexus 라이브러리 publish 워크플로우 포함/제외
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
-      --force              full/version/workflows/revert 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)
-      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/version/workflows/revert/uninstall 전체 지원)
+      --force              full 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)
+      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
       --purge-version       --mode uninstall --force 시 version.yml도 제거

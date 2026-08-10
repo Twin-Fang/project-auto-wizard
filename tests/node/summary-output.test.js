@@ -29,9 +29,9 @@ test("printSummary: full 모드 + gitignoreUpdated:false(기본값) -> .gitignor
   assert.ok(!output.includes(".gitignore"));
 });
 
-test("printSummary: version 모드는 .gitignore를 절대 언급하지 않는다", () => {
+test("printSummary: gitignoreUpdated가 없으면 .gitignore를 절대 언급하지 않는다", () => {
   const output = captureStderr(() => {
-    printSummary({ mode: "version", types: ["basic"], version: "1.0.0" });
+    printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
   });
   assert.ok(!output.includes(".gitignore"));
 });
@@ -102,7 +102,7 @@ test("printSummary: copiedFiles가 비어 있으면(전부 skip) '새로 설치�
 
 test("printSummary: copiedFiles 미지정 시에도 예외 없이 동작한다(기본값 빈 배열)", () => {
   const output = captureStderr(() => {
-    printSummary({ mode: "version", types: ["basic"], version: "1.0.0" });
+    printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
   });
   assert.ok(!output.includes("📦 새로 설치됨"));
 });

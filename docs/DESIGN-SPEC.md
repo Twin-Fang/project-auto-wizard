@@ -60,7 +60,8 @@ projectops/ (신규)
 - **감지**: 마커 파일(`build.gradle`/`pubspec.yaml`/`package.json`/`pyproject.toml` 등)로 타입 자동 감지. 9타입 + 멀티타입(csv) + 모노레포 경로(`project_paths` 맵, 서브폴더 마커 감지).
 - **대화형 계층**: 배너·현재 상태 카드 → 타입/버전/브랜치 확인·수정 → 충돌 3지선 → opt-in 질문들 → 완료 요약.
 - **비대화형**: `--force --type ... --paths ...` + 신규 `--main-branch <name>` / `--develop-branch <name>` 플래그. CI 사용 가능. 플래그 생략 시 기본값: main-branch = 감지된 default branch, develop-branch = `develop`.
-- **모드**: 신규 통합 / 업데이트 / 되돌리기 3모드.
+- **모드**: 설치·업데이트(`full`) / 완전 삭제(`uninstall`) / 상태 확인(`status`) / 환경 진단(`doctor`).
+  부분 설치(`version`/`workflows`)와 되돌리기(`revert`)는 제거됐다 — issue #70.
 - **산출**: `.github/workflows` 타입별 배치 + `version.yml` 생성 + 충돌 처리.
 
 ### 신규 질문 ① — 브랜치 설정
