@@ -8,7 +8,7 @@ import { exists, copyFileSync } from "../fsutil.js";
 
 // version_manager.py, changelog_manager.py, truncate_release_notes.py 무조건 덮어쓰기 (+chmod — Windows에선 무의미하나 무해).
 export function copyScripts(payloadRoot, targetRoot = ".") {
-  const scripts = ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py"];
+  const scripts = ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"];
   let copied = 0;
   for (const s of scripts) {
     const src = join(payloadRoot, PAYLOAD.scriptsDir, s);

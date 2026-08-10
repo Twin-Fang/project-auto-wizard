@@ -40,7 +40,7 @@ projectops/ (신규)
 │   │   │   ├── server-deploy/   # 기본 포함, Nexus opt-in true면 폴더째 제외
 │   │   │   └── nexus/           # opt-in (--nexus)
 │   │   └── {flutter,react,next,node,python,react-native,react-native-expo,basic}/
-│   ├── scripts/                 # version_manager.py, changelog_manager.py, truncate_release_notes.py (전부 Python)
+│   ├── scripts/                 # version_manager.py, changelog_manager.py, truncate_release_notes.py, issue_helper.py (전부 Python)
 │   └── version.yml.template
 ├── .github/workflows/           # 이 레포 자체용: npm publish + 자체 버전관리(도그푸딩)
 ├── version.yml / CHANGELOG.md / CHANGELOG.json
