@@ -72,13 +72,11 @@ flutter.APP_ARTIFACT_NAME:
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
 
-### 되돌리기(`--mode revert`)
-
-`npx project-auto-wizard --mode revert --force`는 payload가 설치한 파일명과 **정확히 일치하는 것만** 제거합니다. 사용자가 직접 만든 워크플로우, `version.yml`, `README.md`, `.gitignore`는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
-
 ### 완전 삭제(`--mode uninstall`)
 
-`npx project-auto-wizard --mode uninstall`은 `revert`보다 넓게 제거합니다 — 워크플로우·스크립트는 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
+`npx project-auto-wizard --mode uninstall`은 마법사가 설치한 것을 제거합니다 — 워크플로우·스크립트는 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
+
+제거 대상은 payload가 설치한 파일명과 정확히 일치하는 것, 그리고 마법사 관리 마커를 가진 파일뿐입니다. 사용자가 직접 만든 워크플로우는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
 
 - **대화형(TTY)**: 실제로 설치된 항목만 체크리스트로 보여줍니다. 워크플로우·스크립트는 기본 체크, README·`.gitignore`·`version.yml`은 opt-in입니다. 선택 후 최종 확인(기본 "아니오")을 거쳐야 실제로 삭제됩니다.
 - **비대화형(`--force`)**: 워크플로우·스크립트만 기본 삭제합니다. README·`.gitignore`·`version.yml`까지 지우려면 `--purge-readme`/`--purge-gitignore`/`--purge-version`을 함께 지정하세요.
@@ -129,7 +127,7 @@ flowchart LR
 ```
 npx project-auto-wizard [옵션]
 
-  -m, --mode MODE          full | version | workflows | revert | uninstall | status | doctor  (기본: 대화형)
+  -m, --mode MODE          full | uninstall | status | doctor  (기본: 대화형)
   -t, --type CSV           spring,react,... (미지정 시 자동 감지)
       --project-version V  초기 버전 (미지정 시 자동 감지)
       --paths "t=p,..."    모노레포 타입별 경로

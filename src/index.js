@@ -17,9 +17,6 @@ import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, default
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
-import { runVersion } from "./commands/version.js";
-import { runWorkflows } from "./commands/workflows.js";
-import { runRevert } from "./commands/revert.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { runInteractive } from "./commands/interactive.js";
@@ -81,33 +78,16 @@ export async function run(argv, {
   if (opts.mode === "interactive") {
     // --dry-run은 대화형 모드에서 조용히 무시되면 안 됨(실제 설치가 진행돼버림) — 명시 에러로 차단.
     if (opts.dryRun) {
-      console.error("--dry-run은 --mode <full|version|workflows|revert|uninstall>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
+      console.error("--dry-run은 --mode <full|uninstall>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).");
       return 1;
     }
     if (!process.stdout.isTTY) {
-      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|version|workflows|revert|uninstall> 와 --force 를 지정하세요.");
+      console.error("대화형 입력이 불가능한 환경입니다. --mode <full|uninstall> 와 --force 를 지정하세요.");
       return 1;
     }
     return await runInteractive({}, { cwd, payloadRoot: payload, clock });
   }
 
-  // revert 모드 — payload 유래 파일 제거 (감지·질문 불필요, --force 게이트만)
-  if (opts.mode === "revert") {
-    // TTY 여부와 무관하게 --force가 없으면 거부한다 (issue #19 — TTY에서 확인 없이 즉시 실행되던 결함 수정).
-    // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
-    if (!opts.force && !opts.dryRun) {
-      console.error("revert 모드는 --force 없이 실행할 수 없습니다 (확인 절차가 없습니다).");
-      return 1;
-    }
-    if (opts.dryRun) {
-      printDryRun(planDryRun("revert", {}, payload, cwd));
-      return 0;
-    }
-    const r = runRevert({}, payload, cwd);
-    console.error(`제거됨 — 워크플로우 ${r.workflows.length}개, 스크립트 ${r.scripts.length}개`);
-    console.error("version.yml·README·.gitignore는 보존됩니다 (사용자 데이터).");
-    return 0;
-  }
   // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
   // 개발·테스트 전용 숨김 모드 — --help/대화형 메뉴에 노출하지 않는다 (issue #6).
   if (opts.mode === "purge") {
@@ -183,7 +163,7 @@ export async function run(argv, {
     return 0;
   }
 
-  // uninstall 모드 — revert보다 넓게 README·gitignore·version.yml까지 선택적으로 제거.
+  // uninstall 모드 — 설치물에 더해 README·gitignore·version.yml까지 선택적으로 제거.
   if (opts.mode === "uninstall") {
     const safeSelection = {
       workflows: true, scripts: true,
@@ -303,14 +283,10 @@ export async function run(argv, {
     return 0;
   }
 
-  // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/revert/purge/uninstall/status/doctor는
-  // 전부 위에서 조기 반환했으므로 이 시점엔 full/version/workflows 중 하나로 보장된다(issue #19 — default 분기 제거).
-  let result = null;
-  switch (opts.mode) {
-    case "full": result = runFull(context, payload, cwd); break;
-    case "version": result = runVersion(context, payload, cwd); break;
-    case "workflows": result = runWorkflows(context, payload, cwd); break;
-  }
+  // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/purge/uninstall/status/doctor는
+  // 전부 위에서 조기 반환했으므로 이 시점엔 full 하나로 보장된다 (issue #19 — default 분기 제거,
+  // issue #70 — 부분 설치 모드 제거로 분기 자체가 사라졌다).
+  const result = runFull(context, payload, cwd);
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({

@@ -1,10 +1,9 @@
 // --dry-run 미리보기 — 실제 파일을 쓰지 않고 무엇이 바뀔지 계산한다.
-// full/version/workflows/revert/uninstall 5개 모드 전체 지원.
+// full/uninstall 두 모드 지원 (issue #70 — 부분 설치·되돌리기 모드 제거).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
-import { planRevert } from "./revert.js";
 import { planUninstall } from "./uninstall.js";
 import { buildVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
@@ -35,32 +34,21 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   return { existed: existingRaw !== null, changed: existingRaw !== wouldBe };
 }
 
-// mode: "full" | "version" | "workflows" | "revert" | "uninstall". 읽기 전용 — 아무 파일도 쓰지 않는다.
+// mode: "full" | "uninstall". 읽기 전용 — 아무 파일도 쓰지 않는다.
 export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
-  if (mode === "revert") return { mode, revert: planRevert(payloadRoot, targetRoot) };
   if (mode === "uninstall") {
     return { mode, uninstall: planUninstall(payloadRoot, targetRoot, context.uninstallSelection) };
   }
-
-  const result = { mode };
-  if (mode === "full" || mode === "workflows") {
-    result.workflows = planWorkflows(context, payloadRoot, targetRoot);
-  }
-  if (mode === "full" || mode === "version") {
-    result.versionYml = versionYmlPreview(context, payloadRoot, targetRoot);
-  }
-  return result;
+  return {
+    mode,
+    workflows: planWorkflows(context, payloadRoot, targetRoot),
+    versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
+  };
 }
 
 export function printDryRun(plan) {
   const lines = ["", `project-auto-wizard --dry-run (mode: ${plan.mode}) — 미리보기, 실제 파일은 바뀌지 않았습니다`, ""];
-  if (plan.mode === "revert") {
-    const r = plan.revert;
-    lines.push(`제거될 워크플로우 (${r.workflows.length}개):`);
-    for (const f of r.workflows) lines.push(`  - ${f}`);
-    lines.push(`제거될 스크립트 (${r.scripts.length}개):`);
-    for (const f of r.scripts) lines.push(`  - ${f}`);
-  } else if (plan.mode === "uninstall") {
+  if (plan.mode === "uninstall") {
     const u = plan.uninstall;
     lines.push(`제거될 워크플로우 (${u.workflows.length}개):`);
     for (const f of u.workflows) lines.push(`  - ${f}`);

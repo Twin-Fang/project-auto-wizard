@@ -16,7 +16,7 @@ test("parseArgs: --mode 뒤에 값이 없으면(빈 문자열로 해석) CliErro
 });
 
 test("parseArgs: 유효한 모드는 전부 통과한다 (purge 포함)", () => {
-  const modes = ["interactive", "full", "version", "workflows", "revert", "uninstall", "status", "doctor", "purge"];
+  const modes = ["interactive", "full", "uninstall", "status", "doctor", "purge"];
   for (const m of modes) {
     const opts = parseArgs(["--mode", m]);
     assert.strictEqual(opts.mode, m);
@@ -68,5 +68,12 @@ test("run(): 잘못된 --mode 값은 exit 1이며 원격 develop 브랜치를 �
   } finally {
     rmSync(bare, { recursive: true, force: true });
     rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// issue #70 — 제거된 모드는 조용히 통과하면 안 된다 (#19와 같은 부류의 결함).
+test("parseArgs: 제거된 모드(version/workflows/revert)는 CliError로 거부된다", () => {
+  for (const m of ["version", "workflows", "revert"]) {
+    assert.throws(() => parseArgs(["--mode", m]), CliError, `'${m}' 모드가 여전히 통과합니다`);
   }
 });

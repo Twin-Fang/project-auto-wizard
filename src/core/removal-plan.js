@@ -1,4 +1,6 @@
-// revert 모드 — payload 유래 파일 + 마커로 식별되는 파일을 제거 (DESIGN-SPEC §4 되돌리기).
+// 제거 대상 판별기 — 마법사가 설치한 파일이 무엇인지 가려낸다.
+// uninstall(항목 체크리스트)과 purge(숨김 개발 모드)의 공통 기반이며, 아무것도 지우지 않는다.
+//
 // 원칙: (a) 현재 payload에 존재하는 파일명과 정확히 일치하는 것, (b) 설치된 워크플로우 파일 중
 // 마법사 관리 마커(MANAGED_WORKFLOW_MARKER)로 시작하는 것 — 이 둘의 합집합을 제거 대상으로 삼는다.
 // (a)만으로는 과거 버전에서 설치된 뒤 이후 릴리스에서 payload 파일명이 바뀌거나 삭제된 파일을
@@ -6,12 +8,14 @@
 // 없는(그러나 파일명은 여전히 현재 payload와 일치하는) 기존 설치 전체를 인식하지 못하는 회귀가
 // 생긴다 — 그래서 두 방식을 합집합으로 병행한다. 마커는 이 수정 이후 배포되는 payload 템플릿부터
 // 포함되므로, (b) 경로가 실제로 새로 잡아내는 것은 "이름이 바뀌거나 삭제된, 마커가 있는" 파일뿐이다.
-// 사용자가 직접 만든 워크플로우·version.yml·README·.gitignore는 건드리지 않는다
+// 사용자가 직접 만든 워크플로우·version.yml·README·.gitignore는 대상이 아니다
 // (version.yml은 사용자 버전 데이터 — 제거 대상이 아니라 산출물이다).
+//
+// 이 파일은 원래 src/commands/revert.js였다. revert 모드는 uninstall의 부분집합이라 제거됐고
+// (issue #70), 판별 로직만 남아 commands가 아닌 core로 옮겨졌다.
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { PATHS, PAYLOAD } from "../core/paths.js";
-import { remove } from "../core/fsutil.js";
+import { PATHS, PAYLOAD } from "./paths.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
@@ -41,13 +45,13 @@ function markedWorkflowNames(wfDir) {
   return names;
 }
 
-// 아무것도 지우지 않는 순수 함수 — --dry-run과 status류 기능에서 재사용.
-export function planRevert(payloadRoot, targetRoot = ".") {
+// 아무것도 지우지 않는 순수 함수 — uninstall/purge/--dry-run이 공유한다.
+export function planRemoval(payloadRoot, targetRoot = ".") {
   const removedWf = new Set();
   const removedScripts = [];
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   if (existsSync(wfDir)) {
-    // (a) 현재 payload와 파일명이 일치하는 것 — 기존 동작 그대로(마커 유무 무관, 기존 설치 회귀 방지).
+    // (a) 현재 payload와 파일명이 일치하는 것 — 마커 유무 무관(기존 설치 회귀 방지).
     for (const name of payloadWorkflowNames(payloadRoot)) {
       const p = join(wfDir, name);
       if (existsSync(p)) removedWf.add(name);
@@ -62,13 +66,4 @@ export function planRevert(payloadRoot, targetRoot = ".") {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
   return { workflows: [...removedWf], scripts: removedScripts };
-}
-
-// 반환: { workflows: [...제거된 파일명], scripts: [...] } — planRevert와 동일한 형태.
-export function runRevert(context, payloadRoot, targetRoot = ".") {
-  const plan = planRevert(payloadRoot, targetRoot);
-  const wfDir = join(targetRoot, PATHS.workflowsDir);
-  for (const name of plan.workflows) remove(join(wfDir, name));
-  for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  return plan;
 }

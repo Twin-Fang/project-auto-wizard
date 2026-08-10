@@ -1,4 +1,4 @@
-// purge 모드 — revert가 지우는 전부(워크플로우·스크립트) + version.yml·README
+// purge 모드 — planRemoval이 판별하는 전부(워크플로우·스크립트) + version.yml·README
 // AUTO-VERSION-SECTION 블록·CHANGELOG를 추가로 제거해 설치 이전 상태로 완전히 되돌린다.
 // 개발·테스트 전용 숨김 모드 — DESIGN-SPEC purge #6.
 // develop 브랜치 삭제는 파일 삭제와 성격이 달라(실행 시점 git 상태 판단 필요) 여기 plan에는
@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
-import { planRevert } from "./revert.js";
+import { planRemoval } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
@@ -15,10 +15,10 @@ const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 // keepFlags: { versionYml, readme, changelog, workflows, scripts } — true인 카테고리는 후보에서 제외.
 // 반환: { workflows, scripts, versionYml, readmeSection, changelog } — 아무것도 지우지 않는 순수 함수.
 export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
-  const revertPlan = planRevert(payloadRoot, targetRoot);
+  const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
-    workflows: keepFlags.workflows ? [] : revertPlan.workflows,
-    scripts: keepFlags.scripts ? [] : revertPlan.scripts,
+    workflows: keepFlags.workflows ? [] : removalPlan.workflows,
+    scripts: keepFlags.scripts ? [] : removalPlan.scripts,
     versionYml: !keepFlags.versionYml && existsSync(join(targetRoot, PATHS.versionFile)),
     readmeSection: !keepFlags.readme && hasVersionSection(targetRoot),
     changelog: keepFlags.changelog ? [] : CHANGELOG_FILES.filter((f) => existsSync(join(targetRoot, f))),
@@ -44,7 +44,7 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
 }
 
 // 실제 삭제 수행 — planPurge()와 동일 shape을 반환하되 실제로 제거된 항목을 반영한다.
-// runRevert()를 통째로 호출하지 않는 이유: runRevert는 항상 전체를 지우므로
+// planRemoval 결과를 그대로 지우지 않는 이유: 그 목록은 항상 전체라서
 // --keep-* 로 선택적 카테고리만 보존하는 요구사항과 맞지 않는다.
 // H3 (Fable 검토): readmeSection은 plan의 판정을 그대로 되돌려주지 않고
 // removeVersionSectionFromReadme()의 실제 반환값("removed"인지)을 반영한다 — 스펙 §6이
