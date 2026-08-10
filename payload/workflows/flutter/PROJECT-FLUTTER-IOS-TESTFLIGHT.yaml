@@ -445,7 +445,7 @@ jobs:
           # Release notes 준비 (final_release_notes.txt·truncate 스크립트는 레포 루트 기준 — working-directory가 FLUTTER_PROJECT_DIR이므로 절대경로 사용)
           if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]; then
             # App Store Connect "What to Test" 한도(4000 바이트)에 맞춰 절단 (마진 두어 3800byte)
-            bash "$GITHUB_WORKSPACE/.github/scripts/truncate_release_notes.sh" "$GITHUB_WORKSPACE/final_release_notes.txt" 3800 byte
+            python3 "$GITHUB_WORKSPACE/.github/scripts/truncate_release_notes.py" "$GITHUB_WORKSPACE/final_release_notes.txt" 3800 byte
             RELEASE_NOTES=$(cat "$GITHUB_WORKSPACE/final_release_notes.txt")
             echo "📝 Release Notes:"
             echo "$RELEASE_NOTES"

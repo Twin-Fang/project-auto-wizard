@@ -38,7 +38,9 @@ test("git diff --stat truncation always preserves the trailing summary line", ()
 
 test("no .sh script references in payload", () => {
   for (const f of files) {
-    assert.ok(!readFileSync(f, "utf8").includes("version_manager.sh"), f);
+    const body = readFileSync(f, "utf8");
+    assert.ok(!body.includes("version_manager.sh"), f);
+    assert.ok(!body.includes("truncate_release_notes.sh"), f);
   }
 });
 
