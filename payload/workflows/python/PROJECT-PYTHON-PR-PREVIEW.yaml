@@ -25,11 +25,11 @@
 #
 # 📊 리소스 네이밍:
 # - 컨테이너: {PROJECT_NAME}-pr-{번호}
-# - 도메인: {PROJECT_NAME}-pr-{번호}.pr.suhsaechan.kr
+# - 도메인: {PROJECT_NAME}-pr-{번호}.pr.example.com
 #
 # 📋 사전 요구사항:
 # - Traefik 컨테이너 실행 중 (traefik-network)
-# - 와일드카드 DNS 설정: *.pr.suhsaechan.kr → 서버
+# - 와일드카드 DNS 설정: *.pr.example.com → 서버
 # ===================================================================
 
 name: PROJECT-PYTHON-PR-PREVIEW

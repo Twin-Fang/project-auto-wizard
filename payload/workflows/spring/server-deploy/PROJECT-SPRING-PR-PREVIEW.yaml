@@ -22,7 +22,7 @@
 # 📊 리소스 네이밍 규칙:
 #   - 컨테이너: {PROJECT_NAME}-pr-{PR번호}
 #   - 이미지: {DOCKERHUB_USERNAME}/{PROJECT_NAME}:pr-{PR번호}
-#   - 도메인: {PROJECT_NAME}-pr-{PR번호}.pr.suhsaechan.kr
+#   - 도메인: {PROJECT_NAME}-pr-{PR번호}.pr.example.com
 #   - Preview URL: http://{도메인}:8079
 #
 # ===================================================================
