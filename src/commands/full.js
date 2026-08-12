@@ -8,12 +8,14 @@ import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
 import { buildVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
-import { markerForType } from "../core/detect.js";
+import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline } from "../core/baseline.js";
+import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
+import { writeInstallLog } from "../core/install-log.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
 //            force, repoName, resolvers, now, today }
@@ -24,9 +26,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     includeNexus = false, includeSecretBackup = false,
     includeSemverAuto } = context;
 
-  // project_paths 마커 계산 (.sh existing_marker_in_dir 등가 — 대표 마커명)
+  // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).
+  // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
+  // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다 (이슈 #77).
   const pathMarkers = new Map();
-  for (const [t] of paths) pathMarkers.set(t, markerForType(t));
+  for (const [t, p] of paths) pathMarkers.set(t, existingMarkerInDir(t, join(targetRoot, p || ".")));
 
   // 1. 워크플로우 복사 (+ env 치환) — deploy 블록에 쓸 ask 값을 수집한다.
   //    hooks.decisions: 대화형 충돌 3지선 결정 Map (미지정=skip — 현행 force 동작)
@@ -71,5 +75,52 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     previous: readBaseline(targetRoot),
   });
 
-  return { workflows: wfCounters, gitignoreUpdated };
+  // 7. 설치 후 검증 (이슈 #81, #80) — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
+  //    미치환 플레이스홀더가 남았는지, 어떤 Secret이 있어야 워크플로우가 도는지.
+  //    설치를 실패시키지는 않는다 — 사실을 알려주는 것이 목적이고, 판단은 사용자 몫이다.
+  const wfDir = join(targetRoot, PATHS.workflowsDir);
+  const managed = [...(wfCounters.baselineTargets || new Map()).keys()];
+  const unresolved = scanUnsubstituted(wfDir, managed);
+  const secrets = narrowSecretsBySshAuth(
+    collectRequiredSecrets(wfDir, managed),
+    firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
+  );
+
+  // 8. 설치 로그 (이슈 #79) — 이 실행에서 무엇을 어떤 값으로 설치했는지 레포에 남긴다.
+  //    실패해도 설치는 성공으로 끝난다.
+  const installLog = writeInstallLog(targetRoot, {
+    action: context.previousTemplateVersion ? "update" : "install",
+    at: now || today || "",
+    templateVersion,
+    previousTemplateVersion: context.previousTemplateVersion || "",
+    mode: context.mode || "full",
+    types, markers: context.markers || new Map(), version,
+    versionSource: context.versionSource || "",
+    branch, branches: context.branches, paths,
+    options: {
+      nexus: includeNexus,
+      githubPackages: context.includeGithubPackages !== false,
+      secretBackup: includeSecretBackup,
+      semverAuto: includeSemverAuto !== false,
+      deployStyle: context.deployStyle || "",
+    },
+    answers: context.envAnswers || [],
+    warnings: context.detectWarnings || [],
+    result: {
+      copiedFiles: wfCounters.copiedFiles || [],
+      gitignoreUpdated,
+    },
+    unresolved, secrets,
+  });
+
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog };
+}
+
+// deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
+function firstDeployValue(deployValues, key) {
+  for (const [, asks] of deployValues) {
+    const v = asks.get(key);
+    if (v) return v;
+  }
+  return "";
 }

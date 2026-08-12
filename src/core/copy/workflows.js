@@ -171,6 +171,9 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
       const dst = join(workflowsDir, filename);
       if (existsSync(dst)) continue; // 이미 존재하면 스킵
       writeText(dst, srcText(join(secretDir, filename)));
+      // 이 경로는 타입별 복사 루프 밖이라 env 치환 루프가 닿지 않는다. 여기서 직접 걸어주지
+      // 않으면 이 파일의 @wizard 마커가 통째로 무시돼 __PROJECT_NAME__ 같은 값이 그대로 설치된다.
+      configureEnv(dst, envOptsFor("common"));
       counters.optionalCopied++;
       counters.copied++;
       counters.copiedFiles.push(filename);
@@ -306,24 +309,14 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     }
   }
 
-  // nexus (opt-in)
+  // nexus (opt-in) — 라이브러리 publish 계열(Nexus + GitHub Packages).
+  // 다른 폴더와 같은 processDir을 쓴다. 종전에는 이 경로만 별도 로직으로 "존재하면 무조건
+  // .bak 후 교체"였는데, 그러면 사용자가 손댄 publish 워크플로우가 재실행마다 묻지도 않고
+  // 밀린다. baseline 3-way·충돌 3지선을 다른 워크플로우와 동일하게 적용한다.
   const nexusDir = join(typeDir, "nexus");
   if (exists(nexusDir) && includeNexus) {
-    for (const filename of listYamlFiles(nexusDir)) {
-      const src = join(nexusDir, filename);
-      const dst = join(workflowsDir, filename);
-      const body = srcText(src);
-      if (existsSync(dst) && renderVirtual(body, envOpts) === readFileSync(dst, "utf8")) {
-        counters.skipped++;
-        continue;
-      }
-      if (existsSync(dst)) { renameSync(dst, dst + ".bak"); counters.backupAdded++; }
-      writeText(dst, body);
-      counters.optionalCopied++;
-      counters.copied++;
-      counters.copiedFiles.push(filename);
-      baselineTargets.set(filename, { srcPath: src, envOpts, wrote: true });
-    }
+    const c = processDir(nexusDir, workflowsDir, envOpts, dirCtx, counters);
+    untouched.push(...c.unchanged, ...c.localOnly);
   }
 
   // env 치환 — 이 타입의 원본 디렉토리들에서 복사돼 존재하고, 손대지 않기로 한 것이 아닌 파일만

@@ -47,13 +47,36 @@ export async function editMenu({ showOptional = false } = {}) {
   return engine.select({ message: "어떤 항목을 수정할까요?", options });
 }
 
+const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic"];
+
 // 타입 멀티선택.
 export async function selectTypes(current = []) {
-  const all = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic"];
   return engine.multiselect({
     message: "프로젝트 타입을 선택하세요 (Space 토글, Enter 확정)",
-    options: all.map((t) => ({ value: t, label: t })),
+    options: ALL_TYPES.map((t) => ({ value: t, label: t })),
     initialValues: current.length ? current : ["basic"],
+    required: true,
+  });
+}
+
+// 감지 직후 타입 확정 (이슈 #78). selectTypes와 달리 감지 근거 파일을 라벨에 붙여
+// "왜 이렇게 판단했는지"를 보여준다 — 근거가 보여야 맞는지 틀린지 판단할 수 있다.
+// 감지 결과가 맞으면 Enter 한 번으로 끝난다.
+export async function confirmTypes({ types = [], markers = null } = {}) {
+  const detected = new Set(types);
+  engine.note(
+    "선택한 타입에 따라 설치되는 CI/CD 워크플로우와 버전 동기화 대상 파일이 달라집니다.\n" +
+    "감지 결과가 맞으면 그대로 Enter를 누르세요.",
+    "프로젝트 타입 확정",
+  );
+  return engine.multiselect({
+    message: "이 프로젝트의 타입입니다 (Space 토글, Enter 확정)",
+    options: ALL_TYPES.map((t) => {
+      const marker = markers?.get?.(t);
+      // 감지된 타입만 근거를 붙인다 — 나머지는 후보로만 나열한다.
+      return { value: t, label: detected.has(t) && marker ? `${t} — ${marker} 발견` : t };
+    }),
+    initialValues: types.length ? types : ["basic"],
     required: true,
   });
 }

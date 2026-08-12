@@ -9,7 +9,7 @@ import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber } from "./core/detect-fs.js";
+import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
@@ -216,7 +216,10 @@ export async function run(argv, {
   // 감지 (CLI 인자 우선, 없으면 자동 감지 — version.yml 우선 규칙은 detectTypes/detectVersion 내부)
   const types = opts.types.length ? opts.types : detectTypes(cwd);
   // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
-  const version = (existing?.version) || opts.version || detectVersion(cwd);
+  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다 (이슈 #80).
+  const detectWarnings = [];
+  const version = (existing?.version) || opts.version
+    || detectVersion(cwd, { warn: (m) => { detectWarnings.push(m); console.error(m); } });
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221, 이슈 #41)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
@@ -267,6 +270,9 @@ export async function run(argv, {
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths),
     now, today,
+    // 설치 로그(#79)용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
+    markers: detectMarkers(cwd, types), detectWarnings,
+    previousTemplateVersion: existing?.templateVersion || "",
   });
 
   context.templateVersion = readTemplateVersion();
@@ -293,6 +299,9 @@ export async function run(argv, {
     mode: opts.mode, types, version, versionCode, branches,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
+    unresolved: result?.unresolved ?? [],
+    secrets: result?.secrets ?? new Map(),
+    installLogPath: result?.installLog?.path ?? "",
   });
   return 0;
 }

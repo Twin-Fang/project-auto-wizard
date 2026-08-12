@@ -37,9 +37,9 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
 
   # Spring Boot 빌드 설정 (프로젝트별 수정 필요)
-  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:21
+  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
   GRADLE_BUILD_CMD: './gradlew clean build -x test -Dspring.profiles.active=prod'
-  JAR_PATH: 'Suh-Web/build/libs/*.jar'  # 멀티모듈이면 빌드 산출물 경로를 직접 수정하세요
+  JAR_PATH: "__JAR_PATH__"  # @wizard ask:build/libs/*.jar
   APPLICATION_YML_PATH: "__APPLICATION_YML_PATH__"  # @wizard auto:spring-app-yml-path
 
   # Docker 설정 (프로젝트별 수정 필요)
@@ -52,7 +52,7 @@ env:
 
   # Traefik & Preview 도메인 설정 (환경 구축 후 수정 금지)
   TRAEFIK_NETWORK: traefik-network
-  PREVIEW_DOMAIN_SUFFIX: pr.suhsaechan.kr
+  PREVIEW_DOMAIN_SUFFIX: "__PREVIEW_DOMAIN_SUFFIX__"  # @wizard ask:pr.example.com
   PREVIEW_PORT: '8079'
 
   # 🔐 SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
@@ -61,7 +61,7 @@ env:
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
   # SSH 포트 (서버 포트 환경 구축 후 수정 금지)
-  SSH_PORT: '2022'
+  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
 
   # Issue Helper 댓글 마커 (프로젝트별 수정 필요)
   # Issue 댓글에서 브랜치명을 추출할 때 사용
@@ -1814,8 +1814,8 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker 이미지 빌드 & 푸시
         if: steps.check_branch.outputs.exists == 'true'
@@ -1823,7 +1823,7 @@ jobs:
         run: |
           DOCKER_START=$(date +%s)
           CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
-          IMAGE_TAG="${{ secrets.DOCKER_USERNAME }}/${{ env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
+          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
           DOCKER_END=$(date +%s)

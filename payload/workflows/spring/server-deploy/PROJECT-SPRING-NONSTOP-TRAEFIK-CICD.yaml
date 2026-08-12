@@ -82,7 +82,7 @@ env:
 
   # ☁️ Spring Boot 설정
   SPRING_PROFILE: "prod"
-  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:21
+  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
   GRADLE_OPTS: "-Dspring.profiles.active=prod"
 
   # 📁 경로 설정
@@ -109,7 +109,7 @@ env:
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
   # 🔌 SSH 연결 설정
-  SSH_PORT: "2022"
+  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
   SSH_COMMAND_TIMEOUT: "600s"
   SSH_CONNECTION_TIMEOUT: "60s"
 

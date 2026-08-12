@@ -6,7 +6,9 @@ import { paint, A, colorEnabled } from "./ansi.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx) {
-  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false } = ctx || {};
+  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
+    // 설치 후 검증·기록 (#79, #80, #81) — 미주입 시 종전 출력과 동일하다.
+    answers = [], unresolved = [], secrets = new Map(), installLogPath = "" } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -92,11 +94,26 @@ export function printSummary(ctx) {
   err("     └─ issue_helper.py");
   err("");
 
+  // 입력한 환경설정 값 (#80) — 마지막으로 눈으로 검산할 기회. 종전에는 답변이 워크플로우
+  // YAML 안으로만 사라져, 오타를 내도 배포가 실패한 뒤에야 알 수 있었다.
+  if (answers.length) {
+    err("  ⚙️  적용된 환경설정:");
+    for (const a of answers) {
+      const mark = a.isDefault ? paint(" (기본값)", A.dim, enabled) : "";
+      err(`     • ${a.label}: ${paint(a.value, A.green, enabled)}${mark}`);
+    }
+    err("");
+  }
+  if (installLogPath) {
+    err(`  📋 설치 기록: ${installLogPath}`);
+    err("     → 나중에 '무엇을 어떤 값으로 설치했는지' 확인할 때 이 파일을 보세요");
+    err("");
+  }
+
   // 프로젝트 타입별 안내
   if (types.includes("spring")) {
     err("  💡 Spring 프로젝트 추가 설정:");
-    err("     • build.gradle의 버전 정보가 자동 동기화됩니다");
-    err("     • CI/CD 워크플로우에서 GitHub Secrets 설정이 필요합니다");
+    err("     • build.gradle / build.gradle.kts / pom.xml 의 버전 정보가 자동 동기화됩니다");
     err("");
   }
 
@@ -108,12 +125,36 @@ export function printSummary(ctx) {
   err("");
   err(paint(paint("⚠️  다음 작업을 확인해주세요:", A.yellow, enabled), A.bold, enabled));
   err("");
-  err("  1️⃣  릴리스 automerge용 PAT (선택 — 없으면 GITHUB_TOKEN 사용)");
+
+  let step = 0;
+  const num = () => ["1️⃣ ", "2️⃣ ", "3️⃣ ", "4️⃣ ", "5️⃣ "][step++] || " •";
+
+  // 미치환 플레이스홀더 (#81) — 이 상태로는 해당 워크플로우가 동작하지 않으므로 제일 먼저 알린다.
+  if (unresolved.length) {
+    err(`  ${num()} ${paint("값이 채워지지 않은 항목이 있습니다 — 직접 채워야 동작합니다", A.red, enabled)}`);
+    for (const u of unresolved) {
+      err(`     → ${u.filename}:${u.line}  ${paint(u.token, A.bold, enabled)}`);
+    }
+    err("");
+  }
+
+  // 설치된 워크플로우가 실제로 요구하는 Secret (#80) — 종전에는 하나도 안내되지 않아
+  // "설치 성공"인데 배포는 돌지 않는 상태로 끝났다.
+  if (secrets.size) {
+    err(`  ${num()} 아래 GitHub Secret을 등록해야 배포 워크플로우가 동작합니다 (${secrets.size}개)`);
+    err("     → Settings > Secrets and variables > Actions");
+    for (const [name, users] of secrets) {
+      err(`     → ${paint(name, A.bold, enabled)}  ${paint(users.join(", "), A.dim, enabled)}`);
+    }
+    err("");
+  }
+
+  err(`  ${num()} 릴리스 automerge용 PAT (선택 — 없으면 GITHUB_TOKEN 사용)`);
   err("     → Repository Settings > Secrets > Actions");
   err("     → Secret Name: WORKFLOW_PAT (Scopes: repo, workflow)");
   err("     → GITHUB_TOKEN 머지는 후속 워크플로우를 트리거하지 않습니다");
   err("");
-  err("  2️⃣  GitHub Actions 권한 확인");
+  err(`  ${num()} GitHub Actions 권한 확인`);
   err("     → Settings > Actions > Workflow permissions: Read and write");
   err("");
   err(SEPARATOR);

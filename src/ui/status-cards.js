@@ -9,17 +9,22 @@ const HEAD = paint("◆", A.cyan);
 const OK = paint("✓", A.green);
 
 // 층2 — 감지 로그 (.ps1 감지 진행 표시 등가)
-export function printDetectionLog({ types = [], version = "", branch = "" }, out = (s) => process.stderr.write(s)) {
+// markers: Map<type, 실제 발견 파일> — 없으면 타입 대표 파일로 폴백 (이슈 #77).
+// warnings: 감지 도중 나온 경고. 감지 함수를 먼저 호출한 뒤 박스를 그리는 구조라 경고가
+//           박스 위로 새어나가 앞선 질문에 대한 경고처럼 보였다 — 박스 안에서 출력한다 (이슈 #80).
+export function printDetectionLog({ types = [], version = "", branch = "", markers = null, warnings = [] },
+  out = (s) => process.stderr.write(s)) {
   out(`${paint("┌", A.gray)}  🔍 프로젝트를 살펴보는 중...\n`);
   if (types.length && !(types.length === 1 && types[0] === "basic")) {
     for (const t of types) {
-      const marker = markerForType(t);
+      const marker = markers?.get?.(t) ?? markerForType(t);
       out(`${GUT}  ${OK} ${marker ? `${marker} 발견 → ` : ""}${paint(t, A.bold)} 감지\n`);
     }
   } else {
     out(`${GUT}  ${paint("─", A.dim)} 마커 파일 없음 → ${paint("basic", A.bold)} (직접 선택 가능)\n`);
   }
   out(`${GUT}  ${OK} 버전: ${paint(`v${version}`, A.green)} · 브랜치: ${paint(branch, A.green)}\n`);
+  for (const w of warnings) out(`${GUT}  ${paint(w, A.yellow)}\n`);
   out(`${GUT}\n`);
 }
 

@@ -82,8 +82,11 @@ export async function askAllOptionalWorkflows({
   // ② Nexus: 각 타입의 nexus/ 폴더 (현재 spring만 존재, .sh L2719~2725)
   for (const t of types) {
     nexus = await askOptionalWorkflow({
-      dir: join(ptDir, t, "nexus"), icon: "📦", short: "Nexus 라이브러리 publish",
-      desc: "라이브러리/모듈을 Maven 저장소(Nexus)에 배포하는 워크플로우입니다. 일반 서버 배포가 아니라 라이브러리 프로젝트에만 필요합니다.",
+      // GitHub Packages publish도 같은 '라이브러리 배포' 계열이라 이 질문이 함께 관장한다 (이슈 #80).
+      // 종전에는 Nexus만 묻고 GitHub Packages는 무조건 설치돼, "라이브러리 배포 필요 없다"고
+      // 답한 사용자에게 라이브러리 배포 워크플로우가 깔렸다.
+      dir: join(ptDir, t, "nexus"), icon: "📦", short: "라이브러리 publish (Nexus · GitHub Packages)",
+      desc: "라이브러리/모듈을 Maven 저장소(Nexus)나 GitHub Packages에 배포하는 워크플로우입니다. 일반 서버 배포가 아니라 라이브러리 프로젝트에만 필요합니다. 포함하면 서버 배포 워크플로우는 설치되지 않습니다.",
       current: nexus, force, tty, io, forceAsk, say,
     });
   }

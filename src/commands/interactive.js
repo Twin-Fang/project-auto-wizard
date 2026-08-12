@@ -5,7 +5,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber } from "../core/detect-fs.js";
+import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "../core/detect-fs.js";
 import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
@@ -68,8 +68,14 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (!proceed) { io.cancelMessage?.("통합을 안전하게 취소했습니다."); return 0; }
 
   // full/version/workflows — 감지 (version은 기존 version.yml 최우선)
+  // 감지 경고는 즉시 찍지 않고 모았다가 감지 박스 안에서 출력한다 — 종전에는 경고가 박스보다
+  // 먼저 나와 앞선 질문에 대한 경고처럼 보였다 (이슈 #80). 안내 문구도 대화형용으로 바꾼다.
+  const detectWarnings = [];
   let types = detectTypes(cwd);
-  let version = (existing?.version) || detectVersion(cwd);
+  let version = (existing?.version) || detectVersion(cwd, {
+    warn: (m) => detectWarnings.push(m),
+    hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
+  });
   let branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
@@ -79,8 +85,26 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
-  // 층2 — 감지 로그 (#446)
-  io.detectionLog?.({ types, version, branch });
+  // 층2 — 감지 로그 (#446). markers = 실제로 존재를 확인한 파일 (이슈 #77).
+  let markers = detectMarkers(cwd, types);
+  io.detectionLog?.({ types, version, branch, markers, warnings: detectWarnings });
+
+  // 타입 확정 (이슈 #78) — 감지는 추정이므로 다른 질문보다 먼저 확인받는다. 종전에는 확정 UI가
+  // '수정하기 > 프로젝트 타입' 두 단계 뒤에 숨어 있어, 타입이 틀린 채로 설치가 끝나는 일이 많았다.
+  // 타입이 뒤에 나올 질문(선택 워크플로우·경로·env)의 범위를 정하므로 순서상 여기가 맞다.
+  // 저장값이 있는 업데이트 설치와 비대화형에서는 묻지 않는다 — 기존 동작 그대로.
+  // io.confirmTypes 존재 여부가 곧 대화형 게이트다 — 비대화형 CLI 경로(index.js)는 이 함수를
+  // 아예 거치지 않고, 테스트 스텁은 필요할 때만 이 메서드를 넣는다 (충돌 3지선 io.engineIo와 같은 규약).
+  if (showOptional && !existing?.types?.length && io.confirmTypes) {
+    const picked = await io.confirmTypes({ types, markers });
+    if (!isCancel(picked) && Array.isArray(picked) && picked.length) {
+      const next = picked.filter((x) => VALID_TYPES.includes(x));
+      if (next.length) {
+        types = next;
+        markers = detectMarkers(cwd, types);
+      }
+    }
+  }
 
   // 선택 워크플로우(Nexus/Secret) 질문 (.sh ask_all_optional_workflows L2707 — full/workflows만)
   if (showOptional) {
@@ -187,14 +211,15 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // @wizard env 계획 질문 (.sh wf_prompt_env_plan L3220 — full/workflows만)
   const resolvers = makeResolvers(cwd, repoName, paths);
-  let envValues = new Map(), envUseDefaults = true;
+  let envValues = new Map(), envUseDefaults = true, envAnswers = [];
   if (showOptional) {
     const plan = await promptEnvPlan({
       payloadRoot: payload, types, io: io.engineIo ?? null, force: false,
-      resolvers, includeNexus, targetRoot: cwd, repoName,
+      resolvers, includeNexus, includeSecretBackup, targetRoot: cwd, repoName,
     });
     envValues = plan.values;
     envUseDefaults = plan.useDefaults;
+    envAnswers = plan.answers || []; // 완료 요약·설치 로그가 같은 답변 데이터를 쓴다 (#79, #80)
   }
 
   const { now, today } = clock || utcNow();
@@ -203,6 +228,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     includeNexus, includeSecretBackup,
     includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
+    // 설치 로그(#79)·완료 요약(#80)이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
+    markers, envAnswers, detectWarnings,
+    previousTemplateVersion: existing?.templateVersion || "",
   });
   ctx.templateVersion = templateVersion;
 
@@ -258,6 +286,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     mode, types, version, versionCode, branches,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
+    answers: envAnswers,
+    unresolved: result?.unresolved ?? [],
+    secrets: result?.secrets ?? new Map(),
+    installLogPath: result?.installLog?.path ?? "",
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
