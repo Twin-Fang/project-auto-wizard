@@ -3,6 +3,7 @@
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
+import { deployFilter, isDeployWorkflow, activateDeployTrigger } from "../deploy-style.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -12,10 +13,19 @@ import { sha256, readBaseline } from "../baseline.js";
 
 // 원본 텍스트 로더 — context.branches가 있으면 {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 치환 적용.
 // classify(unchanged 판정)와 실제 복사가 같은 치환본을 봐야 재실행 시 가짜 충돌이 없다.
-export function makeSrcText(branches) {
+export function makeSrcText(branches, deployStyle = "") {
+  const keep = deployFilter(deployStyle);
   return (p) => {
     const raw = readFileSync(p, "utf8");
-    return branches ? substitute(raw, branches) : raw;
+    let out = branches ? substitute(raw, branches) : raw;
+    // 사용자가 고른 배포 방식의 CD는 push 트리거를 켜서 설치한다 (이슈 #80).
+    // 무중단 템플릿은 트리거가 주석 처리된 채 배포되므로, 켜주지 않으면 설치해도 아무 일이
+    // 일어나지 않고 사용자가 YAML을 직접 고쳐야 한다.
+    const name = basename(p);
+    if (deployStyle && deployStyle !== "all" && isDeployWorkflow(name) && keep(name)) {
+      out = activateDeployTrigger(out);
+    }
+    return out;
   };
 }
 
@@ -55,9 +65,10 @@ function renderVirtual(templateContent, envOpts) {
 //
 // baseline이 없는 기존 설치는 base 미상이라 upstreamOnly/localOnly 판정을 할 수 없고,
 // 종전대로 unchanged/changed 2분류로 떨어진다(폴백). 그 실행에서 baseline이 심긴다.
-function classify(srcDir, workflowsDir, envOpts, srcText, baseline = null) {
+function classify(srcDir, workflowsDir, envOpts, srcText, baseline = null, filter = null) {
   const result = { newFiles: [], unchanged: [], changed: [], upstreamOnly: [], localOnly: [], removed: [] };
   for (const filename of listYamlFiles(srcDir)) {
+    if (filter && !filter(filename)) continue;
     const src = join(srcDir, filename);
     const dst = join(workflowsDir, filename);
     const base = baseline?.files?.[filename] || null;
@@ -141,7 +152,8 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   counters.keptLocal = [];      // 질문 없이 사용자 수정본을 유지한 파일 (업스트림 무변경)
   counters.removedKept = [];    // 사용자가 지웠고 되살리지 않은 파일
   counters.restoredFiles = [];  // 사용자가 지웠지만 복원하기로 한 파일
-  const srcText = makeSrcText(context.branches || null);
+  const deployStyle = context.deployStyle || "";
+  const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const baselineTargets = new Map(); // filename -> { srcPath, envOpts, wrote }
   // values/useDefaults는 치환 경로에서만 의미 (renderVirtual은 useDefaults:true 강제 — 가상 비교 무손상)
@@ -160,7 +172,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // (2~4) 타입별
   for (const type of types) {
     const asks = new Map();
-    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { includeNexus, ...context, envOptsFor, collectAsks: asks, dirCtx }, counters);
+    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { includeNexus, ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
     if (asks.size) deployValues.set(type, asks);
   }
 
@@ -235,14 +247,16 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
-  const srcText = makeSrcText(context.branches || null);
+  const deployStyle = context.deployStyle || "";
+  const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const branchMode = context.branches?.mode || "pr-flow";
   const conflicts = []; // 엔진 처리 순서와 동일 (common → 타입 순회 → 직하위 → server-deploy)
   const removed = [];
 
-  const collect = (srcDir, envOpts, type, skipFile = () => false) => {
-    const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline);
+  const keepDeploy = deployFilter(deployStyle);
+  const collect = (srcDir, envOpts, type, skipFile = () => false, filter = null) => {
+    const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline, filter);
     for (const f of c.changed) { if (!skipFile(f)) conflicts.push({ filename: f, type }); }
     for (const f of c.removed) { if (!skipFile(f)) removed.push({ filename: f, type }); }
   };
@@ -258,7 +272,7 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) collect(typeDir, envOpts, type);
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus) collect(serverDeployDir, envOpts, type);
+    if (exists(serverDeployDir) && !includeNexus) collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
   }
   return { conflicts, removed };
 }
@@ -284,7 +298,8 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 }
 
 function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
-  const { includeNexus, envOptsFor, collectAsks = null, dirCtx } = ctx;
+  const { includeNexus, deployStyle = "", envOptsFor, collectAsks = null, dirCtx } = ctx;
+  const keepDeploy = deployFilter(deployStyle);
   const { srcText, baselineTargets } = dirCtx;
   const typeDir = join(projectTypesDir, type);
   const envOpts = envOptsFor(type);
@@ -304,7 +319,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     if (includeNexus) {
       // Nexus 프로젝트 → 폴더째 제외 (복사 안 함)
     } else {
-      const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters);
+      const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
       untouched.push(...c.unchanged, ...c.localOnly);
     }
   }
@@ -324,6 +339,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     if (!exists(srcDir)) continue;
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
+      if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
       if (!existsSync(target)) continue;          // 건너뛴 파일 제외
       if (untouched.includes(filename)) continue; // unchanged/localOnly 제외
       configureEnv(target, { ...envOpts, collectAsks }); // env 계획 values/useDefaults 포함
@@ -338,7 +354,8 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
-  const srcText = makeSrcText(context.branches || null);
+  const deployStyle = context.deployStyle || "";
+  const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const branchMode = context.branches?.mode || "pr-flow";
   // upstreamOnly/localOnly/removed는 baseline이 있을 때만 채워진다 (issue #69).
@@ -378,7 +395,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
 
     const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && !includeNexus) {
-      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline), type);
+      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle)), type);
     }
 
     const nexusDir = join(typeDir, "nexus");

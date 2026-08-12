@@ -3,7 +3,7 @@
 // gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다 — issue #7.
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
 import { buildVersionYml, parseExisting } from "../core/version-yml.js";
@@ -15,6 +15,7 @@ import { copyScripts } from "../core/copy/simple.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline } from "../core/baseline.js";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
+import { competingDeployWorkflows } from "../core/deploy-style.js";
 import { writeInstallLog } from "../core/install-log.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
@@ -71,7 +72,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     entries: computeBaselineEntries(
       wfCounters.baselineTargets || new Map(),
       join(targetRoot, PATHS.workflowsDir),
-      makeSrcText(context.branches || null)),
+      makeSrcText(context.branches || null, context.deployStyle || "")),
     previous: readBaseline(targetRoot),
   });
 
@@ -86,6 +87,12 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
   );
 
+  // 고른 배포 방식이 아닌데 이미 깔려 있는 CD 워크플로우 (이슈 #80). 지우지 않는다 —
+  // 사용자 파일이고 손댄 내용이 있을 수 있다. 다만 SIMPLE은 push 트리거가 살아 있어 두 배포가
+  // 동시에 도는 상태가 되므로 완료 화면에서 반드시 알린다.
+  const competing = competingDeployWorkflows(
+    existsSync(wfDir) ? readdirSync(wfDir) : [], context.deployStyle || "");
+
   // 8. 설치 로그 (이슈 #79) — 이 실행에서 무엇을 어떤 값으로 설치했는지 레포에 남긴다.
   //    실패해도 설치는 성공으로 끝난다.
   const installLog = writeInstallLog(targetRoot, {
@@ -99,7 +106,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     branch, branches: context.branches, paths,
     options: {
       nexus: includeNexus,
-      githubPackages: context.includeGithubPackages !== false,
+      githubPackages: includeNexus,
       secretBackup: includeSecretBackup,
       semverAuto: includeSemverAuto !== false,
       deployStyle: context.deployStyle || "",
@@ -110,10 +117,10 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       copiedFiles: wfCounters.copiedFiles || [],
       gitignoreUpdated,
     },
-    unresolved, secrets,
+    unresolved, secrets, competing,
   });
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog, competing };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

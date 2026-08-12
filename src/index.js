@@ -272,6 +272,7 @@ export async function run(argv, {
     now, today,
     // 설치 로그(#79)용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
+    deployStyle: opts.deployStyle || "all", // 비대화형 기본값 = 종전 동작(전부 설치)
     previousTemplateVersion: existing?.templateVersion || "",
   });
 
@@ -302,6 +303,7 @@ export async function run(argv, {
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
     installLogPath: result?.installLog?.path ?? "",
+    competing: result?.competing ?? [],
   });
   return 0;
 }

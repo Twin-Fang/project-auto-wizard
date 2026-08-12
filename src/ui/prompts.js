@@ -2,6 +2,7 @@
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
 // 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
 import * as engine from "./readline-engine.js";
+import { DEPLOY_STYLES } from "../core/deploy-style.js";
 
 export const CANCEL = engine.CANCEL;
 
@@ -78,6 +79,21 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
     }),
     initialValues: types.length ? types : ["basic"],
     required: true,
+  });
+}
+
+// 배포 방식 선택 (이슈 #80). 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
+// 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
+// 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
+export async function selectDeployStyle() {
+  engine.note(
+    "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
+    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다.",
+    "배포 방식",
+  );
+  return engine.select({
+    message: "서버 배포는 어떤 방식으로 할까요?",
+    options: DEPLOY_STYLES.map((s) => ({ value: s.value, label: s.label })),
   });
 }
 

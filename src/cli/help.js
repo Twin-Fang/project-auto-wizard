@@ -16,7 +16,8 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --paths "t=p,..."    타입별 프로젝트 경로 (모노레포). 예: flutter=app,react=client
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
       --develop-branch B   개발 브랜치 (기본: develop). 릴리스 브랜치와 같으면 trunk-based 모드
-      --nexus / --no-nexus            Nexus 라이브러리 publish 워크플로우 포함/제외
+      --deploy-style STYLE           서버 배포 방식: simple | nginx | traefik | all (기본: all)
+      --nexus / --no-nexus            라이브러리 publish 워크플로우 포함/제외 (Nexus + GitHub Packages)
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
       --force              full 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)

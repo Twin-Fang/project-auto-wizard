@@ -67,8 +67,10 @@ flutter.APP_ARTIFACT_NAME:
 `spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
 
 - **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
-- **spring**: 단일 서버 배포(SIMPLE-CICD, **기본 활성**) + 무중단 배포 2종(Nginx/Traefik, opt-in) + PR 프리뷰 + 라이브러리 publish 2종(Nexus·GitHub Packages, `--nexus` opt-in)
-  - 무중단 배포 워크플로우는 파일은 설치되지만 `push` 트리거가 기본적으로 비활성(`workflow_dispatch`만 활성)입니다. 기본 배포는 SIMPLE-CICD가 담당하며, 무중단 배포로 전환하려면 해당 워크플로우 YAML의 `push.branches` 주석을 해제하고 SIMPLE-CICD의 `push` 트리거는 주석 처리해야 합니다(각 YAML 상단 주석에 안내되어 있습니다).
+- **spring**: 서버 배포 3종(단일 서버 / 무중단 Nginx / 무중단 Traefik) + PR 프리뷰 + 라이브러리 publish 2종(Nexus·GitHub Packages, `--nexus` opt-in)
+  - 서버 배포 3종은 **서로 대체재**입니다. 대화형 설치에서 하나를 고르면 **그것만 설치되고 `push` 트리거까지 자동으로 켜집니다**. 비대화형에서는 `--deploy-style simple|nginx|traefik`으로 지정하고, 미지정 시 `all`(3종 모두 설치 + SIMPLE만 활성)로 종전과 동일하게 동작합니다.
+  - 방식을 바꿔 재설치해도 **이전 방식 파일을 삭제하지 않습니다**(직접 수정하셨을 수 있으므로). 대신 완료 화면과 설치 기록에 "쓰지 않는 배포 워크플로우가 남아 있다"고 알려드리니, 확인 후 직접 삭제하거나 `push` 트리거를 주석 처리하세요. 그대로 두면 배포가 두 번 돕니다.
+  - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다.
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
 
@@ -141,6 +143,7 @@ npx project-auto-wizard [옵션]
       --paths "t=p,..."    모노레포 타입별 경로
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
       --develop-branch B   개발 브랜치 (기본: develop)
+      --deploy-style S     서버 배포 방식: simple | nginx | traefik | all (기본: all)
       --nexus              라이브러리 publish 워크플로우 포함 (Nexus + GitHub Packages)
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)

@@ -10,6 +10,7 @@ import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
+import { deployFilter } from "../core/deploy-style.js";
 import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
@@ -38,7 +39,9 @@ export function scopeString(usages = []) {
 // 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
-  const { resolvers = {}, includeNexus = false, includeSecretBackup = false, prompts = null } = opts;
+  const { resolvers = {}, includeNexus = false, includeSecretBackup = false, deployStyle = "", prompts = null } = opts;
+  // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
+  const keepDeploy = deployFilter(deployStyle);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const keys = [];
   const defaults = new Map();
@@ -53,14 +56,15 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
     // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus 아니면) server-deploy + (nexus면) nexus
-    units.push([type, typeDir]);
-    units.push([type, join(typeDir, includeNexus ? "nexus" : "server-deploy")]);
+    units.push([type, typeDir, null]);
+    units.push([type, join(typeDir, includeNexus ? "nexus" : "server-deploy"), includeNexus ? null : keepDeploy]);
   }
-  if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup")]);
+  if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 
-  for (const [type, dir] of units) {
+  for (const [type, dir, fileFilter] of units) {
     if (!exists(dir)) continue;
     for (const filename of listYamlFiles(dir)) {
+      if (fileFilter && !fileFilter(filename)) continue;
       const content = readFileSync(join(dir, filename), "utf8");
       if (!content.includes("@wizard")) continue;
       const workflowName = workflowDisplayName(prompts, filename);
@@ -157,10 +161,10 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
 //   log        — 카드·안내 출력 함수 주입 (기본 stderr)
 export async function promptEnvPlan({
   payloadRoot, types = [], io = null, force = false, resolvers = {},
-  includeNexus = false, includeSecretBackup = false, targetRoot = ".", repoName = "", log = defaultLog,
+  includeNexus = false, includeSecretBackup = false, deployStyle = "", targetRoot = ".", repoName = "", log = defaultLog,
 } = {}) {
   const prompts = loadWizardPrompts(targetRoot, payloadRoot);
-  const asks = collectAsks(payloadRoot, types, { resolvers, includeNexus, includeSecretBackup, prompts });
+  const asks = collectAsks(payloadRoot, types, { resolvers, includeNexus, includeSecretBackup, deployStyle, prompts });
   const defaults = asks.defaults;
 
   // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)

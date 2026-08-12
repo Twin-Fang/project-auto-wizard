@@ -8,7 +8,7 @@ const SEPARATOR = "────────────────────�
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
     // 설치 후 검증·기록 (#79, #80, #81) — 미주입 시 종전 출력과 동일하다.
-    answers = [], unresolved = [], secrets = new Map(), installLogPath = "" } = ctx || {};
+    answers = [], unresolved = [], secrets = new Map(), installLogPath = "", competing = [] } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -135,6 +135,14 @@ export function printSummary(ctx) {
     for (const u of unresolved) {
       err(`     → ${u.filename}:${u.line}  ${paint(u.token, A.bold, enabled)}`);
     }
+    err("");
+  }
+
+  // 고른 배포 방식이 아닌데 남아 있는 CD 워크플로우 (#80) — 방치하면 배포가 두 번 돈다.
+  if (competing.length) {
+    err(`  ${num()} ${paint("쓰지 않는 배포 워크플로우가 남아 있습니다 — 그대로 두면 배포가 두 번 돕니다", A.yellow, enabled)}`);
+    err("     → 직접 수정하셨을 수 있어 지우지 않았습니다. 확인 후 삭제하거나 push 트리거를 주석 처리하세요");
+    for (const f of competing) err(`     → .github/workflows/${f}`);
     err("");
   }
 

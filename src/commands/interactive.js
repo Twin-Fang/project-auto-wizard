@@ -14,6 +14,7 @@ import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
+import { isDeployStyle } from "../core/deploy-style.js";
 import { runFull } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
@@ -82,6 +83,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
+  // 배포 방식 — 기본은 "all"(종전 동작: 전부 설치). 신규 대화형 설치에서만 물어본다.
+  let deployStyle = "all";
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
@@ -116,6 +119,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     });
     includeNexus = r.nexus;
     includeSecretBackup = r.secretBackup;
+
+    // 배포 방식 (이슈 #80) — Nexus를 고르면 server-deploy가 통째로 빠지므로 그때는 묻지 않는다.
+    // 업데이트 설치에서도 묻지 않는다: 이미 깔린 구성을 바꾸면 어떤 파일을 지울지 문제가 생긴다.
+    if (mode === "full" && !includeNexus && !existing && io.selectDeployStyle) {
+      const picked = await io.selectDeployStyle();
+      if (!isCancel(picked) && isDeployStyle(picked)) deployStyle = picked;
+    }
 
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
     // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
@@ -215,7 +225,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (showOptional) {
     const plan = await promptEnvPlan({
       payloadRoot: payload, types, io: io.engineIo ?? null, force: false,
-      resolvers, includeNexus, includeSecretBackup, targetRoot: cwd, repoName,
+      resolvers, includeNexus, includeSecretBackup, deployStyle, targetRoot: cwd, repoName,
     });
     envValues = plan.values;
     envUseDefaults = plan.useDefaults;
@@ -229,7 +239,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그(#79)·완료 요약(#80)이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
-    markers, envAnswers, detectWarnings,
+    markers, envAnswers, detectWarnings, deployStyle,
     previousTemplateVersion: existing?.templateVersion || "",
   });
   ctx.templateVersion = templateVersion;
@@ -290,6 +300,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
     installLogPath: result?.installLog?.path ?? "",
+    competing: result?.competing ?? [],
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
