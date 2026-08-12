@@ -1,0 +1,47 @@
+# project-auto-wizard:managed-workflow
+# ===================================================================
+# PROJECT-COMMON-ISSUE-HELPER.yaml
+# 이슈 생성/제목 수정 시 브랜치명·커밋 메시지를 댓글로 안내
+# ===================================================================
+#
+# 이슈가 열리거나(opened) 제목이 수정되면(edited + 제목 변경),
+# 정규화된 브랜치명과 커밋 메시지를 이슈 댓글로 생성/갱신한다.
+# ISSUE_HELPER_CREATE_BRANCH=true로 바꾸면 브랜치도 함께 생성한다
+# (기본값은 false — 이슈를 열 때마다 브랜치가 자동 생성되는 것을
+# 막기 위해 옵트인으로 전환됨, project-auto-wizard#68).
+#
+# 로직 본체는 .github/scripts/issue_helper.py (Chuseok22/github-issue-helper의
+# Python 재작성, 동일 작성자 — project-auto-wizard#68).
+# ===================================================================
+
+name: PROJECT-ISSUE-HELPER
+
+on:
+  issues:
+    types: [opened, edited]
+
+# ISSUE_HELPER_CREATE_BRANCH를 "true"로 켜서 브랜치 자동 생성을 쓰려면
+# git/refs API 쓰기 권한이 필요하므로 contents를 write로 올려야 한다.
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  issue-helper:
+    name: 브랜치명 & 커밋 메시지 안내
+    if: github.event.action == 'opened' || (github.event.action == 'edited' && github.event.changes.title)
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ISSUE_HELPER_BRANCH_PREFIX: ""
+      ISSUE_HELPER_MAX_BRANCH_LENGTH: "100"
+      ISSUE_HELPER_COMMIT_TEMPLATE: "${issueTitle} : feat : {변경 사항에 대한 설명} ${issueUrl}"
+      ISSUE_HELPER_CREATE_BRANCH: "false"
+      ISSUE_HELPER_BASE_BRANCH: "main"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 브랜치명 & 커밋 메시지 생성
+        id: issue-helper
+        run: python3 .github/scripts/issue_helper.py run

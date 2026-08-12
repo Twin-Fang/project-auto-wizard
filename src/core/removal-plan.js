@@ -63,7 +63,7 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
     // (b) 관리 마커로 시작하는 것 — payload에서 이름이 바뀌거나 삭제된 파일도 인식 (issue #20 L12).
     for (const name of markedWorkflowNames(wfDir)) removedWf.add(name);
   }
-  for (const s of ["version_manager.py", "changelog_manager.py"]) {
+  for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
   // baseline은 마법사가 만든 내부 상태 파일이다 — 설치물을 지우면 함께 사라져야 한다.

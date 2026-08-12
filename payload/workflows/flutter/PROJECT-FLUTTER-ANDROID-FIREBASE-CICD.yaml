@@ -564,7 +564,7 @@ jobs:
         run: |
           if [ -f "final_release_notes.txt" ]; then
             # Firebase App Distribution release notes 길이 제한 안전망 (4000자)
-            bash ./.github/scripts/truncate_release_notes.sh final_release_notes.txt 4000 char
+            python3 ./.github/scripts/truncate_release_notes.py final_release_notes.txt 4000 char
           fi
 
       # Firebase App Distribution에 AAB 업로드

@@ -38,7 +38,9 @@ test("git diff --stat truncation always preserves the trailing summary line", ()
 
 test("no .sh script references in payload", () => {
   for (const f of files) {
-    assert.ok(!readFileSync(f, "utf8").includes("version_manager.sh"), f);
+    const body = readFileSync(f, "utf8");
+    assert.ok(!body.includes("version_manager.sh"), f);
+    assert.ok(!body.includes("truncate_release_notes.sh"), f);
   }
 });
 
@@ -401,6 +403,39 @@ test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner �
 });
 
 // ---------------------------------------------------------------
+// ISSUE-HELPER: 외부 Chuseok22/github-issue-helper 액션 의존 제거,
+// 로컬 payload 기능으로 흡수 (issue #68)
+// ---------------------------------------------------------------
+const issueHelperPath = join("payload/workflows/common", "PROJECT-COMMON-ISSUE-HELPER.yaml");
+
+test("PROJECT-COMMON-ISSUE-HELPER exists in payload", () => {
+  assert.ok(files.includes(issueHelperPath), `${issueHelperPath} missing`);
+});
+
+test("PROJECT-COMMON-ISSUE-HELPER는 외부 액션을 호출하지 않는다", () => {
+  const body = readFileSync(issueHelperPath, "utf8");
+  // 출처 표기 주석(Chuseok22/github-issue-helper 언급)은 남아도 된다 — 여기서 금지하는 것은
+  // 그 액션을 "호출"(uses:)하는 것이지, 출처를 "언급"하는 것이 아니다.
+  assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"));
+  assert.ok(body.includes("python3 .github/scripts/issue_helper.py run"));
+});
+
+test("PROJECT-COMMON-ISSUE-HELPER의 create_branch 기본값은 false다", () => {
+  const body = readFileSync(issueHelperPath, "utf8");
+  assert.match(body, /ISSUE_HELPER_CREATE_BRANCH:\s*"false"/);
+});
+
+test("PROJECT-COMMON-ISSUE-HELPER의 base_branch는 하드코딩된 브랜치명이 아니라 플레이스홀더를 쓴다", () => {
+  const body = readFileSync(issueHelperPath, "utf8");
+  assert.match(body, /ISSUE_HELPER_BASE_BRANCH:\s*"\{\{MAIN_BRANCH\}\}"/);
+});
+
+test("PROJECT-COMMON-ISSUE-HELPER는 issues opened/edited에 반응한다", () => {
+  const body = readFileSync(issueHelperPath, "utf8");
+  assert.match(body, /on:\s*\n\s*issues:\s*\n\s*types:\s*\[opened,\s*edited]/);
+});
+
+// ---------------------------------------------------------------
 // #50: FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
 // 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
 // 비어 배포 잡이 실패한다. FLUTTER_PROJECT_DIR로 개명하고, 경로가
@@ -447,4 +482,30 @@ test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개
 
 test("PROJECT-FLUTTER-IOS-TESTFLIGHT: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
   assertUploadArtifactStepsFailOnMissingFiles(flutterIosTestflightPath);
+});
+
+// ---------------------------------------------------------------
+// 도그푸딩 사본 — payload를 고치면 .github 사본도 함께 고쳐야 한다.
+// ---------------------------------------------------------------
+test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 호출이 없다", () => {
+  const selfHostedFiles = readdirSync(".github/workflows")
+    .filter((f) => /\.ya?ml$/.test(f))
+    .map((f) => join(".github/workflows", f));
+  for (const f of selfHostedFiles) {
+    const body = readFileSync(f, "utf8");
+    // 출처 표기 주석은 허용 — uses:로 실제 호출하는 것만 금지
+    assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"), `${f}: 외부 액션 호출이 남아있음`);
+  }
+});
+
+test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER는 {{MAIN_BRANCH}}가 main으로 치환되어 있다", () => {
+  const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
+  assert.ok(!text.includes("{{MAIN_BRANCH}}"), "플레이스홀더가 치환되지 않았습니다");
+  assert.match(text, /ISSUE_HELPER_BASE_BRANCH:\s*"main"/);
+});
+
+test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", () => {
+  const payloadSrc = readFileSync(join("payload", "scripts", "issue_helper.py"), "utf8");
+  const selfHostedSrc = readFileSync(join(".github", "scripts", "issue_helper.py"), "utf8");
+  assert.strictEqual(selfHostedSrc, payloadSrc);
 });

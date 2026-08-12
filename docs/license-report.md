@@ -31,10 +31,12 @@ $ npm exec --yes -- license-checker --production
 ```
 $ grep -rnE "^import |^from " payload/scripts/*.py
 changelog_manager.py: argparse, html, json, os, re, sys, traceback, urllib.error, urllib.request
+issue_helper.py:      argparse, json, os, re, sys, unicodedata, urllib.error, urllib.request, datetime
+truncate_release_notes.py: argparse, sys
 version_manager.py:   argparse, datetime, json, os, re, sys, pathlib
 ```
 
-`version_manager.py`/`changelog_manager.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다.
+`version_manager.py`/`changelog_manager.py`/`truncate_release_notes.py`/`issue_helper.py`는 모두 Python 표준 라이브러리만 사용합니다(`argparse`, `json`, `re`, `urllib.request` 등). 외부 PyPI 패키지 의존성이 없습니다. `issue_helper.py`는 Chuseok22/github-issue-helper(동일 작성자, 라이선스 미설정 저장소)의 Python 재작성이며, 서드파티 런타임 의존성 없이 GitHub REST API를 `urllib.request`로 직접 호출합니다.
 
 ## 결론
 

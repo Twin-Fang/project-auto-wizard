@@ -14,11 +14,12 @@ function freshTarget(prefix) {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
-function ctxFor(types) {
+function ctxFor(types, extra = {}) {
   return createContext({
     mode: "full", force: true, types, version: "1.0.0",
     branches: { main: "main", develop: "develop", mode: "pr-flow" },
     paths: new Map(),
+    ...extra,
   });
 }
 
@@ -46,8 +47,10 @@ test("copyWorkflows: 재실행 시 unchanged(skip)된 파일은 copiedFiles에 �
 test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .template.yaml 파일명을 copiedFiles에 담는다", () => {
   const target = freshTarget("paw-copied-files-decision-");
   try {
-    const ctx = ctxFor(["spring"]);
-    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치 (server-deploy 포함 spring 전용 파일 생성)
+    // GITHUB-PACKAGES는 라이브러리 publish 계열이라 nexus/ opt-in에 속한다 (이슈 #80).
+    // 여기서는 ".yaml만 strip" 규칙을 검증하려 .yml 확장자 파일이 필요해 이 파일을 쓴다.
+    const ctx = ctxFor(["spring"], { includeNexus: true });
+    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치 (nexus 포함 spring 전용 파일 생성)
 
     const targetFile = join(target, ".github", "workflows", "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");
     writeFileSync(targetFile, "changed-content-that-differs-from-template\n");

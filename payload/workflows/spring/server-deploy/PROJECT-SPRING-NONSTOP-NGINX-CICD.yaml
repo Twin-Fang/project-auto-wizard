@@ -86,7 +86,7 @@ env:
 
   # ☁️ Spring Boot 설정
   SPRING_PROFILE: "prod"
-  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:21
+  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
   GRADLE_OPTS: "-Dspring.profiles.active=prod"
 
   # 📁 경로 설정
@@ -94,13 +94,15 @@ env:
   DOCKERFILE_PATH: "./Dockerfile"
 
   # 🌐 포트 및 컨테이너 설정
+  # BLUE/GREEN은 서버에서 번갈아 뜨는 두 컨테이너의 호스트 포트다 — 다른 서비스와 겹치면 배포가 실패한다.
   CONTAINER_INTERNAL_PORT: "8080"
-  BLUE_PORT: "8080"
-  GREEN_PORT: "8081"
+  BLUE_PORT: "__BLUE_PORT__"  # @wizard ask:8080
+  GREEN_PORT: "__GREEN_PORT__"  # @wizard ask:8081
 
   # 🔧 Nginx 설정
-  NGINX_RP_CONF: "/etc/nginx/sites-enabled/example.conf"
-  NGINX_BACKUP_DIR: "/volume1/project/nginx/backups"
+  # NGINX_RP_CONF 경로가 틀리면 무중단 전환(proxy_pass 포트 토글) 자체가 동작하지 않는다.
+  NGINX_RP_CONF: "__NGINX_RP_CONF__"  # @wizard ask:/etc/nginx/sites-enabled/__PROJECT_NAME__.conf
+  NGINX_BACKUP_DIR: "__NGINX_BACKUP_DIR__"  # @wizard ask:/volume1/projects/nginx/backups
   NGINX_BACKUP_KEEP: "10"
 
   # 📦 볼륨 마운트 설정
@@ -114,7 +116,7 @@ env:
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
   # 🔌 SSH 연결 설정
-  SSH_PORT: "2022"
+  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
   SSH_COMMAND_TIMEOUT: "600s"
   SSH_CONNECTION_TIMEOUT: "60s"
 
