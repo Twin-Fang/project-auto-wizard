@@ -45,7 +45,7 @@ export function renderInstallLog(d = {}) {
     previousTemplateVersion = "", mode = "", types = [], markers = new Map(),
     version = "", branch = "", branches = null, paths = new Map(),
     options = {}, answers = [], result = {}, unresolved = [], secrets = new Map(),
-    warnings = [], competing = [],
+    warnings = [], cleanup = null,
   } = d;
 
   const L = [];
@@ -101,11 +101,10 @@ export function renderInstallLog(d = {}) {
   L.push("");
   L.push("| 항목 | 값 |");
   L.push("|---|---|");
-  L.push(`| Nexus 라이브러리 publish | ${options.nexus ? "포함" : "제외"} |`);
-  L.push(`| GitHub Packages publish | ${options.githubPackages ? "포함" : "제외"} |`);
+  L.push(`| 라이브러리 publish (Nexus·GitHub Packages) | ${options.nexus ? "포함" : "제외"} |`);
   L.push(`| Secret 서버 백업 | ${options.secretBackup ? "포함" : "제외"} |`);
   L.push(`| 자동 버전 승격 | ${options.semverAuto === false ? "사용 안 함" : "사용"} |`);
-  if (options.deployStyle) L.push(`| 배포 방식 | ${options.deployStyle} |`);
+  L.push(`| 서버 배포 방식 | ${options.deployStyle || "-"} |`);
   L.push("");
 
   L.push("## 환경설정 답변");
@@ -133,6 +132,8 @@ export function renderInstallLog(d = {}) {
     L.push("");
   };
   sec("새로 설치된 파일", result.copiedFiles);
+  sec("이전 배포 방식 정리 — 삭제", cleanup?.removed);
+  sec("이전 배포 방식 정리 — .bak 백업 (수정 내용 보존)", cleanup?.backedUp);
   sec("건너뛴 파일", result.skippedFiles);
   sec("백업 후 교체한 파일", result.backupFiles);
   if (result.gitignoreUpdated) { L.push("`.gitignore`를 갱신했습니다 (충돌 백업 파일 무시 항목 추가)."); L.push(""); }
@@ -149,14 +150,6 @@ export function renderInstallLog(d = {}) {
     for (const u of unresolved) L.push(`| \`${u.filename}\` | ${u.line} | \`${u.token}\` |`);
     L.push("");
   }
-  if (competing.length) {
-    L.push("### ⚠️ 고른 배포 방식이 아닌 워크플로우가 남아 있음");
-    L.push("");
-    L.push("아래 파일은 이전 설치에서 깔린 다른 배포 방식입니다. 지우지 않았습니다(직접 수정하셨을 수 있어서). 그대로 두면 배포가 두 번 도는 상태가 되므로, 쓰지 않는 쪽을 직접 삭제하거나 push 트리거를 주석 처리하세요.");
-    L.push("");
-    for (const f of competing) L.push(`- \`.github/workflows/${f}\``);
-    L.push("");
-  }
   if (secrets.size) {
     L.push("### 등록해야 하는 GitHub Secret");
     L.push("");
@@ -167,7 +160,7 @@ export function renderInstallLog(d = {}) {
     for (const [name, users] of secrets) L.push(`| \`${name}\` | ${users.map((u) => `\`${u}\``).join(", ")} |`);
     L.push("");
   }
-  if (!unresolved.length && !secrets.size && !competing.length) {
+  if (!unresolved.length && !secrets.size) {
     L.push("추가로 조치할 항목이 없습니다.");
     L.push("");
   }

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText } from "../core/fsutil.js";
 import { PATHS } from "../core/paths.js";
-import { buildVersionYml, parseExisting } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
@@ -15,7 +15,7 @@ import { copyScripts } from "../core/copy/simple.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline } from "../core/baseline.js";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
-import { competingDeployWorkflows } from "../core/deploy-style.js";
+import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { writeInstallLog } from "../core/install-log.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
@@ -44,12 +44,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성 전략 D4)
   writeText(join(targetRoot, PATHS.versionFile),
-    buildVersionYml({
-      templateText: readVersionYmlTemplate(payloadRoot),
-      version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
-      deployValues, extraTopLevel,
-      templateOptions: { templateVersion, includeNexus, includeSecretBackup, includeSemverAuto: includeSemverAuto !== false, optionsDate: today },
-    }));
+    renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel }));
 
   // 3. README 버전 섹션
   addVersionSectionToReadme(version, targetRoot);
@@ -59,10 +54,23 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
   //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다 — issue #7.
-  const gitignoreUpdated = wfCounters.backupAdded > 0 || wfCounters.templateAdded > 0;
+  const gitignoreUpdated0 = wfCounters.backupAdded > 0 || wfCounters.templateAdded > 0;
+
+  // 6. 이전 배포 방식 정리 (이슈 #80) — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
+  //    옛 baseline이 살아 있는 지금이 "사용자가 손댔는가"를 판정할 수 있는 유일한 시점이다.
+  const previousBaseline = readBaseline(targetRoot);
+  const cleanup = cleanupOtherDeployWorkflows(
+    join(targetRoot, PATHS.workflowsDir),
+    existsSync(join(targetRoot, PATHS.workflowsDir)) ? readdirSync(join(targetRoot, PATHS.workflowsDir)) : [],
+    context.deployStyle || DEFAULT_DEPLOY_STYLE,
+    previousBaseline);
+  // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
+  for (const f of [...cleanup.removed, ...cleanup.backedUp]) delete previousBaseline?.files?.[f];
+
+  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0;
   if (gitignoreUpdated) ensureGitignore(targetRoot);
 
-  // 6. baseline 기록 (issue #69) — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
+  // 7. baseline 기록 (issue #69) — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
   //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
   //    아니라 여기서 기록한다.
   //    기존 baseline은 병합 대상 — 이번에 건드리지 않은 파일의 기준점을 잃지 않는다.
@@ -73,10 +81,10 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       wfCounters.baselineTargets || new Map(),
       join(targetRoot, PATHS.workflowsDir),
       makeSrcText(context.branches || null, context.deployStyle || "")),
-    previous: readBaseline(targetRoot),
+    previous: previousBaseline,
   });
 
-  // 7. 설치 후 검증 (이슈 #81, #80) — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
+  // 8. 설치 후 검증 (이슈 #81, #80) — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
   //    미치환 플레이스홀더가 남았는지, 어떤 Secret이 있어야 워크플로우가 도는지.
   //    설치를 실패시키지는 않는다 — 사실을 알려주는 것이 목적이고, 판단은 사용자 몫이다.
   const wfDir = join(targetRoot, PATHS.workflowsDir);
@@ -87,13 +95,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
   );
 
-  // 고른 배포 방식이 아닌데 이미 깔려 있는 CD 워크플로우 (이슈 #80). 지우지 않는다 —
-  // 사용자 파일이고 손댄 내용이 있을 수 있다. 다만 SIMPLE은 push 트리거가 살아 있어 두 배포가
-  // 동시에 도는 상태가 되므로 완료 화면에서 반드시 알린다.
-  const competing = competingDeployWorkflows(
-    existsSync(wfDir) ? readdirSync(wfDir) : [], context.deployStyle || "");
-
-  // 8. 설치 로그 (이슈 #79) — 이 실행에서 무엇을 어떤 값으로 설치했는지 레포에 남긴다.
+  // 9. 설치 로그 (이슈 #79) — 이 실행에서 무엇을 어떤 값으로 설치했는지 레포에 남긴다.
   //    실패해도 설치는 성공으로 끝난다.
   const installLog = writeInstallLog(targetRoot, {
     action: context.previousTemplateVersion ? "update" : "install",
@@ -106,7 +108,6 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     branch, branches: context.branches, paths,
     options: {
       nexus: includeNexus,
-      githubPackages: includeNexus,
       secretBackup: includeSecretBackup,
       semverAuto: includeSemverAuto !== false,
       deployStyle: context.deployStyle || "",
@@ -117,10 +118,10 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       copiedFiles: wfCounters.copiedFiles || [],
       gitignoreUpdated,
     },
-    unresolved, secrets, competing,
+    unresolved, secrets, cleanup,
   });
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog, competing };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog, cleanup };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

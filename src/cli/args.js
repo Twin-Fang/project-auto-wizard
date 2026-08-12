@@ -15,7 +15,7 @@ export function parseArgs(argv) {
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
     developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
-    deployStyle: "",         // 서버 배포 방식 (--deploy-style). 빈값=all(전부 설치 — 종전 동작)
+    deployStyle: "",         // 서버 배포 방식 (--deploy-style). 빈값=version.yml 저장값 → simple
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
@@ -78,7 +78,6 @@ export function parseArgs(argv) {
       case "--keep-workflows": result.keepWorkflows = true; break;
       case "--keep-scripts": result.keepScripts = true; break;
       case "--deploy-style": {
-        // 빈값/미지정은 all — 기존 CLI 사용자의 설치 결과가 바뀌지 않아야 한다.
         const v = args.shift();
         if (!isDeployStyle(v)) {
           throw new CliError(`--deploy-style 값이 올바르지 않습니다: ${v ?? "(없음)"} (${DEPLOY_STYLES.map((s) => s.value).join(" | ")})`);

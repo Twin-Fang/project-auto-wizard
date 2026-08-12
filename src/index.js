@@ -8,6 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
@@ -272,7 +273,8 @@ export async function run(argv, {
     now, today,
     // 설치 로그(#79)용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
-    deployStyle: opts.deployStyle || "all", // 비대화형 기본값 = 종전 동작(전부 설치)
+    deployStyle: opts.deployStyle
+      || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
     previousTemplateVersion: existing?.templateVersion || "",
   });
 
@@ -303,7 +305,7 @@ export async function run(argv, {
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
     installLogPath: result?.installLog?.path ?? "",
-    competing: result?.competing ?? [],
+    cleanup: result?.cleanup ?? null,
   });
   return 0;
 }

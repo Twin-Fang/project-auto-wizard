@@ -69,8 +69,8 @@ test("resolveMarker: 실제로 존재하는 파일을 돌려준다 (build.gradle
   assert.strictEqual(resolveMarker("spring", has), "build.gradle.kts");
 });
 
-test("resolveMarker: has 미주입이면 종전대로 타입 대표 파일로 폴백한다", () => {
-  assert.strictEqual(resolveMarker("spring"), "build.gradle");
+test("resolveMarker: 실재하는 후보가 없으면 대표 파일을 쓴다", () => {
+  assert.strictEqual(resolveMarker("spring", () => false), "build.gradle");
 });
 
 test("resolveMarkers: basic은 근거 파일이 없으므로 맵에서 제외된다", () => {

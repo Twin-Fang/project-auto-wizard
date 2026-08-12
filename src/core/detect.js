@@ -83,14 +83,10 @@ export function extraMarkers(type) {
 // 그 타입을 감지하는 데 실제로 쓰인 파일 (이슈 #77). markerForType은 타입당 대표 파일 하나를
 // 고정 반환하므로, build.gradle.kts만 있는 레포에서도 "build.gradle 발견"이라고 출력돼
 // 같은 설치 로그 안에서 경로 확정 화면과 파일명이 어긋났다. has()로 실재하는 것을 고른다.
-// has 미주입 시 종전 동작(대표 파일)으로 폴백한다.
+// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다.
 export function resolveMarker(type, has) {
-  const primary = markerForType(type);
-  if (typeof has !== "function") return primary;
-  for (const name of [primary, ...extraMarkers(type)]) {
-    if (has(name)) return name;
-  }
-  return primary;
+  const candidates = [markerForType(type), ...extraMarkers(type)];
+  return candidates.find(has) ?? candidates[0];
 }
 
 // 빌드 JDK 감지 (이슈 #82) — 배포 워크플로우의 JAVA_VERSION 기본값이 21로 고정돼 있어

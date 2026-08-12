@@ -7,8 +7,8 @@ const SEPARATOR = "────────────────────�
 
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
-    // 설치 후 검증·기록 (#79, #80, #81) — 미주입 시 종전 출력과 동일하다.
-    answers = [], unresolved = [], secrets = new Map(), installLogPath = "", competing = [] } = ctx || {};
+    // 설치 후 검증·기록 (#79, #80, #81)
+    answers = [], unresolved = [], secrets = new Map(), installLogPath = "", cleanup = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -104,6 +104,13 @@ export function printSummary(ctx) {
     }
     err("");
   }
+  // 배포 방식을 바꿔 재설치한 경우, 이전 CD를 어떻게 처리했는지 알린다 (#80).
+  if (cleanup?.removed?.length || cleanup?.backedUp?.length) {
+    err("  🧹 이전 배포 방식 정리:");
+    for (const f of cleanup.removed || []) err(`     • ${f} ${paint("삭제 (손대지 않은 파일)", A.dim, enabled)}`);
+    for (const f of cleanup.backedUp || []) err(`     • ${f} → ${f}.bak ${paint("수정하신 내용이 있어 백업", A.dim, enabled)}`);
+    err("");
+  }
   if (installLogPath) {
     err(`  📋 설치 기록: ${installLogPath}`);
     err("     → 나중에 '무엇을 어떤 값으로 설치했는지' 확인할 때 이 파일을 보세요");
@@ -135,14 +142,6 @@ export function printSummary(ctx) {
     for (const u of unresolved) {
       err(`     → ${u.filename}:${u.line}  ${paint(u.token, A.bold, enabled)}`);
     }
-    err("");
-  }
-
-  // 고른 배포 방식이 아닌데 남아 있는 CD 워크플로우 (#80) — 방치하면 배포가 두 번 돈다.
-  if (competing.length) {
-    err(`  ${num()} ${paint("쓰지 않는 배포 워크플로우가 남아 있습니다 — 그대로 두면 배포가 두 번 돕니다", A.yellow, enabled)}`);
-    err("     → 직접 수정하셨을 수 있어 지우지 않았습니다. 확인 후 삭제하거나 push 트리거를 주석 처리하세요");
-    for (const f of competing) err(`     → .github/workflows/${f}`);
     err("");
   }
 

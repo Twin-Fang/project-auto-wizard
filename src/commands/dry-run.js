@@ -5,31 +5,22 @@ import { join } from "node:path";
 import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { planUninstall } from "./uninstall.js";
-import { buildVersionYml, parseExisting } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
-import { markerForType } from "../core/detect.js";
+import { existingMarkerInDir } from "../core/paths-resolve.js";
 
 function versionYmlPreview(context, payloadRoot, targetRoot) {
-  const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
-    now, today, templateVersion = "unknown",
-    includeNexus = false, includeSecretBackup = false,
-    includeSemverAuto } = context;
+  const { paths = new Map() } = context;
   const pathMarkers = new Map();
-  for (const [t] of paths) pathMarkers.set(t, markerForType(t));
+  for (const [t, p] of paths) pathMarkers.set(t, existingMarkerInDir(t, join(targetRoot, p || ".")));
 
   const vyPath = join(targetRoot, PATHS.versionFile);
   const existingRaw = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
   const extraTopLevel = existingRaw !== null ? parseExisting(existingRaw).extraTopLevel : [];
 
-  const wouldBe = buildVersionYml({
-    templateText: readVersionYmlTemplate(payloadRoot),
-    version, types, paths, pathMarkers, branch, branches: context.branches, versionCode, now, today,
-    extraTopLevel,
-    templateOptions: {
-      templateVersion, includeNexus, includeSecretBackup,
-      includeSemverAuto: includeSemverAuto !== false,
-      optionsDate: today,
-    },
+  // 실제 설치와 같은 렌더 함수를 쓴다 — 각자 조립하면 옵션이 늘 때마다 미리보기가 어긋난다.
+  const wouldBe = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), {
+    pathMarkers, extraTopLevel,
   });
   return { existed: existingRaw !== null, changed: existingRaw !== wouldBe };
 }

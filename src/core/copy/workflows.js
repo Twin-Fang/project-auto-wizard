@@ -3,7 +3,7 @@
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
-import { deployFilter, isDeployWorkflow, activateDeployTrigger } from "../deploy-style.js";
+import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE } from "../deploy-style.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -13,19 +13,12 @@ import { sha256, readBaseline } from "../baseline.js";
 
 // 원본 텍스트 로더 — context.branches가 있으면 {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 치환 적용.
 // classify(unchanged 판정)와 실제 복사가 같은 치환본을 봐야 재실행 시 가짜 충돌이 없다.
-export function makeSrcText(branches, deployStyle = "") {
-  const keep = deployFilter(deployStyle);
+export function makeSrcText(branches, deployStyle = DEFAULT_DEPLOY_STYLE) {
   return (p) => {
     const raw = readFileSync(p, "utf8");
-    let out = branches ? substitute(raw, branches) : raw;
-    // 사용자가 고른 배포 방식의 CD는 push 트리거를 켜서 설치한다 (이슈 #80).
-    // 무중단 템플릿은 트리거가 주석 처리된 채 배포되므로, 켜주지 않으면 설치해도 아무 일이
-    // 일어나지 않고 사용자가 YAML을 직접 고쳐야 한다.
-    const name = basename(p);
-    if (deployStyle && deployStyle !== "all" && isDeployWorkflow(name) && keep(name)) {
-      out = activateDeployTrigger(out);
-    }
-    return out;
+    const out = branches ? substitute(raw, branches) : raw;
+    // 고른 배포 방식의 CD는 push 트리거를 켜서 설치한다 — 설치했는데 안 도는 상태를 만들지 않는다.
+    return isDeployWorkflow(basename(p)) ? activateDeployTrigger(out) : out;
   };
 }
 
@@ -152,7 +145,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   counters.keptLocal = [];      // 질문 없이 사용자 수정본을 유지한 파일 (업스트림 무변경)
   counters.removedKept = [];    // 사용자가 지웠고 되살리지 않은 파일
   counters.restoredFiles = [];  // 사용자가 지웠지만 복원하기로 한 파일
-  const deployStyle = context.deployStyle || "";
+  const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const baselineTargets = new Map(); // filename -> { srcPath, envOpts, wrote }
@@ -247,7 +240,7 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
-  const deployStyle = context.deployStyle || "";
+  const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const branchMode = context.branches?.mode || "pr-flow";
@@ -354,7 +347,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
-  const deployStyle = context.deployStyle || "";
+  const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const branchMode = context.branches?.mode || "pr-flow";

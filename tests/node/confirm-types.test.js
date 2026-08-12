@@ -7,22 +7,20 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runInteractive } from "../../src/commands/interactive.js";
 
-// confirmTypes를 주입하면 대화형으로 간주된다 (io.engineIo 게이트와 같은 규약).
-function stubIo({ confirmTypes } = {}) {
+function stubIo({ confirmTypes = ({ types }) => types } = {}) {
   const calls = { confirmTypes: [], summary: [] };
   const io = {
     selectMode: async () => "full",
     confirmProjectMenu: async () => "continue",
     askYesNo: async (_m, def) => def,
     askText: async (_m, def) => def,
+    selectDeployStyle: async () => "simple",
+    confirmTypes: async (arg) => { calls.confirmTypes.push(arg); return confirmTypes(arg); },
     note: () => {},
     cancelMessage: () => {},
     summary: (ctx) => calls.summary.push(ctx),
     outro: () => {},
   };
-  if (confirmTypes) {
-    io.confirmTypes = async (arg) => { calls.confirmTypes.push(arg); return confirmTypes(arg); };
-  }
   return { io, calls };
 }
 
@@ -81,7 +79,7 @@ test("version.yml에 타입이 이미 있는 업데이트 설치에서는 다시
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("confirmTypes를 주입하지 않은 호출부(비대화형·구 스텁)에서는 흐름이 그대로다", async () => {
+test("감지 결과가 맞으면 그대로 확정된다 (Enter 한 번)", async () => {
   const target = springFixture();
   try {
     const { io, calls } = stubIo();

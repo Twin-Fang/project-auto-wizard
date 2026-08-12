@@ -14,7 +14,7 @@ import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle } from "../core/deploy-style.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { runFull } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
@@ -83,8 +83,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
-  // 배포 방식 — 기본은 "all"(종전 동작: 전부 설치). 신규 대화형 설치에서만 물어본다.
-  let deployStyle = "all";
+  // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (nexus/secret_backup과 같은 규약).
+  let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
@@ -96,9 +96,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // '수정하기 > 프로젝트 타입' 두 단계 뒤에 숨어 있어, 타입이 틀린 채로 설치가 끝나는 일이 많았다.
   // 타입이 뒤에 나올 질문(선택 워크플로우·경로·env)의 범위를 정하므로 순서상 여기가 맞다.
   // 저장값이 있는 업데이트 설치와 비대화형에서는 묻지 않는다 — 기존 동작 그대로.
-  // io.confirmTypes 존재 여부가 곧 대화형 게이트다 — 비대화형 CLI 경로(index.js)는 이 함수를
-  // 아예 거치지 않고, 테스트 스텁은 필요할 때만 이 메서드를 넣는다 (충돌 3지선 io.engineIo와 같은 규약).
-  if (showOptional && !existing?.types?.length && io.confirmTypes) {
+  if (showOptional && !existing?.types?.length) {
     const picked = await io.confirmTypes({ types, markers });
     if (!isCancel(picked) && Array.isArray(picked) && picked.length) {
       const next = picked.filter((x) => VALID_TYPES.includes(x));
@@ -120,11 +118,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     includeNexus = r.nexus;
     includeSecretBackup = r.secretBackup;
 
-    // 배포 방식 (이슈 #80) — Nexus를 고르면 server-deploy가 통째로 빠지므로 그때는 묻지 않는다.
-    // 업데이트 설치에서도 묻지 않는다: 이미 깔린 구성을 바꾸면 어떤 파일을 지울지 문제가 생긴다.
-    if (mode === "full" && !includeNexus && !existing && io.selectDeployStyle) {
+    // 서버 배포 방식 (이슈 #80). Nexus(라이브러리)를 고르면 server-deploy가 통째로 빠지므로 묻지 않는다.
+    if (!includeNexus && !isDeployStyle(deployStyle)) {
       const picked = await io.selectDeployStyle();
-      if (!isCancel(picked) && isDeployStyle(picked)) deployStyle = picked;
+      deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
     }
 
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
@@ -239,7 +236,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     includeSemverAuto,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그(#79)·완료 요약(#80)이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
-    markers, envAnswers, detectWarnings, deployStyle,
+    markers, envAnswers, detectWarnings,
+    deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
     previousTemplateVersion: existing?.templateVersion || "",
   });
   ctx.templateVersion = templateVersion;
@@ -300,7 +298,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
     installLogPath: result?.installLog?.path ?? "",
-    competing: result?.competing ?? [],
+    cleanup: result?.cleanup ?? null,
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;

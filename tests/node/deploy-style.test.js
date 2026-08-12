@@ -6,13 +6,14 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSyn
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  deployFilter, isDeployWorkflow, competingDeployWorkflows, activateDeployTrigger, isDeployStyle,
+  deployFilter, isDeployWorkflow, activateDeployTrigger, isDeployStyle, DEFAULT_DEPLOY_STYLE,
 } from "../../src/core/deploy-style.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { makeResolvers } from "../../src/core/detect-fs.js";
 import { parseArgs } from "../../src/cli/args.js";
+import { parseTemplateOptions } from "../../src/core/version-yml.js";
 
 const SIMPLE = "PROJECT-SPRING-SIMPLE-CICD.yaml";
 const NGINX = "PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml";
@@ -28,22 +29,9 @@ test("deployFilter: 고른 방식의 CD만 통과시키고 PR 프리뷰는 항�
   assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("deployFilter: 미지정/all은 전부 통과 — 종전 동작 그대로", () => {
-  for (const style of ["", undefined, "all"]) {
-    const keep = deployFilter(style);
-    assert.ok([SIMPLE, NGINX, TRAEFIK, PREVIEW].every(keep), `style=${style}`);
-  }
-});
-
 test("isDeployWorkflow: CD 본체만 선택 대상이다", () => {
   assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
   assert.ok(!isDeployWorkflow(PREVIEW));
-});
-
-test("competingDeployWorkflows: 고른 방식이 아닌데 이미 깔린 CD를 짚어낸다", () => {
-  const installed = [SIMPLE, NGINX, PREVIEW, "PROJECT-COMMON-RELEASE-PUBLISH.yaml"];
-  assert.deepStrictEqual(competingDeployWorkflows(installed, "nginx"), [SIMPLE]);
-  assert.deepStrictEqual(competingDeployWorkflows(installed, "all"), [], "all이면 경합 자체가 없다");
 });
 
 test("activateDeployTrigger: on 블록의 주석 처리된 push 트리거만 되살린다", () => {
@@ -59,12 +47,13 @@ test("activateDeployTrigger: 이미 켜져 있으면 그대로 둔다 (멱등)",
   assert.strictEqual(activateDeployTrigger(already), already);
 });
 
-test("--deploy-style: 값 검증과 기본값", () => {
+test("--deploy-style: 값 검증", () => {
   assert.strictEqual(parseArgs(["--deploy-style", "nginx"]).deployStyle, "nginx");
-  assert.strictEqual(parseArgs([]).deployStyle, "", "미지정은 빈값 → 다운스트림에서 all로 해석");
+  assert.strictEqual(parseArgs([]).deployStyle, "", "미지정은 빈값 → 저장값 또는 기본값(simple)");
   assert.throws(() => parseArgs(["--deploy-style", "k8s"]), /deploy-style/);
   assert.throws(() => parseArgs(["--deploy-style"]), /deploy-style/);
-  assert.ok(isDeployStyle("traefik") && !isDeployStyle("k8s"));
+  assert.ok(isDeployStyle("traefik") && !isDeployStyle("k8s") && !isDeployStyle("all"));
+  assert.strictEqual(DEFAULT_DEPLOY_STYLE, "simple");
 });
 
 function springTarget() {
@@ -98,25 +87,53 @@ test("runFull: nginx를 고르면 그 CD만 설치되고 push 트리거가 켜�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 기본값(all)은 종전대로 CD 3종 + PR 프리뷰를 모두 설치한다", () => {
+test("runFull: 방식을 지정하지 않으면 기본값(단일 서버)만 설치된다", () => {
   const target = springTarget();
   try {
     install(target, "");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files.sort(), [NGINX, PREVIEW, SIMPLE, TRAEFIK].sort());
+    assert.deepStrictEqual(files.sort(), [PREVIEW, SIMPLE].sort(),
+      "CD는 하나만 — 넷을 다 깔면 안 쓸 워크플로우가 쌓이고 질문만 늘어난다");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 방식을 바꿔 재설치하면 남은 CD를 삭제하지 않고 경고로 알린다", () => {
+test("runFull: 방식을 바꾸면 손대지 않은 이전 CD는 삭제한다 — 남기면 배포가 두 번 돈다", () => {
   const target = springTarget();
   try {
-    install(target, "simple");           // 먼저 단일 서버 배포로 설치
-    const r = install(target, "nginx");  // 무중단으로 바꿔 재설치
+    install(target, "simple");
+    const r = install(target, "nginx");
 
-    assert.deepStrictEqual(r.competing, [SIMPLE],
-      "이전 방식이 남아 있으면 배포가 두 번 도므로 반드시 알려야 한다");
-    assert.ok(readdirSync(join(target, ".github/workflows")).includes(SIMPLE),
-      "사용자가 손댔을 수 있는 파일이므로 지우지 않는다");
+    assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
+    assert.deepStrictEqual(r.cleanup.backedUp, []);
+    const files = readdirSync(join(target, ".github/workflows"));
+    assert.ok(!files.includes(SIMPLE), "마법사가 깐 파일은 마법사가 정리한다");
+    assert.ok(files.includes(NGINX));
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: 사용자가 손댄 이전 CD는 지우지 않고 .bak으로 옮긴다", () => {
+  const target = springTarget();
+  try {
+    install(target, "simple");
+    const p = join(target, ".github/workflows", SIMPLE);
+    writeFileSync(p, readFileSync(p, "utf8") + "\n# 내가 고친 부분\n");
+
+    const r = install(target, "nginx");
+    assert.deepStrictEqual(r.cleanup.backedUp, [SIMPLE]);
+    assert.deepStrictEqual(r.cleanup.removed, []);
+    assert.match(readFileSync(`${p}.bak`, "utf8"), /내가 고친 부분/, "수정 내용은 보존해야 한다");
+    assert.ok(!readdirSync(join(target, ".github/workflows")).includes(SIMPLE), "트리거는 죽어야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: 정리한 파일은 baseline에서도 빠져 다음 실행에서 '사용자가 지웠다'로 오인되지 않는다", () => {
+  const target = springTarget();
+  try {
+    install(target, "simple");
+    install(target, "nginx");
+    const again = install(target, "nginx");
+    assert.deepStrictEqual(again.cleanup.removed, []);
+    assert.deepStrictEqual(again.workflows.removedKept, []);
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
@@ -127,6 +144,19 @@ test("runFull: 같은 방식으로 재설치하면 가짜 충돌 없이 조용�
     const again = install(target, "nginx");
     assert.strictEqual(again.workflows.copiedFiles.length, 0,
       "트리거 활성화본이 baseline과 같아야 재실행이 unchanged로 떨어진다");
-    assert.deepStrictEqual(again.competing, []);
+    assert.deepStrictEqual(again.cleanup.removed, []);
   } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("deployFilter: 알 수 없는 값은 전부 통과가 아니라 기본값으로 수렴한다", () => {
+  // endsWith("")가 항상 참이라, 빈 접미사를 돌려주면 잘못된 값이 조용히 "CD 전부 설치"로 샌다.
+  const keep = deployFilter("잘못된값");
+  assert.ok(keep(SIMPLE));
+  assert.ok(!keep(NGINX));
+  assert.ok(!keep(TRAEFIK));
+});
+
+test("version.yml의 deploy_style은 인라인 주석을 값으로 먹지 않는다", () => {
+  const vy = 'metadata:\n  template:\n    options:\n      deploy_style: "nginx" # simple | nginx | traefik\n';
+  assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
 });

@@ -46,4 +46,5 @@ metadata:
       nexus: {{OPT_NEXUS}}
       secret_backup: {{OPT_SECRET_BACKUP}}
       semver_auto: {{OPT_SEMVER_AUTO}}
+      deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik (서버 배포 워크플로우)
 {{DEPLOY}}
