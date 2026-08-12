@@ -87,7 +87,7 @@ env:
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
   # 🔌 SSH 연결 설정
-  SSH_PORT: "2022"  # SSH 포트 (Synology 기본: 2022)
+  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
   SSH_COMMAND_TIMEOUT: "600s"  # SSH 명령 실행 타임아웃
   SSH_CONNECTION_TIMEOUT: "60s"  # SSH 연결 타임아웃
 

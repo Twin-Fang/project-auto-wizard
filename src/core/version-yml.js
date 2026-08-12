@@ -1,3 +1,4 @@
+import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 
 // version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략 D4).
@@ -38,9 +39,11 @@ export function parseExtraTopLevel(content) {
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
 // (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
-  const out = { nexus: null, secretBackup: null, semverAuto: null };
+  const out = { nexus: null, secretBackup: null, semverAuto: null, deployStyle: null };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
-  const strip = (s) => String(s).replace(/["']/g, "").trim();
+  // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
+  // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
+  const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
   let inTemplate = false;
   let inOptions = false;
   for (const line of String(content || "").split("\n")) {
@@ -61,6 +64,8 @@ export function parseTemplateOptions(content) {
         if (v === "false") out.secretBackup = false;
         continue;
       }
+      m = line.match(/^\s+deploy_style:\s*(.+)/);
+      if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(/^\s+semver_auto:\s*(.+)/);
       if (m) {
         const v = strip(m[1]);
@@ -128,7 +133,9 @@ export function parseExisting(content) {
 
 // metadata.template.branches 블록 파싱. 셋 다 있어야 유효 — 아니면 null.
 export function parseTemplateBranches(content) {
-  const strip = (s) => String(s).replace(/["']/g, "").trim();
+  // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
+  // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
+  const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
   let inTemplate = false;
   let inBranches = false;
   const out = { main: "", develop: "", mode: "" };
@@ -168,7 +175,7 @@ export function buildVersionYml({
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
-    includeSemverAuto = true, optionsDate = today,
+    includeSemverAuto = true, deployStyle = "", optionsDate = today,
   } = templateOptions || {};
 
   // project_paths 블록 (full-line 토큰 {{PROJECT_PATHS}} — 없으면 라인 제거)
@@ -205,6 +212,7 @@ export function buildVersionYml({
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     OPT_NEXUS: String(includeNexus), OPT_SECRET_BACKUP: String(includeSecretBackup),
     OPT_SEMVER_AUTO: String(includeSemverAuto),
+    OPT_DEPLOY_STYLE: String(deployStyle || ""),
   };
 
   const out = [];
@@ -224,4 +232,23 @@ export function buildVersionYml({
   }
   if (!text.endsWith("\n")) text += "\n";
   return text.replace(/\n{3,}$/, "\n"); // 말미 과잉 빈 줄 정리
+}
+
+// context 하나로 version.yml 최종형을 만든다 — 실제 설치(full)와 미리보기(dry-run)가
+// 같은 함수를 쓰게 해서 "미리보기와 결과가 다른" 상황을 구조적으로 막는다.
+// deployValues는 실제 설치에서만 존재한다(미리보기는 치환을 수행하지 않으므로 빈 Map).
+export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
+  const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
+    now, today, templateVersion = "unknown", branches = null,
+    includeNexus = false, includeSecretBackup = false, includeSemverAuto, deployStyle } = context;
+  return buildVersionYml({
+    templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
+    deployValues, extraTopLevel,
+    templateOptions: {
+      templateVersion, includeNexus, includeSecretBackup,
+      includeSemverAuto: includeSemverAuto !== false,
+      deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+      optionsDate: today,
+    },
+  });
 }

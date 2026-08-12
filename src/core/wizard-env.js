@@ -31,11 +31,14 @@ export function setEnvLine(line, key, value) {
   // CRLF 안전: 라인 끝 \r을 분리해 처리 후 복원 (autocrlf 프로젝트 대응)
   const cr = line.endsWith("\r") ? "\r" : "";
   const body = cr ? line.slice(0, -1) : line;
-  const escaped = escapeYamlDoubleQuoted(value);
   // 값 치환: KEY: "기존값" → KEY: "value"
+  // 홑따옴표(KEY: '기존값')도 받는다 — 템플릿에 두 표기가 섞여 있는데 겹따옴표만 보면
+  // 홑따옴표 줄의 @wizard 마커가 아무 경고 없이 무시된다(이슈 #81과 같은 실패 형태).
+  // 치환 결과는 겹따옴표로 통일하고, 값은 그에 맞게 이스케이프한다.
+  const escaped = escapeYamlDoubleQuoted(value);
   let out = body.replace(
-    new RegExp(`^(\\s*${key}:\\s*")[^"]*(")`),
-    (_m, p1, p2) => `${p1}${escaped}${p2}`,
+    new RegExp(`^(\\s*${key}:\\s*)(["'])(?:(?!\\2).)*\\2`),
+    (_m, head) => `${head}"${escaped}"`,
   );
   // 그 줄 끝 # @wizard ... 주석 제거 (앞 공백째)
   out = out.replace(/(\S)[^\S\r\n]*#[^\S\r\n]*@wizard[^\S\r\n].*$/, "$1");

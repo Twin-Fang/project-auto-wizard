@@ -100,13 +100,15 @@ test("planRemoval: a workflow file without the managed marker (user-authored) is
 test("planRemoval: recognizes .bak and .template.yaml variants created by a 'backup' decision", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-removal-plan-"));
   try {
+    // GITHUB-PACKAGES는 라이브러리 publish 계열이라 nexus/ opt-in에 속한다 (이슈 #80).
+    // .bak/.template.yaml 파일명 규칙 검증에 .yml 확장자 파일이 필요해 이 파일을 쓴다.
     const ctx = createContext({
       mode: "full", force: true, types: ["spring"], version: "1.0.0", versionCode: 1,
       branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(),
+      paths: new Map(), includeNexus: true,
       now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
     });
-    runFull(ctx, resolvePayloadRoot(), target); // spring server-deploy 파일 설치
+    runFull(ctx, resolvePayloadRoot(), target); // spring nexus 파일 설치
 
     const wfDir = join(target, ".github/workflows");
     const targetFile = join(wfDir, "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");

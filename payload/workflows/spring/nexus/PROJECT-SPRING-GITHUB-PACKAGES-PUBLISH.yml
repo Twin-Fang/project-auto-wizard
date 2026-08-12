@@ -45,16 +45,22 @@ permissions:
   contents: read
   packages: write
 
+# ===================================================================
+# 환경 변수 설정
+# ===================================================================
+env:
+  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
+          java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
 
       - name: Setup Gradle

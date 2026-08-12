@@ -10,6 +10,7 @@ import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
+import { deployFilter } from "../core/deploy-style.js";
 import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
@@ -38,40 +39,47 @@ export function scopeString(usages = []) {
 // 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
-  const { resolvers = {}, includeNexus = false, prompts = null } = opts;
+  const { resolvers = {}, includeNexus = false, includeSecretBackup = false, deployStyle = "", prompts = null } = opts;
+  // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
+  const keepDeploy = deployFilter(deployStyle);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const keys = [];
   const defaults = new Map();
   const typeDefaults = new Map();
   const usages = new Map();
 
+  // 스캔 단위: [타입, 폴더]. secret-backup은 타입이 아니라 공통이지만 @wizard 마커를 가지므로
+  // 포함하기로 한 경우에만 질문 수집 대상이 된다 (이슈 #82) — 종전에는 스캔 대상이 아니어서
+  // my-project 같은 예시값이 질문 없이 그대로 설치됐다.
+  const units = [];
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
     // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus 아니면) server-deploy + (nexus면) nexus
-    const dirs = [typeDir];
-    if (!includeNexus) dirs.push(join(typeDir, "server-deploy"));
-    else dirs.push(join(typeDir, "nexus"));
+    units.push([type, typeDir, null]);
+    units.push([type, join(typeDir, includeNexus ? "nexus" : "server-deploy"), includeNexus ? null : keepDeploy]);
+  }
+  if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 
-    for (const dir of dirs) {
-      if (!exists(dir)) continue;
-      for (const filename of listYamlFiles(dir)) {
-        const content = readFileSync(join(dir, filename), "utf8");
-        if (!content.includes("@wizard")) continue;
-        const workflowName = workflowDisplayName(prompts, filename);
-        for (const line of content.split(/\r?\n/)) {
-          const p = parseWizardLine(line); // KEY 정규식 [A-Z_]+ (.sh와 동일)
-          if (!p || p.action !== "ask") continue;
-          // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴 (.sh _type_default 등가)
-          const typeDefault = p.arg.startsWith("@")
-            ? resolveToken(p.arg.slice(1), type, resolvers)
-            : p.arg;
-          typeDefaults.set(`${type}|${p.key}`, typeDefault);
-          if (!defaults.has(p.key)) { keys.push(p.key); defaults.set(p.key, typeDefault); }
-          const list = usages.get(p.key) || [];
-          list.push({ type, workflowName });
-          usages.set(p.key, list);
-        }
+  for (const [type, dir, fileFilter] of units) {
+    if (!exists(dir)) continue;
+    for (const filename of listYamlFiles(dir)) {
+      if (fileFilter && !fileFilter(filename)) continue;
+      const content = readFileSync(join(dir, filename), "utf8");
+      if (!content.includes("@wizard")) continue;
+      const workflowName = workflowDisplayName(prompts, filename);
+      for (const line of content.split(/\r?\n/)) {
+        const p = parseWizardLine(line); // KEY 정규식 [A-Z_]+ (.sh와 동일)
+        if (!p || p.action !== "ask") continue;
+        // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴 (.sh _type_default 등가)
+        const typeDefault = p.arg.startsWith("@")
+          ? resolveToken(p.arg.slice(1), type, resolvers)
+          : p.arg;
+        typeDefaults.set(`${type}|${p.key}`, typeDefault);
+        if (!defaults.has(p.key)) { keys.push(p.key); defaults.set(p.key, typeDefault); }
+        const list = usages.get(p.key) || [];
+        list.push({ type, workflowName });
+        usages.set(p.key, list);
       }
     }
   }
@@ -81,6 +89,23 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
 // KEY가 처음 등장한 type (.sh _wf_first_type_for — 라벨 조회 시 타입 오버라이드 우선순위용)
 function firstTypeFor(usages, key) {
   return usages.get(key)?.[0]?.type ?? "";
+}
+
+// 최종 답변 목록 (이슈 #79, #80) — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
+// isDefault는 "기본값 그대로인가"다. 나중에 배포가 안 될 때 제일 먼저 확인하게 되는 정보라
+// 값만 남기면 부족하다.
+function buildAnswers(prompts, asks, values, useDefaults) {
+  return asks.keys.map((key) => {
+    const def = asks.defaults.get(key) ?? "";
+    const chosen = useDefaults ? def : (values.get(key) ?? def);
+    return {
+      key,
+      label: wfField(prompts, firstTypeFor(asks.usages, key), key, "label") || key,
+      value: chosen,
+      isDefault: chosen === def,
+      scope: scopeString(asks.usages.get(key) || []),
+    };
+  });
 }
 
 // KEY 1개를 'label·사용처·설명·예시·기본값' 카드로 출력 (.sh _wf_print_field_card 등가).
@@ -124,7 +149,7 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
 }
 
 // 배포 env 설정 계획 (.sh wf_prompt_env_plan 등가).
-// 반환: { values: Map<key,value>, useDefaults: boolean }
+// 반환: { values: Map<key,value>, useDefaults: boolean, answers: [{key,label,value,isDefault,scope}] }
 //  - useDefaults=true  → 호출부는 substituteEnv에 그대로 넘기면 타입별 기본값 경로(.sh _wf_prefill_all 등가)
 //  - useDefaults=false → values에 담긴 키만 사용자 확정값으로 치환, 나머지는 기본값
 //    (⚠️ substituteEnv는 useDefaults=false일 때만 values를 참조하므로 이 플래그를 반드시 함께 전달)
@@ -136,19 +161,22 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
 //   log        — 카드·안내 출력 함수 주입 (기본 stderr)
 export async function promptEnvPlan({
   payloadRoot, types = [], io = null, force = false, resolvers = {},
-  includeNexus = false, targetRoot = ".", repoName = "", log = defaultLog,
+  includeNexus = false, includeSecretBackup = false, deployStyle = "", targetRoot = ".", repoName = "", log = defaultLog,
 } = {}) {
   const prompts = loadWizardPrompts(targetRoot, payloadRoot);
-  const asks = collectAsks(payloadRoot, types, { resolvers, includeNexus, prompts });
+  const asks = collectAsks(payloadRoot, types, { resolvers, includeNexus, includeSecretBackup, deployStyle, prompts });
   const defaults = asks.defaults;
 
   // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)
-  if (asks.keys.length === 0) return { values: new Map(), useDefaults: true };
+  if (asks.keys.length === 0) return { values: new Map(), useDefaults: true, answers: [] };
 
   // 비대화형: force 또는 (io 미주입 && 비TTY) → 전부 기본값 (.sh FORCE_MODE/TTY_AVAILABLE 분기 등가)
   // io가 주입돼 있으면(테스트/상위 마법사) TTY 여부와 무관하게 대화형으로 진행한다.
   const interactive = !force && (io != null || stdin.isTTY);
-  if (!interactive) return { values: new Map(defaults), useDefaults: true };
+  if (!interactive) {
+    const values = new Map(defaults);
+    return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
+  }
 
   const ui = io ?? engine;
 
@@ -175,7 +203,8 @@ export async function promptEnvPlan({
   });
   // ESC/취소 → 전부 기본값 (.sh `if [ "$_rc" -ne 0 ]` 등가)
   if (choice === CANCEL || choice == null || choice === "all") {
-    return { values: new Map(defaults), useDefaults: true };
+    const values = new Map(defaults);
+    return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
 
   // 사용자가 확정한 키만 values에 담는다 — substituteEnv(useDefaults:false)가
@@ -183,7 +212,7 @@ export async function promptEnvPlan({
   const values = new Map();
   if (choice === "each") {
     await promptEach(ui, prompts, asks, asks.keys, values, log);
-    return { values, useDefaults: false };
+    return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };
   }
 
   // some: 바꿀 항목만 멀티선택 → 고른 것만 입력 (.sh 3266~3277)
@@ -198,10 +227,11 @@ export async function promptEnvPlan({
   });
   // ESC/빈 선택 → 전부 기본값 (.sh: _wf_prefill_all만 수행)
   if (selected === CANCEL || !Array.isArray(selected) || selected.length === 0) {
-    return { values: new Map(defaults), useDefaults: true };
+    const values = new Map(defaults);
+    return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
   // 수집 키 순서 유지 + WF_ASK_KEYS 멤버만 인정 (.sh _wf_prefill_interactive 필터 등가)
   const todo = asks.keys.filter((k) => selected.includes(k));
   await promptEach(ui, prompts, asks, todo, values, log);
-  return { values, useDefaults: false };
+  return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };
 }

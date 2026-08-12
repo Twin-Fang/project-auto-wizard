@@ -1,5 +1,6 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
+import { DEPLOY_STYLES, isDeployStyle } from "../core/deploy-style.js";
 
 // argv(process.argv.slice(2)) → 파싱 결과. 오류 시 throw(호출부에서 exit 1).
 export function parseArgs(argv) {
@@ -14,6 +15,7 @@ export function parseArgs(argv) {
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
     developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
+    deployStyle: "",         // 서버 배포 방식 (--deploy-style). 빈값=version.yml 저장값 → simple
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
@@ -75,6 +77,13 @@ export function parseArgs(argv) {
       case "--keep-changelog": result.keepChangelog = true; break;
       case "--keep-workflows": result.keepWorkflows = true; break;
       case "--keep-scripts": result.keepScripts = true; break;
+      case "--deploy-style": {
+        const v = args.shift();
+        if (!isDeployStyle(v)) {
+          throw new CliError(`--deploy-style 값이 올바르지 않습니다: ${v ?? "(없음)"} (${DEPLOY_STYLES.map((s) => s.value).join(" | ")})`);
+        }
+        result.deployStyle = v; break;
+      }
       case "--nexus":
         if (seenFlags.has("--no-nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
         seenFlags.add("--nexus"); result.includeNexus = true; break;

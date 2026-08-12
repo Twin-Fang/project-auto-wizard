@@ -9,7 +9,7 @@
 //   io.log(line)                                   → 안내 출력 (없으면 stderr)
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { markerForType as baseMarkerForType, extraMarkers } from "./detect.js";
+import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
 import { normalizePath, CliError } from "../cli/args.js";
 
 // 취소(ESC/Ctrl+C)는 CANCEL 심볼 — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
@@ -24,15 +24,11 @@ export function markerForType(type) {
   return KNOWN_MARKER_TYPES.has(type) ? baseMarkerForType(type) : "";
 }
 
-// 디렉토리에 실재하는 마커 파일명 반환 — 보조 마커 포함, 없으면 대표 마커 (표시용).
+// 디렉토리에 실재하는 마커 파일명 반환 — resolveMarker의 fs 구동판.
 // (.sh existing_marker_in_dir L1232~1245: spring build.gradle/.kts/pom.xml, python pyproject/setup.py/requirements.txt)
 export function existingMarkerInDir(type, dir) {
-  const primary = markerForType(type);
-  const names = primary ? [primary, ...extraMarkers(type)] : [];
-  for (const n of names) {
-    if (existsSync(join(dir, n))) return n;
-  }
-  return primary;
+  if (!markerForType(type)) return ""; // .sh 등가: 미지 타입은 빈 문자열
+  return resolveMarker(type, (n) => existsSync(join(dir, n)));
 }
 
 // maxdepth 3 재귀 파일 탐색 — 매치 파일의 "디렉토리" 상대경로(루트는 ".")를 수집.

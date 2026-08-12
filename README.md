@@ -67,10 +67,20 @@ flutter.APP_ARTIFACT_NAME:
 `spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
 
 - **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
-- **spring**: 단일 서버 배포(SIMPLE-CICD, **기본 활성**) + 무중단 배포 2종(Nginx/Traefik, opt-in) + PR 프리뷰 + GitHub Packages publish(항상 설치) + Nexus publish(`--nexus` opt-in)
-  - 무중단 배포 워크플로우는 파일은 설치되지만 `push` 트리거가 기본적으로 비활성(`workflow_dispatch`만 활성)입니다. 기본 배포는 SIMPLE-CICD가 담당하며, 무중단 배포로 전환하려면 해당 워크플로우 YAML의 `push.branches` 주석을 해제하고 SIMPLE-CICD의 `push` 트리거는 주석 처리해야 합니다(각 YAML 상단 주석에 안내되어 있습니다).
+- **spring**: 서버 배포 1종(단일 서버 / 무중단 Nginx / 무중단 Traefik 중 택1) + PR 프리뷰 + 라이브러리 publish 2종(Nexus·GitHub Packages, `--nexus` opt-in)
+  - 서버 배포 워크플로우는 **서로 대체재**라 하나만 설치합니다. 대화형에서 고르면 그것만 깔리고 **`push` 트리거까지 켜진 채로** 설치됩니다. 비대화형은 `--deploy-style simple|nginx|traefik` (기본: `simple`).
+  - 고른 방식은 `version.yml`에 기록되므로 다시 실행해도 묻지 않습니다. 방식을 바꾸면 **이전 워크플로우를 마법사가 정리합니다** — 손대지 않은 파일은 삭제하고, 수정한 파일은 `.bak`으로 옮겨 내용을 보존합니다. 남겨두면 배포가 두 번 돕니다.
+  - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다.
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
+
+### 설치 기록 (`.github/.wizard/logs/`)
+
+설치가 끝나면 그 실행에서 무엇을 어떤 값으로 설치했는지 `.github/.wizard/logs/<시각>-install.md`에 한 건 남깁니다. 감지된 타입과 그 근거 파일, 버전, 브랜치, 선택 워크플로우, **환경설정 질문별 답변(기본값 그대로인지 여부 포함)**, 설치된 파일, 값이 채워지지 않은 항목, 등록해야 하는 GitHub Secret이 담깁니다.
+
+상단은 기계가 읽는 YAML front matter, 아래는 사람이 읽는 마크다운입니다. 배포가 예상과 다르게 동작할 때 "설치할 때 뭘로 답했더라"를 여기서 확인할 수 있고, 레포에 커밋되므로 AI 에이전트나 다른 팀원도 참고할 수 있습니다. 로그 기록에 실패해도 설치 자체는 정상 완료됩니다.
+
+`.github/.wizard/`에는 업데이트 3-way 판정에 쓰는 `baseline.json`도 함께 들어 있어, 완전 삭제 시 워크플로우와 함께 제거됩니다.
 
 ### 완전 삭제(`--mode uninstall`)
 
@@ -133,7 +143,8 @@ npx project-auto-wizard [옵션]
       --paths "t=p,..."    모노레포 타입별 경로
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
       --develop-branch B   개발 브랜치 (기본: develop)
-      --nexus              Nexus 라이브러리 publish 워크플로우 포함
+      --deploy-style S     서버 배포 방식: simple | nginx | traefik (기본: simple)
+      --nexus              라이브러리 publish 워크플로우 포함 (Nexus + GitHub Packages)
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
