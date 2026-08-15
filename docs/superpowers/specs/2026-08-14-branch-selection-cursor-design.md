@@ -6,11 +6,11 @@
 
 ## 1. 배경 / 문제
 
-인터랙티브 마법사에서 릴리스/개발 브랜치를 고르는 두 프롬프트("릴리스 브랜치를 선택하세요", "개발 브랜치를 선택하세요")는 `src/commands/interactive.js`의 `pickBranch()`(267~282행)가 만든다.
+인터랙티브 마법사에서 릴리스/개발 브랜치를 고르는 두 프롬프트("릴리스 브랜치를 선택하세요", "개발 브랜치를 선택하세요")는 `src/commands/interactive.js`의 `pickBranch()`(307~323행 — 파일 편집 이력에 따라 줄 번호는 달라질 수 있음)가 만든다.
 
 두 가지 문제가 있다.
 
-1. **커서가 기본값에 위치하지 않음** — `pickBranch()`는 `io.engineIo.select({ message, options })`를 호출할 때(273행) `initialIndex`를 넘기지 않는다. `src/ui/readline-engine.js`의 `select({ message, options, initialIndex = 0 })`(97행)는 이 값이 없으면 항상 옵션 배열의 0번째에 커서를 둔다. 즉 프롬프트에 "(기본: main)"이라고 안내가 떠도 커서는 목록에서 가장 먼저 나열된 임의의 브랜치에 위치한다.
+1. **커서가 기본값에 위치하지 않음** — `pickBranch()`는 `io.engineIo.select({ message, options })`를 호출할 때 `initialIndex`를 넘기지 않는다. `src/ui/readline-engine.js`의 `select({ message, options, initialIndex = 0 })`(97행)는 이 값이 없으면 항상 옵션 배열의 0번째에 커서를 둔다. 즉 프롬프트에 "(기본: main)"이라고 안내가 떠도 커서는 목록에서 가장 먼저 나열된 임의의 브랜치에 위치한다.
 2. **목록 순서가 알파벳순** — 옵션 목록은 `src/core/branches.js`의 `detectRemoteBranches()`(18~27행)가 `git branch -r --format=%(refname:short)` 결과를 그대로 반환한 순서를 따른다. git은 refname 알파벳순으로 정렬하므로, 날짜 접두사 브랜치명(`20260810_...`)처럼 숫자로 시작하는 브랜치가 `main`/`develop`보다 앞에 오는 경우가 흔하다. 브랜치가 많은 프로젝트에서는 원하는 기본 브랜치를 찾아 여러 번 방향키를 눌러야 한다.
 
 ## 2. 설계 결정: 정렬은 순수 함수로 분리, 커서 위치는 계산해서 명시적으로 전달
@@ -26,9 +26,11 @@
 | `src/core/branches.js` (수정) | 순수 함수 `sortBranchesForSelection(remoteBranches, def, priority)` 추가 |
 | `src/commands/interactive.js` (수정) | `pickBranch()`가 정렬된 목록으로 `options`를 구성하고, `def`의 인덱스를 `initialIndex`로 `select()`에 전달 |
 | `tests/node/branches.test.js` (수정) | `sortBranchesForSelection()` 유닛테스트 추가 |
-| `tests/node/interactive-mode-branch-selection.test.js` (신규) | `pickBranch()`가 `select()`에 전달하는 `options` 순서와 `initialIndex`를 검증하는 통합 테스트 |
+| `tests/node/interactive-branch-picker.test.js` (신규) | `pickBranch()`가 `select()`에 전달하는 `options` 순서와 `initialIndex`를 검증하는 통합 테스트 |
 
 `src/ui/readline-engine.js`는 이미 `initialIndex` 파라미터를 지원하므로(97행) 수정하지 않는다.
+
+부수효과(의도된 개선): `select()`는 비-TTY(파이프) 환경에서 `options[initialIndex]?.value`를 즉시 반환한다(98~101행). 지금은 `initialIndex`가 전달되지 않아 알파벳순 첫 브랜치가 반환됐지만, 이번 변경 후에는 `def`가 반환된다.
 
 ## 3. 상세 설계
 
@@ -45,7 +47,7 @@ sortBranchesForSelection(remoteBranches, def, priority = ["main", "develop"])
 - 새 배열을 반환하고 `remoteBranches` 원본은 변경하지 않는다 (불변성 원칙)
 - `remoteBranches`에 `def`가 없는 경우(신규 브랜치, 아직 원격에 없음) 이 함수는 아무 것도 추가하지 않는다 — 그 처리는 기존과 동일하게 `pickBranch()`가 담당(플레이스홀더 옵션을 맨 앞에 push)
 
-### 3.2 `pickBranch()` 수정 (`src/commands/interactive.js`, 267~282행)
+### 3.2 `pickBranch()` 수정 (`src/commands/interactive.js`, `pickBranch()` 함수 전체)
 
 현재:
 ```js
@@ -71,7 +73,7 @@ async function pickBranch(io, message, def, remoteBranches, isCancel) {
 
 ### 3.3 적용 범위
 
-`mainB`(릴리스 브랜치, 158~176행 부근)와 `devB`(개발 브랜치) 두 호출 모두 `pickBranch()`를 그대로 재사용하므로 자동으로 동일하게 적용된다. 별도 분기 불필요.
+`mainB`(릴리스 브랜치, 195행)와 `devB`(개발 브랜치, 196행) 두 호출 모두 `pickBranch()`를 그대로 재사용하므로 자동으로 동일하게 적용된다. 별도 분기 불필요.
 
 ## 4. 테스트 계획
 
@@ -81,7 +83,7 @@ async function pickBranch(io, message, def, remoteBranches, isCancel) {
    - 우선순위 후보가 목록에 없으면(예: 원격에 `develop` 없음) 건너뛰고 나머지만 배치되는지
    - 나머지 브랜치의 상대 순서가 원본 그대로 보존되는지
    - `def`가 이미 `priority`에 포함된 경우(예: devB 호출에서 `def === "develop"`) 중복 없이 한 번만 앞에 오는지
-2. **`pickBranch()` 통합 테스트** (신규 `tests/node/interactive-mode-branch-selection.test.js`)
+2. **`pickBranch()` 통합 테스트** (신규 `tests/node/interactive-branch-picker.test.js`)
    - `io.engineIo.select` 스텁이 호출 인자로 받은 `options`의 순서와 `initialIndex`를 캡처해 검증
    - `def`가 원격에 없는 신규 브랜치인 케이스도 회귀 확인 (index 0 유지)
 

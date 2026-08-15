@@ -18,6 +18,7 @@
 - "직접 입력..." (`__custom__`) 옵션은 항상 목록 맨 끝 유지.
 - `src/ui/readline-engine.js`의 `select()`는 수정하지 않는다(이미 `initialIndex` 지원).
 - 라벨 문자열(`(기본값)`, `(기본값 — 없으면 새로 생성)`)은 변경하지 않는다.
+- 부수효과(의도된 개선): `src/ui/readline-engine.js`의 `select()`는 비-TTY(파이프) 환경에서 `options[initialIndex]?.value`를 즉시 반환한다(98~101행). 현재는 `initialIndex`가 전달되지 않아 알파벳순 첫 브랜치가 반환됐지만, 이번 변경 후에는 `def`가 반환된다 — `readline-engine.js` 자체는 수정하지 않지만 `pickBranch()`가 `initialIndex`를 넘기기 시작하면서 생기는 부수적 개선이다.
 
 ---
 
@@ -81,10 +82,10 @@ test("sortBranchesForSelection: remoteBranches 원본 배열을 변경하지 않
   assert.deepStrictEqual(remote, before);
 });
 
-test("sortBranchesForSelection: def가 목록에 아예 없으면 나머지만 원래 순서로 반환한다", () => {
+test("sortBranchesForSelection: def가 목록에 없어도 priority(main/develop) 정렬은 그대로 적용된다", () => {
   const remote = ["20260810_feature", "main"];
   const sorted = sortBranchesForSelection(remote, "new-branch");
-  assert.deepStrictEqual(sorted, ["20260810_feature", "main"]);
+  assert.deepStrictEqual(sorted, ["main", "20260810_feature"]);
 });
 ```
 
@@ -237,7 +238,7 @@ import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "
 import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection } from "../core/branches.js";
 ```
 
-`pickBranch()` 함수 전체(현재 267~282행, 위 두 신규 함수 추가로 줄 번호는 밀리지만 함수 본문 자체를 아래로 교체)를 다음으로 교체한다:
+`pickBranch()` 함수 전체(현재 307~323행 — 정확한 줄 번호는 Task 1 커밋 이후 달라질 수 있으므로, 아래 "브랜치 선택 — 원격 목록이 있으면..." 주석이 붙은 `async function pickBranch(...)` 블록을 파일에서 검색해 찾는다)를 다음으로 교체한다:
 
 ```javascript
 // 브랜치 선택 — 원격 목록이 있으면 select(+직접 입력), 없으면 텍스트 입력. ESC/빈값 = 기본값.
