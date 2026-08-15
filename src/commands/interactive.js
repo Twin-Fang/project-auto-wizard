@@ -9,7 +9,7 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch } from "../core/branches.js";
+import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection } from "../core/branches.js";
 import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
@@ -305,13 +305,16 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 }
 
 // 브랜치 선택 — 원격 목록이 있으면 select(+직접 입력), 없으면 텍스트 입력. ESC/빈값 = 기본값.
-async function pickBranch(io, message, def, remoteBranches, isCancel) {
+// 이슈 #85: def를 최우선으로, main/develop을 그다음으로 정렬하고 커서를 def에 고정한다.
+export async function pickBranch(io, message, def, remoteBranches, isCancel) {
   if (io.engineIo?.select && remoteBranches.length) {
+    const sorted = sortBranchesForSelection(remoteBranches, def);
     const options = [];
-    if (!remoteBranches.includes(def)) options.push({ value: def, label: `${def} (기본값 — 없으면 새로 생성)` });
-    for (const b of remoteBranches) options.push({ value: b, label: b === def ? `${b} (기본값)` : b });
+    if (!sorted.includes(def)) options.push({ value: def, label: `${def} (기본값 — 없으면 새로 생성)` });
+    for (const b of sorted) options.push({ value: b, label: b === def ? `${b} (기본값)` : b });
     options.push({ value: "__custom__", label: "직접 입력..." });
-    const sel = await io.engineIo.select({ message, options });
+    const initialIndex = Math.max(0, options.findIndex((o) => o.value === def));
+    const sel = await io.engineIo.select({ message, options, initialIndex });
     if (sel === "__custom__") {
       const v = await io.askText("브랜치 이름", def);
       return isCancel(v) || !v ? def : v;
