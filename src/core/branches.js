@@ -34,6 +34,16 @@ export function resolveBranchConfig({ mainBranch = "", developBranch = "", defau
   return { main, develop, mode: main === develop ? "trunk-based" : "pr-flow" };
 }
 
+// 브랜치 선택 프롬프트용 정렬 (이슈 #85). def를 최우선으로, 그다음 priority(main/develop)
+// 순서로 목록 앞에 배치한다. 나머지는 remoteBranches의 원래 순서(git이 준 알파벳순)를 유지한다.
+// 순수 함수 — remoteBranches 원본은 변경하지 않는다.
+export function sortBranchesForSelection(remoteBranches, def, priority = ["main", "develop"]) {
+  const priorityOrder = [def, ...priority].filter((b, i, arr) => arr.indexOf(b) === i);
+  const inPriority = priorityOrder.filter((b) => remoteBranches.includes(b));
+  const rest = remoteBranches.filter((b) => !inPriority.includes(b));
+  return [...inPriority, ...rest];
+}
+
 // 생성: develop이 원격에 없으면 현 HEAD 기준으로 생성 + push.
 // confirm: async(message)→bool — 대화형 확인 질문. null이면(--force) 질문 없이 자동 생성.
 // exec 주입 가능 (테스트 mock). 반환 { created, pushed?, skipped? }.
