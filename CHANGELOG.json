@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-12T15:51:28Z",
-    "currentVersion": "0.3.0",
+    "lastUpdated": "2026-08-18T16:59:50Z",
+    "currentVersion": "0.3.3",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 10
+    "totalReleases": 11
   },
   "releases": [
+    {
+      "version": "0.3.3",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-18",
+      "pr_number": 89,
+      "raw_summary": "## [0.3.3]\n\n### 📝 문서\n- AI-PR-SUMMARY 헤더 주석의 어색한 줄바꿈 정리",
+      "parsed_changes": {
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "AI-PR-SUMMARY 헤더 주석의 어색한 줄바꿈 정리"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.3.0",
       "project_types": [
