@@ -17,9 +17,14 @@
 #    - The AI prompt includes commit subjects plus a capped
 #      `git diff --stat` (file-level change summary, no diff body)
 #      for richer context without token-cost blowup.
-# 3. Updates CHANGELOG.json / CHANGELOG.md and commits to the PR head
+# 3. Posts the same summary as a PR comment (this replaces
+#    PROJECT-COMMON-AI-PR-SUMMARY for release PRs, which skips them —
+#    that workflow would otherwise post the pre-bump version, since it
+#    runs before this job's version-confirm commit lands and that
+#    commit's GITHUB_TOKEN push doesn't retrigger pull_request events)
+# 4. Updates CHANGELOG.json / CHANGELOG.md and commits to the PR head
 #    branch with [skip ci]
-# 4. Enables automerge (gh pr merge --auto --merge)
+# 5. Enables automerge (gh pr merge --auto --merge)
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -152,6 +157,28 @@ jobs:
           # update-from-summary reads ./pr_body.md
           cp summary.md pr_body.md
 
+      - name: Post AI summary comment
+        continue-on-error: true
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+
+          {
+            echo "🤖 **AI Summary (project-auto-wizard)**"
+            echo ""
+            cat summary.md
+          } > comment_body.md
+
+          python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
+
+          curl -sf -H "Authorization: token ${{ github.token }}" \
+               -H "Content-Type: application/json" \
+               -X POST \
+               -d @comment_payload.json \
+               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
+            || echo "comment post failed — continuing (this workflow never blocks the release)"
+
+          rm -f comment_body.md comment_payload.json
+
       - name: Update CHANGELOG from summary
         run: |
           # note: `grep | sed || echo default` never fires the default (the
@@ -174,7 +201,7 @@ jobs:
           VERSION="${{ steps.bump.outputs.new_version }}"
 
           # Working files must not land in the repo
-          rm -f pr_body.md summary.md commits.txt diff_stat.txt
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json
 
           git add -A
 

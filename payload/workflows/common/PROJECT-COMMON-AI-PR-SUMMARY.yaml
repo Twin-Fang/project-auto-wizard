@@ -9,13 +9,15 @@
 # changelog (user API key -> GitHub Models -> rule-based fallback).
 # The prompt includes commit subjects plus a capped `git diff --stat`.
 #
-# Independent from PROJECT-COMMON-AUTO-CHANGELOG-CONTROL: on release
-# PRs both workflows may call the AI engine once each, and when
-# semver_auto is on, AUTO-CHANGELOG-CONTROL's bump classification may
-# add a third AI-assisted call to resolve an ambiguous patch->minor
-# escalation (up to 3 LLM calls total). This is an accepted trade-off
-# for simplicity — GitHub Models is free-tier and rule-based fallback
-# is instant either way.
+# On release PRs (head branch == {{DEVELOP_BRANCH}}) this job is
+# skipped. PROJECT-COMMON-AUTO-CHANGELOG-CONTROL owns that case: it
+# confirms the version first, then posts the AI summary itself using
+# the confirmed version. Running this workflow too would post a
+# comment with the pre-bump version — it always checks out the head
+# branch before AUTO-CHANGELOG-CONTROL's version-confirm commit lands,
+# and that commit is pushed with GITHUB_TOKEN, which GitHub does not
+# use to retrigger pull_request events, so there would be no later run
+# to correct it.
 # ===================================================================
 
 name: PROJECT-AI-PR-SUMMARY
@@ -33,7 +35,9 @@ permissions:
 jobs:
   ai-pr-summary:
     name: Post AI summary comment
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref != '{{DEVELOP_BRANCH}}'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR head
