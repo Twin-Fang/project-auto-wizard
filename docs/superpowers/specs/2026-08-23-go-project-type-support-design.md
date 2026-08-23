@@ -34,6 +34,29 @@ export function markerForType(type) {
 
 **버전 감지는 변경 불필요**: `detectVersionFromFiles()`(41~64행)는 이미 매칭되는 매니페스트 패턴이 없으면 `gitTag` 폴백 → 기본값 `0.0.1`까지 흘러간다. go.mod에 매칭시킬 버전 정규식 자체가 없으므로, go 프로젝트는 자연히 git 태그 감지(Go 커뮤니티 관례와 정확히 일치)로 떨어진다. `detectBuildNumberFromFiles()`/`detectJdkFromFiles()`도 flutter/react-native/gradle 전용 분기라 go는 자연히 통과(null 반환)한다.
 
+### 2.1b `project_paths` 해석 — 별도 타입 레지스트리 (이슈 미기재, 계획 작성 중 발견, **필수·차단급**)
+
+`src/core/paths-resolve.js`는 `detect.js`의 `markerForType`을 그대로 쓰지 않고 **자체 `KNOWN_MARKER_TYPES` Set(20~22행)으로 한 번 더 감싼다**:
+
+```js
+const KNOWN_MARKER_TYPES = new Set([
+  "flutter", "react", "next", "node", "react-native", "react-native-expo", "python", "spring",
+]);
+export function markerForType(type) {
+  return KNOWN_MARKER_TYPES.has(type) ? baseMarkerForType(type) : "";
+}
+```
+
+여기에 `go`가 없으면 `markerForType("go")`가 빈 문자열을 반환하고, `existingMarkerInDir("go", dir)`(29~32행)도 즉시 빈 문자열로 단락(short-circuit)된다. 이 값은 `resolveProjectPaths()`(119~262행)의 "② 루트에 마커 존재 → `.` 자동 확정"(153~159행) 분기에서 쓰이는데, 이 분기가 아예 작동하지 않게 된다.
+
+게다가 `findTypePathCandidates()`(62~110행)의 `namesByType` 맵(75~82행)에도 `go` 엔트리가 없어 `names`가 `undefined`가 되고(83~84행) 후보 검색이 항상 빈 배열을 반환한다.
+
+결과적으로 **`go.mod`가 감지되어도, `--force`(비대화형) 모드에서는 `resolveProjectPaths()`가 `CliError("go: 프로젝트 경로를 찾지 못했습니다...")`를 던져 설치 자체가 실패한다.** 단일 모듈 레포 루트라는 가장 기본적인 케이스조차 막히므로 이 두 곳은 감지 로직(2.1)만큼이나 필수다.
+
+**수정:**
+1. `KNOWN_MARKER_TYPES`에 `"go"` 추가
+2. `namesByType`에 `go: ["go.mod"]` 추가
+
 ### 2.2 버전 동기화: `basic`과 동일하게 명시적 `pass`
 
 `.github/scripts/version_manager.py`의 `sync_for_type()`(412~429행)은 매칭되지 않는 타입을 `else: log(f"WARNING: unknown project type: ...")`로 처리한다 — `basic`처럼 조용히 넘어가려면 반드시 명시적 분기가 필요하다.
@@ -82,6 +105,7 @@ python의 세 워크플로우(`PROJECT-PYTHON-CI.yaml`, `PROJECT-PYTHON-SIMPLE-C
 1. **`tests/node/detect-accuracy.test.js`**: `go.mod`만 있는 경우 `["go"]` 반환, 다른 마커와 동시 존재 시 multi-type 배열에 `"go"`가 포함되는지 검증
 2. **`tests/py/test_version_manager.py`**: `sync_for_type("go", ...)` 호출이 `WARNING` 로그를 남기지 않고 조용히 반환하는지 검증 (basic과 동일 취급 확인)
 3. **`tests/fixtures/e2e/go/go.mod`** 신규 fixture(마커 파일 1개, 기존 11개 fixture와 동일 패턴) + `tests/node/e2e-matrix.test.js`의 `MATRIX` 배열(37~47행)에 12번째 항목 추가
+4. **`paths-resolve.js` 회귀 테스트**: `markerForType("go")`가 `"go.mod"`를 반환하고, `findTypePathCandidates(root, "go")`가 루트의 `go.mod`를 후보로 찾는지 검증 — 2.1b에서 발견한 차단급 버그의 재발 방지
 
 ## 4. 범위 밖
 
