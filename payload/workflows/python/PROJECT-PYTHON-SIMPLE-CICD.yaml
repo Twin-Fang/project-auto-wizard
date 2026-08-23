@@ -70,9 +70,6 @@ env:
   # 🌐 포트 설정
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8000
 
-  # 🐍 Python 설정
-  PYTHON_VERSION: "3.13"
-
   # 🐳 컨테이너 이름 설정 (비워두면 PROJECT_NAME 사용)
   CONTAINER_NAME: ""
 
