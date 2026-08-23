@@ -151,3 +151,19 @@ class TestSetVersionCodeRegressionGuard(unittest.TestCase):
             version_manager.set_version_code(72)
         self.assertIn("version_code: 72", Path("version.yml").read_text(encoding="utf-8"))
         self.assertNotIn("WARNING", stderr.getvalue())
+
+
+class TestSyncForTypeGo(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.cwd = Path.cwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, self.cwd)
+        Path("version.yml").write_text('version: "1.0.0"\n', encoding="utf-8")
+
+    def test_go_is_treated_like_basic_no_warning(self):
+        stderr = _io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            version_manager.sync_for_type("go", "1.2.3", lambda: 1)
+        self.assertNotIn("WARNING", stderr.getvalue())

@@ -425,6 +425,8 @@ def sync_for_type(project_type, new_version, version_code_getter):
         sync_json_version(Path(path_dir) / "app.json", new_version, ["expo", "version"])
     elif project_type == "basic":
         pass
+    elif project_type == "go":
+        pass
     else:
         log(f"WARNING: unknown project type: {project_type} — skipping")
 
