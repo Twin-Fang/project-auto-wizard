@@ -14,6 +14,8 @@ without a LICENSE file) — ported to remove the external Action dependency
 
 Usage:
     issue_helper.py run
+    issue_helper.py extract-branch-issue <branch_name>
+    issue_helper.py link-pr-issues --pr <number> --issue-numbers <csv> [--replace]
 
 Reads GITHUB_EVENT_PATH (issues event JSON), GITHUB_TOKEN,
 GITHUB_REPOSITORY (all auto-provided by the Actions runner except
@@ -266,6 +268,25 @@ def create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch
     log(f"브랜치 생성됨: {branch_name}")
 
 
+def link_pr_issues(owner, repo, pr_number, issue_numbers, token, replace_existing):
+    status, pr_data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}", token)
+    if status >= 400:
+        raise RuntimeError(f"PR 조회 실패({status}): {pr_number}")
+    body = pr_data.get("body") or ""
+
+    new_body, changed = upsert_issue_links_in_body(body, issue_numbers, replace_existing)
+    if not changed:
+        log(f"이슈 연결 변경 없음 — 건너뜀 (PR #{pr_number})")
+        return
+
+    status, _, _ = _api_request(
+        "PATCH", f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}", token, {"body": new_body},
+    )
+    if status >= 400:
+        raise RuntimeError(f"PR 본문 갱신 실패({status}): {pr_number}")
+    log(f"이슈 연결 완료: {', '.join(f'#{n}' for n in issue_numbers)} (PR #{pr_number})")
+
+
 # ===================================================================
 # 이벤트 처리 / CLI
 # ===================================================================
@@ -356,21 +377,60 @@ def cmd_run():
     return 0
 
 
+def cmd_link_pr_issues(pr_number, issue_numbers_csv, replace_existing):
+    repo_full = os.environ.get("GITHUB_REPOSITORY", "")
+    if "/" not in repo_full or repo_full.count("/") != 1 or not all(repo_full.split("/")):
+        log(f"ERROR: GITHUB_REPOSITORY 형식이 올바르지 않습니다: {repo_full!r}")
+        return 1
+    owner, repo = repo_full.split("/", 1)
+
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if not token:
+        log("ERROR: GITHUB_TOKEN이 없습니다.")
+        return 1
+
+    issue_numbers = [n.strip() for n in issue_numbers_csv.split(",") if n.strip()]
+    if not issue_numbers:
+        log("이슈 번호가 없음 — 건너뜀")
+        return 0
+
+    link_pr_issues(owner, repo, pr_number, issue_numbers, token, replace_existing)
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="issue_helper.py")
-    parser.add_argument("command", choices=["run"])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("run")
+
+    p_extract = sub.add_parser("extract-branch-issue")
+    p_extract.add_argument("branch_name")
+
+    p_link = sub.add_parser("link-pr-issues")
+    p_link.add_argument("--pr", required=True, type=int)
+    p_link.add_argument("--issue-numbers", required=True)
+    p_link.add_argument("--replace", action="store_true")
+
     return parser
 
 
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.command == "run":
-        try:
+    try:
+        if args.command == "run":
             return cmd_run()
-        except Exception as e:
-            log(f"실행 실패: {e}")
-            return 1
+        if args.command == "extract-branch-issue":
+            result = extract_issue_number_from_branch(args.branch_name)
+            if result:
+                print(result)
+            return 0
+        if args.command == "link-pr-issues":
+            return cmd_link_pr_issues(args.pr, args.issue_numbers, args.replace)
+    except Exception as e:
+        log(f"실행 실패: {e}")
+        return 1
     return 2
 
 

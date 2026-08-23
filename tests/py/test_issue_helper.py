@@ -262,5 +262,49 @@ class TestRunGuards(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
 
 
+class TestExtractBranchIssueCli(unittest.TestCase):
+    def test_prints_issue_number(self):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "extract-branch-issue", "20260824_#102_feat_추가"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "102")
+
+    def test_no_match_prints_nothing(self):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "extract-branch-issue", "worktree-issue-93-branch-strategy"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "")
+
+
+class TestLinkPrIssuesCliGuards(unittest.TestCase):
+    def test_missing_repository_env_exits_1(self):
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(r.returncode, 1)
+
+    def test_missing_token_exits_1(self):
+        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": ""}
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(r.returncode, 1)
+
+    def test_empty_issue_numbers_exits_0_without_api_call(self):
+        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"}
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", ""],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(r.returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
