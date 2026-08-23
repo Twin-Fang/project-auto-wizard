@@ -112,3 +112,22 @@ test("promptEnvPlan: confirm에서 CANCEL을 반환하면 boolean 필드는 기�
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("collectAsks: 실제 payload의 ISSUE_HELPER_CREATE_BRANCH가 common 스캔으로 노출된다 (통합)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), []);
+  assert.ok(asks.keys.includes("ISSUE_HELPER_CREATE_BRANCH"));
+  assert.strictEqual(asks.defaults.get("ISSUE_HELPER_CREATE_BRANCH"), "false");
+});
+
+test("promptEnvPlan: 실제 payload에서 ISSUE_HELPER_CREATE_BRANCH를 예/아니오 토글로 물어본다 (통합)", async () => {
+  const io = {
+    select: async () => "each",
+    multiselect: async () => [],
+    text: async ({ defaultValue }) => defaultValue,
+    confirm: async ({ initialValue }) => { assert.strictEqual(initialValue, false); return true; },
+  };
+  const result = await promptEnvPlan({
+    payloadRoot: resolvePayloadRoot(), types: [], io, force: false, log: () => {},
+  });
+  assert.strictEqual(result.values.get("ISSUE_HELPER_CREATE_BRANCH"), "true");
+});
