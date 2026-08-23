@@ -97,6 +97,25 @@ export async function selectDeployStyle() {
   });
 }
 
+// 브랜치 전략 선택 (이슈 #93). 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에
+// 같은 이름을 입력해야만 trunk-based가 됐는데, 그 규칙이 사전에 안내되지 않아
+// 의도치 않게 pr-flow로 흘러갔다. 전략을 먼저 명시적으로 고르게 해 이를 없앤다.
+// 옵션 순서(pr-flow 먼저)는 비-TTY 환경의 기본값과 직결되므로 바꾸지 않는다.
+export async function selectBranchStrategy() {
+  engine.note(
+    "pr-flow는 develop에서 작업해 main으로 PR을 올리는 팀 협업 흐름입니다.\n" +
+    "trunk-based는 브랜치를 하나만 두고 바로 main에서 작업하는 단순한 흐름입니다.",
+    "브랜치 전략",
+  );
+  return engine.select({
+    message: "브랜치 전략을 선택하세요",
+    options: [
+      { value: "pr-flow", label: "develop → main PR 흐름 (pr-flow) — 팀 협업/리뷰 프로세스가 필요할 때" },
+      { value: "trunk-based", label: "main 단일 브랜치 (trunk-based) — 개인/소규모 프로젝트로 브랜치 없이 단순하게 쓸 때" },
+    ],
+  });
+}
+
 // 텍스트 입력 (빈 입력=기본값 유지).
 export async function askText(message, defaultValue = "") {
   const v = await engine.text({ message, defaultValue });
