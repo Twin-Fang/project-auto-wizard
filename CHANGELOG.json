@@ -1,15 +1,65 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-18T16:59:50Z",
-    "currentVersion": "0.3.3",
+    "lastUpdated": "2026-08-23T13:03:08Z",
+    "currentVersion": "0.4.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 11
+    "totalReleases": 12
   },
   "releases": [
+    {
+      "version": "0.4.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-23",
+      "pr_number": 98,
+      "raw_summary": "## [0.4.0]\n\n### ✨ 기능\n- 릴리스_파이프라인_후속_워크플로우_트리거를_repository_dispatch_방식으로_전환 — AUTO-CHANGELOG-CONTROL·VERSION-CONTROL·RELEASE-PUBLISH에 workflow_dispatch 기반 자동 트리거를 추가해 WORKFLOW_PAT 없이도 릴리스 파이프라인이 끊기지 않도록 함\n- 이슈 생성 시 브랜치 자동 생성 여부를 설치 마법사 질문으로 노출\n- trunk-based 선택 시 개발 브랜치 질문을 생략하도록 대화형 흐름 변경\n- 기본값이 true/false인 ask 필드는 텍스트 대신 예/아니오 토글로 입력받기\n- 브랜치 전략(pr-flow/trunk-based)을 먼저 선택하는 프롬프트 추가\n- collectAsks가 payload/workflows/common 최상위를 무조건 스캔하도록 확장\n\n### 🐛 수정\n- 환경설정 안내 문구에서 부정확해진 '배포' 표현 제거\n\n### 📝 문서\n- 이슈 헬퍼 브랜치 마법사 토글 계획 문서 추가\n- 이슈 #90 구현 계획 문서 추가\n- 브랜치 전략 질문 관련 README/DESIGN-SPEC 문서 반영 및 note 문구 다듬기\n- 브랜치 전략 명시적 선택 구현 계획 추가 (이슈 #93)\n\n### ✅ 테스트\n- 릴리스 파이프라인 workflow_dispatch 트리거 회귀 테스트 추가\n\n### 🔧 변경사항\n- 이 레포 자신의 ISSUE-HELPER 워크플로우 사본에도 wizard 마커 동기화",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "릴리스_파이프라인_후속_워크플로우_트리거를_repository_dispatch_방식으로_전환 — AUTO-CHANGELOG-CONTROL·VERSION-CONTROL·RELEASE-PUBLISH에 workflow_dispatch 기반 자동 트리거를 추가해 WORKFLOW_PAT 없이도 릴리스 파이프라인이 끊기지 않도록 함",
+            "이슈 생성 시 브랜치 자동 생성 여부를 설치 마법사 질문으로 노출",
+            "trunk-based 선택 시 개발 브랜치 질문을 생략하도록 대화형 흐름 변경",
+            "기본값이 true/false인 ask 필드는 텍스트 대신 예/아니오 토글로 입력받기",
+            "브랜치 전략(pr-flow/trunk-based)을 먼저 선택하는 프롬프트 추가",
+            "collectAsks가 payload/workflows/common 최상위를 무조건 스캔하도록 확장"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "환경설정 안내 문구에서 부정확해진 '배포' 표현 제거"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "이슈 헬퍼 브랜치 마법사 토글 계획 문서 추가",
+            "이슈 #90 구현 계획 문서 추가",
+            "브랜치 전략 질문 관련 README/DESIGN-SPEC 문서 반영 및 note 문구 다듬기",
+            "브랜치 전략 명시적 선택 구현 계획 추가 (이슈 #93)"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "릴리스 파이프라인 workflow_dispatch 트리거 회귀 테스트 추가"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "이 레포 자신의 ISSUE-HELPER 워크플로우 사본에도 wizard 마커 동기화"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.3.3",
       "project_types": [
