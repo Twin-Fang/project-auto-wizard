@@ -11,7 +11,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
                            status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
                            지원: spring flutter next react react-native
-                                 react-native-expo node python basic
+                                 react-native-expo node python basic go
       --project-version V  통합 대상의 초기 버전 (예: 1.0.0). 미지정 시 자동 감지
       --paths "t=p,..."    타입별 프로젝트 경로 (모노레포). 예: flutter=app,react=client
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
