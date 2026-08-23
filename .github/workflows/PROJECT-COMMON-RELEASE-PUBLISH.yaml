@@ -37,6 +37,12 @@
 # workflow_dispatch republishes the current version (recovery path when a
 # previous run failed after the version was confirmed but before the
 # release was created). The idempotency guard keeps it safe to re-run.
+#
+# Issue #90: right after the GitHub Release is created, this self-copy
+# (unlike the payload template) also triggers NPM-PUBLISH via
+# workflow_dispatch, since NPM-PUBLISH.yaml is a repo-only workflow that
+# doesn't exist in payload — see PROJECT-COMMON-RELEASE-PUBLISH.yaml in
+# payload/workflows/common for why that file intentionally omits this step.
 # ===================================================================
 
 name: PROJECT-RELEASE-PUBLISH
@@ -52,6 +58,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
   models: read
 
 jobs:
@@ -359,3 +366,13 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md
           echo "GitHub Release v$VERSION published"
+
+      - name: Trigger NPM-PUBLISH
+        if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh workflow run NPM-PUBLISH.yaml --ref main -f tag="v${VERSION}"
+          echo "NPM-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)"

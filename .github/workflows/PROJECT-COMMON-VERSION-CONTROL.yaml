@@ -19,6 +19,11 @@
 #
 # Release-confirm pattern: "chore(release):" — keep in sync with
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-RELEASE-PUBLISH.
+#
+# Issue #90 / #61: after pushing the safety-net bump, this workflow also
+# triggers RELEASE-PUBLISH via workflow_dispatch so the drift it used to
+# only detect (issue #61) is now auto-recovered instead of requiring a
+# manual re-run.
 # ===================================================================
 
 name: PROJECT-VERSION-CONTROL
@@ -39,6 +44,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   version-bump:
@@ -129,6 +135,7 @@ jobs:
           fi
 
       - name: Commit and push changes
+        id: commit_push
         if: steps.release_guard.outputs.skip != 'true'
         run: |
           git config --local user.email "action@github.com"
@@ -138,6 +145,7 @@ jobs:
 
           if git diff --staged --quiet; then
             echo "no changes to commit (already in sync)"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
           else
             NEW_VERSION="${{ steps.version.outputs.new_version }}"
             COMMIT_MSG="chore(version): bump to v${NEW_VERSION} [skip ci]"
@@ -172,11 +180,21 @@ jobs:
                 echo "push failed after $MAX_RETRIES attempts"
                 exit 1
               fi
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
             else
               echo "commit failed"
               exit 1
             fi
           fi
+
+      - name: Trigger RELEASE-PUBLISH (safety-net bump 발행)
+        if: steps.release_guard.outputs.skip != 'true' && steps.commit_push.outputs.pushed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
+          echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 이슈 #61 드리프트 자동 복구)"
 
       - name: Summary
         if: always()

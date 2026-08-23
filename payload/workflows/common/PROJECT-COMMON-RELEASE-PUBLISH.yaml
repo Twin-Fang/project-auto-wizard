@@ -37,6 +37,13 @@
 # workflow_dispatch republishes the current version (recovery path when a
 # previous run failed after the version was confirmed but before the
 # release was created). The idempotency guard keeps it safe to re-run.
+#
+# Issue #90: this file and its self-copy (.github/workflows/) intentionally
+# differ by one step — the self-copy also triggers NPM-PUBLISH via
+# workflow_dispatch right after the release is created. NPM-PUBLISH.yaml is
+# a repo-only workflow (not shipped in payload), so wiring that dispatch
+# here would make every wizard-installed repo call a workflow that doesn't
+# exist for them on every release.
 # ===================================================================
 
 name: PROJECT-RELEASE-PUBLISH
