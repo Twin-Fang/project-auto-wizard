@@ -192,11 +192,19 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     : resolveBranchConfig({ defaultBranch: branch });
   if (showOptional && !existing?.branches) {
     const remoteBranches = await detectRemoteBranches(cwd);
+    // 이슈 #93 — 두 질문에 같은 이름을 입력해야만 trunk-based가 되는 암묵적 규칙 대신,
+    // 전략을 먼저 명시적으로 고르게 한다. 취소/그 외 값은 기존 기본 동작과 같은 pr-flow로 폴백
+    // (selectDeployStyle의 "ESC = 기본값" 패턴과 동일).
+    const strategyPick = await io.selectBranchStrategy();
+    const strategy = strategyPick === "trunk-based" ? "trunk-based" : "pr-flow";
     const mainB = await pickBranch(io, `릴리스 브랜치를 선택하세요 (기본: ${branch})`, branch, remoteBranches, isCancel);
-    const devB = await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
+    // trunk-based면 개발 브랜치 질문 자체를 생략 — 유일한 브랜치(main)를 그대로 develop으로 쓴다.
+    const devB = strategy === "trunk-based"
+      ? mainB
+      : await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
     branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
     if (branches.mode === "trunk-based") {
-      io.note?.("릴리스 브랜치 = 개발 브랜치 → trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).", "브랜치 모드");
+      io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 전략");
     } else if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
       await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, cwd,

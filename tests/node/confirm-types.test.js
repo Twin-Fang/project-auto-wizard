@@ -15,6 +15,7 @@ function stubIo({ confirmTypes = ({ types }) => types } = {}) {
     askYesNo: async (_m, def) => def,
     askText: async (_m, def) => def,
     selectDeployStyle: async () => "simple",
+    selectBranchStrategy: async () => "pr-flow",
     confirmTypes: async (arg) => { calls.confirmTypes.push(arg); return confirmTypes(arg); },
     note: () => {},
     cancelMessage: () => {},
