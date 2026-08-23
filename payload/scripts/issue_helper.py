@@ -59,6 +59,14 @@ def extract_issue_number(issue_url):
     return parts[-1] if parts and parts[-1] else ""
 
 
+_BRANCH_ISSUE_RE = re.compile(r"#(\d+)")
+
+
+def extract_issue_number_from_branch(branch_name):
+    match = _BRANCH_ISSUE_RE.search(branch_name)
+    return match.group(1) if match else None
+
+
 _TAG_RE = re.compile(r"\[.*?]")
 _VARIATION_SELECTOR = "️"
 _ZWJ = "‍"

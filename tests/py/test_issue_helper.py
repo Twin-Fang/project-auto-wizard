@@ -23,6 +23,31 @@ class TestExtractIssueNumber(unittest.TestCase):
         self.assertEqual(issue_helper.extract_issue_number("https://github.com/o/r/issues/68/"), "68")
 
 
+class TestExtractIssueNumberFromBranch(unittest.TestCase):
+    def test_extracts_from_standard_branch_name(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("20260824_#102_feat_추가"),
+            "102",
+        )
+
+    def test_no_hash_returns_none(self):
+        self.assertIsNone(
+            issue_helper.extract_issue_number_from_branch("worktree-issue-93-branch-strategy")
+        )
+
+    def test_multiple_hashes_uses_first_match(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("20260824_#102_feat_#extra"),
+            "102",
+        )
+
+    def test_multi_digit_issue_number(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("20260101_#12345_x"),
+            "12345",
+        )
+
+
 class TestExtractIssueTitle(unittest.TestCase):
     def test_strips_leading_tag(self):
         self.assertEqual(issue_helper.extract_issue_title("[개선] 제목입니다"), "제목입니다")
