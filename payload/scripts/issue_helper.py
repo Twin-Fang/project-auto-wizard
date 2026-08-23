@@ -130,6 +130,42 @@ def normalize_all(title, issue_url, issue_number, date_yyyymmdd, branch_prefix, 
 
 
 # ===================================================================
+# PR 본문 이슈 연결 (Closes #N) — 마커 블록 삽입/치환
+# ===================================================================
+
+LINK_MARKER_START = "<!-- auto-issue-link:start -->"
+LINK_MARKER_END = "<!-- auto-issue-link:end -->"
+_LINK_BLOCK_RE = re.compile(re.escape(LINK_MARKER_START) + r".*?" + re.escape(LINK_MARKER_END), re.S)
+
+
+def build_issue_links_block(issue_numbers):
+    lines = "\n".join(f"Closes #{n}" for n in issue_numbers)
+    return f"{LINK_MARKER_START}\n{lines}\n{LINK_MARKER_END}"
+
+
+def upsert_issue_links_in_body(body, issue_numbers, replace_existing):
+    if not issue_numbers:
+        return body, False
+
+    # 완전한 START...END 블록이 있을 때만 "마커 있음"으로 취급한다 — START만
+    # 있고 END가 없는 손상된 상태를 마커로 오인하면 _LINK_BLOCK_RE.sub()가
+    # 아무 것도 치환하지 못한 채 changed=True만 반환해, replace_existing=True
+    # 경로(release PR)에서 새 이슈 목록이 영구히 반영되지 않는 채로 조용히
+    # "성공"처럼 보이는 버그가 생긴다.
+    has_full_block = _LINK_BLOCK_RE.search(body) is not None
+    if has_full_block and not replace_existing:
+        return body, False
+
+    block = build_issue_links_block(issue_numbers)
+    if has_full_block:
+        new_body = _LINK_BLOCK_RE.sub(block, body)
+    else:
+        separator = "\n\n" if body.strip() else ""
+        new_body = f"{body}{separator}{block}"
+    return new_body, True
+
+
+# ===================================================================
 # GitHub REST API (urllib.request + GITHUB_TOKEN, 서드파티 의존 없음)
 # ===================================================================
 

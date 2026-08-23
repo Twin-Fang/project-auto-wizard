@@ -143,6 +143,71 @@ class TestNormalizeAll(unittest.TestCase):
         )
 
 
+class TestUpsertIssueLinksInBody(unittest.TestCase):
+    def test_empty_issue_numbers_returns_unchanged(self):
+        body, changed = issue_helper.upsert_issue_links_in_body("기존 본문", [], False)
+        self.assertEqual(body, "기존 본문")
+        self.assertFalse(changed)
+
+    def test_appends_block_when_no_marker(self):
+        body, changed = issue_helper.upsert_issue_links_in_body("기존 본문", ["102"], False)
+        self.assertTrue(changed)
+        self.assertEqual(
+            body,
+            "기존 본문\n\n<!-- auto-issue-link:start -->\nCloses #102\n<!-- auto-issue-link:end -->",
+        )
+
+    def test_appends_without_leading_blank_lines_when_body_empty(self):
+        body, changed = issue_helper.upsert_issue_links_in_body("", ["102"], False)
+        self.assertTrue(changed)
+        self.assertEqual(
+            body,
+            "<!-- auto-issue-link:start -->\nCloses #102\n<!-- auto-issue-link:end -->",
+        )
+
+    def test_skips_when_marker_exists_and_not_replacing(self):
+        existing = "설명\n\n<!-- auto-issue-link:start -->\nCloses #1\n<!-- auto-issue-link:end -->"
+        body, changed = issue_helper.upsert_issue_links_in_body(existing, ["2"], False)
+        self.assertEqual(body, existing)
+        self.assertFalse(changed)
+
+    def test_replaces_block_when_marker_exists_and_replacing(self):
+        existing = "설명\n\n<!-- auto-issue-link:start -->\nCloses #1\n<!-- auto-issue-link:end -->\n\n뒷부분"
+        body, changed = issue_helper.upsert_issue_links_in_body(existing, ["2", "3"], True)
+        self.assertTrue(changed)
+        self.assertEqual(
+            body,
+            "설명\n\n<!-- auto-issue-link:start -->\nCloses #2\nCloses #3\n<!-- auto-issue-link:end -->\n\n뒷부분",
+        )
+
+    def test_appends_new_block_when_start_marker_present_without_end(self):
+        # START만 있고 END가 없는 손상된 상태(수동 편집/이전 실패 실행 등) —
+        # 정규식이 매칭하지 못해 아무것도 치환되지 않고 조용히 무효화되는 것을
+        # 막기 위해, 완전한 블록이 아니면 "마커 없음"으로 취급해 새 블록을 덧붙인다.
+        body = "설명\n\n<!-- auto-issue-link:start -->\n망가진 상태"
+        new_body, changed = issue_helper.upsert_issue_links_in_body(body, ["9"], True)
+        self.assertTrue(changed)
+        self.assertTrue(new_body.startswith(body))
+        self.assertIn(
+            "<!-- auto-issue-link:start -->\nCloses #9\n<!-- auto-issue-link:end -->",
+            new_body,
+        )
+
+
+class TestBuildIssueLinksBlock(unittest.TestCase):
+    def test_single_issue(self):
+        self.assertEqual(
+            issue_helper.build_issue_links_block(["102"]),
+            "<!-- auto-issue-link:start -->\nCloses #102\n<!-- auto-issue-link:end -->",
+        )
+
+    def test_multiple_issues(self):
+        self.assertEqual(
+            issue_helper.build_issue_links_block(["1", "2"]),
+            "<!-- auto-issue-link:start -->\nCloses #1\nCloses #2\n<!-- auto-issue-link:end -->",
+        )
+
+
 def run_cli(event_payload, env_extra=None):
     with tempfile.TemporaryDirectory() as tmp:
         event_path = Path(tmp) / "event.json"
