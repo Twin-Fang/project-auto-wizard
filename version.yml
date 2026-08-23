@@ -8,7 +8,7 @@
 #   (then edit major/minor manually, e.g., 1.0.5 -> 1.1.0 or 2.0.0).
 # ===
 # Supported project types: spring, flutter, next, react, react-native,
-#                          react-native-expo, node, python, basic
+#                          react-native-expo, node, python, basic, go
 # Multi-type projects: list every type in the project_types array
 #   -> the first entry is the primary type (project_types is the single source of truth)
 # Monorepo paths: project_paths maps each type to its subdir relative to the repo root
@@ -21,6 +21,7 @@
 # - react-native: Info.plist + build.gradle
 # - react-native-expo: app.json
 # - python: pyproject.toml
+# - go: (none — git tag based, go.mod has no version field)
 # - basic: version.yml only
 # ===
 
