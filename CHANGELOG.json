@@ -1,15 +1,47 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-23T14:55:38Z",
-    "currentVersion": "0.5.0",
+    "lastUpdated": "2026-08-23T15:40:05Z",
+    "currentVersion": "0.5.1",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 13
+    "totalReleases": 14
   },
   "releases": [
+    {
+      "version": "0.5.1",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-23",
+      "pr_number": 104,
+      "raw_summary": "## [0.5.1]\n\n### 🐛 수정\n- NEXUS-PUBLISH 워크플로우 JAVA_VERSION을 @wizard 마커로 교체\n- NEXUS-CI 워크플로우 JAVA_VERSION을 @wizard 마커로 교체\n\n### 📝 문서\n- fable5 plan 리뷰 피드백 반영\n- NEXUS 워크플로우 JAVA_VERSION 마커화 계획 문서 추가\n\n### ✅ 테스트\n- spring 워크플로우 java-version 하드코딩 검출 테스트 추가",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "NEXUS-PUBLISH 워크플로우 JAVA_VERSION을 @wizard 마커로 교체",
+            "NEXUS-CI 워크플로우 JAVA_VERSION을 @wizard 마커로 교체"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "fable5 plan 리뷰 피드백 반영",
+            "NEXUS 워크플로우 JAVA_VERSION 마커화 계획 문서 추가"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "spring 워크플로우 java-version 하드코딩 검출 테스트 추가"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.5.0",
       "project_types": [

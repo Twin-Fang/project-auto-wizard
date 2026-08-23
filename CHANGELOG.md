@@ -1,7 +1,24 @@
 # Changelog
 
-**현재 버전:** 0.5.0  
-**마지막 업데이트:** 2026-08-23T14:55:38Z  
+**현재 버전:** 0.5.1  
+**마지막 업데이트:** 2026-08-23T15:40:05Z  
+
+---
+
+## [0.5.1] - 2026-08-23
+
+**PR:** #104  
+
+**🐛 수정**
+- NEXUS-PUBLISH 워크플로우 JAVA_VERSION을 @wizard 마커로 교체
+- NEXUS-CI 워크플로우 JAVA_VERSION을 @wizard 마커로 교체
+
+**📝 문서**
+- fable5 plan 리뷰 피드백 반영
+- NEXUS 워크플로우 JAVA_VERSION 마커화 계획 문서 추가
+
+**✅ 테스트**
+- spring 워크플로우 java-version 하드코딩 검출 테스트 추가
 
 ---
 
