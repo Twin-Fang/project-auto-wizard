@@ -148,6 +148,19 @@ class TestUpsertIssueLinksInBody(unittest.TestCase):
             "설명\n\n<!-- auto-issue-link:start -->\nCloses #2\nCloses #3\n<!-- auto-issue-link:end -->\n\n뒷부분",
         )
 
+    def test_appends_new_block_when_start_marker_present_without_end(self):
+        # START만 있고 END가 없는 손상된 상태(수동 편집/이전 실패 실행 등) —
+        # 정규식이 매칭하지 못해 아무것도 치환되지 않고 조용히 무효화되는 것을
+        # 막기 위해, 완전한 블록이 아니면 "마커 없음"으로 취급해 새 블록을 덧붙인다.
+        body = "설명\n\n<!-- auto-issue-link:start -->\n망가진 상태"
+        new_body, changed = issue_helper.upsert_issue_links_in_body(body, ["9"], True)
+        self.assertTrue(changed)
+        self.assertTrue(new_body.startswith(body))
+        self.assertIn(
+            "<!-- auto-issue-link:start -->\nCloses #9\n<!-- auto-issue-link:end -->",
+            new_body,
+        )
+
 
 class TestBuildIssueLinksBlock(unittest.TestCase):
     def test_single_issue(self):
@@ -191,12 +204,17 @@ def upsert_issue_links_in_body(body, issue_numbers, replace_existing):
     if not issue_numbers:
         return body, False
 
-    has_marker = LINK_MARKER_START in body
-    if has_marker and not replace_existing:
+    # 완전한 START...END 블록이 있을 때만 "마커 있음"으로 취급한다 — START만
+    # 있고 END가 없는 손상된 상태를 마커로 오인하면 _LINK_BLOCK_RE.sub()가
+    # 아무 것도 치환하지 못한 채 changed=True만 반환해, replace_existing=True
+    # 경로(release PR)에서 새 이슈 목록이 영구히 반영되지 않는 채로 조용히
+    # "성공"처럼 보이는 버그가 생긴다.
+    has_full_block = _LINK_BLOCK_RE.search(body) is not None
+    if has_full_block and not replace_existing:
         return body, False
 
     block = build_issue_links_block(issue_numbers)
-    if has_marker:
+    if has_full_block:
         new_body = _LINK_BLOCK_RE.sub(block, body)
     else:
         separator = "\n\n" if body.strip() else ""
@@ -207,7 +225,7 @@ def upsert_issue_links_in_body(body, issue_numbers, replace_existing):
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `cd tests/py && python3 -m unittest test_issue_helper.TestUpsertIssueLinksInBody test_issue_helper.TestBuildIssueLinksBlock -v`
-Expected: 7개 테스트 모두 PASS
+Expected: 8개 테스트 모두 PASS
 
 - [ ] **Step 5: 커밋**
 
@@ -707,8 +725,11 @@ Expected: 새 테스트가 `content.includes("extract-branch-issue")`에서 FAIL
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # 브랜치명을 run: 스크립트에 직접 ${{ }} 보간하지 않고 env로 전달한다 —
+          # git ref 이름은 $, 백틱, 세미콜론 등을 포함할 수 있어 직접 보간하면
+          # 셸 인젝션 경로가 된다(AUTO-CHANGELOG-CONTROL의 PR_TITLE과 동일한 이유).
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
           ISSUE_NUM=$(python3 .github/scripts/issue_helper.py extract-branch-issue "$HEAD_REF")
 
           if [ -z "$ISSUE_NUM" ]; then
@@ -772,8 +793,11 @@ Expected: 새 테스트가 FAIL(`.github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # 브랜치명을 run: 스크립트에 직접 ${{ }} 보간하지 않고 env로 전달한다 —
+          # git ref 이름은 $, 백틱, 세미콜론 등을 포함할 수 있어 직접 보간하면
+          # 셸 인젝션 경로가 된다(AUTO-CHANGELOG-CONTROL의 PR_TITLE과 동일한 이유).
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
           ISSUE_NUM=$(python3 .github/scripts/issue_helper.py extract-branch-issue "$HEAD_REF")
 
           if [ -z "$ISSUE_NUM" ]; then
@@ -823,16 +847,25 @@ test("AUTO-CHANGELOG-CONTROL collects issues merged into develop for release PR 
   assert.ok(body.includes("collect-issue-closes"));
   assert.ok(body.includes("gh pr list --state merged --base {{DEVELOP_BRANCH}}"));
 });
+
+test("AUTO-CHANGELOG-CONTROL 릴리스 문서 커밋 전에 이슈 취합 임시파일도 정리한다 (실패 시 커밋 유출 방지)", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1, "Commit release docs 스텝을 찾지 못했습니다");
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt가 정리 목록에 없습니다");
+  assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json이 정리 목록에 없습니다");
+});
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/payload-yaml.test.js`
-Expected: 새 테스트가 `body.includes("collect-issue-closes")`에서 FAIL
+Expected: 두 새 테스트 모두 FAIL(`collect-issue-closes` 스텝 자체가 아직 없고, "Commit release docs" 스텝의 정리 목록에도 아직 새 파일명이 없음)
 
 - [ ] **Step 3: 최소 구현**
 
-`payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml`의 "Collect commits since last release" 스텝(현재 97~109번째 줄, `echo "commits to summarize: $(wc -l < commits.txt)"`로 끝남) 바로 뒤, "Confirm release version (bump + sync)" 스텝(현재 111번째 줄) 바로 앞에 새 스텝을 삽입한다:
+3-1. `payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml`의 "Collect commits since last release" 스텝(현재 97~109번째 줄, `echo "commits to summarize: $(wc -l < commits.txt)"`로 끝남) 바로 뒤, "Confirm release version (bump + sync)" 스텝(현재 111번째 줄) 바로 앞에 새 스텝을 삽입한다:
 
 ```yaml
 
@@ -846,6 +879,11 @@ Expected: 새 테스트가 `body.includes("collect-issue-closes")`에서 FAIL
 
           gh pr list --state merged --base {{DEVELOP_BRANCH}} \
             --json number,headRefName,mergeCommit --limit 200 > merged_prs.json
+
+          MERGED_PR_COUNT=$(python3 -c "import json; print(len(json.load(open('merged_prs.json'))))")
+          if [ "$MERGED_PR_COUNT" -ge 200 ]; then
+            echo "::warning::gh pr list가 --limit 200에 도달했습니다 — 오래된 병합 PR이 누락됐을 수 있습니다 (조회된 PR: $MERGED_PR_COUNT)"
+          fi
 
           ISSUE_NUMBERS=$(python3 .github/scripts/changelog_manager.py collect-issue-closes \
             --commit-shas-file commit_shas.txt \
@@ -866,10 +904,22 @@ Expected: 새 테스트가 `body.includes("collect-issue-closes")`에서 FAIL
           echo "이슈 연결: $ISSUE_NUMBERS"
 ```
 
+3-2. **중요(실패 격리 보강):** 위 스텝은 `continue-on-error: true`이지만, `gh pr list`나 `collect-issue-closes`가 실패하면(네트워크 오류, `gh` 인증 문제, 잘못된 JSON 등) bash `run:` 블록이 기본적으로 `set -e`처럼 동작해 `rm -f commit_shas.txt merged_prs.json` 줄에 도달하지 못한 채 스텝이 중단된다. 이 경우 두 임시 파일이 작업 디렉터리에 남고, 뒤이은 "Commit release docs to the PR head branch" 스텝의 `git add -A`가 그대로 커밋해 develop → main으로 흘러들어갈 수 있다. 이를 막기 위해 같은 파일의 "Commit release docs to the PR head branch" 스텝(현재 203~209번째 줄)에 있는 정리 줄도 함께 수정한다:
+
+기존(현재 209번째 줄):
+```yaml
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json
+```
+
+변경 후:
+```yaml
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
+```
+
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `node --test tests/node/payload-yaml.test.js`
-Expected: 새 테스트 포함 전체 PASS(특히 "no hardcoded branch literals outside placeholders" 테스트도 여전히 PASS — 새 스텝은 `{{MAIN_BRANCH}}`/`{{DEVELOP_BRANCH}}` 플레이스홀더만 사용하고 리터럴 `develop`/`main`을 쓰지 않는다)
+Expected: 새 테스트 2개 포함 전체 PASS(특히 "no hardcoded branch literals outside placeholders" 테스트도 여전히 PASS — 새 스텝은 `{{MAIN_BRANCH}}`/`{{DEVELOP_BRANCH}}` 플레이스홀더만 사용하고 리터럴 `develop`/`main`을 쓰지 않는다)
 
 - [ ] **Step 5: 커밋**
 
@@ -900,16 +950,25 @@ test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 이슈 취합 �
   assert.ok(body.includes("collect-issue-closes"));
   assert.ok(body.includes("gh pr list --state merged --base develop"));
 });
+
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL도 릴리스 문서 커밋 전에 이슈 취합 임시파일을 정리한다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1);
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"));
+  assert.ok(stepBlock.includes("merged_prs.json"));
+});
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/payload-yaml.test.js`
-Expected: 새 테스트가 FAIL
+Expected: 두 새 테스트 모두 FAIL
 
 - [ ] **Step 3: 최소 구현**
 
-`.github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml`의 "Collect commits since last release" 스텝(현재 97~109번째 줄) 바로 뒤에 Task 10과 동일한 스텝을, `{{MAIN_BRANCH}}` → `main`, `{{DEVELOP_BRANCH}}` → `develop`로 치환해 삽입한다:
+3-1. `.github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml`의 "Collect commits since last release" 스텝(현재 97~109번째 줄) 바로 뒤에 Task 10과 동일한 스텝을, `{{MAIN_BRANCH}}` → `main`, `{{DEVELOP_BRANCH}}` → `develop`로 치환해 삽입한다:
 
 ```yaml
 
@@ -923,6 +982,11 @@ Expected: 새 테스트가 FAIL
 
           gh pr list --state merged --base develop \
             --json number,headRefName,mergeCommit --limit 200 > merged_prs.json
+
+          MERGED_PR_COUNT=$(python3 -c "import json; print(len(json.load(open('merged_prs.json'))))")
+          if [ "$MERGED_PR_COUNT" -ge 200 ]; then
+            echo "::warning::gh pr list가 --limit 200에 도달했습니다 — 오래된 병합 PR이 누락됐을 수 있습니다 (조회된 PR: $MERGED_PR_COUNT)"
+          fi
 
           ISSUE_NUMBERS=$(python3 .github/scripts/changelog_manager.py collect-issue-closes \
             --commit-shas-file commit_shas.txt \
@@ -941,6 +1005,18 @@ Expected: 새 테스트가 FAIL
             --replace
 
           echo "이슈 연결: $ISSUE_NUMBERS"
+```
+
+3-2. Task 10-3-2와 동일하게, `.github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml`의 "Commit release docs to the PR head branch" 스텝(현재 203~209번째 줄)의 정리 줄도 수정한다:
+
+기존(현재 209번째 줄):
+```yaml
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json
+```
+
+변경 후:
+```yaml
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
 ```
 
 - [ ] **Step 4: 테스트 통과 확인 + 동기화 재검증**
@@ -972,12 +1048,12 @@ git commit -m "chore: .github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.ya
 - [ ] **Step 1: node 전체 테스트 실행**
 
 Run: `npm run test:node`
-Expected: 기존 465개 + 이번 계획에서 추가한 노드 테스트(Task 8: 1개, Task 9: 1개, Task 10: 1개, Task 11: 1개 = +4개, 총 469개) 모두 PASS, 0 fail
+Expected: 기존 465개 + 이번 계획에서 추가한 노드 테스트(Task 8: 1개, Task 9: 1개, Task 10: 2개, Task 11: 2개 = +6개, 총 471개) 모두 PASS, 0 fail
 
 - [ ] **Step 2: python 전체 테스트 실행**
 
 Run: `npm run test:py`
-Expected: 기존 130개 + 이번 계획에서 추가한 파이썬 테스트(Task 1: 4개, Task 2: 7개, Task 3: 5개, Task 5: 5개, Task 6: 2개 = +23개, 총 153개) 모두 PASS, 0 fail
+Expected: 기존 130개 + 이번 계획에서 추가한 파이썬 테스트(Task 1: 4개, Task 2: 8개, Task 3: 5개, Task 5: 5개, Task 6: 2개 = +24개, 총 154개) 모두 PASS, 0 fail
 
 - [ ] **Step 3: `payload/scripts/*.py`와 `.github/scripts/*.py` 최종 byte-identical 재확인**
 
