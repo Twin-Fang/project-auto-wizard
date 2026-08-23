@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { collectAsks } from "../../src/ui/env-plan.js";
+import { collectAsks, promptEnvPlan } from "../../src/ui/env-plan.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 
 function makeFixturePayload() {
@@ -67,4 +67,48 @@ test("collectAsks: common/secret-backup/은 includeSecretBackup=true면 포함�
 test("collectAsks: 실제 payload의 secret-backup 전용 키(SERVER_BASE_PATH)는 기본적으로 제외된다 (회귀)", () => {
   const asks = collectAsks(resolvePayloadRoot(), [], { includeSecretBackup: false });
   assert.ok(!asks.keys.includes("SERVER_BASE_PATH"));
+});
+
+test("promptEnvPlan: 기본값이 true/false인 ask 필드는 io.text 대신 io.confirm을 사용한다", async () => {
+  const root = makeFixturePayload();
+  try {
+    const confirmedInitialValues = [];
+    const textedDefaults = [];
+    const io = {
+      select: async () => "each",
+      multiselect: async () => [],
+      text: async ({ defaultValue }) => { textedDefaults.push(defaultValue); return defaultValue; },
+      confirm: async ({ initialValue }) => { confirmedInitialValues.push(initialValue); return true; },
+    };
+    const result = await promptEnvPlan({
+      payloadRoot: root, types: [], io, force: false, log: () => {},
+    });
+    assert.strictEqual(result.values.get("FOO_FLAG"), "true"); // confirm()이 true 응답 → "true" 문자열로 변환
+    assert.strictEqual(result.values.get("FOO_NAME"), "bar");  // boolean이 아닌 필드는 그대로 text() 경로
+    assert.strictEqual(confirmedInitialValues.length, 1);
+    assert.strictEqual(confirmedInitialValues[0], false); // FOO_FLAG 기본값 "false" → initialValue=false
+    assert.strictEqual(textedDefaults.length, 1);
+    assert.strictEqual(textedDefaults[0], "bar");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("promptEnvPlan: confirm에서 CANCEL을 반환하면 boolean 필드는 기본값을 유지한다", async () => {
+  const root = makeFixturePayload();
+  try {
+    const { CANCEL } = await import("../../src/ui/readline-engine.js");
+    const io = {
+      select: async () => "each",
+      multiselect: async () => [],
+      text: async ({ defaultValue }) => defaultValue,
+      confirm: async () => CANCEL,
+    };
+    const result = await promptEnvPlan({
+      payloadRoot: root, types: [], io, force: false, log: () => {},
+    });
+    assert.strictEqual(result.values.get("FOO_FLAG"), "false");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

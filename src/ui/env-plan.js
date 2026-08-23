@@ -129,6 +129,12 @@ export function printFieldCard(prompts, key, info, idx = null, tot = null, log =
   log("");
 }
 
+// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다 (이슈 #94).
+// 마커 문법(@wizard ask:...)을 바꾸지 않고 리터럴 값 형태만으로 판단 — 별도 타입 표기가 필요 없다.
+function isBooleanDefault(value) {
+  return value === "true" || value === "false";
+}
+
 // 지정 KEY들을 하나씩 입력받아 values에 기록 (.sh _wf_prefill_interactive 등가).
 // 빈 입력(Enter)/ESC → KEY 공통 기본값 유지 (.sh safe_read || _in="" 등가).
 async function promptEach(io, prompts, asks, todoKeys, values, log) {
@@ -142,10 +148,16 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
     i++;
     const def = asks.defaults.get(key) ?? "";
     printFieldCard(prompts, key, { default: def, usages: asks.usages.get(key) || [] }, i, tot, log);
-    let input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
-    if (input === CANCEL || input == null || input === "") input = def;
-    values.set(key, input);
     const label = wfField(prompts, firstTypeFor(asks.usages, key), key, "label");
+    let input;
+    if (isBooleanDefault(def)) {
+      const answer = await io.confirm({ message: `↳ ${label} — 활성화할까요?`, initialValue: def === "true" });
+      input = answer === CANCEL ? def : (answer ? "true" : "false");
+    } else {
+      input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
+      if (input === CANCEL || input == null || input === "") input = def;
+    }
+    values.set(key, input);
     log(`         → ${label} = ${input}`);
     log("");
   }
