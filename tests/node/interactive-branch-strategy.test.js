@@ -51,7 +51,7 @@ test("trunk-based 선택 시 개발 브랜치 질문이 생략되고 branches.mo
     assert.strictEqual(branches.mode, "trunk-based");
     assert.strictEqual(branches.main, branches.develop, "trunk-based는 main과 develop이 같아야 한다");
 
-    const strategyNote = noteCalls.find((n) => n.title === "브랜치 전략");
+    const strategyNote = noteCalls.find((n) => n.title === "브랜치 모드");
     assert.ok(strategyNote, "trunk-based 안내 note가 떠야 한다");
     assert.ok(strategyNote.text.includes("trunk-based"));
   } finally {

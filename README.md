@@ -130,7 +130,7 @@ flowchart LR
 
 - **pr-flow** (기본): `VERSION-CONTROL`(main 직접 push 안전망) + `AUTO-CHANGELOG-CONTROL`(릴리스 PR) + `RELEASE-PUBLISH`(tag+Release) 3종 설치
 - **trunk-based** (릴리스 브랜치 = 개발 브랜치): `RELEASE-PUBLISH` 하나가 main push마다 버전확정 → 체인지로그 → tag → Release를 순차 처리
-- 마법사가 브랜치를 묻고(`--main-branch`/`--develop-branch`) 없으면 **생성 + push**까지. 선택은 `version.yml`에 저장되어 업데이트 시 재질문 없음
+- 마법사가 브랜치 전략(pr-flow/trunk-based)을 먼저 묻고, trunk-based를 고르면 개발 브랜치 질문 없이 릴리스 브랜치 하나만 사용합니다. 비대화형은 `--main-branch`/`--develop-branch` 플래그로 지정하며, 없으면 **생성 + push**까지. 선택은 `version.yml`에 저장되어 업데이트 시 재질문 없음
 
 ## 설치 옵션
 

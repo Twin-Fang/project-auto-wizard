@@ -204,7 +204,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       : await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
     branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
     if (branches.mode === "trunk-based") {
-      io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 전략");
+      io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 모드");
     } else if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
       await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, cwd,

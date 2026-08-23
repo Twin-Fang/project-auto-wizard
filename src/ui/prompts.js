@@ -104,7 +104,7 @@ export async function selectDeployStyle() {
 export async function selectBranchStrategy() {
   engine.note(
     "pr-flow는 develop에서 작업해 main으로 PR을 올리는 팀 협업 흐름입니다.\n" +
-    "trunk-based는 브랜치를 하나만 두고 바로 main에서 작업하는 단순한 흐름입니다.",
+    "trunk-based는 브랜치를 하나만 두고 그 브랜치에서 바로 작업하는 단순한 흐름입니다.",
     "브랜치 전략",
   );
   return engine.select({
