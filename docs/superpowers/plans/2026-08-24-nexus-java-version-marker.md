@@ -44,7 +44,7 @@ test("spring 워크플로우는 java-version을 리터럴로 하드코딩하지 
     if (!rel(file).startsWith("spring/")) continue;
     readFileSync(file, "utf8").split(/\r?\n/).forEach((line, i) => {
       if (isCommented(line)) return;
-      if (/java-version:\s*['"]/.test(line) && !/\$\{\{\s*env\.JAVA_VERSION\s*\}\}/.test(line)) {
+      if (/java-version:\s*['"0-9]/.test(line) && !/\$\{\{\s*env\.JAVA_VERSION\s*\}\}/.test(line)) {
         bad.push(`${rel(file)}:${i + 1}  ${line.trim()}`);
       }
     });
@@ -57,7 +57,7 @@ test("spring 워크플로우는 java-version을 리터럴로 하드코딩하지 
 
 Run: `node --test tests/node/payload-example-values.test.js`
 
-Expected: 새로 추가한 `"spring 워크플로우는 java-version을 리터럴로 하드코딩하지 않는다"` 테스트가 FAIL. 에러 메시지에 아래 4줄이 포함되어야 한다:
+Expected: 새로 추가한 `"spring 워크플로우는 java-version을 리터럴로 하드코딩하지 않는다"` 테스트가 FAIL. 에러 메시지에 아래 2줄이 포함되어야 한다:
 
 ```
 spring/nexus/PROJECT-SPRING-NEXUS-CI.yml:41  java-version: '17'
@@ -92,23 +92,31 @@ git commit -m "test: spring 워크플로우 java-version 하드코딩 검출 테
 
 - [ ] **Step 1: `env:` 블록 신설**
 
-`payload/workflows/spring/nexus/PROJECT-SPRING-NEXUS-CI.yml`에서 아래:
+`payload/workflows/spring/nexus/PROJECT-SPRING-NEXUS-CI.yml`에서 아래(기존 `permissions` 블록 바로 뒤, `jobs:` 바로 앞 — 참조 패턴인 `GITHUB-PACKAGES-PUBLISH.yml`과 동일하게 `permissions` 다음에 `env`를 둔다):
 
 ```yaml
-name: PROJECT-SPRING-NEXUS-CI
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
 
-on:
+jobs:
 ```
 
 를 아래로 교체:
 
 ```yaml
-name: PROJECT-SPRING-NEXUS-CI
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
 
 env:
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
 
-on:
+jobs:
 ```
 
 - [ ] **Step 2: `Setup JDK` 스텝의 하드코딩 제거**
