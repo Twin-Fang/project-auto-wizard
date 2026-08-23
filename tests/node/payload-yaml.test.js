@@ -509,3 +509,78 @@ test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", ()
   const selfHostedSrc = readFileSync(join(".github", "scripts", "issue_helper.py"), "utf8");
   assert.strictEqual(selfHostedSrc, payloadSrc);
 });
+
+// ---------------------------------------------------------------
+// #90: WORKFLOW_PAT 없이도 릴리스 파이프라인 후속 트리거가 끊기지 않도록,
+// GITHUB_TOKEN으로도 항상 새 실행을 만드는 workflow_dispatch 신호를 세 지점에
+// 추가했다. 아래 테스트는 그 신호 발행 로직이 실제로 존재하는지,
+// WORKFLOW_PAT 폴백이 아닌 기본 토큰을 쓰는지, payload와 self-copy가
+// (의도된 1곳 제외) 동기화됐는지를 고정한다.
+// ---------------------------------------------------------------
+
+// 잡 정의(`\n  wait-for-merge-and-trigger-release:`)를 찾는다 — 헤더 주석에도
+// 같은 이름이 산문으로 등장하므로 plain indexOf는 주석을 먼저 잡아버린다.
+const WAIT_JOB_DEFINITION = "\n  wait-for-merge-and-trigger-release:";
+
+test("AUTO-CHANGELOG-CONTROL: automerge 병합 완료를 폴링해 RELEASE-PUBLISH를 트리거하는 잡이 changelog-and-merge와 분리되어 있다 (#90)", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  assert.ok(body.includes("needs: changelog-and-merge"), "changelog-and-merge에 의존하는 별도 잡이 있어야 한다 (같은 잡 내 폴링은 데드락 위험)");
+  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "RELEASE-PUBLISH를 workflow_dispatch로 트리거해야 한다 (실제 파일명 PROJECT-COMMON-RELEASE-PUBLISH.yaml과 일치해야 함)");
+  const idx = body.indexOf(WAIT_JOB_DEFINITION);
+  assert.ok(idx > -1, "wait-for-merge-and-trigger-release 잡 정의를 찾지 못했습니다");
+  const jobBlock = body.slice(idx, idx + 2000);
+  assert.ok(
+    /GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock),
+    "WORKFLOW_PAT 폴백이 아니라 기본 github.token을 써야 한다 (GITHUB_TOKEN으로도 workflow_dispatch는 항상 트리거된다)"
+  );
+});
+
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 병합 대기 + 트리거 잡이 있다 (#90)", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  assert.ok(body.includes("needs: changelog-and-merge"));
+  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main"));
+  const idx = body.indexOf(WAIT_JOB_DEFINITION);
+  assert.ok(idx > -1, "wait-for-merge-and-trigger-release 잡 정의를 찾지 못했습니다");
+  const jobBlock = body.slice(idx, idx + 2000);
+  assert.ok(/GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock));
+});
+
+test("VERSION-CONTROL: safety-net bump이 push된 경우에만 RELEASE-PUBLISH를 트리거한다 (#90, 이슈 #61 자동 복구)", () => {
+  const p = join("payload", "workflows", "common", "PROJECT-COMMON-VERSION-CONTROL.yaml");
+  const body = readFileSync(p, "utf8");
+  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "workflow_dispatch 호출을 위한 actions: write 권한이 필요하다");
+  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
+  const idx = body.indexOf("name: Trigger RELEASE-PUBLISH");
+  assert.ok(idx > -1, "Trigger RELEASE-PUBLISH 스텝을 찾지 못했습니다");
+  const stepBlock = body.slice(idx, idx + 300);
+  assert.ok(
+    stepBlock.includes("steps.commit_push.outputs.pushed == 'true'"),
+    "실제로 push가 일어난 경우에만(변경 없음일 때는 스킵) 트리거해야 한다"
+  );
+});
+
+test("도그푸딩 사본 VERSION-CONTROL에도 동일한 조건부 트리거가 있다 (#90)", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-VERSION-CONTROL.yaml"), "utf8");
+  assert.ok(/^\s*actions:\s*write\s*$/m.test(body));
+  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main"));
+  const idx = body.indexOf("name: Trigger RELEASE-PUBLISH");
+  assert.ok(idx > -1);
+  const stepBlock = body.slice(idx, idx + 300);
+  assert.ok(stepBlock.includes("steps.commit_push.outputs.pushed == 'true'"));
+});
+
+// NPM-PUBLISH.yaml은 payload에 없는 이 저장소 전용 워크플로우다 — payload
+// 템플릿에 그 호출이 섞여 들어가면 마법사로 설치된 모든 레포가 존재하지
+// 않는 워크플로우를 매 릴리스마다 호출 시도하게 된다 (fable5 독립 검토, #90).
+test("RELEASE-PUBLISH payload 템플릿에는 NPM-PUBLISH 호출이 없다 (#90) — 사용자 레포에는 그 워크플로우가 없다", () => {
+  const body = readFileSync(releasePath, "utf8");
+  // 의도된 비대칭을 설명하는 헤더 주석은 "NPM-PUBLISH"를 언급해도 된다 —
+  // 여기서 금지하는 것은 그 워크플로우를 실제로 "호출"하는 것이다.
+  assert.ok(!body.includes("gh workflow run NPM-PUBLISH"), "payload/workflows/common/PROJECT-COMMON-RELEASE-PUBLISH.yaml에 NPM-PUBLISH 호출이 있으면 안 된다");
+});
+
+test("도그푸딩 사본 RELEASE-PUBLISH는 Release 생성 직후 NPM-PUBLISH를 workflow_dispatch로 트리거한다 (#90)", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "utf8");
+  assert.ok(body.includes("gh workflow run NPM-PUBLISH.yaml"), "NPM-PUBLISH를 workflow_dispatch로 호출해야 한다");
+  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "workflow_dispatch 호출을 위한 actions: write 권한이 필요하다");
+});

@@ -36,6 +36,11 @@
 #   main-push workflows (e.g. RELEASE-PUBLISH) for that merge.
 # - secrets.AI_API_KEY (+ vars.AI_API_BASE_URL / vars.AI_MODEL): preferred
 #   summary engine. Falls back to GitHub Models, then to rule-based.
+#
+# Issue #90: without WORKFLOW_PAT, a wait-for-merge-and-trigger-release job
+# polls until the automerge actually lands, then wakes RELEASE-PUBLISH via
+# workflow_dispatch — GITHUB_TOKEN can always trigger that event, unlike
+# the push/release events blocked by GitHub's anti-recursion policy.
 # ===================================================================
 
 name: PROJECT-AUTO-CHANGELOG-CONTROL
@@ -268,3 +273,51 @@ jobs:
             fi
             exit 1
           fi
+
+  wait-for-merge-and-trigger-release:
+    name: Wait for merge and trigger RELEASE-PUBLISH (WORKFLOW_PAT 없이도 동작)
+    needs: changelog-and-merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Poll for merge completion
+        id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          MAX_WAIT=1800
+          INTERVAL=20
+          ELAPSED=0
+          MERGED=false
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            PR_STATE=$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null || echo "")
+            if [ "$PR_STATE" = "MERGED" ]; then
+              MERGED=true
+              echo "PR #$PR_NUMBER 병합 확인 (경과 ${ELAPSED}s)"
+              break
+            fi
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ "$MERGED" != "true" ]; then
+            echo "::warning::PR #$PR_NUMBER 병합을 ${MAX_WAIT}s 내에 확인하지 못했습니다 — RELEASE-PUBLISH 자동 트리거를 건너뜁니다. WORKFLOW_PAT이 등록되어 있다면 기존 경로로 정상 진행되며, 없다면 필요 시 RELEASE-PUBLISH를 수동으로 workflow_dispatch 하세요."
+          fi
+
+          echo "merged=$MERGED" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger RELEASE-PUBLISH
+        if: steps.wait.outputs.merged == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
+          echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)"

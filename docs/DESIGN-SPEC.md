@@ -68,8 +68,9 @@ projectops/ (신규)
 
 `on: push: branches:` 트리거는 YAML 정적 값이라 런타임 변경 불가 → 마법사가 물어서 치환해야 한다.
 
+- **브랜치 전략 선택**: 릴리스/개발 브랜치를 묻기 전에 pr-flow(develop → main PR 흐름) 또는 trunk-based(main 단일 브랜치) 중 하나를 먼저 선택하게 한다. trunk-based를 고르면 개발 브랜치 질문 자체를 생략한다(내부적으로 개발 브랜치 = 릴리스 브랜치).
 - **릴리스 브랜치**: 기본값 = 감지된 default branch (main/master).
-- **개발 브랜치**: 기본값 `develop`. `git branch -r` 목록에서 선택 또는 직접 입력.
+- **개발 브랜치** (pr-flow를 선택했을 때만 질문): 기본값 `develop`. `git branch -r` 목록에서 선택 또는 직접 입력.
 - **브랜치 자동 생성**: 입력한 개발 브랜치가 원격에 없으면 현 HEAD 기준으로 생성 + push. 대화형은 push 전 확인 질문, `--force` 비대화형은 질문 없이 자동 생성+push.
 - payload 워크플로우에는 `{{DEVELOP_BRANCH}}` / `{{MAIN_BRANCH}}` 플레이스홀더 → 복사 시 치환.
 - 선택값은 `version.yml`의 `metadata.template.branches`에 저장 → 업데이트 모드에서 재질문 없이 동일 치환 재적용.

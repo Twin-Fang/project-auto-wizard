@@ -45,6 +45,11 @@ SSH_AUTH_METHOD:
   help: "배포 서버 접속 방식입니다. 둘 중 하나를 그대로 입력하세요."
   example: "password 또는 key"
 
+ISSUE_HELPER_CREATE_BRANCH:
+  label: "이슈 생성 시 브랜치 자동 생성"
+  help: "이슈가 열리면 base 브랜치 기준으로 브랜치를 자동으로 만듭니다. 원치 않으면 기본값(아니오)을 그대로 두세요."
+  example: "true"
+
 # workflow filename (partial match) -> human readable short name
 # wizard uses this to build "[usage]" in env questions.
 _workflow_names:
@@ -60,3 +65,4 @@ _workflow_names:
   FLUTTER-ANDROID-SELFHOSTED: "안드로이드 자체배포"
   FLUTTER-ANDROID-PLAYSTORE: "플레이스토어 배포"
   FLUTTER-ANDROID-FIREBASE: "Firebase 배포"
+  ISSUE-HELPER: "이슈 헬퍼"
