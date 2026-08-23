@@ -48,10 +48,13 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const typeDefaults = new Map();
   const usages = new Map();
 
-  // 스캔 단위: [타입, 폴더]. secret-backup은 타입이 아니라 공통이지만 @wizard 마커를 가지므로
-  // 포함하기로 한 경우에만 질문 수집 대상이 된다 (이슈 #82) — 종전에는 스캔 대상이 아니어서
-  // my-project 같은 예시값이 질문 없이 그대로 설치됐다.
+  // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
+  // 동일 규칙 — issue #94) 무조건 스캔한다. secret-backup은 common 최상위가 아니라 그 하위
+  // 폴더고, 파일 전체가 조건부로 설치되므로 포함하기로 한 경우에만 별도로 스캔한다 (이슈 #82) —
+  // 종전에는 스캔 대상이 아니어서 my-project 같은 예시값이 질문 없이 그대로 설치됐다.
   const units = [];
+  const commonDir = join(baseDir, "common");
+  if (exists(commonDir)) units.push(["common", commonDir, null]);
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
@@ -126,6 +129,12 @@ export function printFieldCard(prompts, key, info, idx = null, tot = null, log =
   log("");
 }
 
+// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다 (이슈 #94).
+// 마커 문법(@wizard ask:...)을 바꾸지 않고 리터럴 값 형태만으로 판단 — 별도 타입 표기가 필요 없다.
+function isBooleanDefault(value) {
+  return value === "true" || value === "false";
+}
+
 // 지정 KEY들을 하나씩 입력받아 values에 기록 (.sh _wf_prefill_interactive 등가).
 // 빈 입력(Enter)/ESC → KEY 공통 기본값 유지 (.sh safe_read || _in="" 등가).
 async function promptEach(io, prompts, asks, todoKeys, values, log) {
@@ -139,10 +148,16 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
     i++;
     const def = asks.defaults.get(key) ?? "";
     printFieldCard(prompts, key, { default: def, usages: asks.usages.get(key) || [] }, i, tot, log);
-    let input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
-    if (input === CANCEL || input == null || input === "") input = def;
-    values.set(key, input);
     const label = wfField(prompts, firstTypeFor(asks.usages, key), key, "label");
+    let input;
+    if (isBooleanDefault(def)) {
+      const answer = await io.confirm({ message: `↳ ${label} — 활성화할까요?`, initialValue: def === "true" });
+      input = answer === CANCEL ? def : (answer ? "true" : "false");
+    } else {
+      input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
+      if (input === CANCEL || input == null || input === "") input = def;
+    }
+    values.set(key, input);
     log(`         → ${label} = ${input}`);
     log("");
   }
@@ -182,9 +197,9 @@ export async function promptEnvPlan({
 
   // 기본값 미리보기 카드 전체 출력 (.sh 3237~3251)
   log("");
-  log("▶ 배포 워크플로우 환경설정을 채웁니다");
+  log("▶ 워크플로우 환경설정을 채웁니다");
   log("");
-  log("   설치되는 배포 워크플로우가 사용할 값입니다. 항목마다 '무엇에 쓰이는지·설명·예시'와");
+  log("   설치되는 워크플로우가 사용할 값입니다. 항목마다 '무엇에 쓰이는지·설명·예시'와");
   log("   기본값을 함께 보여드립니다. 그대로 둬도 되고, 원하는 것만 바꿀 수 있습니다.");
   log("");
   const tot = asks.keys.length;

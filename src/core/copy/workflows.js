@@ -159,7 +159,18 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const commonDir = join(projectTypesDir, "common");
   if (exists(commonDir)) {
     const notExcluded = (filename) => !(branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename));
-    processDir(commonDir, workflowsDir, envOptsFor("common"), dirCtx, counters, notExcluded);
+    const c = processDir(commonDir, workflowsDir, envOptsFor("common"), dirCtx, counters, notExcluded);
+    // env 치환 — 타입별 폴더(copyWorkflowsForType)와 동일하게, 손대지 않기로 한 파일(unchanged/localOnly)은
+    // 건너뛴다. common 최상위는 지금까지 @wizard 마커가 없어 이 루프가 없어도 드러나지 않았지만,
+    // ISSUE_HELPER_CREATE_BRANCH(issue #94)부터는 실제로 값이 반영돼야 한다.
+    const untouched = [...c.unchanged, ...c.localOnly];
+    for (const filename of listYamlFiles(commonDir)) {
+      if (!notExcluded(filename)) continue;
+      const target = join(workflowsDir, filename);
+      if (!existsSync(target)) continue;
+      if (untouched.includes(filename)) continue;
+      configureEnv(target, envOptsFor("common"));
+    }
   }
 
   // (2~4) 타입별

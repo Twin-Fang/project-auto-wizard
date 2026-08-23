@@ -36,7 +36,7 @@ jobs:
       ISSUE_HELPER_BRANCH_PREFIX: ""
       ISSUE_HELPER_MAX_BRANCH_LENGTH: "100"
       ISSUE_HELPER_COMMIT_TEMPLATE: "${issueTitle} : feat : {변경 사항에 대한 설명} ${issueUrl}"
-      ISSUE_HELPER_CREATE_BRANCH: "false"
+      ISSUE_HELPER_CREATE_BRANCH: "false" # @wizard ask:false
       ISSUE_HELPER_BASE_BRANCH: "{{MAIN_BRANCH}}"
     steps:
       - name: Checkout repository
