@@ -87,3 +87,20 @@ test("spring DockerHub 자격증명 secret 이름이 워크플로우마다 갈�
   }
   assert.deepStrictEqual(bad, [], `DOCKERHUB_USERNAME/DOCKERHUB_TOKEN으로 통일해야 합니다:\n  ${bad.join("\n  ")}`);
 });
+
+test("spring 워크플로우는 java-version을 리터럴로 하드코딩하지 않는다", () => {
+  // NEXUS-CI/NEXUS-PUBLISH가 @wizard 마커 자체를 빠뜨린 채 java-version: '17'을 박아
+  // 넣고 있었다(이슈 #82). 마커가 있는 줄만 보는 위 JAVA_VERSION 테스트는 마커가
+  // 아예 없는 이 케이스를 걸러내지 못했으므로, java-version 줄 자체를 스캔한다.
+  const bad = [];
+  for (const file of allWorkflowFiles()) {
+    if (!rel(file).startsWith("spring/")) continue;
+    readFileSync(file, "utf8").split(/\r?\n/).forEach((line, i) => {
+      if (isCommented(line)) return;
+      if (/java-version:\s*['"0-9]/.test(line) && !/\$\{\{\s*env\.JAVA_VERSION\s*\}\}/.test(line)) {
+        bad.push(`${rel(file)}:${i + 1}  ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepStrictEqual(bad, [], `java-version이 리터럴로 하드코딩돼 있습니다 (@wizard ask:@jdk 마커로 교체 필요):\n  ${bad.join("\n  ")}`);
+});
