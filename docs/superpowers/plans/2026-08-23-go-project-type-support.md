@@ -50,11 +50,14 @@ test("detectTypesFromMarkers: go.mod만 있으면 [\"go\"]를 반환한다", () 
   assert.deepStrictEqual(types, ["go"]);
 });
 
-test("detectTypesFromMarkers: go.mod와 package.json이 함께 있으면 두 타입 모두 감지한다", () => {
+test("detectTypesFromMarkers: go.mod와 react package.json이 함께 있으면 두 타입 모두 감지한다", () => {
+  // classifyPackageText가 "node"를 반환하는 케이스는 다른 타입이 이미 감지됐으면 폴백으로
+  // 추가되지 않는다(22~33행 로직) — 그래서 "react" 마커로 검증한다. react는 cls !== "node"라
+  // types.length와 무관하게 항상 push된다.
   const has = (n) => n === "go.mod" || n === "package.json";
-  const read = (n) => (n === "package.json" ? '{"name":"x"}' : null);
+  const read = (n) => (n === "package.json" ? '{"dependencies":{"react":"18.0.0"}}' : null);
   const types = detectTypesFromMarkers({ has, read });
-  assert.deepStrictEqual(types, ["go", "node"]);
+  assert.deepStrictEqual(types, ["go", "react"]);
 });
 
 test("markerForType: go는 go.mod를 반환한다 (package.json 폴백 금지)", () => {
@@ -115,15 +118,38 @@ git commit -m "feat: Go 프로젝트(go.mod) 마커 감지 추가"
 - Modify: `src/core/paths-resolve.js:20-25` (`KNOWN_MARKER_TYPES`/`markerForType`), `src/core/paths-resolve.js:75-82` (`findTypePathCandidates`의 `namesByType`)
 - Test: `tests/node/paths-resolve.test.js`
 
+> ⚠️ 아래 통합 테스트(`resolveProjectPaths`)만으로는 `namesByType`에 `go`를 추가하고 `KNOWN_MARKER_TYPES`를 빼먹는 실수를 잡지 못한다 — 후보 스캔(④)이 대신 찾아내 통과해버리기 때문이다. 그래서 Step 1에 두 수정을 각각 고정하는 직접 단언을 추가한다.
+
 **Interfaces:**
 - Consumes: Task 1의 `detectTypesFromMarkers`가 반환하는 `"go"` 타입 문자열
 - Produces: `resolveProjectPaths({root, types: ["go"], ...})`가 루트에 `go.mod`가 있으면 `result.get("go") === "."`를 반환. 이게 없으면 `--force`(비대화형) 설치가 `CliError`로 실패한다 — 스펙 2.1b 참조.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`tests/node/paths-resolve.test.js` 파일 끝(마지막 `test(...)` 블록 뒤)에 추가:
+`tests/node/paths-resolve.test.js`의 import 목록(1~8행)에 `markerForType`, `findTypePathCandidates`를 추가한다:
 
 ```js
+import { resolveProjectPaths, markerForType, findTypePathCandidates } from "../../src/core/paths-resolve.js";
+```
+
+파일 끝(마지막 `test(...)` 블록 뒤)에 아래 3개 테스트를 추가:
+
+```js
+test("markerForType (paths-resolve): go는 go.mod를 반환한다 (KNOWN_MARKER_TYPES 회귀)", () => {
+  assert.strictEqual(markerForType("go"), "go.mod");
+});
+
+test("findTypePathCandidates: 루트의 go.mod를 후보로 찾는다 (namesByType 회귀)", () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    writeFileSync(join(root, "go.mod"), "module example.com/fx\n\ngo 1.23\n");
+    const candidates = findTypePathCandidates(root, "go");
+    assert.deepStrictEqual(candidates, ["."]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확정된다 (KNOWN_MARKER_TYPES 회귀)", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
@@ -142,7 +168,7 @@ test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `node --test tests/node/paths-resolve.test.js`
-Expected: FAIL — `resolveProjectPaths`가 `CliError: go: 프로젝트 경로를 찾지 못했습니다. --paths "go=경로"로 직접 지정하세요.`를 던짐.
+Expected: 3개 모두 FAIL — `markerForType("go")`가 `""`을 반환, `findTypePathCandidates`가 `[]`을 반환(내부에서 `namesByType["go"]`가 `undefined`이므로), `resolveProjectPaths`가 `CliError: go: 프로젝트 경로를 찾지 못했습니다. --paths "go=경로"로 직접 지정하세요.`를 던짐.
 
 - [ ] **Step 3: 최소 구현**
 
@@ -185,12 +211,15 @@ git commit -m "fix: paths-resolve.js에 go 타입 등록 (--force 설치 차단 
 ### Task 3: `version_manager.py` — Go 버전 동기화 no-op 처리
 
 **Files:**
-- Modify: `.github/scripts/version_manager.py:426-429` (`sync_for_type`의 `basic`/`else` 분기)
+- Modify: `payload/scripts/version_manager.py:412-429` (`sync_for_type`의 `basic`/`else` 분기) — **제품 원본, 사용자 레포에 설치되는 파일**
+- Modify: `.github/scripts/version_manager.py:412-429` (동일 함수) — 이 레포 자체의 도그푸딩 사본, payload와 항상 동일하게 유지
 - Test: `tests/py/test_version_manager.py`
 
 **Interfaces:**
 - Consumes: 없음 (독립적인 분기 추가)
 - Produces: `version_manager.sync_for_type("go", new_version, version_code_getter)` 호출이 예외 없이, `WARNING` 로그 없이 조용히 반환됨.
+
+> ⚠️ **두 파일을 모두 고쳐야 한다.** `tests/py/test_version_manager.py:11-15`는 `payload/scripts/version_manager.py`를 import한다(레포 루트 기준 `parents[2] / "payload" / "scripts"`) — `.github/scripts/` 사본만 고치면 테스트가 영원히 RED 상태로 남고, 실제 사용자에게 설치되는 파일(`payload/`가 원본)에는 go 분기가 반영되지 않는다. 두 파일은 현재 바이트 단위로 동일하므로 같은 수정을 두 곳에 그대로 적용한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -215,12 +244,12 @@ class TestSyncForTypeGo(unittest.TestCase):
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `python3 -m unittest tests.py.test_version_manager.TestSyncForTypeGo -v` (프로젝트 루트에서 실행, 필요 시 `PYTHONPATH` 없이 `cd` 후 `python3 -m unittest discover -s tests/py -p "test_version_manager.py"`)
-Expected: FAIL — stderr에 `"WARNING: unknown project type: go — skipping"`가 포함되어 `assertNotIn` 실패.
+Run: `npm run test:py` (프로젝트 루트에서 실행 — `node scripts/run-py-tests.mjs`가 `unittest discover -s tests/py`를 구동한다. `python3 -m unittest tests.py.test_version_manager...` 형태는 `tests/`·`tests/py/`에 `__init__.py`가 없어 import가 실패하므로 쓰지 않는다.)
+Expected: `TestSyncForTypeGo.test_go_is_treated_like_basic_no_warning` FAIL — stderr에 `"WARNING: unknown project type: go — skipping"`가 포함되어 `assertNotIn` 실패.
 
 - [ ] **Step 3: 최소 구현**
 
-`.github/scripts/version_manager.py`의 `sync_for_type` 함수(412~429행) 중 `basic` 분기 바로 아래에 삽입:
+`payload/scripts/version_manager.py`의 `sync_for_type` 함수(412~429행) 중 `basic` 분기 바로 아래에 삽입:
 
 ```python
     elif project_type == "basic":
@@ -231,17 +260,17 @@ Expected: FAIL — stderr에 `"WARNING: unknown project type: go — skipping"`�
         log(f"WARNING: unknown project type: {project_type} — skipping")
 ```
 
-(기존 426~429행의 `basic`/`else` 두 줄 사이에 `elif project_type == "go": pass`를 끼워 넣는 형태.)
+(기존 426~429행의 `basic`/`else` 두 줄 사이에 `elif project_type == "go": pass`를 끼워 넣는 형태.) 이어서 `.github/scripts/version_manager.py`의 동일한 위치에 동일한 수정을 반영한다(두 파일은 항상 동일하게 유지 — 도그푸딩 규칙).
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `python3 -m unittest tests.py.test_version_manager.TestSyncForTypeGo -v`
-Expected: PASS. 이어서 `npm run test:py`로 회귀 없는지 전체 확인.
+Run: `npm run test:py`
+Expected: 전체 PASS(`TestSyncForTypeGo` 포함), 0 fail.
 
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add .github/scripts/version_manager.py tests/py/test_version_manager.py
+git add payload/scripts/version_manager.py .github/scripts/version_manager.py tests/py/test_version_manager.py
 git commit -m "feat: version_manager.py에 go 타입 버전 동기화 no-op 분기 추가"
 ```
 
@@ -321,7 +350,7 @@ git commit -m "feat: CLI 검증·대화형 선택·도움말에 go 타입 등록
 
 **Interfaces:**
 - Consumes: 없음 (독립 신규 파일)
-- Produces: `payload/workflows/go/` 디렉토리와 그 안의 `PROJECT-GO-CI.yaml` — Task 9(문서)·Task 10(e2e)이 이 파일의 존재를 전제로 한다.
+- Produces: `payload/workflows/go/` 디렉토리와 그 안의 `PROJECT-GO-CI.yaml` — Task 8(문서)·Task 9(e2e)가 이 파일의 존재를 전제로 한다.
 
 - [ ] **Step 1: 파일 작성**
 
@@ -376,7 +405,7 @@ jobs:
 
       # 2. Go 툴체인 설정 (go.mod의 go 지시자 버전 자동 사용)
       - name: Go 설정
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -393,9 +422,10 @@ jobs:
       - name: go test 실행
         run: go test ./...
 
-      # 6. 린트
+      # 6. 린트 (v8은 golangci-lint v2 계열을 요구 — .golangci.yml이 v1 형식이면
+      #    프로젝트에서 별도 조정 필요. version: latest는 v2 최신 패치를 자동으로 받는다)
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
@@ -413,7 +443,7 @@ jobs:
 
 - [ ] **Step 2: 액션 버전 하한 등록**
 
-`tests/node/workflow-action-versions.test.js:15-24`의 `MIN_MAJOR`에 `"actions/setup-go": 5,`를 추가(다른 항목과 같은 스타일로, 알파벳 순서 무관하게 목록 끝에 추가):
+`tests/node/workflow-action-versions.test.js:15-24`의 `MIN_MAJOR`에 `"actions/setup-go": 7,`를 추가(다른 항목과 같은 스타일로, 알파벳 순서 무관하게 목록 끝에 추가). `golangci/golangci-lint-action`은 `actions/` 네임스페이스가 아니라서 이 테스트의 정규식(`uses:\s*(actions\/[a-z0-9-]+)@v(\d+)`)이 아예 매칭하지 않는다 — 등록 대상이 아니다:
 
 ```js
 const MIN_MAJOR = {
@@ -425,7 +455,7 @@ const MIN_MAJOR = {
   "actions/upload-artifact": 7,
   "actions/download-artifact": 8,
   "actions/github-script": 9,
-  "actions/setup-go": 5,
+  "actions/setup-go": 7,
 };
 ```
 
@@ -454,7 +484,7 @@ git commit -m "feat: Go CI 워크플로우(PROJECT-GO-CI) 추가"
 
 **Interfaces:**
 - Consumes: 없음
-- Produces: `payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml` — Task 9·10이 전제.
+- Produces: `payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml` — Task 8(문서)·Task 9(e2e)가 전제.
 
 - [ ] **Step 1: 파일 복사**
 
@@ -462,7 +492,7 @@ git commit -m "feat: Go CI 워크플로우(PROJECT-GO-CI) 추가"
 cp payload/workflows/python/PROJECT-PYTHON-SIMPLE-CICD.yaml payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml
 ```
 
-- [ ] **Step 2: Go 관례로 치환 (Edit 도구로 아래 6곳을 정확히 교체)**
+- [ ] **Step 2: Go 관례로 치환 (Edit 도구로 아래 10곳을 정확히 교체)**
 
 `payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml`에서:
 
@@ -544,7 +574,7 @@ git commit -m "feat: python SIMPLE-CICD 템플릿을 포팅해 Go SIMPLE-CICD �
 
 **Interfaces:**
 - Consumes: 없음
-- Produces: `payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml` — Task 9·10이 전제.
+- Produces: `payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml` — Task 8(문서)·Task 9(e2e)가 전제.
 
 - [ ] **Step 1: 파일 복사**
 
@@ -552,7 +582,7 @@ git commit -m "feat: python SIMPLE-CICD 템플릿을 포팅해 Go SIMPLE-CICD �
 cp payload/workflows/python/PROJECT-PYTHON-PR-PREVIEW.yaml payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml
 ```
 
-- [ ] **Step 2: Go 관례로 치환 (Edit 도구로 아래 7곳을 정확히 교체 — 마지막 1곳은 3회 반복 등장하므로 replace_all)**
+- [ ] **Step 2: Go 관례로 치환 (Edit 도구로 아래 8곳을 정확히 교체 — 마지막 1곳은 3회 반복 등장하므로 replace_all)**
 
 `payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml`에서:
 
@@ -616,7 +646,7 @@ Run: `python3 -c "import yaml; yaml.safe_load(open('payload/workflows/go/PROJECT
 Expected: `OK`.
 
 Run: `grep -c "PYTHON\|FastAPI\|Uvicorn" payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml`
-Expected: `0`.
+Expected: `1` — 치환 4)에서 **의도적으로 보존한** 프레임워크 예시 주석 줄(`#   FastAPI: '/docs', 'Uvicorn running on|Application startup complete'`) 1건만 남아야 한다. `0`이 나왔다면 그 예시 줄을 실수로 지운 것이므로 되돌린다. `2` 이상이면 다른 곳에 놓친 흔적이 있다는 뜻이다.
 
 - [ ] **Step 4: 커밋**
 
@@ -732,6 +762,8 @@ go 1.23
 ```
 
 - [ ] **Step 2: 실패하는 테스트 작성**
+
+`tests/node/e2e-matrix.test.js` 1행의 주석 `"11개 fixture"`를 `"12개 fixture"`로 갱신한다(사소하지만 fixture 개수 서술 정확도 유지).
 
 `tests/node/e2e-matrix.test.js:50-62`의 `MATRIX` 배열에서, `python` 항목(56행) 바로 뒤에 go 항목을 추가:
 
