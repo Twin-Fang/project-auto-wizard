@@ -48,10 +48,13 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const typeDefaults = new Map();
   const usages = new Map();
 
-  // 스캔 단위: [타입, 폴더]. secret-backup은 타입이 아니라 공통이지만 @wizard 마커를 가지므로
-  // 포함하기로 한 경우에만 질문 수집 대상이 된다 (이슈 #82) — 종전에는 스캔 대상이 아니어서
-  // my-project 같은 예시값이 질문 없이 그대로 설치됐다.
+  // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
+  // 동일 규칙 — issue #94) 무조건 스캔한다. secret-backup은 common 최상위가 아니라 그 하위
+  // 폴더고, 파일 전체가 조건부로 설치되므로 포함하기로 한 경우에만 별도로 스캔한다 (이슈 #82) —
+  // 종전에는 스캔 대상이 아니어서 my-project 같은 예시값이 질문 없이 그대로 설치됐다.
   const units = [];
+  const commonDir = join(baseDir, "common");
+  if (exists(commonDir)) units.push(["common", commonDir, null]);
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
