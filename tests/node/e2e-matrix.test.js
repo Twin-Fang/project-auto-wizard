@@ -1,4 +1,4 @@
-// Task 20 게이트 — 11개 fixture에 실제 CLI(subprocess)를 돌려 설치 산출물을 검증한다.
+// Task 20 게이트 — 12개 fixture에 실제 CLI(subprocess)를 돌려 설치 산출물을 검증한다.
 // 검증: 종료코드 0 / 타입별 워크플로우 배치 / py 스크립트 설치(배선 누락 검출) /
 //       version.yml branches·options 메타 / {{ 잔존 0 / trunk-based 단독 설치 / uninstall 제거.
 import { test } from "node:test";
@@ -54,6 +54,7 @@ const MATRIX = [
   { name: "next", args: ["--type", "next"], expect: ["PROJECT-NEXT-CI.yaml", "PROJECT-NEXT-CICD.yaml"] },
   { name: "node", args: ["--type", "node"], expect: [] },
   { name: "python", args: ["--type", "python"], expect: ["PROJECT-PYTHON-CI.yaml", "PROJECT-PYTHON-SIMPLE-CICD.yaml"] },
+  { name: "go", args: ["--type", "go"], expect: ["PROJECT-GO-CI.yaml", "PROJECT-GO-SIMPLE-CICD.yaml"] },
   { name: "react-native", args: ["--type", "react-native"], expect: [] },
   { name: "react-native-expo", args: ["--type", "react-native-expo"], expect: [] },
   { name: "basic", args: ["--type", "basic"], expect: [] },
