@@ -24,6 +24,9 @@ permissions:
   issues: write
   checks: write
 
+env:
+  JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
+
 jobs:
   build-check:
     name: Build Verification
@@ -35,10 +38,10 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Setup JDK 17
+    - name: Setup JDK
       uses: actions/setup-java@v5
       with:
-        java-version: '17'
+        java-version: ${{ env.JAVA_VERSION }}
         distribution: 'temurin'
 
     - name: Validate Gradle Wrapper
