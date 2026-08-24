@@ -18,7 +18,7 @@ const isCancel = (v) => typeof v === "symbol";
 // 타입의 대표 마커 파일명 (.sh marker_for_type L1220~1229 등가).
 // detect.js는 미지 타입에 package.json을 기본 반환하지만 .sh는 빈 문자열 — 등가를 위해 래핑.
 const KNOWN_MARKER_TYPES = new Set([
-  "flutter", "react", "next", "node", "react-native", "react-native-expo", "python", "spring",
+  "flutter", "react", "next", "node", "react-native", "react-native-expo", "python", "spring", "go",
 ]);
 export function markerForType(type) {
   return KNOWN_MARKER_TYPES.has(type) ? baseMarkerForType(type) : "";
@@ -79,6 +79,7 @@ export function findTypePathCandidates(root, type) {
     "react-native-expo": ["app.json"],
     python: ["pyproject.toml", "setup.py", "requirements.txt"],
     spring: ["build.gradle", "build.gradle.kts", "pom.xml"],
+    go: ["go.mod"],
   };
   const names = namesByType[type];
   if (!names) return [];

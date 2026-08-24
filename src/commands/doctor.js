@@ -116,18 +116,15 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   add(hasPat
     ? { name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "OK", value: "등록됨" }
     : {
-      name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "WARN",
-      value: "secret이 등록되어 있지 않습니다.",
-      impact: [
-        "PR 자동 머지 뒤 태그·Release 워크플로가 이어지지 않습니다.",
-        "(GitHub 정책상 기본 토큰으로 만든 커밋은 다음 워크플로를 깨우지 못합니다)",
+      // 조치가 필요 없으므로 WARN이 아니라 INFO다 — 위 Workflow permissions 항목과 동일 이유:
+      // 폴백(wait-for-merge-and-trigger-release / Trigger NPM-PUBLISH)이 GITHUB_TOKEN만으로
+      // 파이프라인을 끝까지 이어가므로, 없는 장애를 경고로 띄우지 않는다(이슈 #105).
+      name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "INFO",
+      note: [
+        "secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
+        "속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).",
+        "등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT",
       ],
-      actions: [
-        "개인 액세스 토큰 발급 (scopes: repo, workflow)",
-        "레포 Settings → Secrets and variables → Actions",
-        "New repository secret · 이름은 WORKFLOW_PAT",
-      ],
-      doc: DOC.postInstall,
     });
 
   const mergeSettings = exec("gh", ["api", `repos/${owner}/${repo}`, "--jq", ".allow_merge_commit"]);

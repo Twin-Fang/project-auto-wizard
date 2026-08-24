@@ -24,6 +24,7 @@ export function detectTypesFromMarkers({ has, read }) {
   if (has("pubspec.yaml")) types.push("flutter");
   if (has("build.gradle") || has("build.gradle.kts") || has("pom.xml")) types.push("spring");
   if (has("pyproject.toml") || has("setup.py") || has("requirements.txt")) types.push("python");
+  if (has("go.mod")) types.push("go");
   if (has("package.json")) {
     const cls = classifyPackageText(read ? read("package.json") : "");
     if (cls === "node") { if (types.length === 0) types.push("node"); }
@@ -73,7 +74,7 @@ export function versionFromPom(content) {
 }
 
 export function markerForType(type) {
-  return { flutter: "pubspec.yaml", "react-native-expo": "app.json", python: "pyproject.toml", spring: "build.gradle" }[type] || "package.json";
+  return { flutter: "pubspec.yaml", "react-native-expo": "app.json", python: "pyproject.toml", spring: "build.gradle", go: "go.mod" }[type] || "package.json";
 }
 
 export function extraMarkers(type) {

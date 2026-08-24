@@ -66,3 +66,9 @@ test("parseArgs: --no-secret-backup 단독 지정은 정상 통과한다", () =>
   const opts = parseArgs(["--no-secret-backup"]);
   assert.strictEqual(opts.includeSecretBackup, false);
 });
+
+test("parseArgs: --type go는 지원 타입으로 통과한다", () => {
+  const opts = parseArgs(["--type", "go"]);
+  assert.deepStrictEqual(opts.types, ["go"]);
+  assert.strictEqual(opts.primaryType, "go");
+});

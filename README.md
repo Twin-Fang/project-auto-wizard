@@ -17,7 +17,7 @@ npx project-auto-wizard
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.5.1 (2026-08-23)
+## 최신 버전 : v0.6.0 (2026-08-24)
 
 [전체 버전 기록 보기](CHANGELOG.md)
 
@@ -37,17 +37,17 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 
 | 축 | 내용 |
 |---|---|
-| ① **npx 마법사** | 마커 파일로 프로젝트 타입 자동 감지 — **9타입 + 멀티타입 + 모노레포 경로**까지. 질문은 최소한만 |
+| ① **npx 마법사** | 마커 파일로 프로젝트 타입 자동 감지 — **10타입 + 멀티타입 + 모노레포 경로**까지. 질문은 최소한만 |
 | ② **GitHub-native AI Release Automation** | 릴리스 PR을 열면: 버전 확정 → **AI가 릴리스 노트 작성** → CHANGELOG 갱신 → automerge → tag + GitHub Release. **API 키 0개** (GitHub Models) |
-| ③ **타입별 CI/CD 워크플로우** | Spring(무중단 배포 포함)·Flutter(스토어 배포)·React·Next·Python 등 타입에 맞는 GitHub Actions 자동 배치 |
+| ③ **타입별 CI/CD 워크플로우** | Spring(무중단 배포 포함)·Flutter(스토어 배포)·React·Next·Python·Go 등 타입에 맞는 GitHub Actions 자동 배치 |
 
 ### 지원 프로젝트 타입
 
-`spring` `flutter` `react` `next` `node` `python` `react-native` `react-native-expo` `basic`
+`spring` `flutter` `react` `next` `node` `python` `react-native` `react-native-expo` `basic` `go`
 
 - **멀티타입**: `--type spring,react,python` — 한 레포에 여러 타입 공존
 - **모노레포**: `--paths "flutter=app,react=client"` — 타입별 서브폴더 지정 (마커 파일 자동 감지)
-- `spring`/`flutter`/`react`/`next`/`python` 5개 타입은 아래 "타입별 워크플로우 구성"처럼 전용 CI/CD가 설치됩니다. `node`/`react-native`/`react-native-expo`/`basic`은 타입 전용 CI 없이 릴리스 자동화(버전 관리·체인지로그·AI 요약)를 담당하는 공통 워크플로우만 설치됩니다 — 빌드/배포 CI는 직접 추가해서 확장할 수 있습니다.
+- `spring`/`flutter`/`react`/`next`/`python`/`go` 6개 타입은 아래 "타입별 워크플로우 구성"처럼 전용 CI/CD가 설치됩니다. `node`/`react-native`/`react-native-expo`/`basic`은 타입 전용 CI 없이 릴리스 자동화(버전 관리·체인지로그·AI 요약)를 담당하는 공통 워크플로우만 설치됩니다 — 빌드/배포 CI는 직접 추가해서 확장할 수 있습니다.
 
 ### 질문 문구 커스터마이징
 
@@ -73,6 +73,7 @@ flutter.APP_ARTIFACT_NAME:
   - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다.
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
+- **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 있는 프로젝트만 해당)
 
 ### 설치 기록 (`.github/.wizard/logs/`)
 
@@ -175,23 +176,17 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
   [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
   [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
 
-  [!] WORKFLOW_PAT — 자동 태그·Release 발행
-      ✗ secret이 등록되어 있지 않습니다.
-        PR 자동 머지 뒤 태그·Release 워크플로가 이어지지 않습니다.
-        (GitHub 정책상 기본 토큰으로 만든 커밋은 다음 워크플로를 깨우지 못합니다)
-      → 개인 액세스 토큰 발급 (scopes: repo, workflow)
-      → 레포 Settings → Secrets and variables → Actions
-      → New repository secret · 이름은 WORKFLOW_PAT
-      → 자세히: https://github.com/Twin-Fang/project-auto-wizard#post-install
-
   [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
       현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
+  [i] WORKFLOW_PAT — 자동 태그·Release 발행
+      secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.
+      속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).
+      등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT
   [i] GitHub Models — AI 릴리스 노트 생성
       조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
       차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
 
-  ! 1개 항목에서 문제를 찾았습니다.
-    설치 자체는 지금 진행할 수 있고, 위 1개는 나중에 설정해도 됩니다.
+  ✓ 문제를 찾지 못했습니다.
 ```
 
 > **드리프트 판정 기준**: `--mode status`는 설치된 워크플로우 파일이 "설치 시점 기본값 템플릿"과 바이트 단위로 일치하는지만 비교합니다 — 파일을 직접 편집했는지는 추적하지 않습니다. 대화형 설치에서 `@wizard ask` 질문(예: 배포 포트)에 기본값이 아닌 값으로 응답했다면, 파일을 전혀 수정하지 않았더라도 설치 직후부터 항상 "사용자가 수정한 워크플로우 파일"로 표시됩니다. 정상 동작이며, 파일을 직접 편집했는지 구분하려면 해당 값이 예상한 응답과 일치하는지 직접 확인하세요.
@@ -223,7 +218,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 | 항목 | 내용 |
 |---|---|
-| **`WORKFLOW_PAT` secret** (권장) | automerge 후 후속 워크플로우(tag/Release)가 이어지려면 PAT가 필요합니다 — `GITHUB_TOKEN`으로 머지하면 GitHub 정책상 후속 워크플로우가 트리거되지 않습니다. Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록. 없으면 `GITHUB_TOKEN`으로 동작하되 Release 발행은 수동 재실행이 필요할 수 있습니다 |
+| **`WORKFLOW_PAT` secret** (선택 — 속도 최적화용) | 없어도 `GITHUB_TOKEN` 폴백이 automerge부터 Release 발행까지 자동으로 이어갑니다(실제 병합 후 최대 ~20초 추가). 더 빠르게 하고 싶다면 Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 |
 | **Workflow permissions** | Settings → Actions → Workflow permissions: **Read and write** |
 | **GitHub Models** | 기본 활성 — 별도 설정 불필요. 조직 정책으로 차단된 경우 자동으로 규칙 fallback |
 
