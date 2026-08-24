@@ -32,6 +32,8 @@ import traceback
 import urllib.error
 import urllib.request
 
+import issue_helper
+
 
 # ----------------------------- 공통 유틸 -----------------------------
 
@@ -403,6 +405,23 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
             print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
             continue
     return False
+
+
+def filter_release_issue_numbers(commit_shas: set[str], merged_prs: list[dict]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for pr in merged_prs:
+        merge_commit = pr.get('mergeCommit') or {}
+        oid = merge_commit.get('oid')
+        if not oid or oid not in commit_shas:
+            continue
+        head_ref = pr.get('headRefName') or ''
+        issue_num = issue_helper.extract_issue_number_from_branch(head_ref)
+        if not issue_num or issue_num in seen:
+            continue
+        seen.add(issue_num)
+        result.append(issue_num)
+    return result
 
 
 def cmd_classify_bump(commits_file: str) -> int:

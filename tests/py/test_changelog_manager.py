@@ -8,6 +8,12 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "changelog_manager.py"
 
+SCRIPT_DIR = SCRIPT.parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from changelog_manager import filter_release_issue_numbers  # noqa: E402
+
 
 def run(args, cwd):
     return subprocess.run([sys.executable, str(SCRIPT), *args],
@@ -85,3 +91,36 @@ class TestUpdateFromSummaryDegenerateJson(unittest.TestCase):
         data = json.loads(Path(self.tmp, "CHANGELOG.json").read_text(encoding="utf-8"))
         self.assertEqual(data["metadata"]["currentVersion"], "0.1.3")
         self.assertEqual(len(data["releases"]), 1)
+
+
+class TestFilterReleaseIssueNumbers(unittest.TestCase):
+    def test_filters_by_merge_commit_sha_and_extracts_issue_number(self):
+        commit_shas = {"abc123", "def456"}
+        merged_prs = [
+            {"number": 100, "headRefName": "20260823_#99_fix", "mergeCommit": {"oid": "abc123"}},
+            {"number": 101, "headRefName": "20260823_#98_other", "mergeCommit": {"oid": "zzz999"}},
+        ]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), ["99"])
+
+    def test_dedupes_issue_numbers(self):
+        commit_shas = {"a1", "a2"}
+        merged_prs = [
+            {"number": 1, "headRefName": "20260101_#5_first", "mergeCommit": {"oid": "a1"}},
+            {"number": 2, "headRefName": "20260102_#5_second", "mergeCommit": {"oid": "a2"}},
+        ]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), ["5"])
+
+    def test_skips_prs_without_issue_number_in_branch(self):
+        commit_shas = {"a1"}
+        merged_prs = [{"number": 1, "headRefName": "worktree-issue-93-branch-strategy", "mergeCommit": {"oid": "a1"}}]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), [])
+
+    def test_skips_prs_not_in_commit_shas(self):
+        commit_shas = {"a1"}
+        merged_prs = [{"number": 1, "headRefName": "20260101_#5_x", "mergeCommit": {"oid": "not-in-range"}}]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), [])
+
+    def test_handles_missing_merge_commit_gracefully(self):
+        commit_shas = {"a1"}
+        merged_prs = [{"number": 1, "headRefName": "20260101_#5_x", "mergeCommit": None}]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), [])
