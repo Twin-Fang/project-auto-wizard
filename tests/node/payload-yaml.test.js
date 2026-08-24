@@ -560,6 +560,21 @@ test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 병합 대기 +
   assert.ok(/GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock));
 });
 
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 이슈 취합 스텝이 있다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  assert.ok(body.includes("collect-issue-closes"));
+  assert.ok(body.includes("gh pr list --state merged --base develop"));
+});
+
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL도 릴리스 문서 커밋 전에 이슈 취합 임시파일을 정리한다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1);
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"));
+  assert.ok(stepBlock.includes("merged_prs.json"));
+});
+
 test("VERSION-CONTROL: safety-net bump이 push된 경우에만 RELEASE-PUBLISH를 트리거한다 (#90, 이슈 #61 자동 복구)", () => {
   const p = join("payload", "workflows", "common", "PROJECT-COMMON-VERSION-CONTROL.yaml");
   const body = readFileSync(p, "utf8");
