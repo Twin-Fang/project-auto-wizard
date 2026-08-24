@@ -87,7 +87,7 @@ test("runDoctor: all checks OK", () => {
   }
 });
 
-test("runDoctor: missing WORKFLOW_PAT and non-write permissions -> WARN", () => {
+test("runDoctor: missing WORKFLOW_PAT -> INFO (폴백이 자동 복구), non-write permissions -> INFO, merge commit 꺼짐 -> WARN", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -101,7 +101,11 @@ test("runDoctor: missing WORKFLOW_PAT and non-write permissions -> WARN", () => 
     const results = runDoctor(dir, { exec });
     // Workflow permissions는 read여도 조치가 불필요하므로 INFO다 (#34).
     assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "INFO");
-    assert.strictEqual(results.find((r) => r.name === "WORKFLOW_PAT secret").status, "WARN");
+    // WORKFLOW_PAT 미등록도 폴백이 자동 복구하므로 조치가 필요 없다 — INFO다 (#105).
+    const pat = results.find((r) => r.name === "WORKFLOW_PAT secret");
+    assert.strictEqual(pat.status, "INFO");
+    assert.ok(pat.note?.some((l) => l.includes("bot") || l.includes("machine")), "bot/machine 계정 권장 문구가 없습니다");
+    assert.strictEqual(pat.doc, undefined, "INFO 항목은 doc 링크를 달지 않는다");
     assert.strictEqual(results.find((r) => r.name === "automerge 호환성(merge commit 허용)").status, "WARN");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -155,8 +159,8 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
-      ...ALL_OK_EXEC.filter(([k]) => !k.includes("secret list") && !k.includes(".allow_merge_commit")),
-      ["secret list", { status: 0, stdout: "AI_API_KEY\tUpdated 2026-01-01\n", stderr: "" }],
+      ...ALL_OK_EXEC.filter(([k]) => !k.includes("actions/permissions/workflow") && !k.includes(".allow_merge_commit")),
+      ["actions/permissions/workflow", { status: 1, stdout: "", stderr: "not found" }],
       [".allow_merge_commit", { status: 0, stdout: "false", stderr: "" }],
     ]);
     const problems = runDoctor(dir, { exec }).filter((r) => r.status === "WARN" || r.status === "FAIL");
@@ -165,9 +169,10 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
       assert.ok(r.impact?.length, `${r.name}에 영향 설명이 없습니다`);
       assert.ok(r.actions?.length, `${r.name}에 조치 단계가 없습니다`);
     }
-    // Workflow permissions는 #34에서 INFO로 내려갔으므로, 실제 조치가 필요한 항목으로 검증한다.
-    const pat = problems.find((r) => r.name === "WORKFLOW_PAT secret");
-    assert.strictEqual(pat.doc, DOC.postInstall);
+    // WORKFLOW_PAT은 #105에서 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
+    // 필요한 항목(automerge 호환성)으로 doc 링크 존재를 검증한다.
+    const automerge = problems.find((r) => r.name === "automerge 호환성(merge commit 허용)");
+    assert.strictEqual(automerge.doc, DOC.postInstall);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
