@@ -124,3 +124,32 @@ class TestFilterReleaseIssueNumbers(unittest.TestCase):
         commit_shas = {"a1"}
         merged_prs = [{"number": 1, "headRefName": "20260101_#5_x", "mergeCommit": None}]
         self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), [])
+
+
+class TestCollectIssueClosesCli(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_prints_comma_separated_issue_numbers(self):
+        Path(self.tmp, "shas.txt").write_text("abc123\n", encoding="utf-8")
+        Path(self.tmp, "prs.json").write_text(
+            json.dumps([{"number": 1, "headRefName": "20260101_#7_x", "mergeCommit": {"oid": "abc123"}}]),
+            encoding="utf-8",
+        )
+        r = run(
+            ["collect-issue-closes", "--commit-shas-file", "shas.txt", "--merged-prs-file", "prs.json"],
+            self.tmp,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "7")
+
+    def test_empty_result_prints_empty_line(self):
+        Path(self.tmp, "shas.txt").write_text("abc123\n", encoding="utf-8")
+        Path(self.tmp, "prs.json").write_text("[]", encoding="utf-8")
+        r = run(
+            ["collect-issue-closes", "--commit-shas-file", "shas.txt", "--merged-prs-file", "prs.json"],
+            self.tmp,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "")
