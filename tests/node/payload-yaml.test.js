@@ -178,6 +178,21 @@ test("AUTO-CHANGELOG-CONTROL에 PR body 폴링 대기 로직이 없다", () => {
   assert.ok(!body.includes("POLL_INTERVAL"), "폴링 간격이 제거되어야 한다");
 });
 
+test("AUTO-CHANGELOG-CONTROL collects issues merged into develop for release PR auto-close", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  assert.ok(body.includes("collect-issue-closes"));
+  assert.ok(body.includes("gh pr list --state merged --base {{DEVELOP_BRANCH}}"));
+});
+
+test("AUTO-CHANGELOG-CONTROL 릴리스 문서 커밋 전에 이슈 취합 임시파일도 정리한다 (실패 시 커밋 유출 방지)", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1, "Commit release docs 스텝을 찾지 못했습니다");
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt가 정리 목록에 없습니다");
+  assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json이 정리 목록에 없습니다");
+});
+
 // ---------------------------------------------------------------
 // RELEASE-PUBLISH: tag + GitHub Release, dual-mode (Task 9)
 // ---------------------------------------------------------------
