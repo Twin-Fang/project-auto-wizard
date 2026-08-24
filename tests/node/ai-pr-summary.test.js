@@ -50,3 +50,20 @@ test("trunk-based mode also installs it (not in TRUNK_BASED_EXCLUDED)", () => {
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("PROJECT-COMMON-AI-PR-SUMMARY.yaml links the related issue via branch name", () => {
+  const target = install();
+  try {
+    const content = readFileSync(join(target, ".github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.yaml"), "utf8");
+    assert.ok(content.includes("extract-branch-issue"));
+    assert.ok(content.includes("link-pr-issues"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("도그푸딩 사본 AI-PR-SUMMARY에도 동일한 이슈 자동 연결 스텝이 있다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AI-PR-SUMMARY.yaml"), "utf8");
+  assert.ok(body.includes("extract-branch-issue"));
+  assert.ok(body.includes("link-pr-issues"));
+});

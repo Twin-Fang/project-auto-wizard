@@ -89,3 +89,23 @@ jobs:
                -d @comment_payload.json \
                "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
             || echo "comment post failed — continuing (this workflow never blocks the PR)"
+
+      - name: Link related issue via branch name
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # 브랜치명을 run: 스크립트에 직접 ${{ }} 보간하지 않고 env로 전달한다 —
+          # git ref 이름은 $, 백틱, 세미콜론 등을 포함할 수 있어 직접 보간하면
+          # 셸 인젝션 경로가 된다(AUTO-CHANGELOG-CONTROL의 PR_TITLE과 동일한 이유).
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          ISSUE_NUM=$(python3 .github/scripts/issue_helper.py extract-branch-issue "$HEAD_REF")
+
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "브랜치명에서 이슈 번호를 찾지 못함 — 건너뜀: $HEAD_REF"
+            exit 0
+          fi
+
+          python3 .github/scripts/issue_helper.py link-pr-issues \
+            --pr ${{ github.event.pull_request.number }} \
+            --issue-numbers "$ISSUE_NUM"
