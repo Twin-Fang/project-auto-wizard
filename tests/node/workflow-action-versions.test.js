@@ -21,6 +21,7 @@ const MIN_MAJOR = {
   "actions/upload-artifact": 7,
   "actions/download-artifact": 8,
   "actions/github-script": 9,
+  "actions/setup-go": 7,
 };
 
 function walk(dir) {

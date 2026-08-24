@@ -1,0 +1,82 @@
+# project-auto-wizard:managed-workflow
+# ===================================================================
+# Go 빌드 검증 워크플로우 (CI Only)
+# ===================================================================
+#
+# 설명:
+# - {{DEVELOP_BRANCH}} 브랜치에 push/PR 시 go build/vet/test/lint로 검증
+# - Dockerfile이 필요 없어 CLI 도구·라이브러리 등 배포하지 않는 Go 프로젝트도 사용 가능
+# - go.mod의 go 지시자 버전을 자동으로 사용 (버전 하드코딩 없음)
+#
+# ===================================================================
+
+name: PROJECT-GO-CI
+
+# ===================================================================
+# 트리거 설정
+# ===================================================================
+on:
+  push:
+    branches:
+      - "{{DEVELOP_BRANCH}}"  # {{DEVELOP_BRANCH}} 브랜치 push 시 빌드 검증
+  pull_request:
+    branches:
+      - "{{DEVELOP_BRANCH}}"  # {{DEVELOP_BRANCH}} 브랜치로의 PR 시 빌드 검증
+  workflow_dispatch:  # 수동 실행 허용
+
+# ===================================================================
+# 환경 변수 설정
+# ===================================================================
+env:
+  # 프로젝트 고유 식별자
+  PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+
+jobs:
+  # ===================================================================
+  # 빌드 검증 작업
+  # ===================================================================
+  build-check:
+    name: Go 빌드 검증
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 소스코드 체크아웃
+      - name: 코드 체크아웃
+        uses: actions/checkout@v7
+
+      # 2. Go 툴체인 설정 (go.mod의 go 지시자 버전 자동 사용)
+      - name: Go 설정
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # 3. 빌드 검증
+      - name: go build 검증
+        run: go build ./...
+
+      # 4. 정적 분석
+      - name: go vet 검증
+        run: go vet ./...
+
+      # 5. 테스트 실행
+      - name: go test 실행
+        run: go test ./...
+
+      # 6. 린트 (v8은 golangci-lint v2 계열을 요구 — .golangci.yml이 v1 형식이면
+      #    프로젝트에서 별도 조정 필요. version: latest는 v2 최신 패치를 자동으로 받는다)
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+      # 7. 빌드 검증 완료 메시지
+      - name: 빌드 검증 완료
+        run: |
+          echo "✅ Go 빌드 검증이 성공적으로 완료되었습니다!"
+          echo ""
+          echo "📋 빌드 정보:"
+          echo "  🎯 프로젝트: ${{ env.PROJECT_NAME }}"
+          echo "  🌿 브랜치: ${{ github.ref_name }}"
+          echo "  📝 커밋: ${{ github.sha }}"
+          echo "  ⏰ 검증 시간: $(date '+%Y-%m-%d %H:%M:%S')"
