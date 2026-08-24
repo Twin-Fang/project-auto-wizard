@@ -8,6 +8,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectVersionFromFiles, versionFromPom, detectJdkFromFiles, resolveMarker, resolveMarkers,
+  detectTypesFromMarkers, markerForType,
 } from "../../src/core/detect.js";
 import { findSpringAppYml } from "../../src/core/detect-fs.js";
 
@@ -77,6 +78,25 @@ test("resolveMarkers: basic은 근거 파일이 없으므로 맵에서 제외된
   const m = resolveMarkers(["spring", "basic"], (n) => n === "pom.xml");
   assert.strictEqual(m.get("spring"), "pom.xml");
   assert.ok(!m.has("basic"));
+});
+
+test("detectTypesFromMarkers: go.mod만 있으면 [\"go\"]를 반환한다", () => {
+  const types = detectTypesFromMarkers({ has: (n) => n === "go.mod", read: () => null });
+  assert.deepStrictEqual(types, ["go"]);
+});
+
+test("detectTypesFromMarkers: go.mod와 react package.json이 함께 있으면 두 타입 모두 감지한다", () => {
+  // classifyPackageText가 "node"를 반환하는 케이스는 다른 타입이 이미 감지됐으면 폴백으로
+  // 추가되지 않는다(22~33행 로직) — 그래서 "react" 마커로 검증한다. react는 cls !== "node"라
+  // types.length와 무관하게 항상 push된다.
+  const has = (n) => n === "go.mod" || n === "package.json";
+  const read = (n) => (n === "package.json" ? '{"dependencies":{"react":"18.0.0"}}' : null);
+  const types = detectTypesFromMarkers({ has, read });
+  assert.deepStrictEqual(types, ["go", "react"]);
+});
+
+test("markerForType: go는 go.mod를 반환한다 (package.json 폴백 금지)", () => {
+  assert.strictEqual(markerForType("go"), "go.mod");
 });
 
 // ── 빌드 JDK (#82) ───────────────────────────────────────────────────

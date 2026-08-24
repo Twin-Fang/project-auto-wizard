@@ -32,6 +32,8 @@ import traceback
 import urllib.error
 import urllib.request
 
+import issue_helper
+
 
 # ----------------------------- 공통 유틸 -----------------------------
 
@@ -403,6 +405,35 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
             print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
             continue
     return False
+
+
+def filter_release_issue_numbers(commit_shas: set[str], merged_prs: list[dict]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for pr in merged_prs:
+        merge_commit = pr.get('mergeCommit') or {}
+        oid = merge_commit.get('oid')
+        if not oid or oid not in commit_shas:
+            continue
+        head_ref = pr.get('headRefName') or ''
+        issue_num = issue_helper.extract_issue_number_from_branch(head_ref)
+        if not issue_num or issue_num in seen:
+            continue
+        seen.add(issue_num)
+        result.append(issue_num)
+    return result
+
+
+def cmd_collect_issue_closes(commit_shas_file: str, merged_prs_file: str) -> int:
+    with open(commit_shas_file, encoding='utf-8') as f:
+        commit_shas = {line.strip() for line in f if line.strip()}
+
+    with open(merged_prs_file, encoding='utf-8') as f:
+        merged_prs = json.load(f)
+
+    issue_numbers = filter_release_issue_numbers(commit_shas, merged_prs)
+    print(','.join(issue_numbers))
+    return 0
 
 
 def cmd_classify_bump(commits_file: str) -> int:
@@ -811,6 +842,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ai_summary.add_argument('--pr-title', help='PR 제목 (프롬프트 컨텍스트로 사용, 선택)')
     p_ai_summary.add_argument('--diff-stat-file', help='git diff --stat 출력 파일 (프롬프트 컨텍스트 확장, 선택)')
 
+    p_collect = sub.add_parser('collect-issue-closes', help='develop에 머지된 PR 중 이번 릴리스에 포함된 이슈 번호 목록 추출')
+    p_collect.add_argument('--commit-shas-file', required=True, help='이번 릴리스에 포함된 커밋 SHA 목록 파일 (한 줄당 1개)')
+    p_collect.add_argument('--merged-prs-file', required=True, help='gh pr list --json number,headRefName,mergeCommit 출력 JSON 파일')
+
     args = parser.parse_args(argv)
 
     if args.command == 'update-from-summary':
@@ -823,6 +858,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_classify_bump(args.commits_file)
     if args.command == 'ai-summary':
         return cmd_ai_summary(args.commits_file, args.version, args.output, args.pr_title, args.diff_stat_file)
+    if args.command == 'collect-issue-closes':
+        return cmd_collect_issue_closes(args.commit_shas_file, args.merged_prs_file)
     return 2
 
 

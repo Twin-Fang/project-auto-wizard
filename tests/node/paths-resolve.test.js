@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
 import { CliError } from "../../src/cli/args.js";
-import { resolveProjectPaths } from "../../src/core/paths-resolve.js";
+import { resolveProjectPaths, markerForType, findTypePathCandidates } from "../../src/core/paths-resolve.js";
 
 function tmpRepo(prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -199,5 +199,34 @@ test("이슈 재현 ⑤(L7): --nexus --no-nexus 동시 지정은 exit 1로 거�
     assert.strictEqual(code, 1);
   } finally {
     rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("markerForType (paths-resolve): go는 go.mod를 반환한다 (KNOWN_MARKER_TYPES 회귀)", () => {
+  assert.strictEqual(markerForType("go"), "go.mod");
+});
+
+test("findTypePathCandidates: 루트의 go.mod를 후보로 찾는다 (namesByType 회귀)", () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    writeFileSync(join(root, "go.mod"), "module example.com/fx\n\ngo 1.23\n");
+    const candidates = findTypePathCandidates(root, "go");
+    assert.deepStrictEqual(candidates, ["."]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확정된다 (KNOWN_MARKER_TYPES 회귀)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
+  try {
+    writeFileSync(join(root, "go.mod"), "module example.com/fx\n\ngo 1.23\n");
+    const result = await resolveProjectPaths({
+      root, types: ["go"], paths: new Map(),
+      existingPaths: new Map(), force: true, tty: false, io: {},
+    });
+    assert.strictEqual(result.get("go"), ".");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

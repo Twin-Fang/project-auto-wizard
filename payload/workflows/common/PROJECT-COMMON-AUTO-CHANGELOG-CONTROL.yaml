@@ -108,6 +108,40 @@ jobs:
           rm -f _full_diff_stat.txt
           echo "commits to summarize: $(wc -l < commits.txt)"
 
+      - name: Collect issues merged into {{DEVELOP_BRANCH}}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git log --pretty=%H "origin/{{MAIN_BRANCH}}..HEAD" > commit_shas.txt
+
+          gh pr list --state merged --base {{DEVELOP_BRANCH}} \
+            --json number,headRefName,mergeCommit --limit 200 > merged_prs.json
+
+          MERGED_PR_COUNT=$(python3 -c "import json; print(len(json.load(open('merged_prs.json'))))")
+          if [ "$MERGED_PR_COUNT" -ge 200 ]; then
+            echo "::warning::gh pr list가 --limit 200에 도달했습니다 — 오래된 병합 PR이 누락됐을 수 있습니다 (조회된 PR: $MERGED_PR_COUNT)"
+          fi
+
+          ISSUE_NUMBERS=$(python3 .github/scripts/changelog_manager.py collect-issue-closes \
+            --commit-shas-file commit_shas.txt \
+            --merged-prs-file merged_prs.json)
+
+          rm -f commit_shas.txt merged_prs.json
+
+          if [ -z "$ISSUE_NUMBERS" ]; then
+            echo "이번 릴리스에 연결할 이슈 없음 — 건너뜀"
+            exit 0
+          fi
+
+          python3 .github/scripts/issue_helper.py link-pr-issues \
+            --pr ${{ github.event.pull_request.number }} \
+            --issue-numbers "$ISSUE_NUMBERS" \
+            --replace
+
+          echo "이슈 연결: $ISSUE_NUMBERS"
+
       - name: Confirm release version (bump + sync)
         id: bump
         env:
@@ -206,7 +240,7 @@ jobs:
           VERSION="${{ steps.bump.outputs.new_version }}"
 
           # Working files must not land in the repo
-          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json
+          rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
 
           git add -A
 

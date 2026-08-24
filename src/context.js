@@ -1,7 +1,7 @@
 // 마법사 전역 상태를 하나의 객체로 명시화 (bash 전역 변수군 대체)
 export const VALID_TYPES = [
   "spring", "flutter", "next", "react",
-  "react-native", "react-native-expo", "node", "python", "basic",
+  "react-native", "react-native-expo", "node", "python", "basic", "go",
 ];
 
 // --mode 화이트리스트 (issue #19) — 알 수 없는 값은 부수효과(브랜치 조회 등) 이전에 즉시 거부해야 한다.

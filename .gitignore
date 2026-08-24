@@ -13,3 +13,6 @@ tmp/
 
 # issue skill working files
 /.issue
+
+# subagent-driven-development scratch workspace
+/.superpowers

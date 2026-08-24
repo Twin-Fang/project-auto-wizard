@@ -178,6 +178,21 @@ test("AUTO-CHANGELOG-CONTROL에 PR body 폴링 대기 로직이 없다", () => {
   assert.ok(!body.includes("POLL_INTERVAL"), "폴링 간격이 제거되어야 한다");
 });
 
+test("AUTO-CHANGELOG-CONTROL collects issues merged into develop for release PR auto-close", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  assert.ok(body.includes("collect-issue-closes"));
+  assert.ok(body.includes("gh pr list --state merged --base {{DEVELOP_BRANCH}}"));
+});
+
+test("AUTO-CHANGELOG-CONTROL 릴리스 문서 커밋 전에 이슈 취합 임시파일도 정리한다 (실패 시 커밋 유출 방지)", () => {
+  const body = readFileSync(changelogPath, "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1, "Commit release docs 스텝을 찾지 못했습니다");
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt가 정리 목록에 없습니다");
+  assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json이 정리 목록에 없습니다");
+});
+
 // ---------------------------------------------------------------
 // RELEASE-PUBLISH: tag + GitHub Release, dual-mode (Task 9)
 // ---------------------------------------------------------------
@@ -543,6 +558,21 @@ test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 병합 대기 +
   assert.ok(idx > -1, "wait-for-merge-and-trigger-release 잡 정의를 찾지 못했습니다");
   const jobBlock = body.slice(idx, idx + 2000);
   assert.ok(/GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock));
+});
+
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 이슈 취합 스텝이 있다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  assert.ok(body.includes("collect-issue-closes"));
+  assert.ok(body.includes("gh pr list --state merged --base develop"));
+});
+
+test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL도 릴리스 문서 커밋 전에 이슈 취합 임시파일을 정리한다", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
+  const idx = body.indexOf("Commit release docs to the PR head branch");
+  assert.ok(idx > -1);
+  const stepBlock = body.slice(idx, idx + 800);
+  assert.ok(stepBlock.includes("commit_shas.txt"));
+  assert.ok(stepBlock.includes("merged_prs.json"));
 });
 
 test("VERSION-CONTROL: safety-net bump이 push된 경우에만 RELEASE-PUBLISH를 트리거한다 (#90, 이슈 #61 자동 복구)", () => {

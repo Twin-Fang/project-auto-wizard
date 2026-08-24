@@ -48,7 +48,7 @@ export async function editMenu({ showOptional = false } = {}) {
   return engine.select({ message: "어떤 항목을 수정할까요?", options });
 }
 
-const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic"];
+const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
 
 // 타입 멀티선택.
 export async function selectTypes(current = []) {

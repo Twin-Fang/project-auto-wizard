@@ -1,7 +1,59 @@
 # Changelog
 
-**현재 버전:** 0.5.1  
-**마지막 업데이트:** 2026-08-23T15:40:05Z  
+**현재 버전:** 0.6.0  
+**마지막 업데이트:** 2026-08-24T07:08:34Z  
+
+---
+
+## [0.6.0] - 2026-08-24
+
+**PR:** #109  
+
+**✨ 기능**
+- python PR-PREVIEW 템플릿을 포팅해 Go PR-PREVIEW 워크플로우 추가
+- python SIMPLE-CICD 템플릿을 포팅해 Go SIMPLE-CICD 워크플로우 추가
+- Go CI 워크플로우(PROJECT-GO-CI) 추가
+- CLI 검증·대화형 선택·도움말에 go 타입 등록
+- version_manager.py에 go 타입 버전 동기화 no-op 분기 추가
+- Go 프로젝트(go.mod) 마커 감지 추가
+- AUTO-CHANGELOG-CONTROL에 develop 머지 이슈 자동 취합 스텝 추가
+- AI-PR-SUMMARY에 브랜치명 기반 이슈 자동 연결 스텝 추가
+- collect-issue-closes CLI 서브커맨드 추가
+- develop 머지 PR 중 이번 릴리스에 포함된 이슈 번호를 필터링하는 함수 추가
+- PR 본문에 이슈 연결을 반영하는 link-pr-issues CLI 서브커맨드 추가
+- PR 본문에 이슈 종료 마커 블록을 삽입/치환하는 함수 추가
+- 브랜치명에서 이슈 번호를 추출하는 함수 추가
+
+**🐛 수정**
+- payload/version.yml.template·README 3축 표에 go 타입 누락 반영 (fable5 리뷰 발견)
+- paths-resolve.js에 go 타입 등록 (--force 설치 차단 버그 수정)
+- doctor의 WORKFLOW_PAT 미등록 판정을 WARN에서 INFO로 낮춤
+
+**📝 문서**
+- version.yml·README에 go 프로젝트 타입 반영
+- fable5 검토 반영해 계획 오류 수정
+- Go 프로젝트 타입 지원 구현 계획 작성
+- 스펙에 paths-resolve.js 차단급 버그 반영
+- Go 프로젝트 타입 지원 설계 스펙 추가
+- README의 WORKFLOW_PAT 안내를 '선택 사항'으로 갱신
+- 설치 완료 화면의 WORKFLOW_PAT 안내에 bot 계정 권장 문구 추가
+- fable5 plan 리뷰 피드백 반영
+- WORKFLOW_PAT 선택 사항 격하 구현 계획 문서 추가
+- WORKFLOW_PAT 선택 사항 격하 설계 문서 추가
+- fable5 리뷰 반영 — 임시파일 유출 방지, 셸 인젝션 방지, 마커 정합성, limit 경고 추가
+- PR-이슈 자동 종료 연결 구현 계획 추가 (이슈 #102)
+- PR-이슈 자동 종료 연결 설계 스펙 추가 (이슈 #102)
+
+**✅ 테스트**
+- go 프로젝트 타입 e2e 설치 매트릭스 추가
+
+**🔧 변경사항**
+- 실수로 커밋된 package-lock.json 추적 해제
+- .github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml를 payload 사본과 동기화
+- .github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.yaml를 payload 사본과 동기화
+- .github/scripts/changelog_manager.py를 payload 사본과 동기화
+- .github/scripts/issue_helper.py를 payload 사본과 동기화
+- .superpowers SDD 스크래치 워크스페이스를 gitignore에 추가
 
 ---
 
