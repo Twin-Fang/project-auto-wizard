@@ -30,6 +30,11 @@ DEPLOY_PORT:
   help: "호스트(서버)에서 컨테이너로 연결할 포트입니다. 다른 서비스와 겹치지 않게 정하세요."
   example: "8080"
 
+ENABLE_VOLUME_MOUNT:
+  label: "볼륨 마운트 사용"
+  help: "켜면 아래 호스트/컨테이너 경로가 실제 배포에 반영되어 컨테이너에 볼륨이 마운트됩니다. 끄면(기본값) 경로를 입력해도 무시됩니다."
+  example: "true"
+
 VOLUME_HOST_PATH:
   label: "호스트(NAS) 볼륨 경로"
   help: "서버에 데이터를 영구 저장할 실제 디렉토리 경로입니다."
