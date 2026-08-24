@@ -50,3 +50,14 @@ test("trunk-based mode also installs it (not in TRUNK_BASED_EXCLUDED)", () => {
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("PROJECT-COMMON-AI-PR-SUMMARY.yaml links the related issue via branch name", () => {
+  const target = install();
+  try {
+    const content = readFileSync(join(target, ".github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.yaml"), "utf8");
+    assert.ok(content.includes("extract-branch-issue"));
+    assert.ok(content.includes("link-pr-issues"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
