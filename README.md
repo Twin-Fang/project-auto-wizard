@@ -175,23 +175,17 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
   [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
   [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
 
-  [!] WORKFLOW_PAT — 자동 태그·Release 발행
-      ✗ secret이 등록되어 있지 않습니다.
-        PR 자동 머지 뒤 태그·Release 워크플로가 이어지지 않습니다.
-        (GitHub 정책상 기본 토큰으로 만든 커밋은 다음 워크플로를 깨우지 못합니다)
-      → 개인 액세스 토큰 발급 (scopes: repo, workflow)
-      → 레포 Settings → Secrets and variables → Actions
-      → New repository secret · 이름은 WORKFLOW_PAT
-      → 자세히: https://github.com/Twin-Fang/project-auto-wizard#post-install
-
   [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
       현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
+  [i] WORKFLOW_PAT — 자동 태그·Release 발행
+      secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.
+      속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).
+      등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT
   [i] GitHub Models — AI 릴리스 노트 생성
       조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
       차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
 
-  ! 1개 항목에서 문제를 찾았습니다.
-    설치 자체는 지금 진행할 수 있고, 위 1개는 나중에 설정해도 됩니다.
+  ✓ 문제를 찾지 못했습니다.
 ```
 
 > **드리프트 판정 기준**: `--mode status`는 설치된 워크플로우 파일이 "설치 시점 기본값 템플릿"과 바이트 단위로 일치하는지만 비교합니다 — 파일을 직접 편집했는지는 추적하지 않습니다. 대화형 설치에서 `@wizard ask` 질문(예: 배포 포트)에 기본값이 아닌 값으로 응답했다면, 파일을 전혀 수정하지 않았더라도 설치 직후부터 항상 "사용자가 수정한 워크플로우 파일"로 표시됩니다. 정상 동작이며, 파일을 직접 편집했는지 구분하려면 해당 값이 예상한 응답과 일치하는지 직접 확인하세요.
@@ -223,7 +217,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 | 항목 | 내용 |
 |---|---|
-| **`WORKFLOW_PAT` secret** (권장) | automerge 후 후속 워크플로우(tag/Release)가 이어지려면 PAT가 필요합니다 — `GITHUB_TOKEN`으로 머지하면 GitHub 정책상 후속 워크플로우가 트리거되지 않습니다. Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록. 없으면 `GITHUB_TOKEN`으로 동작하되 Release 발행은 수동 재실행이 필요할 수 있습니다 |
+| **`WORKFLOW_PAT` secret** (선택 — 속도 최적화용) | 없어도 `GITHUB_TOKEN` 폴백이 automerge부터 Release 발행까지 자동으로 이어갑니다(실제 병합 후 최대 ~20초 추가). 더 빠르게 하고 싶다면 Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 |
 | **Workflow permissions** | Settings → Actions → Workflow permissions: **Read and write** |
 | **GitHub Models** | 기본 활성 — 별도 설정 불필요. 조직 정책으로 차단된 경우 자동으로 규칙 fallback |
 
