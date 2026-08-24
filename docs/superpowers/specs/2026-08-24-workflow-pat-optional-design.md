@@ -29,7 +29,7 @@
 
 ## 상세 변경
 
-### `src/commands/doctor.js` (114-129번째 줄, `hasPat` 분기)
+### `src/commands/doctor.js` (114-131번째 줄, `hasPat` 분기)
 
 **현재:**
 ```js
@@ -70,7 +70,7 @@ add(hasPat
 
 `status: "INFO"`인 항목은 `doc` 필드를 달지 않는 게 기존 관례(`Workflow permissions` INFO 항목 참고)이므로 `doc: DOC.postInstall`은 제거한다. `purpose` 값은 그대로 유지한다.
 
-### `src/ui/summary.js` (158-162번째 줄)
+### `src/ui/summary.js` (159-162번째 줄)
 
 기존 문구("선택 — 없으면 GITHUB_TOKEN 사용")는 이미 정확하다. bot/machine 계정 권장 한 줄만 추가한다:
 
@@ -95,7 +95,7 @@ err("     → 없어도 자동 복구되며, 있으면 병합~Release 반영이 
 
 `printDoctorReport`(`src/commands/doctor.js:171-208`)의 실제 렌더링 규칙을 확인했다 — `INFO` 항목은 `[i] 라벨` 다음에 `note` 배열을 화살표(`→`) 없이 6칸 들여쓰기로 한 줄씩 출력하고, 항목들 사이에는 빈 줄이 없다(`→`/문서 링크는 `WARN`/`FAIL`에만 붙는다). 아래 블록은 그 규칙을 반영한 정확한 산출물이다.
 
-1. **doctor 예시 출력** (170-193번째 줄)을 아래로 전체 교체한다:
+1. **doctor 예시 출력** (171-195번째 줄)을 아래로 전체 교체한다:
 
 ```
 ◆  환경 진단 — project-auto-wizard doctor
@@ -104,12 +104,12 @@ err("     → 없어도 자동 복구되며, 있으면 병합~Release 반영이 
   [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
   [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
 
+  [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
+      현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
   [i] WORKFLOW_PAT — 자동 태그·Release 발행
       secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.
       속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).
       등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT
-  [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
-      현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
   [i] GitHub Models — AI 릴리스 노트 생성
       조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
       차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
