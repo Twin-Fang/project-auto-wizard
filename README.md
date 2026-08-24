@@ -39,7 +39,7 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 |---|---|
 | ① **npx 마법사** | 마커 파일로 프로젝트 타입 자동 감지 — **10타입 + 멀티타입 + 모노레포 경로**까지. 질문은 최소한만 |
 | ② **GitHub-native AI Release Automation** | 릴리스 PR을 열면: 버전 확정 → **AI가 릴리스 노트 작성** → CHANGELOG 갱신 → automerge → tag + GitHub Release. **API 키 0개** (GitHub Models) |
-| ③ **타입별 CI/CD 워크플로우** | Spring(무중단 배포 포함)·Flutter(스토어 배포)·React·Next·Python 등 타입에 맞는 GitHub Actions 자동 배치 |
+| ③ **타입별 CI/CD 워크플로우** | Spring(무중단 배포 포함)·Flutter(스토어 배포)·React·Next·Python·Go 등 타입에 맞는 GitHub Actions 자동 배치 |
 
 ### 지원 프로젝트 타입
 
