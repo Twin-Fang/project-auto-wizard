@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-25T06:05:26Z",
-    "currentVersion": "0.8.0",
+    "lastUpdated": "2026-08-25T09:03:52Z",
+    "currentVersion": "0.8.1",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 17
+    "totalReleases": 18
   },
   "releases": [
+    {
+      "version": "0.8.1",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-25",
+      "pr_number": 117,
+      "raw_summary": "## [0.8.1]\n\n### 🐛 수정\n- version.yml deploy 블록에 __PROJECT_NAME__ 토큰이 미치환 상태로 기록되는 문제 수정 (#114)",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "version.yml deploy 블록에 __PROJECT_NAME__ 토큰이 미치환 상태로 기록되는 문제 수정 (#114)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.8.0",
       "project_types": [
