@@ -152,6 +152,8 @@ test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
 test("collectAsks: 실제 payload의 ENABLE_VOLUME_MOUNT가 go 워크플로우 스캔으로 노출된다 (통합, 이슈 #111)", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"]);
   assert.ok(asks.keys.includes("ENABLE_VOLUME_MOUNT"));
