@@ -99,7 +99,7 @@ env:
   EXTRA_NETWORKS: ""
 
   # 📦 볼륨 마운트 설정
-  ENABLE_VOLUME_MOUNT: "false"
+  ENABLE_VOLUME_MOUNT: "false"  # @wizard ask:false
   VOLUME_HOST_PATH: "/volume1/projects/__PROJECT_NAME__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
   VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__"  # @wizard ask:/mnt/__PROJECT_NAME__
 

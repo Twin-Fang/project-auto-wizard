@@ -152,4 +152,35 @@ test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+test("collectAsks: 실제 payload의 ENABLE_VOLUME_MOUNT가 go 워크플로우 스캔으로 노출된다 (통합, 이슈 #111)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), ["go"]);
+  assert.ok(asks.keys.includes("ENABLE_VOLUME_MOUNT"));
+  assert.strictEqual(asks.defaults.get("ENABLE_VOLUME_MOUNT"), "false");
+  // VOLUME_HOST_PATH/VOLUME_CONTAINER_PATH보다 먼저 물어봐야 자연스럽다.
+  assert.ok(asks.keys.indexOf("ENABLE_VOLUME_MOUNT") < asks.keys.indexOf("VOLUME_HOST_PATH"));
+});
+
+test("promptEnvPlan: 실제 payload에서 ENABLE_VOLUME_MOUNT를 예/아니오 토글로 물어본다 (통합, 이슈 #111)", async () => {
+  const io = {
+    select: async () => "each",
+    multiselect: async () => [],
+    text: async ({ defaultValue }) => defaultValue,
+    confirm: async ({ message, initialValue }) => {
+      if (message.includes("볼륨 마운트")) {
+        assert.strictEqual(initialValue, false);
+        return true;
+      }
+      return initialValue;
+    },
+  };
+  const result = await promptEnvPlan({
+    payloadRoot: resolvePayloadRoot(), types: ["go"], io, force: false, log: () => {},
+  });
+  assert.strictEqual(result.values.get("ENABLE_VOLUME_MOUNT"), "true");
+});
+
+test("collectAsks: 실제 payload의 NGINX 무중단 배포 VOLUME_CONTAINER_PATH가 스캔으로 노출된다 (통합, 이슈 #111)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), ["spring"], { deployStyle: "nginx" });
+  assert.ok(asks.keys.includes("VOLUME_CONTAINER_PATH"));
+  assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/app");
 });
