@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { stdin, stderr } from "node:process";
 import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
-import { parseWizardLine, resolveToken } from "../core/wizard-env.js";
+import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
 import { deployFilter } from "../core/deploy-style.js";
 import * as engine from "./readline-engine.js";
@@ -75,9 +75,13 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
         const p = parseWizardLine(line); // KEY 정규식 [A-Z_]+ (.sh와 동일)
         if (!p || p.action !== "ask") continue;
         // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴 (.sh _type_default 등가)
-        const typeDefault = p.arg.startsWith("@")
+        const rawDefault = p.arg.startsWith("@")
           ? resolveToken(p.arg.slice(1), type, resolvers)
           : p.arg;
+        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면(issue #110) 실제 repoName으로
+        // 풀어준다 — substituteEnv()가 설치 파일에 적용하는 것과 동일한 치환이라야 마법사
+        // 화면 표시와 실제 설치 결과가 어긋나지 않는다.
+        const typeDefault = replaceProjectTokens(rawDefault, resolveToken("repo", type, resolvers));
         typeDefaults.set(`${type}|${p.key}`, typeDefault);
         if (!defaults.has(p.key)) { keys.push(p.key); defaults.set(p.key, typeDefault); }
         const list = usages.get(p.key) || [];

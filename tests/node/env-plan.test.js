@@ -132,6 +132,26 @@ test("promptEnvPlan: 실제 payload에서 ISSUE_HELPER_CREATE_BRANCH를 예/아�
   assert.strictEqual(result.values.get("ISSUE_HELPER_CREATE_BRANCH"), "true");
 });
 
+test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 repoName으로 치환된다 (issue #110)", () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-env-plan-"));
+  const commonDir = join(root, "workflows", "common");
+  mkdirSync(commonDir, { recursive: true });
+  writeFileSync(
+    join(commonDir, "PROJECT-COMMON-FOO.yaml"),
+    [
+      "name: FOO",
+      "env:",
+      '  VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__" # @wizard ask:/mnt/__PROJECT_NAME__',
+      "",
+    ].join("\n"),
+  );
+  try {
+    const asks = collectAsks(root, [], { resolvers: { repo: () => "claude-window-keeper" } });
+    assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+    assert.strictEqual(asks.typeDefaults.get("common|VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 test("collectAsks: 실제 payload의 ENABLE_VOLUME_MOUNT가 go 워크플로우 스캔으로 노출된다 (통합, 이슈 #111)", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"]);
   assert.ok(asks.keys.includes("ENABLE_VOLUME_MOUNT"));

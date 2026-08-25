@@ -52,6 +52,14 @@ export function resolveToken(name, type, resolvers = {}) {
   return typeof fn === "function" ? (fn(type) ?? "") : "";
 }
 
+// __PROJECT_NAME__/__APP_ARTIFACT_NAME__ 전역 토큰을 repoName으로 치환.
+// substituteEnv()(설치 파일 본문)와 collectAsks()(마법사 화면 표시용 기본값) 양쪽에서
+// 재사용한다 — 두 곳이 서로 다른 로직으로 갈라지면 issue #110과 같은 표시 불일치가 재발한다.
+export function replaceProjectTokens(text, repoName) {
+  if (!text.includes("__PROJECT_NAME__") && !text.includes("__APP_ARTIFACT_NAME__")) return text;
+  return text.replaceAll("__PROJECT_NAME__", repoName).replaceAll("__APP_ARTIFACT_NAME__", repoName);
+}
+
 // 파일 전체 치환 (configure_workflow_env 등가).
 // content: 원본 워크플로우 텍스트. 반환: 치환된 텍스트.
 // opts:
@@ -88,9 +96,7 @@ export function substituteEnv(content, opts = {}) {
   let out = lines.join(usesCRLF ? "\r\n" : "\n");
 
   // 잔여 전역 토큰 (.sh 3347~3351)
-  if (out.includes("__PROJECT_NAME__") || out.includes("__APP_ARTIFACT_NAME__")) {
-    out = out.replaceAll("__PROJECT_NAME__", repoName).replaceAll("__APP_ARTIFACT_NAME__", repoName);
-  }
+  out = replaceProjectTokens(out, repoName);
 
   // paths-anchor (.sh 3353~3360): 경로가 '.'이 아니면 주석 라인 전체를 paths 라인으로 교체
   if (PATHS_ANCHOR_RE.test(out) && projectPath && projectPath !== ".") {
