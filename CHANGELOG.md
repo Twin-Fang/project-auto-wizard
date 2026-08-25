@@ -1,7 +1,50 @@
 # Changelog
 
-**현재 버전:** 0.6.0  
-**마지막 업데이트:** 2026-08-24T07:08:34Z  
+**현재 버전:** 0.8.0  
+**마지막 업데이트:** 2026-08-25T06:05:26Z  
+
+---
+
+## [0.8.0] - 2026-08-25
+
+**PR:** #115  
+
+**✨ 기능**
+- ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가
+
+**🐛 수정**
+- env-plan.test.js 병합 충돌 오처리로 누락된 닫는 괄호 복원
+- 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)
+
+**📝 문서**
+- PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)
+
+**♻️ 리팩토링**
+- wizard-env에 replaceProjectTokens 헬퍼 추출
+
+**✅ 테스트**
+- ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가
+
+---
+
+## [0.7.0] - 2026-08-25
+
+**PR:** #115  
+
+**✨ 기능**
+- ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가
+
+**🐛 수정**
+- 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)
+
+**📝 문서**
+- PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)
+
+**♻️ 리팩토링**
+- wizard-env에 replaceProjectTokens 헬퍼 추출
+
+**✅ 테스트**
+- ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가
 
 ---
 

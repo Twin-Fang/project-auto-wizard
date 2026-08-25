@@ -1,15 +1,100 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-24T07:08:34Z",
-    "currentVersion": "0.6.0",
+    "lastUpdated": "2026-08-25T06:05:26Z",
+    "currentVersion": "0.8.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 15
+    "totalReleases": 17
   },
   "releases": [
+    {
+      "version": "0.8.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-25",
+      "pr_number": 115,
+      "raw_summary": "## [0.8.0]\n\n### ✨ 기능\n- ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가\n\n### 🐛 수정\n- env-plan.test.js 병합 충돌 오처리로 누락된 닫는 괄호 복원\n- 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)\n\n### 📝 문서\n- PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)\n\n### ♻️ 리팩토링\n- wizard-env에 replaceProjectTokens 헬퍼 추출\n\n### ✅ 테스트\n- ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "env-plan.test.js 병합 충돌 오처리로 누락된 닫는 괄호 복원",
+            "마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)"
+          ]
+        },
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "wizard-env에 replaceProjectTokens 헬퍼 추출"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
+    {
+      "version": "0.7.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-25",
+      "pr_number": 115,
+      "raw_summary": "## [0.7.0]\n\n### ✨ 기능\n- ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가\n\n### 🐛 수정\n- 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)\n\n### 📝 문서\n- PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)\n\n### ♻️ 리팩토링\n- wizard-env에 replaceProjectTokens 헬퍼 추출\n\n### ✅ 테스트\n- ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)"
+          ]
+        },
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "wizard-env에 replaceProjectTokens 헬퍼 추출"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.6.0",
       "project_types": [

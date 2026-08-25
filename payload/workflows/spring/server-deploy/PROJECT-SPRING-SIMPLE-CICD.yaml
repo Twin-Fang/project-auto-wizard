@@ -98,7 +98,7 @@ env:
   # 📦 볼륨 마운트 설정
   # true: 볼륨 마운트 활성화 (디렉토리 없으면 자동 생성)
   # false: 볼륨 마운트 비활성화 (기본값)
-  ENABLE_VOLUME_MOUNT: "false"
+  ENABLE_VOLUME_MOUNT: "false"  # @wizard ask:false
   VOLUME_HOST_PATH: "/volume1/projects/__PROJECT_NAME__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
   VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__"  # @wizard ask:/mnt/__PROJECT_NAME__
 

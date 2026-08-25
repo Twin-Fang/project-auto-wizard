@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import {
-  parseWizardLine, setEnvLine, resolveToken, substituteEnv, isUnchanged,
+  parseWizardLine, setEnvLine, resolveToken, substituteEnv, isUnchanged, replaceProjectTokens,
 } from "../../src/core/wizard-env.js";
 
 test("parseWizardLine: ask marker parses key/action/arg", () => {
@@ -82,6 +82,16 @@ test("substituteEnv: __PROJECT_NAME__/__APP_ARTIFACT_NAME__ global tokens replac
   const out = substituteEnv(content, { repoName: "my-app", values: new Map() });
   assert.match(out, /label: my-app/);
   assert.match(out, /artifact: my-app/);
+});
+
+test("replaceProjectTokens: replaces both tokens with repoName", () => {
+  const out = replaceProjectTokens("host:__PROJECT_NAME__ artifact:__APP_ARTIFACT_NAME__", "my-app");
+  assert.strictEqual(out, "host:my-app artifact:my-app");
+});
+
+test("replaceProjectTokens: text without tokens is returned unchanged", () => {
+  const out = replaceProjectTokens("no tokens here", "my-app");
+  assert.strictEqual(out, "no tokens here");
 });
 
 test("substituteEnv: paths-anchor comment replaced when projectPath != '.'", () => {
