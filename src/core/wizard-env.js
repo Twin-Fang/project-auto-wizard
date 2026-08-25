@@ -89,7 +89,7 @@ export function substituteEnv(content, opts = {}) {
       if (chosen != null && chosen !== "" && !useDefaults) val = chosen;
       else val = def;
       // ask 키만 수집 (.sh wf_deploy_set — auto는 저장 안 함). deploy 블록용.
-      if (collectAsks) collectAsks.set(p.key, val);
+      if (collectAsks) collectAsks.set(p.key, replaceProjectTokens(val, repoName));
     }
     lines[i] = setEnvLine(lines[i], p.key, val);
   }

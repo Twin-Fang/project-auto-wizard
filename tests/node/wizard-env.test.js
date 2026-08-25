@@ -84,6 +84,13 @@ test("substituteEnv: __PROJECT_NAME__/__APP_ARTIFACT_NAME__ global tokens replac
   assert.match(out, /artifact: my-app/);
 });
 
+test("substituteEnv: collectAsks Map stores the repoName-substituted value, not the raw __PROJECT_NAME__ literal (issue #114)", () => {
+  const content = `VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__" # @wizard ask:/mnt/__PROJECT_NAME__`;
+  const collectAsks = new Map();
+  substituteEnv(content, { repoName: "claude-window-keeper", useDefaults: true, collectAsks });
+  assert.strictEqual(collectAsks.get("VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+});
+
 test("replaceProjectTokens: replaces both tokens with repoName", () => {
   const out = replaceProjectTokens("host:__PROJECT_NAME__ artifact:__APP_ARTIFACT_NAME__", "my-app");
   assert.strictEqual(out, "host:my-app artifact:my-app");
