@@ -106,9 +106,9 @@ env:
   NGINX_BACKUP_KEEP: "10"
 
   # 📦 볼륨 마운트 설정
-  ENABLE_VOLUME_MOUNT: "false"
+  ENABLE_VOLUME_MOUNT: "false"  # @wizard ask:false
   VOLUME_HOST_PATH: "/volume1/projects/__PROJECT_NAME__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
-  VOLUME_CONTAINER_PATH: "/app"
+  VOLUME_CONTAINER_PATH: "/app"  # @wizard ask:/app
 
   # 🔐 SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
   #   password → SERVER_PASSWORD secret 사용
