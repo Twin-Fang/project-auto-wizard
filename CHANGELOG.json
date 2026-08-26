@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-25T09:03:52Z",
-    "currentVersion": "0.8.1",
+    "lastUpdated": "2026-08-26T03:37:25Z",
+    "currentVersion": "0.8.2",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 18
+    "totalReleases": 19
   },
   "releases": [
+    {
+      "version": "0.8.2",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-26",
+      "pr_number": 120,
+      "raw_summary": "## [0.8.2]\n\n### 🐛 수정\n- 이슈헬퍼 워크플로우 브랜치 자동생성 시 contents 권한 부족 문제 수정 (#118)",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "이슈헬퍼 워크플로우 브랜치 자동생성 시 contents 권한 부족 문제 수정 (#118)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.8.1",
       "project_types": [
