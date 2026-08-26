@@ -38,7 +38,7 @@ test("최초 설치: 새로 쓰이는 파일이 write로 기록된다", () => {
     runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /INFO {2}copy {4}write {7}PROJECT-COMMON-VERSION-CONTROL\.yaml \(new\)/);
+    assert.match(body, /INFO {2}copy {6}write {7}PROJECT-COMMON-VERSION-CONTROL\.yaml \(new\)/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
@@ -53,7 +53,7 @@ test("재설치: 사용자가 수정한 파일은 keep-local로 사유와 함께
     runFull(ctxFor(target, "2026-08-26 12:10:00"), resolvePayloadRoot(), target);
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /copy {4}keep-local {2}PROJECT-COMMON-VERSION-CONTROL\.yaml/,
+    assert.match(body, /copy {6}keep-local {2}PROJECT-COMMON-VERSION-CONTROL\.yaml/,
       "사용자 수정본 유지가 사유와 함께 남아야 한다");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
@@ -67,6 +67,6 @@ test("재설치: 손대지 않은 파일은 skip(unchanged)으로 기록된다",
     runFull(ctxFor(target, "2026-08-26 12:10:00"), resolvePayloadRoot(), target);
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /copy {4}skip {8}.*\(unchanged\)/);
+    assert.match(body, /copy {6}skip {8}.*\(unchanged\)/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });

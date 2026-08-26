@@ -78,8 +78,12 @@ export function resetLogger() {
 }
 
 // 열 너비 — 사람이 훑을 때 컬럼이 맞고, 에이전트가 컬럼 단위로 끊어 읽을 수 있게 고정한다.
-const SCOPE_W = 6;
+const SCOPE_W = 8;  // 가장 긴 scope('baseline')에 맞춘다 — 컬럼이 밀리면 훑기가 나빠진다
 const ACTION_W = 10;
+
+// 동아시아 전각 문자는 폭 2로 센다 (요약 블록 정렬용).
+const WIDE_RE = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+const dispWidth = (s) => [...String(s)].reduce((n, c) => n + (WIDE_RE.test(c) ? 2 : 1), 0);
 
 function hhmmss(date) {
   const p = (n, w = 2) => String(n).padStart(w, "0");
@@ -105,8 +109,9 @@ export const log = {
   // rows: Array<[label, value]> — 라벨 폭을 맞춰 정렬한다.
   summary(rows = []) {
     if (!state || state.disabled || !rows.length) return;
-    const w = Math.max(...rows.map(([k]) => [...String(k)].length));
-    const body = rows.map(([k, v]) => `${String(k).padEnd(w)} : ${v}`).join("\n");
+    // 한글은 터미널에서 2칸을 차지한다 — 문자 수로 맞추면 눈으로 볼 때 어긋난다.
+    const w = Math.max(...rows.map(([k]) => dispWidth(k)));
+    const body = rows.map(([k, v]) => `${k}${" ".repeat(w - dispWidth(k))} : ${v}`).join("\n");
     try {
       appendFileSync(state.file, `\n=== 요약 ===\n${body}\n`);
     } catch {

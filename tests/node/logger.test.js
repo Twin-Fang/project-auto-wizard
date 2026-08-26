@@ -103,9 +103,9 @@ test("log.info/warn/fail: 5열 고정 포맷으로 한 줄씩 append된다", () 
     log.warn("verify", "unresolved", "A.yaml:43 __X__");
     log.fail("copy", "write", "EACCES: permission denied");
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /12:03:41\.221 INFO {2}detect {2}marker {6}build\.gradle → spring/);
-    assert.match(body, /12:03:41\.221 WARN {2}verify {2}unresolved {2}A\.yaml:43 __X__/);
-    assert.match(body, /12:03:41\.221 FAIL {2}copy {4}write {7}EACCES: permission denied/);
+    assert.match(body, /12:03:41\.221 INFO {2}detect {4}marker {6}build\.gradle → spring/);
+    assert.match(body, /12:03:41\.221 WARN {2}verify {4}unresolved {2}A\.yaml:43 __X__/);
+    assert.match(body, /12:03:41\.221 FAIL {2}copy {6}write {7}EACCES: permission denied/);
   });
 });
 
