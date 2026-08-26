@@ -30,9 +30,15 @@ class TestExtractIssueNumberFromBranch(unittest.TestCase):
             "102",
         )
 
-    def test_no_hash_returns_none(self):
+    def test_extracts_from_worktree_issue_branch_name(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("worktree-issue-93-branch-strategy"),
+            "93",
+        )
+
+    def test_no_issue_number_returns_none(self):
         self.assertIsNone(
-            issue_helper.extract_issue_number_from_branch("worktree-issue-93-branch-strategy")
+            issue_helper.extract_issue_number_from_branch("cleanup-docs-typo")
         )
 
     def test_multiple_hashes_uses_first_match(self):
@@ -45,6 +51,18 @@ class TestExtractIssueNumberFromBranch(unittest.TestCase):
         self.assertEqual(
             issue_helper.extract_issue_number_from_branch("20260101_#12345_x"),
             "12345",
+        )
+
+    def test_hash_takes_priority_over_word_pattern(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("issue/20260827_#121_foo"),
+            "121",
+        )
+
+    def test_word_pattern_case_insensitive(self):
+        self.assertEqual(
+            issue_helper.extract_issue_number_from_branch("WORKTREE-ISSUE-42-x"),
+            "42",
         )
 
 
@@ -271,9 +289,17 @@ class TestExtractBranchIssueCli(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "102")
 
-    def test_no_match_prints_nothing(self):
+    def test_matches_worktree_issue_branch_name(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "worktree-issue-93-branch-strategy"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "93")
+
+    def test_no_match_prints_nothing(self):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "extract-branch-issue", "cleanup-docs-typo"],
             capture_output=True, text=True,
         )
         self.assertEqual(r.returncode, 0)

@@ -112,8 +112,13 @@ class TestFilterReleaseIssueNumbers(unittest.TestCase):
 
     def test_skips_prs_without_issue_number_in_branch(self):
         commit_shas = {"a1"}
-        merged_prs = [{"number": 1, "headRefName": "worktree-issue-93-branch-strategy", "mergeCommit": {"oid": "a1"}}]
+        merged_prs = [{"number": 1, "headRefName": "cleanup-docs-typo", "mergeCommit": {"oid": "a1"}}]
         self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), [])
+
+    def test_extracts_issue_number_from_worktree_branch(self):
+        commit_shas = {"a1"}
+        merged_prs = [{"number": 1, "headRefName": "worktree-issue-93-branch-strategy", "mergeCommit": {"oid": "a1"}}]
+        self.assertEqual(filter_release_issue_numbers(commit_shas, merged_prs), ["93"])
 
     def test_skips_prs_not_in_commit_shas(self):
         commit_shas = {"a1"}
