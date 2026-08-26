@@ -1,12 +1,12 @@
-// tests/node/verify-and-install-log.test.js
-// 설치 후 검증(이슈 #81)·필요 Secret 안내(이슈 #80)·설치 로그(이슈 #79) 회귀.
+// tests/node/verify.test.js
+// 설치 후 검증(이슈 #81)·필요 Secret 안내(이슈 #80) 회귀.
+// 실행 로그 관련 회귀는 logger*.test.js로 분리됐다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../../src/core/verify.js";
-import { stampFrom, logFilename, renderInstallLog, maskValue, LOG_DIR } from "../../src/core/install-log.js";
 import { setEnvLine } from "../../src/core/wizard-env.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
@@ -87,39 +87,8 @@ test("setEnvLine: 홑따옴표 값도 치환하고 결과는 겹따옴표로 통
   assert.strictEqual(out, '  SSH_PORT: "22"');
 });
 
-// ── 설치 로그 (#79) ─────────────────────────────────────────────────
-test("stampFrom/logFilename: 시각이 곧 정렬 가능한 파일명이 된다", () => {
-  assert.strictEqual(stampFrom("2026-08-12 18:15:30"), "20260812-181530");
-  assert.strictEqual(logFilename("2026-08-12 18:15:30", "install"), "20260812-181530-install.md");
-});
-
-test("maskValue: 비밀로 보이는 키는 가리되 인증 '방식'은 그대로 둔다", () => {
-  assert.strictEqual(maskValue("SERVER_PASSWORD", "hunter2"), "***");
-  assert.strictEqual(maskValue("SSH_AUTH_METHOD", "password"), "password");
-  assert.strictEqual(maskValue("SERVICE_DOMAIN", "api.example.com"), "api.example.com");
-});
-
-test("renderInstallLog: 감지 근거·답변·미치환·필요 secret이 모두 기록된다", () => {
-  const md = renderInstallLog({
-    action: "install", at: "2026-08-12 18:15:30", templateVersion: "0.2.2", mode: "full",
-    types: ["spring"], markers: new Map([["spring", "build.gradle.kts"]]),
-    version: "1.4.2", branch: "main", paths: new Map([["spring", "."]]),
-    options: { nexus: false, secretBackup: true, semverAuto: true },
-    answers: [{ key: "SERVICE_DOMAIN", label: "서비스 도메인", value: "api.example.com", isDefault: false, scope: "spring" }],
-    result: { copiedFiles: ["PROJECT-SPRING-SIMPLE-CICD.yaml"] },
-    unresolved: [{ filename: "A.yaml", line: 3, token: "__X__" }],
-    secrets: new Map([["SERVER_HOST", ["A.yaml"]]]),
-  });
-  assert.match(md, /^---\n/, "에이전트가 파싱할 front matter로 시작해야 한다");
-  assert.match(md, /build\.gradle\.kts/, "감지 근거 파일");
-  assert.match(md, /api\.example\.com/, "사용자 답변");
-  assert.match(md, /__X__/, "미치환 항목");
-  assert.match(md, /SERVER_HOST/, "등록해야 할 secret");
-  assert.match(md, /unresolved_count: 1/);
-});
-
 // ── 실제 설치 경로 e2e ──────────────────────────────────────────────
-test("runFull: Kotlin DSL + application.yaml 프로젝트에서 미치환 없이 설치되고 로그가 남는다", () => {
+test("runFull: Kotlin DSL + application.yaml 프로젝트에서 미치환 없이 설치된다", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-e2e-detect-"));
   try {
     mkdirSync(join(target, "src/main/resources"), { recursive: true });
@@ -144,12 +113,6 @@ test("runFull: Kotlin DSL + application.yaml 프로젝트에서 미치환 없이
     const wf = readFileSync(join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml"), "utf8");
     assert.match(wf, /JAVA_VERSION: "25"/, "toolchain 실측값이 들어가야 한다");
     assert.match(wf, /APPLICATION_YML_DIR: "src\/main\/resources"/, ".yaml도 찾아야 한다");
-
-    const logDir = join(target, LOG_DIR);
-    assert.ok(existsSync(logDir), "설치 로그 폴더가 생성돼야 한다");
-    const logs = readdirSync(logDir);
-    assert.deepStrictEqual(logs, ["20260812-181530-install.md"]);
-    assert.match(readFileSync(join(logDir, logs[0]), "utf8"), /build\.gradle\.kts/);
 
     // version.yml의 마커 주석도 실제 파일이어야 한다 (감지 로그와 같은 근거)
     assert.match(readFileSync(join(target, "version.yml"), "utf8"), /spring: "\." # build\.gradle\.kts/);

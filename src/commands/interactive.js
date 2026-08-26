@@ -20,6 +20,7 @@ import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
+import { currentLogPath, hasLegacyMdLogs } from "../core/logger.js";
 
 const CANCEL = prompts.CANCEL;
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
@@ -305,7 +306,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     answers: envAnswers,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
-    installLogPath: result?.installLog?.path ?? "",
+    logPath: currentLogPath(),
+    legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);

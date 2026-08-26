@@ -63,7 +63,7 @@ export function initLogger(targetRoot, opts = {}) {
       `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
       `target  : ${targetRoot}\n\n`;
     writeFileSync(file, header);
-    state = { file, clock, startedAt: Date.now(), disabled: false };
+    state = { file, rel, clock, startedAt: Date.now(), disabled: false };
     return { path: rel };
   } catch (e) {
     // 로그를 못 남긴 것이 설치를 되돌릴 이유는 아니다 — 다만 조용히 삼키지는 않는다.
@@ -75,6 +75,20 @@ export function initLogger(targetRoot, opts = {}) {
 
 export function resetLogger() {
   state = null;
+}
+
+// 이번 실행의 로그 경로(레포 상대). 설치 요약 화면이 사용자에게 안내할 때 쓴다.
+export function currentLogPath() {
+  return state && !state.disabled ? state.rel : "";
+}
+
+// 구버전(.md) 설치 기록이 남아 있는지 — .gitignore는 이미 git이 추적 중인 파일에는
+// 영향이 없으므로, 있으면 사용자가 직접 추적을 끊도록 안내해야 한다.
+export function hasLegacyMdLogs(targetRoot) {
+  try {
+    const dir = join(targetRoot, LOG_DIR);
+    return existsSync(dir) && readdirSync(dir).some((f) => f.endsWith(".md"));
+  } catch { return false; }
 }
 
 // 열 너비 — 사람이 훑을 때 컬럼이 맞고, 에이전트가 컬럼 단위로 끊어 읽을 수 있게 고정한다.

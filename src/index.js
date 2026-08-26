@@ -21,7 +21,7 @@ import { runFull } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { runInteractive } from "./commands/interactive.js";
-import { initLogger, closeLogger } from "./core/logger.js";
+import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
@@ -316,7 +316,8 @@ async function runInner(argv, {
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
-    installLogPath: result?.installLog?.path ?? "",
+    logPath: currentLogPath(),
+    legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
   });
   return 0;
