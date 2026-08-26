@@ -202,7 +202,7 @@ export function initLogger(targetRoot, opts = {}) {
     const file = join(targetRoot, rel);
     const header =
       `=== project-auto-wizard v${templateVersion} | ${action} | ${now} ===\n` +
-      `argv    : project-auto-wizard ${argv.join(" ")}\n`.replace("project-auto-wizard \n", "project-auto-wizard\n") +
+      `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
       `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
       `target  : ${targetRoot}\n\n`;
     writeFileSync(file, header);
@@ -328,7 +328,7 @@ Expected: FAIL — `The requested module does not provide an export named 'log'`
 ```js
 // 열 너비 — 사람이 훑을 때 컬럼이 맞고, 에이전트가 컬럼 단위로 끊어 읽을 수 있게 고정한다.
 const SCOPE_W = 6;
-const ACTION_W = 11;
+const ACTION_W = 10;
 
 function hhmmss(date) {
   const p = (n, w = 2) => String(n).padStart(w, "0");

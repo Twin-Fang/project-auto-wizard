@@ -76,3 +76,45 @@ export function initLogger(targetRoot, opts = {}) {
 export function resetLogger() {
   state = null;
 }
+
+// 열 너비 — 사람이 훑을 때 컬럼이 맞고, 에이전트가 컬럼 단위로 끊어 읽을 수 있게 고정한다.
+const SCOPE_W = 6;
+const ACTION_W = 10;
+
+function hhmmss(date) {
+  const p = (n, w = 2) => String(n).padStart(w, "0");
+  return `${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}.${p(date.getMilliseconds(), 3)}`;
+}
+
+function write(level, scope, action, detail = "") {
+  if (!state || state.disabled) return;
+  try {
+    const line = `${hhmmss(state.clock())} ${level}  ${String(scope).padEnd(SCOPE_W)}  ${String(action).padEnd(ACTION_W)}  ${detail}`.trimEnd();
+    appendFileSync(state.file, line + "\n");
+  } catch (e) {
+    // 첫 실패에서 한 번만 알리고 이후는 조용히 끈다 — 매 줄 경고를 뱉으면 설치 화면이 무너진다.
+    state.disabled = true;
+    process.stderr.write(`[warn] 실행 로그 기록을 중단합니다: ${e.message}\n`);
+  }
+}
+
+export const log = {
+  info: (scope, action, detail) => write("INFO", scope, action, detail),
+  warn: (scope, action, detail) => write("WARN", scope, action, detail),
+  fail: (scope, action, detail) => write("FAIL", scope, action, detail),
+  // rows: Array<[label, value]> — 라벨 폭을 맞춰 정렬한다.
+  summary(rows = []) {
+    if (!state || state.disabled || !rows.length) return;
+    const w = Math.max(...rows.map(([k]) => [...String(k)].length));
+    const body = rows.map(([k, v]) => `${String(k).padEnd(w)} : ${v}`).join("\n");
+    try {
+      appendFileSync(state.file, `\n=== 요약 ===\n${body}\n`);
+    } catch {
+      state.disabled = true;
+    }
+  },
+};
+
+export function closeLogger() {
+  state = null;
+}
