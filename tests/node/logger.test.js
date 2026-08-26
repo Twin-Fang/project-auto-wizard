@@ -94,7 +94,7 @@ test("resetLogger: 초기화 전 상태로 되돌린다", () => {
 // ── 라인 기록 · 요약 · 실패 내성 ─────────────────────────────────────
 import { log, closeLogger } from "../../src/core/logger.js";
 
-const FIXED = () => new Date(2026, 7, 26, 12, 3, 41, 221);
+const FIXED = () => new Date(Date.UTC(2026, 7, 26, 12, 3, 41, 221));
 
 test("log.info/warn/fail: 5열 고정 포맷으로 한 줄씩 append된다", () => {
   withTarget((target) => {

@@ -21,6 +21,7 @@ import { runFull } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { runInteractive } from "./commands/interactive.js";
+import { initLogger, closeLogger } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
@@ -59,7 +60,7 @@ async function defaultPromptRepoName(repoName) {
 //   payloadRoot: 테스트 픽스처 주입점 (기본: 패키지 동봉 payload/)
 //   clock: {now, today} 주입 (기본 현재 UTC).
 //   exec/promptRepoName: purge 모드 안전장치 게이트용 주입점 (기본 실제 구현, 테스트는 mock 주입).
-export async function run(argv, {
+async function runInner(argv, {
   cwd = process.cwd(), payloadRoot, clock,
   exec = defaultExec, promptRepoName = defaultPromptRepoName,
 } = {}) {
@@ -74,6 +75,19 @@ export async function run(argv, {
   if (opts.help) { console.log(HELP_TEXT); return 0; }
 
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
+
+  // 시각은 여기서 한 번만 계산한다 — 로그 파일명과 설치 기록이 같은 값을 쓰도록.
+  const { now, today } = clock || utcNow();
+
+  // dry-run은 "파일을 바꾸지 않는다"가 계약이므로 로그도 남기지 않는다.
+  // --version/--help는 이 지점 이전에 이미 반환되므로 자연히 제외된다.
+  const loggedAction = opts.dryRun ? null
+    : opts.mode === "uninstall" ? "uninstall"
+    : opts.mode === "purge" ? "purge"
+    : "install";
+  if (loggedAction) {
+    initLogger(cwd, { action: loggedAction, now, argv, templateVersion: readTemplateVersion() });
+  }
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
@@ -254,8 +268,6 @@ export async function run(argv, {
     }
   }
 
-  const { now, today } = clock || utcNow();
-
   const context = createContext({
     mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
@@ -308,4 +320,14 @@ export async function run(argv, {
     cleanup: result?.cleanup ?? null,
   });
   return 0;
+}
+
+// 공개 진입점 — 어떤 경로로 끝나든(정상 반환·CliError·예외) 로거를 닫는다.
+// 본문을 통째로 try로 감싸면 들여쓰기가 전부 바뀌므로 얇은 래퍼로 분리했다.
+export async function run(argv, opts = {}) {
+  try {
+    return await runInner(argv, opts);
+  } finally {
+    closeLogger();
+  }
 }

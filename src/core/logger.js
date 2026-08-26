@@ -85,9 +85,11 @@ const ACTION_W = 10;
 const WIDE_RE = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
 const dispWidth = (s) => [...String(s)].reduce((n, c) => n + (WIDE_RE.test(c) ? 2 : 1), 0);
 
+// 헤더의 실행 시각과 파일명이 UTC 기준(utcNow)이므로 라인 시각도 UTC로 맞춘다 —
+// 로컬 시간을 쓰면 같은 파일 안에서 헤더와 라인이 시간대만큼 어긋난다.
 function hhmmss(date) {
   const p = (n, w = 2) => String(n).padStart(w, "0");
-  return `${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}.${p(date.getMilliseconds(), 3)}`;
+  return `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}.${p(date.getUTCMilliseconds(), 3)}`;
 }
 
 function write(level, scope, action, detail = "") {
