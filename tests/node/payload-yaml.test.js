@@ -450,6 +450,18 @@ test("PROJECT-COMMON-ISSUE-HELPER는 issues opened/edited에 반응한다", () =
   assert.match(body, /on:\s*\n\s*issues:\s*\n\s*types:\s*\[opened,\s*edited]/);
 });
 
+test("PROJECT-COMMON-ISSUE-HELPER의 permissions.contents는 write로 고정되어 있다 (issue #118)", () => {
+  const body = readFileSync(issueHelperPath, "utf8");
+  // ISSUE_HELPER_CREATE_BRANCH="true"일 때 git/refs API로 브랜치를 생성하려면 write가 필요하고,
+  // 이 값은 마법사 재실행 없이 설치 후 직접 켤 수도 있어 조건부 승격이 불가능하다 — 항상 write로 고정.
+  assert.match(body, /permissions:\s*\n\s*issues:\s*write\s*\n\s*contents:\s*write/);
+});
+
+test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER도 permissions.contents가 write다 (issue #118)", () => {
+  const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
+  assert.match(body, /permissions:\s*\n\s*issues:\s*write\s*\n\s*contents:\s*write/);
+});
+
 // ---------------------------------------------------------------
 // #50: FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
 // 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
