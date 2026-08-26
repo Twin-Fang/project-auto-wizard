@@ -20,11 +20,13 @@ on:
   issues:
     types: [opened, edited]
 
-# ISSUE_HELPER_CREATE_BRANCH를 "true"로 켜서 브랜치 자동 생성을 쓰려면
-# git/refs API 쓰기 권한이 필요하므로 contents를 write로 올려야 한다.
+# contents는 항상 write로 고정한다. ISSUE_HELPER_CREATE_BRANCH="true"일 때
+# git/refs API로 브랜치를 생성하려면 write가 필요한데, 이 값은 @wizard ask로
+# 설치 후에도 사용자가 직접 켤 수 있어(마법사 재실행 없이) 그 시점에 맞춰
+# permissions를 조건부로 올릴 방법이 없다 — project-auto-wizard#118.
 permissions:
   issues: write
-  contents: read
+  contents: write
 
 jobs:
   issue-helper:
