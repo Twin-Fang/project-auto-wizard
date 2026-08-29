@@ -61,11 +61,15 @@ def extract_issue_number(issue_url):
     return parts[-1] if parts and parts[-1] else ""
 
 
-_BRANCH_ISSUE_RE = re.compile(r"#(\d+)")
+_BRANCH_ISSUE_HASH_RE = re.compile(r"#(\d+)")
+_BRANCH_ISSUE_WORD_RE = re.compile(r"issues?[-_/](\d+)", re.IGNORECASE)
 
 
 def extract_issue_number_from_branch(branch_name):
-    match = _BRANCH_ISSUE_RE.search(branch_name)
+    match = _BRANCH_ISSUE_HASH_RE.search(branch_name)
+    if match:
+        return match.group(1)
+    match = _BRANCH_ISSUE_WORD_RE.search(branch_name)
     return match.group(1) if match else None
 
 
