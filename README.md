@@ -17,7 +17,7 @@ npx project-auto-wizard
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.6.0 (2026-08-24)
+## 최신 버전 : v0.8.2 (2026-08-26)
 
 [전체 버전 기록 보기](CHANGELOG.md)
 
@@ -75,11 +75,20 @@ flutter.APP_ARTIFACT_NAME:
 - **python**: CI / PR 프리뷰 / SimpleCICD
 - **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 있는 프로젝트만 해당)
 
-### 설치 기록 (`.github/.wizard/logs/`)
+### 실행 로그 (`.github/.wizard/logs/`)
 
-설치가 끝나면 그 실행에서 무엇을 어떤 값으로 설치했는지 `.github/.wizard/logs/<시각>-install.md`에 한 건 남깁니다. 감지된 타입과 그 근거 파일, 버전, 브랜치, 선택 워크플로우, **환경설정 질문별 답변(기본값 그대로인지 여부 포함)**, 설치된 파일, 값이 채워지지 않은 항목, 등록해야 하는 GitHub Secret이 담깁니다.
+설치·업데이트·삭제를 실행할 때마다 `.github/.wizard/logs/<시각>-<동작>.log`에 실행 추적이 남습니다. 감지 근거, **파일별 처리 결정과 그 사유**, 치환된 값, 미치환 항목, 등록해야 하는 GitHub Secret이 시간순으로 기록되고, 파일 끝에 결과 요약이 붙습니다.
 
-상단은 기계가 읽는 YAML front matter, 아래는 사람이 읽는 마크다운입니다. 배포가 예상과 다르게 동작할 때 "설치할 때 뭘로 답했더라"를 여기서 확인할 수 있고, 레포에 커밋되므로 AI 에이전트나 다른 팀원도 참고할 수 있습니다. 로그 기록에 실패해도 설치 자체는 정상 완료됩니다.
+```
+07:46:01 INFO  detect    type        spring (근거: build.gradle)
+07:46:01 INFO  copy      write       PROJECT-SPRING-SIMPLE-CICD.yaml (new)
+07:46:01 INFO  copy      keep-local  PROJECT-COMMON-VERSION-CONTROL.yaml (업스트림 무변경, 사용자 수정본 유지)
+07:46:01 WARN  verify    unresolved  PROJECT-SPRING-PR-PREVIEW.yaml:43 __APPLICATION_YML_PATH__
+```
+
+업데이트에서 "내가 고친 워크플로우가 유지됐는지 덮였는지"를 이 로그로 확인할 수 있습니다. 한 줄씩 즉시 기록하므로 도중에 중단되어도 직전까지의 흐름이 남습니다. 로그 기록에 실패해도 설치 자체는 정상 완료됩니다.
+
+이 폴더에는 자체 `.gitignore`(`*`, `!.gitignore`)가 함께 생성되어 **로그가 git에 올라가지 않습니다**. 최근 20개만 보관하고 오래된 것부터 정리합니다. `--dry-run`은 파일을 만들지 않는 것이 계약이므로 로그도 남기지 않습니다.
 
 `.github/.wizard/`에는 업데이트 3-way 판정에 쓰는 `baseline.json`도 함께 들어 있어, 완전 삭제 시 워크플로우와 함께 제거됩니다.
 

@@ -16,7 +16,7 @@ import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline } from "../core/baseline.js";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
-import { writeInstallLog } from "../core/install-log.js";
+import { log, maskValue } from "../core/logger.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
 //            force, repoName, resolvers, now, today }
@@ -31,7 +31,16 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
   // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다 (이슈 #77).
   const pathMarkers = new Map();
-  for (const [t, p] of paths) pathMarkers.set(t, existingMarkerInDir(t, join(targetRoot, p || ".")));
+  for (const [t, p] of paths) {
+    const marker = existingMarkerInDir(t, join(targetRoot, p || "."));
+    pathMarkers.set(t, marker);
+    log.info("detect", "type", `${t} (근거: ${marker || "직접 선택"})`);
+  }
+  log.info("detect", "version", `${version}${context.versionSource ? ` (${context.versionSource})` : ""}`);
+  log.info("detect", "branch", `${branch}${context.branches ? ` | main=${context.branches.main} develop=${context.branches.develop} mode=${context.branches.mode}` : ""}`);
+  for (const a of context.envAnswers || []) {
+    log.info("prompt", a.isDefault ? "default" : "answer", `${a.key}=${maskValue(a.key, a.value)}`);
+  }
 
   // 1. 워크플로우 복사 (+ env 치환) — deploy 블록에 쓸 ask 값을 수집한다.
   //    hooks.decisions: 대화형 충돌 3지선 결정 Map (미지정=skip — 현행 force 동작)
@@ -45,6 +54,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성 전략 D4)
   writeText(join(targetRoot, PATHS.versionFile),
     renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel }));
+
+  log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
 
   // 3. README 버전 섹션
   addVersionSectionToReadme(version, targetRoot);
@@ -67,6 +78,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
   for (const f of [...cleanup.removed, ...cleanup.backedUp]) delete previousBaseline?.files?.[f];
 
+  for (const f of cleanup.removed || []) log.info("cleanup", "remove", `${f} (이전 배포 방식 정리)`);
+  for (const f of cleanup.backedUp || []) log.info("cleanup", "backup", `${f} → ${f}.bak`);
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0;
   if (gitignoreUpdated) ensureGitignore(targetRoot);
 
@@ -95,33 +108,21 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
   );
 
-  // 9. 설치 로그 (이슈 #79) — 이 실행에서 무엇을 어떤 값으로 설치했는지 레포에 남긴다.
-  //    실패해도 설치는 성공으로 끝난다.
-  const installLog = writeInstallLog(targetRoot, {
-    action: context.previousTemplateVersion ? "update" : "install",
-    at: now || today || "",
-    templateVersion,
-    previousTemplateVersion: context.previousTemplateVersion || "",
-    mode: context.mode || "full",
-    types, markers: context.markers || new Map(), version,
-    versionSource: context.versionSource || "",
-    branch, branches: context.branches, paths,
-    options: {
-      nexus: includeNexus,
-      secretBackup: includeSecretBackup,
-      semverAuto: includeSemverAuto !== false,
-      deployStyle: context.deployStyle || "",
-    },
-    answers: context.envAnswers || [],
-    warnings: context.detectWarnings || [],
-    result: {
-      copiedFiles: wfCounters.copiedFiles || [],
-      gitignoreUpdated,
-    },
-    unresolved, secrets, cleanup,
-  });
+  // 9. 요약 — 파일 끝에 결과 블록을 붙인다. tail만 봐도 결과가 보이도록.
+  for (const u of unresolved) log.warn("verify", "unresolved", `${u.filename}:${u.line} ${u.token}`);
+  for (const [name, users] of secrets) log.info("verify", "secret", `${name} ← ${users.join(", ")}`);
+  log.summary([
+    ["설치", `${(wfCounters.copiedFiles || []).length}개 파일`],
+    ["자동 갱신", `${(wfCounters.autoUpdated || []).length}개 (사용자 미수정)`],
+    ["유지", `${(wfCounters.keptLocal || []).length}개 (사용자 수정본)`],
+    ["변경 없음", `${(wfCounters.unchangedFiles || []).length}개`],
+    ["백업 교체", `${wfCounters.backupAdded || 0}개 (.bak 생성)`],
+    ["미치환", `${unresolved.length}건${unresolved.length ? "  ← 조치 필요" : ""}`],
+    ["필요 Secret", `${secrets.size}개`],
+    ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
+  ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, installLog, cleanup };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
