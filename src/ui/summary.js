@@ -8,7 +8,7 @@ const SEPARATOR = "────────────────────�
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
     // 설치 후 검증·기록 (#79, #80, #81)
-    answers = [], unresolved = [], secrets = new Map(), installLogPath = "", cleanup = null } = ctx || {};
+    answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -111,9 +111,14 @@ export function printSummary(ctx) {
     for (const f of cleanup.backedUp || []) err(`     • ${f} → ${f}.bak ${paint("수정하신 내용이 있어 백업", A.dim, enabled)}`);
     err("");
   }
-  if (installLogPath) {
-    err(`  📋 설치 기록: ${installLogPath}`);
-    err("     → 나중에 '무엇을 어떤 값으로 설치했는지' 확인할 때 이 파일을 보세요");
+  if (logPath) {
+    err(`  📋 실행 로그: ${logPath}`);
+    err("     → 무엇을 어떤 값으로 설치했는지 시간순으로 남아 있습니다 (git에 올라가지 않습니다)");
+    err("");
+  }
+  if (legacyMdLogs) {
+    err("  ℹ️  이전 버전의 설치 기록(.md)이 git에 추적 중입니다:");
+    err("     git rm -r --cached .github/.wizard/logs");
     err("");
   }
 

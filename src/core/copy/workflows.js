@@ -10,6 +10,7 @@ import { exists, writeText, listYamlFiles } from "../fsutil.js";
 import { substituteEnv } from "../wizard-env.js";
 import { substitute } from "../branding.js";
 import { sha256, readBaseline } from "../baseline.js";
+import { log } from "../logger.js";
 
 // 원본 텍스트 로더 — context.branches가 있으면 {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 치환 적용.
 // classify(unchanged 판정)와 실제 복사가 같은 치환본을 봐야 재실행 시 가짜 충돌이 없다.
@@ -97,20 +98,37 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
   const track = (f, wrote) => baselineTargets.set(f, { srcPath: join(srcDir, f), envOpts, wrote });
   const write = (f) => { writeText(join(workflowsDir, f), srcText(join(srcDir, f))); counters.copied++; counters.copiedFiles.push(f); track(f, true); };
 
-  for (const f of c.unchanged.filter(filter)) { counters.skipped++; track(f, false); }
+  for (const f of c.unchanged.filter(filter)) {
+    counters.skipped++; counters.unchangedFiles.push(f); track(f, false);
+    log.info("copy", "skip", `${f} (unchanged)`);
+  }
 
-  for (const f of c.localOnly.filter(filter)) { counters.skipped++; counters.keptLocal.push(f); track(f, false); }
+  for (const f of c.localOnly.filter(filter)) {
+    counters.skipped++; counters.keptLocal.push(f); track(f, false);
+    log.info("copy", "keep-local", `${f} (업스트림 무변경, 사용자 수정본 유지)`);
+  }
 
-  for (const f of c.newFiles.filter(filter)) write(f);
+  for (const f of c.newFiles.filter(filter)) {
+    write(f);
+    log.info("copy", "write", `${f} (new)`);
+  }
 
-  for (const f of c.upstreamOnly.filter(filter)) { write(f); counters.autoUpdated.push(f); }
+  for (const f of c.upstreamOnly.filter(filter)) {
+    write(f); counters.autoUpdated.push(f);
+    log.info("copy", "auto-update", `${f} (사용자 미수정, 최신으로 교체)`);
+  }
 
   // 사용자가 지운 파일은 조용히 되살리지 않는다. 복원 결정이 있을 때만 다시 쓴다.
   // 되살리지 않은 파일은 baselineTargets에 넣지 않는다 — 디스크에 없어 해시할 것이 없고,
   // 기존 baseline 항목은 병합으로 남아 다음 실행에서도 "지운 파일"로 인식된다.
   for (const f of c.removed.filter(filter)) {
-    if (restoreRemoved.has(f)) { write(f); counters.restoredFiles.push(f); }
-    else counters.removedKept.push(f);
+    if (restoreRemoved.has(f)) {
+      write(f); counters.restoredFiles.push(f);
+      log.info("copy", "restore", `${f} (사용자가 지웠지만 복원 결정)`);
+    } else {
+      counters.removedKept.push(f);
+      log.info("copy", "removed-kept", `${f} (사용자가 지움, 되살리지 않음)`);
+    }
   }
 
   for (const f of c.changed.filter(filter)) {
@@ -141,6 +159,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
   counters.copiedFiles = []; // 이번 실행에서 실제로 새로 쓰여진 파일명 (issue #19 — printSummary 정확성용)
+  counters.unchangedFiles = []; // skip(unchanged) 대상 — 로그에서 "왜 안 바뀌었나"의 근거
   counters.autoUpdated = [];    // 질문 없이 최신으로 교체된 파일 (사용자 미수정)
   counters.keptLocal = [];      // 질문 없이 사용자 수정본을 유지한 파일 (업스트림 무변경)
   counters.removedKept = [];    // 사용자가 지웠고 되살리지 않은 파일
@@ -228,6 +247,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     counters.copied++;
     counters.backupAdded++;
     counters.copiedFiles.push(filename);
+    log.info("copy", "backup", `${filename} → ${filename}.bak (사용자 결정, 새 버전으로 교체)`);
     return;
   }
   if (decision === "template") {
@@ -236,9 +256,11 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     writeText(join(workflowsDir, templateName), srcText(src)); // 기존 .template.yaml 덮어씀(.sh rm -f + cp 등가)
     counters.templateAdded++;
     counters.copiedFiles.push(templateName);
+    log.info("copy", "template", `${filename} 유지 + ${templateName} 생성 (사용자 결정)`);
     return;
   }
   counters.skipped++; // 'skip'/미지정/ESC → 기존 유지 (.sh S)·force 기본)
+  log.info("copy", "skip", `${filename} (사용자 결정: 기존 유지)`);
 }
 
 // 대화형 사전 조사 — 사람이 답해야 하는 것만 뽑는다 (issue #69).

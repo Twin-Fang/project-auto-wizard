@@ -9,6 +9,7 @@ import { planRemoval } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
+import { log } from "../core/logger.js";
 
 // selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
@@ -29,16 +30,16 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
 export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const plan = planUninstall(payloadRoot, targetRoot, selection);
   const wfDir = join(targetRoot, PATHS.workflowsDir);
-  for (const name of plan.workflows) remove(join(wfDir, name));
-  for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  for (const p of plan.baseline || []) remove(join(targetRoot, p));
+  for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
+  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
+  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
   // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
   // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
   // 실제 결과로 plan을 덮어써서 호출부(CLI/대화형 요약)가 거짓 성공을 보고하지 않게 한다.
   const readmeRemoved = plan.readme && removeVersionSectionFromReadme(targetRoot) === "removed";
   const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
   const gitignoreRemoved = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
-  if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
+  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
   return { ...plan, readme: readmeRemoved, gitignore: gitignoreRemoved };
 }
 

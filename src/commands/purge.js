@@ -9,6 +9,7 @@ import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRemoval } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
+import { log } from "../core/logger.js";
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 
@@ -54,12 +55,12 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
 export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const plan = planPurge(payloadRoot, targetRoot, keepFlags);
   const wfDir = join(targetRoot, PATHS.workflowsDir);
-  for (const name of plan.workflows) remove(join(wfDir, name));
-  for (const name of plan.scripts) remove(join(targetRoot, PATHS.scriptsDir, name));
-  for (const p of plan.baseline || []) remove(join(targetRoot, p));
-  if (plan.versionYml) remove(join(targetRoot, PATHS.versionFile));
+  for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
+  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
+  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
+  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
-  for (const f of plan.changelog) remove(join(targetRoot, f));
+  for (const f of plan.changelog) { remove(join(targetRoot, f)); log.info("remove", "changelog", f); }
   return { ...plan, readmeSection };
 }
 
