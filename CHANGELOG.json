@@ -1,15 +1,58 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-26T03:37:25Z",
-    "currentVersion": "0.8.2",
+    "lastUpdated": "2026-08-29T04:16:04Z",
+    "currentVersion": "0.9.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 19
+    "totalReleases": 20
   },
   "releases": [
+    {
+      "version": "0.9.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-08-29",
+      "pr_number": 125,
+      "raw_summary": "## [0.9.0]\n\n### ✨ 기능\n- 진입점에 로거 배선 및 uninstall·purge 기록 추가\n- full 파이프라인 전 구간 계측 및 요약 블록 기록\n- 워크플로우 복사 결정과 사유를 실행 로그에 기록\n- 로그 라인 기록·요약 블록·쓰기 실패 시 no-op 전환 추가\n- 실행 추적 로거 코어 추가 — 파일 생성·gitignore 자동화·회전\n\n### 🐛 수정\n- 이슈_자동_종료_Closes_N_연결이_EnterWorktree류_브랜치명_없음_에서_항상_실패함 — 브랜치명 이슈 번호 추출 정규식이 EnterWorktree류 브랜치명(# 없음)을 매칭하지 못하던 문제 수정\n\n### 📝 문서\n- 이슈 #122 구현 완료 보고서 추가\n- 이슈 #122 본문 기록\n- 설치 기록을 실행 추적 로그로 교체한 내용 반영\n\n### ♻️ 리팩토링\n- install-log.js 제거하고 실행 로그로 일원화\n- 설치 요약을 실행 로그 안내로 교체하고 테스트 분리",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "진입점에 로거 배선 및 uninstall·purge 기록 추가",
+            "full 파이프라인 전 구간 계측 및 요약 블록 기록",
+            "워크플로우 복사 결정과 사유를 실행 로그에 기록",
+            "로그 라인 기록·요약 블록·쓰기 실패 시 no-op 전환 추가",
+            "실행 추적 로거 코어 추가 — 파일 생성·gitignore 자동화·회전"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "이슈_자동_종료_Closes_N_연결이_EnterWorktree류_브랜치명_없음_에서_항상_실패함 — 브랜치명 이슈 번호 추출 정규식이 EnterWorktree류 브랜치명(# 없음)을 매칭하지 못하던 문제 수정"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "이슈 #122 구현 완료 보고서 추가",
+            "이슈 #122 본문 기록",
+            "설치 기록을 실행 추적 로그로 교체한 내용 반영"
+          ]
+        },
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "install-log.js 제거하고 실행 로그로 일원화",
+            "설치 요약을 실행 로그 안내로 교체하고 테스트 분리"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.8.2",
       "project_types": [
