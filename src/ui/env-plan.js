@@ -59,9 +59,13 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
     // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus면) nexus + (그 외엔, "배포 안 함"이
-    // 아닐 때만) server-deploy. "none"은 이 유닛 자체를 스캔에서 뺀다 — PR 프리뷰의 SSH 관련
-    // 질문까지 함께 걸러야 "배포 설정을 생성하지 않음" 라벨과 실제 동작이 맞는다.
-    units.push([type, typeDir, null]);
+    // 아닐 때만) server-deploy. server-deploy가 있는 타입은 "none"일 때 그 폴더(PR 프리뷰
+    // 포함) 자체를 스캔에서 뺀다.
+    // go/python처럼 CD가 server-deploy 없이 타입 루트에 바로 있는 타입은, "배포 안 함"일 때
+    // 타입 루트 스캔에도 keepDeploy를 걸어야 CD 전용 ask 키(예: DEPLOY_PORT)가 걸러진다.
+    // PR 프리뷰 자체의 ask 키(SSH_AUTH_METHOD 등)는 이 필터로는 걸러지지 않는다 — PR 프리뷰는
+    // 배포 방식과 무관하게 항상 설치되는 별도 축이라 의도된 잔여 범위다.
+    units.push([type, typeDir, deployStyle === NO_DEPLOY_STYLE ? keepDeploy : null]);
     if (includeNexus) {
       units.push([type, join(typeDir, "nexus"), null]);
     } else if (deployStyle !== NO_DEPLOY_STYLE) {

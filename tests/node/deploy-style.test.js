@@ -68,6 +68,26 @@ function springTarget() {
   return target;
 }
 
+function goTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-deploy-style-go-"));
+  writeFileSync(join(target, "go.mod"), "module example.com/svc\n\ngo 1.22\n");
+  return target;
+}
+
+function installGo(target, deployStyle) {
+  const paths = new Map([["go", "."]]);
+  return runFull(createContext({
+    mode: "full", force: true, types: ["go"], version: "1.0.0", versionCode: 1,
+    branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+    paths, repoName: "svc", resolvers: makeResolvers(target, "svc", paths),
+    now: "2026-08-12 10:00:00", today: "2026-08-12", templateVersion: "0.2.2", deployStyle,
+  }), resolvePayloadRoot(), target);
+}
+
+const GO_CI = "PROJECT-GO-CI.yaml";
+const GO_SIMPLE = "PROJECT-GO-SIMPLE-CICD.yaml";
+const GO_PREVIEW = "PROJECT-GO-PR-PREVIEW.yaml";
+
 function install(target, deployStyle) {
   const paths = new Map([["spring", "."]]);
   return runFull(createContext({
@@ -214,10 +234,37 @@ test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD는 정�
   const target = springTarget();
   try {
     install(target, "simple");
+    const previewPath = join(target, ".github/workflows", PREVIEW);
+    const previewBefore = readFileSync(previewPath, "utf8");
     const r = install(target, "none");
     assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
     assert.deepStrictEqual(files, [PREVIEW],
       "PR 프리뷰는 CD가 아니라 cleanup 대상이 아니다 — 폴더 제외는 신규 설치 범위에만 적용되는 기존 제약");
+    assert.strictEqual(readFileSync(previewPath, "utf8"), previewBefore,
+      "server-deploy 폴더째 제외되므로 이미 깔린 PR 프리뷰는 재복사/재치환되지 않아 내용이 바이트 단위로 동일해야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: go 타입에서 'none'을 고르면 타입 루트의 CD 파일도 제외된다 (server-deploy 폴더가 없는 타입)", () => {
+  const target = goTarget();
+  try {
+    installGo(target, "none");
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("GO"));
+    assert.deepStrictEqual(files.sort(), [GO_CI, GO_PREVIEW].sort(),
+      "CD(SIMPLE-CICD)만 빠지고 CI·PR 프리뷰는 그대로 설치돼야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: go에서 simple로 설치 후 'none'으로 전환하면 CD가 .bak 없이 깔끔하게 삭제된다", () => {
+  const target = goTarget();
+  try {
+    installGo(target, "simple");
+    const r = installGo(target, "none");
+    assert.deepStrictEqual(r.cleanup.removed, [GO_SIMPLE],
+      "타입 루트 CD도 재복사되지 않아야 baseline과 일치해 깔끔히 제거된다 — 재복사되면 매번 해시가 달라져 .bak으로 새는 회귀가 있었다");
+    assert.deepStrictEqual(r.cleanup.backedUp, []);
+    const files = readdirSync(join(target, ".github/workflows"));
+    assert.ok(!files.includes(GO_SIMPLE) && !files.includes(`${GO_SIMPLE}.bak`));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });

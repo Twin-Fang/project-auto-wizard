@@ -91,7 +91,7 @@ export async function selectDeployStyle() {
   engine.note(
     "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
     "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다\n" +
-    "(단, \"서버 배포 안 함\"을 고르면 PR 프리뷰도 함께 제외됩니다).",
+    "(단, server-deploy 폴더가 있는 타입(spring)은 \"서버 배포 안 함\"을 고르면 PR 프리뷰도 함께 제외됩니다).",
     "배포 방식",
   );
   return engine.select({
