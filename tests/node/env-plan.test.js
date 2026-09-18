@@ -186,3 +186,18 @@ test("collectAsks: 실제 payload의 NGINX 무중단 배포 VOLUME_CONTAINER_PAT
   assert.ok(asks.keys.includes("VOLUME_CONTAINER_PATH"));
   assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/app");
 });
+
+test("collectAsks: deployStyle이 'none'이면 server-deploy 폴더(PR 프리뷰 포함) 전체를 스캔하지 않는다", () => {
+  const asks = collectAsks(resolvePayloadRoot(), ["spring"], { deployStyle: "none" });
+  assert.ok(!asks.keys.includes("VOLUME_CONTAINER_PATH"), "nginx/traefik 전용 키는 스캔되지 않아야 한다");
+  assert.ok(!asks.keys.includes("SSH_AUTH_METHOD"),
+    "server-deploy 4개 파일(SIMPLE/NGINX/TRAEFIK/PR 프리뷰) 공통 ask 키 — 이게 없다는 것이 폴더 전체가 스캔에서 빠졌다는 증거다");
+});
+
+test("collectAsks: go 타입에서 deployStyle이 'none'이면 타입 루트 CD 전용 키는 스캔하지 않는다 (PR 프리뷰 전용 키는 남는다 — 별도 축, 알려진 잔여 범위)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), ["go"], { deployStyle: "none" });
+  assert.ok(!asks.keys.includes("DEPLOY_PORT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
+  assert.ok(!asks.keys.includes("ENABLE_VOLUME_MOUNT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
+  assert.ok(asks.keys.includes("SSH_AUTH_METHOD"),
+    "PR 프리뷰(go/python은 server-deploy 폴더가 없어 CD와 같은 위치에 있음)는 배포 방식과 무관하게 항상 설치되므로 이 키는 남는다");
+});

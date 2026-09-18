@@ -3,7 +3,7 @@
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
-import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE } from "../deploy-style.js";
+import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE } from "../deploy-style.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -296,9 +296,13 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
   for (const type of types) {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
-    if (exists(typeDir)) collect(typeDir, envOpts, type);
+    if (exists(typeDir)) {
+      collect(typeDir, envOpts, type, () => false, deployStyle === NO_DEPLOY_STYLE ? keepDeploy : null);
+    }
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus) collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
+    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
+      collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
+    }
   }
   return { conflicts, removed };
 }
@@ -333,17 +337,20 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // 치환을 다시 걸면 사용자 수정본을 덮어쓰게 된다.
   const untouched = [];
 
-  // 타입별 워크플로우 (직하위)
+  // 타입별 워크플로우 (직하위). go/python처럼 CD 워크플로우가 server-deploy 없이 타입 루트에
+  // 바로 있는 타입도 있다 — "배포 안 함"일 때는 타입 루트에서도 CD 파일(SIMPLE-CICD 등)을
+  // 걸러야 한다. simple/nginx/traefik은 오늘과 동일하게 필터 없이 전부 복사한다.
   if (exists(typeDir)) {
-    const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters);
+    const typeRootFilter = deployStyle === NO_DEPLOY_STYLE ? keepDeploy : undefined;
+    const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters, typeRootFilter);
     untouched.push(...c.unchanged, ...c.localOnly);
   }
 
   // server-deploy
   const serverDeployDir = join(typeDir, "server-deploy");
   if (exists(serverDeployDir)) {
-    if (includeNexus) {
-      // Nexus 프로젝트 → 폴더째 제외 (복사 안 함)
+    if (includeNexus || deployStyle === NO_DEPLOY_STYLE) {
+      // Nexus 프로젝트 또는 "배포 안 함" → 폴더째 제외 (복사 안 함)
     } else {
       const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
       untouched.push(...c.unchanged, ...c.localOnly);
@@ -363,9 +370,11 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // env 치환 — 이 타입의 원본 디렉토리들에서 복사돼 존재하고, 손대지 않기로 한 것이 아닌 파일만
   for (const srcDir of [typeDir, serverDeployDir, nexusDir]) {
     if (!exists(srcDir)) continue;
+    if (srcDir === serverDeployDir && (includeNexus || deployStyle === NO_DEPLOY_STYLE)) continue; // 폴더째 제외
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
       if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
+      if (srcDir === typeDir && deployStyle === NO_DEPLOY_STYLE && !keepDeploy(filename)) continue; // 타입 루트 CD도 배제
       if (!existsSync(target)) continue;          // 건너뛴 파일 제외
       if (untouched.includes(filename)) continue; // unchanged/localOnly 제외
       configureEnv(target, { ...envOpts, collectAsks }); // env 계획 values/useDefaults 포함
@@ -417,10 +426,13 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   for (const type of types) {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
-    if (exists(typeDir)) merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline), type);
+    if (exists(typeDir)) {
+      const typeRootFilter = deployStyle === NO_DEPLOY_STYLE ? deployFilter(deployStyle) : null;
+      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, typeRootFilter), type);
+    }
 
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus) {
+    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
       merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle)), type);
     }
 

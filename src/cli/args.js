@@ -1,6 +1,6 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
-import { DEPLOY_STYLES, isDeployStyle } from "../core/deploy-style.js";
+import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 
 // argv(process.argv.slice(2)) → 파싱 결과. 오류 시 throw(호출부에서 exit 1).
 export function parseArgs(argv) {
@@ -80,7 +80,7 @@ export function parseArgs(argv) {
       case "--deploy-style": {
         const v = args.shift();
         if (!isDeployStyle(v)) {
-          throw new CliError(`--deploy-style 값이 올바르지 않습니다: ${v ?? "(없음)"} (${DEPLOY_STYLES.map((s) => s.value).join(" | ")})`);
+          throw new CliError(`--deploy-style 값이 올바르지 않습니다: ${v ?? "(없음)"} (${[...DEPLOY_STYLES.map((s) => s.value), NO_DEPLOY_STYLE].join(" | ")})`);
         }
         result.deployStyle = v; break;
       }

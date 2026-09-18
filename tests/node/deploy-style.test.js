@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   deployFilter, isDeployWorkflow, activateDeployTrigger, isDeployStyle, DEFAULT_DEPLOY_STYLE,
+  NO_DEPLOY_STYLE, cleanupOtherDeployWorkflows,
 } from "../../src/core/deploy-style.js";
+import { sha256 } from "../../src/core/baseline.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
@@ -49,11 +51,13 @@ test("activateDeployTrigger: 이미 켜져 있으면 그대로 둔다 (멱등)",
 
 test("--deploy-style: 값 검증", () => {
   assert.strictEqual(parseArgs(["--deploy-style", "nginx"]).deployStyle, "nginx");
+  assert.strictEqual(parseArgs(["--deploy-style", "none"]).deployStyle, "none");
   assert.strictEqual(parseArgs([]).deployStyle, "", "미지정은 빈값 → 저장값 또는 기본값(simple)");
   assert.throws(() => parseArgs(["--deploy-style", "k8s"]), /deploy-style/);
   assert.throws(() => parseArgs(["--deploy-style"]), /deploy-style/);
-  assert.ok(isDeployStyle("traefik") && !isDeployStyle("k8s") && !isDeployStyle("all"));
+  assert.ok(isDeployStyle("traefik") && isDeployStyle("none") && !isDeployStyle("k8s") && !isDeployStyle("all"));
   assert.strictEqual(DEFAULT_DEPLOY_STYLE, "simple");
+  assert.strictEqual(NO_DEPLOY_STYLE, "none");
 });
 
 function springTarget() {
@@ -63,6 +67,26 @@ function springTarget() {
   writeFileSync(join(target, "build.gradle.kts"), 'version = "1.0.0"\n');
   return target;
 }
+
+function goTarget() {
+  const target = mkdtempSync(join(tmpdir(), "paw-deploy-style-go-"));
+  writeFileSync(join(target, "go.mod"), "module example.com/svc\n\ngo 1.22\n");
+  return target;
+}
+
+function installGo(target, deployStyle) {
+  const paths = new Map([["go", "."]]);
+  return runFull(createContext({
+    mode: "full", force: true, types: ["go"], version: "1.0.0", versionCode: 1,
+    branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+    paths, repoName: "svc", resolvers: makeResolvers(target, "svc", paths),
+    now: "2026-08-12 10:00:00", today: "2026-08-12", templateVersion: "0.2.2", deployStyle,
+  }), resolvePayloadRoot(), target);
+}
+
+const GO_CI = "PROJECT-GO-CI.yaml";
+const GO_SIMPLE = "PROJECT-GO-SIMPLE-CICD.yaml";
+const GO_PREVIEW = "PROJECT-GO-PR-PREVIEW.yaml";
 
 function install(target, deployStyle) {
   const paths = new Map([["spring", "."]]);
@@ -159,4 +183,88 @@ test("deployFilter: 알 수 없는 값은 전부 통과가 아니라 기본값�
 test("version.yml의 deploy_style은 인라인 주석을 값으로 먹지 않는다", () => {
   const vy = 'metadata:\n  template:\n    options:\n      deploy_style: "nginx" # simple | nginx | traefik\n';
   assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
+});
+
+test("deployFilter('none'): CD 워크플로우 3종을 모두 제외하고 PR 프리뷰·common은 통과시킨다", () => {
+  const keep = deployFilter("none");
+  assert.ok(!keep(SIMPLE));
+  assert.ok(!keep(NGINX));
+  assert.ok(!keep(TRAEFIK));
+  assert.ok(keep(PREVIEW), "PR 프리뷰는 deployFilter 자체로는 배제 대상이 아니다 (폴더째 제외는 Task 2가 배선)");
+  assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
+});
+
+test("'none' 추가가 기존 판별 로직을 건드리지 않는다 — isDeployWorkflow는 무변경, 알 수 없는 값은 여전히 simple로 수렴한다", () => {
+  assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
+  assert.ok(!isDeployWorkflow(PREVIEW));
+  const keepUnknown = deployFilter("잘못된값");
+  assert.ok(keepUnknown(SIMPLE));
+  assert.ok(!keepUnknown(NGINX));
+  assert.ok(!keepUnknown(TRAEFIK));
+});
+
+test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 이전 CD는 정리하고 PR 프리뷰는 남긴다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-deploy-cleanup-"));
+  try {
+    const simpleContent = "name: simple\n";
+    const previewContent = "name: preview\n";
+    writeFileSync(join(dir, SIMPLE), simpleContent);
+    writeFileSync(join(dir, PREVIEW), previewContent);
+    const baseline = { files: { [SIMPLE]: { installed: sha256(simpleContent) } } };
+
+    const result = cleanupOtherDeployWorkflows(dir, [SIMPLE, PREVIEW], "none", baseline);
+
+    assert.deepStrictEqual(result.removed, [SIMPLE]);
+    assert.deepStrictEqual(result.backedUp, []);
+    assert.ok(!readdirSync(dir).includes(SIMPLE), "손대지 않은 이전 CD는 삭제된다");
+    assert.ok(readdirSync(dir).includes(PREVIEW), "PR 프리뷰는 CD가 아니므로 cleanup 대상이 아니다");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("runFull: 'none'을 고르면 CD는 물론 PR 프리뷰까지 설치되지 않는다", () => {
+  const target = springTarget();
+  try {
+    install(target, "none");
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
+    assert.deepStrictEqual(files, [], "server-deploy 폴더 전체(PR 프리뷰 포함)가 제외돼야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD는 정리되지만 이미 깔린 PR 프리뷰는 남는다", () => {
+  const target = springTarget();
+  try {
+    install(target, "simple");
+    const previewPath = join(target, ".github/workflows", PREVIEW);
+    const previewBefore = readFileSync(previewPath, "utf8");
+    const r = install(target, "none");
+    assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
+    assert.deepStrictEqual(files, [PREVIEW],
+      "PR 프리뷰는 CD가 아니라 cleanup 대상이 아니다 — 폴더 제외는 신규 설치 범위에만 적용되는 기존 제약");
+    assert.strictEqual(readFileSync(previewPath, "utf8"), previewBefore,
+      "server-deploy 폴더째 제외되므로 이미 깔린 PR 프리뷰는 재복사/재치환되지 않아 내용이 바이트 단위로 동일해야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: go 타입에서 'none'을 고르면 타입 루트의 CD 파일도 제외된다 (server-deploy 폴더가 없는 타입)", () => {
+  const target = goTarget();
+  try {
+    installGo(target, "none");
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("GO"));
+    assert.deepStrictEqual(files.sort(), [GO_CI, GO_PREVIEW].sort(),
+      "CD(SIMPLE-CICD)만 빠지고 CI·PR 프리뷰는 그대로 설치돼야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: go에서 simple로 설치 후 'none'으로 전환하면 CD가 .bak 없이 깔끔하게 삭제된다", () => {
+  const target = goTarget();
+  try {
+    installGo(target, "simple");
+    const r = installGo(target, "none");
+    assert.deepStrictEqual(r.cleanup.removed, [GO_SIMPLE],
+      "타입 루트 CD도 재복사되지 않아야 baseline과 일치해 깔끔히 제거된다 — 재복사되면 매번 해시가 달라져 .bak으로 새는 회귀가 있었다");
+    assert.deepStrictEqual(r.cleanup.backedUp, []);
+    const files = readdirSync(join(target, ".github/workflows"));
+    assert.ok(!files.includes(GO_SIMPLE) && !files.includes(`${GO_SIMPLE}.bak`));
+  } finally { rmSync(target, { recursive: true, force: true }); }
 });

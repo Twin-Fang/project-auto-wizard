@@ -10,7 +10,7 @@ import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
-import { deployFilter } from "../core/deploy-style.js";
+import { deployFilter, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
@@ -58,9 +58,19 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
-    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus 아니면) server-deploy + (nexus면) nexus
-    units.push([type, typeDir, null]);
-    units.push([type, join(typeDir, includeNexus ? "nexus" : "server-deploy"), includeNexus ? null : keepDeploy]);
+    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus면) nexus + (그 외엔, "배포 안 함"이
+    // 아닐 때만) server-deploy. server-deploy가 있는 타입은 "none"일 때 그 폴더(PR 프리뷰
+    // 포함) 자체를 스캔에서 뺀다.
+    // go/python처럼 CD가 server-deploy 없이 타입 루트에 바로 있는 타입은, "배포 안 함"일 때
+    // 타입 루트 스캔에도 keepDeploy를 걸어야 CD 전용 ask 키(예: DEPLOY_PORT)가 걸러진다.
+    // PR 프리뷰 자체의 ask 키(SSH_AUTH_METHOD 등)는 이 필터로는 걸러지지 않는다 — PR 프리뷰는
+    // 배포 방식과 무관하게 항상 설치되는 별도 축이라 의도된 잔여 범위다.
+    units.push([type, typeDir, deployStyle === NO_DEPLOY_STYLE ? keepDeploy : null]);
+    if (includeNexus) {
+      units.push([type, join(typeDir, "nexus"), null]);
+    } else if (deployStyle !== NO_DEPLOY_STYLE) {
+      units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
+    }
   }
   if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 

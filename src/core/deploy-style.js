@@ -14,7 +14,13 @@ export const DEPLOY_STYLES = [
 
 export const DEFAULT_DEPLOY_STYLE = "simple";
 
-export const isDeployStyle = (v) => DEPLOY_STYLES.some((s) => s.value === v);
+// 서버 배포 자체를 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 값.
+// DEPLOY_STYLES에는 넣지 않는다 — isDeployWorkflow/suffixOf가 이 배열을 순회하는데, 빈 접미사를
+// 돌려주면 endsWith("")가 항상 참이라 모든 파일이 CD로 오판되어 cleanupOtherDeployWorkflows가
+// 설치된 워크플로우 전체를 지우는 회귀가 생긴다 (이슈 #126).
+export const NO_DEPLOY_STYLE = "none";
+
+export const isDeployStyle = (v) => v === NO_DEPLOY_STYLE || DEPLOY_STYLES.some((s) => s.value === v);
 
 // 이 파일이 CD 본체인가 (= 택1 대상인가). PR 프리뷰는 배포 방식과 직교하는 축이라 제외한다.
 export const isDeployWorkflow = (filename) => DEPLOY_STYLES.some((s) => filename.endsWith(s.suffix));
@@ -25,7 +31,9 @@ const suffixOf = (style) =>
   (DEPLOY_STYLES.find((s) => s.value === style) ?? DEPLOY_STYLES.find((s) => s.value === DEFAULT_DEPLOY_STYLE)).suffix;
 
 // 파일 필터 — 고른 방식의 CD만 통과. CD가 아닌 파일(PR 프리뷰·common 등)은 항상 통과.
+// "none"은 CD를 하나도 설치하지 않으므로 접미사 매칭 없이 CD 파일 전부를 거른다.
 export function deployFilter(style) {
+  if (style === NO_DEPLOY_STYLE) return (filename) => !isDeployWorkflow(filename);
   const suffix = suffixOf(style);
   return (filename) => !isDeployWorkflow(filename) || filename.endsWith(suffix);
 }
