@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   deployFilter, isDeployWorkflow, activateDeployTrigger, isDeployStyle, DEFAULT_DEPLOY_STYLE,
+  NO_DEPLOY_STYLE, cleanupOtherDeployWorkflows,
 } from "../../src/core/deploy-style.js";
+import { sha256 } from "../../src/core/baseline.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
@@ -49,11 +51,13 @@ test("activateDeployTrigger: 이미 켜져 있으면 그대로 둔다 (멱등)",
 
 test("--deploy-style: 값 검증", () => {
   assert.strictEqual(parseArgs(["--deploy-style", "nginx"]).deployStyle, "nginx");
+  assert.strictEqual(parseArgs(["--deploy-style", "none"]).deployStyle, "none");
   assert.strictEqual(parseArgs([]).deployStyle, "", "미지정은 빈값 → 저장값 또는 기본값(simple)");
   assert.throws(() => parseArgs(["--deploy-style", "k8s"]), /deploy-style/);
   assert.throws(() => parseArgs(["--deploy-style"]), /deploy-style/);
-  assert.ok(isDeployStyle("traefik") && !isDeployStyle("k8s") && !isDeployStyle("all"));
+  assert.ok(isDeployStyle("traefik") && isDeployStyle("none") && !isDeployStyle("k8s") && !isDeployStyle("all"));
   assert.strictEqual(DEFAULT_DEPLOY_STYLE, "simple");
+  assert.strictEqual(NO_DEPLOY_STYLE, "none");
 });
 
 function springTarget() {
@@ -159,4 +163,40 @@ test("deployFilter: 알 수 없는 값은 전부 통과가 아니라 기본값�
 test("version.yml의 deploy_style은 인라인 주석을 값으로 먹지 않는다", () => {
   const vy = 'metadata:\n  template:\n    options:\n      deploy_style: "nginx" # simple | nginx | traefik\n';
   assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
+});
+
+test("deployFilter('none'): CD 워크플로우 3종을 모두 제외하고 PR 프리뷰·common은 통과시킨다", () => {
+  const keep = deployFilter("none");
+  assert.ok(!keep(SIMPLE));
+  assert.ok(!keep(NGINX));
+  assert.ok(!keep(TRAEFIK));
+  assert.ok(keep(PREVIEW), "PR 프리뷰는 deployFilter 자체로는 배제 대상이 아니다 (폴더째 제외는 Task 2가 배선)");
+  assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
+});
+
+test("'none' 추가가 기존 판별 로직을 건드리지 않는다 — isDeployWorkflow는 무변경, 알 수 없는 값은 여전히 simple로 수렴한다", () => {
+  assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
+  assert.ok(!isDeployWorkflow(PREVIEW));
+  const keepUnknown = deployFilter("잘못된값");
+  assert.ok(keepUnknown(SIMPLE));
+  assert.ok(!keepUnknown(NGINX));
+  assert.ok(!keepUnknown(TRAEFIK));
+});
+
+test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 이전 CD는 정리하고 PR 프리뷰는 남긴다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-deploy-cleanup-"));
+  try {
+    const simpleContent = "name: simple\n";
+    const previewContent = "name: preview\n";
+    writeFileSync(join(dir, SIMPLE), simpleContent);
+    writeFileSync(join(dir, PREVIEW), previewContent);
+    const baseline = { files: { [SIMPLE]: { installed: sha256(simpleContent) } } };
+
+    const result = cleanupOtherDeployWorkflows(dir, [SIMPLE, PREVIEW], "none", baseline);
+
+    assert.deepStrictEqual(result.removed, [SIMPLE]);
+    assert.deepStrictEqual(result.backedUp, []);
+    assert.ok(!readdirSync(dir).includes(SIMPLE), "손대지 않은 이전 CD는 삭제된다");
+    assert.ok(readdirSync(dir).includes(PREVIEW), "PR 프리뷰는 CD가 아니므로 cleanup 대상이 아니다");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
