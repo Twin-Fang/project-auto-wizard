@@ -37,7 +37,7 @@ projectops/ (신규)
 │   │   │   │                    #   RELEASE-PUBLISH(tag+Release), README-VERSION-UPDATE
 │   │   │   └── secret-backup/   # opt-in (--secret-backup)
 │   │   ├── spring/
-│   │   │   ├── server-deploy/   # 기본 포함, Nexus opt-in true면 폴더째 제외
+│   │   │   ├── server-deploy/   # 기본 포함, Nexus opt-in true 또는 배포 방식 "none"이면 폴더째 제외
 │   │   │   └── nexus/           # opt-in (--nexus)
 │   │   └── {flutter,react,next,node,python,react-native,react-native-expo,basic}/
 │   ├── scripts/                 # version_manager.py, changelog_manager.py, truncate_release_notes.py, issue_helper.py (전부 Python)
@@ -82,7 +82,7 @@ projectops/ (신규)
 
 ### 기존 opt-in 유지
 
-- Nexus (`--nexus`): spring 라이브러리 publish. true면 `server-deploy/` 폴더 자동 제외.
+- Nexus (`--nexus`): spring 라이브러리 publish. true면 `server-deploy/` 폴더 자동 제외. 배포 방식이 `none`(서버 배포 안 함)이어도 동일하게 폴더째 제외.
 - Secret 백업 (`--secret-backup`).
 
 ## 5. 릴리스 자동화 명세 (GitHub-native AI Release Automation)

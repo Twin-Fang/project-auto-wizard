@@ -10,7 +10,7 @@ import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
-import { deployFilter } from "../core/deploy-style.js";
+import { deployFilter, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
@@ -58,9 +58,15 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
-    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus 아니면) server-deploy + (nexus면) nexus
+    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus면) nexus + (그 외엔, "배포 안 함"이
+    // 아닐 때만) server-deploy. "none"은 이 유닛 자체를 스캔에서 뺀다 — PR 프리뷰의 SSH 관련
+    // 질문까지 함께 걸러야 "배포 설정을 생성하지 않음" 라벨과 실제 동작이 맞는다.
     units.push([type, typeDir, null]);
-    units.push([type, join(typeDir, includeNexus ? "nexus" : "server-deploy"), includeNexus ? null : keepDeploy]);
+    if (includeNexus) {
+      units.push([type, join(typeDir, "nexus"), null]);
+    } else if (deployStyle !== NO_DEPLOY_STYLE) {
+      units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
+    }
   }
   if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 

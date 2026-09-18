@@ -2,7 +2,7 @@
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
 // 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
 import * as engine from "./readline-engine.js";
-import { DEPLOY_STYLES } from "../core/deploy-style.js";
+import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 
 export const CANCEL = engine.CANCEL;
 
@@ -82,18 +82,24 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
   });
 }
 
-// 배포 방식 선택 (이슈 #80). 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
+// 배포 방식 선택 (이슈 #80, #126). 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
 // 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
 // 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
+// "서버 배포 안 함"은 server-deploy 폴더 자체(PR 프리뷰 포함)를 제외한다 — 서버 배포를
+// 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 선택지다.
 export async function selectDeployStyle() {
   engine.note(
     "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
-    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다.",
+    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다\n" +
+    "(단, \"서버 배포 안 함\"을 고르면 PR 프리뷰도 함께 제외됩니다).",
     "배포 방식",
   );
   return engine.select({
     message: "서버 배포는 어떤 방식으로 할까요?",
-    options: DEPLOY_STYLES.map((s) => ({ value: s.value, label: s.label })),
+    options: [
+      ...DEPLOY_STYLES.map((s) => ({ value: s.value, label: s.label })),
+      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD 워크플로우/배포 설정을 생성하지 않음" },
+    ],
   });
 }
 

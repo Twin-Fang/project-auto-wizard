@@ -3,7 +3,7 @@
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
-import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE } from "../deploy-style.js";
+import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE } from "../deploy-style.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -298,7 +298,9 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) collect(typeDir, envOpts, type);
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus) collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
+    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
+      collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
+    }
   }
   return { conflicts, removed };
 }
@@ -342,8 +344,8 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // server-deploy
   const serverDeployDir = join(typeDir, "server-deploy");
   if (exists(serverDeployDir)) {
-    if (includeNexus) {
-      // Nexus 프로젝트 → 폴더째 제외 (복사 안 함)
+    if (includeNexus || deployStyle === NO_DEPLOY_STYLE) {
+      // Nexus 프로젝트 또는 "배포 안 함" → 폴더째 제외 (복사 안 함)
     } else {
       const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
       untouched.push(...c.unchanged, ...c.localOnly);
@@ -363,6 +365,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // env 치환 — 이 타입의 원본 디렉토리들에서 복사돼 존재하고, 손대지 않기로 한 것이 아닌 파일만
   for (const srcDir of [typeDir, serverDeployDir, nexusDir]) {
     if (!exists(srcDir)) continue;
+    if (srcDir === serverDeployDir && (includeNexus || deployStyle === NO_DEPLOY_STYLE)) continue; // 폴더째 제외
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
       if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
@@ -420,7 +423,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
     if (exists(typeDir)) merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline), type);
 
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus) {
+    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
       merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle)), type);
     }
 

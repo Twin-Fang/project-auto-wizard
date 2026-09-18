@@ -200,3 +200,24 @@ test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 �
     assert.ok(readdirSync(dir).includes(PREVIEW), "PR 프리뷰는 CD가 아니므로 cleanup 대상이 아니다");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("runFull: 'none'을 고르면 CD는 물론 PR 프리뷰까지 설치되지 않는다", () => {
+  const target = springTarget();
+  try {
+    install(target, "none");
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
+    assert.deepStrictEqual(files, [], "server-deploy 폴더 전체(PR 프리뷰 포함)가 제외돼야 한다");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD는 정리되지만 이미 깔린 PR 프리뷰는 남는다", () => {
+  const target = springTarget();
+  try {
+    install(target, "simple");
+    const r = install(target, "none");
+    assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
+    const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
+    assert.deepStrictEqual(files, [PREVIEW],
+      "PR 프리뷰는 CD가 아니라 cleanup 대상이 아니다 — 폴더 제외는 신규 설치 범위에만 적용되는 기존 제약");
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
