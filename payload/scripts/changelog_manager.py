@@ -277,7 +277,7 @@ def classify_commits(lines: list[str]) -> dict:
     """
     커밋 제목 목록을 3단계 규칙으로 분류.
 
-    1단계: projectops 컨벤션 — "제목 : type : 내용 [URL]"
+    1단계: 제목 컨벤션 — "제목 : type : 내용 [URL]"
     2단계: Conventional Commits — "type(scope)!: 내용"
            (perf/style/build/ci → chore 버킷으로 매핑)
     3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식)
@@ -298,7 +298,7 @@ def classify_commits(lines: list[str]) -> dict:
         # 1단계가 2단계보다 먼저다 — 트레이드오프: "제목 : feat : 내용" 형식은
         # "feat: ..." Conventional Commits와 겹칠 수 없지만(타입 앞에 제목 필수),
         # 제목이 있는 줄에 " : type : "가 우연히 들어가면 tier-2 해석 기회 없이
-        # tier-1로 확정된다. projectops 컨벤션 레포에서는 이것이 의도된 우선순위다.
+        # tier-1로 확정된다. 이 컨벤션을 쓰는 레포에서는 이것이 의도된 우선순위다.
         tier1 = _TIER1_RE.match(line)
         if tier1:
             title = tier1.group(1).strip()

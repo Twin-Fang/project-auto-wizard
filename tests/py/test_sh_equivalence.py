@@ -1,8 +1,8 @@
 """Behavioral equivalence harness: compares payload/scripts/version_manager.py
-against the bash reference version_manager.sh (SUH-DEVOPS-TEMPLATE).
+against the bash reference version_manager.sh.
 
 Skipped unless:
-  - env var PROJECTOPS_SH_REF points to the bash script, AND
+  - env var VERSION_MANAGER_SH_REF points to the bash script, AND
   - `bash` is available on PATH.
 
 The bash reference also requires `yq` and `jq` to be installed (see the
@@ -11,7 +11,7 @@ test will report the mismatch rather than silently skip, since that's a
 real environment gap the caller should know about.
 
 Usage:
-  PROJECTOPS_SH_REF=/path/to/version_manager.sh python -m unittest tests.py.test_sh_equivalence -v
+  VERSION_MANAGER_SH_REF=/path/to/version_manager.sh python -m unittest tests.py.test_sh_equivalence -v
 
 Bash is the source of truth: any mismatch found here should be fixed on the
 Python side, never by "adjusting" the bash reference (read-only).
@@ -29,14 +29,14 @@ from pathlib import Path
 PY_SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "version_manager.py"
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
-SH_REF = os.environ.get("PROJECTOPS_SH_REF")
+SH_REF = os.environ.get("VERSION_MANAGER_SH_REF")
 BASH_AVAILABLE = shutil.which("bash") is not None
 
 SKIP_REASON = None
 if not SH_REF:
-    SKIP_REASON = "PROJECTOPS_SH_REF not set"
+    SKIP_REASON = "VERSION_MANAGER_SH_REF not set"
 elif not Path(SH_REF).is_file():
-    SKIP_REASON = f"PROJECTOPS_SH_REF does not point to a file: {SH_REF}"
+    SKIP_REASON = f"VERSION_MANAGER_SH_REF does not point to a file: {SH_REF}"
 elif not BASH_AVAILABLE:
     SKIP_REASON = "bash not found on PATH"
 

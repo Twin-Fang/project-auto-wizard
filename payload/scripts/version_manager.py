@@ -5,8 +5,8 @@ version_manager.py — general-purpose version management script (stdlib only).
 This script is copied into user repos (.github/scripts/) by project-auto-wizard
 and runs standalone on GitHub Actions ubuntu runners (python3, no third-party deps).
 
-It is a Python rewrite of the battle-tested bash version_manager.sh from
-SUH-DEVOPS-TEMPLATE. Behavioral equivalence with that script is the design goal:
+It is a Python rewrite of the battle-tested bash reference implementation
+(version_manager.sh). Behavioral equivalence with that script is the design goal:
 - version.yml is the single source of truth for `version` and `version_code`.
 - version.yml is edited via line-based regex replacements that preserve all
   comments and formatting (never rewritten wholesale, never parsed with a YAML lib).
