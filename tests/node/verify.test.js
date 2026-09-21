@@ -31,8 +31,8 @@ test("scanUnsubstituted: 남아 있는 __TOKEN__을 파일·줄과 함께 보고
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("scanUnsubstituted: heredoc 구분자(__SUH_*__)는 치환 대상이 아니므로 무시한다", () => {
-  const dir = wfDirWith({ "A.yaml": "run: |\n  cat <<'__SUH_FILE_CONTENT_EOF__'\n" });
+test("scanUnsubstituted: heredoc 구분자(__WIZARD_*__)는 치환 대상이 아니므로 무시한다", () => {
+  const dir = wfDirWith({ "A.yaml": "run: |\n  cat <<'__WIZARD_FILE_CONTENT_EOF__'\n" });
   try {
     assert.deepStrictEqual(scanUnsubstituted(dir, ["A.yaml"]), []);
   } finally { rmSync(dir, { recursive: true, force: true }); }

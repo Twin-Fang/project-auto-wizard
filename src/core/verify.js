@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 
 // 치환 대상이 아닌 토큰 — 워크플로우 스크립트 안의 heredoc 구분자다. 값이 아니라 문법이므로
-// 미치환 검사에서 제외한다. (예: cat <<'__SUH_FILE_CONTENT_EOF__')
-const SENTINEL_RE = /^__SUH_[A-Z0-9_]*__$/;
+// 미치환 검사에서 제외한다. (예: cat <<'__WIZARD_FILE_CONTENT_EOF__')
+const SENTINEL_RE = /^__WIZARD_[A-Z0-9_]*__$/;
 const PLACEHOLDER_RE = /__[A-Z][A-Z0-9_]*__/g;
 
 // 주석으로 죽어 있는 줄 — 실행되지 않으므로 검사 대상이 아니다.
