@@ -6,8 +6,7 @@
 ## 프로젝트 정체
 
 - **이름**: project-auto-wizard / GitHub `Twin-Fang/project-auto-wizard` / npm `project-auto-wizard` / 실행 `npx project-auto-wizard`
-- 오픈소스 공모전 제출용. SUH-DEVOPS-TEMPLATE(projectops)의 슬림 파생 — 3축: ①npx 마법사(9타입+멀티+모노레포) ②payload 워크플로우 ③버전/체인지로그 Python 백엔드
-- 복사 원본($SRC): `D:\0-suh\project\suh-github-template` (읽기 전용 참조. 구 문서의 `E:\github\SUH-DEVOPS-TEMPLATE`는 이 경로로 이전됨)
+- 오픈소스 공모전 제출용 — 3축: ①npx 마법사(9타입+멀티+모노레포) ②payload 워크플로우 ③버전/체인지로그 Python 백엔드
 
 ## WP 진행 상황 — 구현 전부 완료 ✅
 
