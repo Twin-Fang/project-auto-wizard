@@ -8,9 +8,9 @@
 
 **Tech Stack:** Node ≥20 (ESM, `node --test`, 의존성 0) / Python 3 표준 라이브러리만 (`unittest`) / GitHub Actions / gh CLI / GitHub Models (`models.github.ai`)
 
-**Spec:** `E:\github\SUH-DEVOPS-TEMPLATE\docs\superpowers\specs\2026-07-08-projectops-oss-design.md` (승인됨)
+**Spec:** `docs/2026-07-08-projectops-oss-design.md` (승인됨)
 
-**Source repo (복사 원본):** `E:\github\SUH-DEVOPS-TEMPLATE` — 아래에서 `$SRC`로 표기. 신규 레포는 `$DST` = `E:\github\project-auto-wizard`.
+**대상 레포:** 신규 레포는 `$DST` = `E:\github\project-auto-wizard`. (이 문서의 `$SRC`는 당시 작업에서 참조하던 복사 원본 경로이며 현재는 사용하지 않는다.)
 
 ---
 
@@ -100,7 +100,7 @@ mkdir -p bin src payload/workflows/common payload/scripts tests/node tests/py te
 > `files`에 `payload/` 포함 필수 — npm 패키지에 동봉돼야 마법사가 오프라인 복사 가능.
 > 패키지명 확정: `project-auto-wizard` (npm 404 확인, 2026-07-08). CLI UI 문자열의 "ProjectOps" 브랜딩도 "Project Auto Wizard"로 rebrand (Task 12에서 일괄).
 
-- [ ] **Step 3: LICENSE(MIT, author Cassiiopeia), .gitignore(node_modules, __pycache__, .DS_Store), version.yml 작성**
+- [ ] **Step 3: LICENSE(MIT), .gitignore(node_modules, __pycache__, .DS_Store), version.yml 작성**
 
 `version.yml`은 `$SRC/version.yml`의 주석 헤더 구조를 유지하되 값만 초기화:
 

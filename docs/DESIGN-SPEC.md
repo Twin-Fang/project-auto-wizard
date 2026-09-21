@@ -2,7 +2,6 @@
 
 - 날짜: 2026-07-08
 - 상태: 사용자 승인된 설계 (브레인스토밍 완료)
-- 원본: SUH-DEVOPS-TEMPLATE (Cassiiopeia/projectops) v4.0.4
 
 ## 1. 목적
 

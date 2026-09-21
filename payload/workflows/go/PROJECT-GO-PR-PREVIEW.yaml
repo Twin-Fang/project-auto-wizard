@@ -19,9 +19,9 @@
 # ===================================================================
 #
 # 🚀 사용법:
-# @suh-lab server build    - Preview 빌드 및 배포
-# @suh-lab server destroy  - Preview 환경 삭제
-# @suh-lab server status   - 현재 상태 확인
+# /wizard server build    - Preview 빌드 및 배포
+# /wizard server destroy  - Preview 환경 삭제
+# /wizard server status   - 현재 상태 확인
 #
 # 📊 리소스 네이밍:
 # - 컨테이너: {PROJECT_NAME}-pr-{번호}
@@ -64,7 +64,7 @@ env:
 
   # Issue Helper 댓글 마커 (프로젝트별 수정 필요)
   # Issue 댓글에서 브랜치명을 추출할 때 사용
-  ISSUE_HELPER_MARKER: 'Guide by SUH-LAB'
+  ISSUE_HELPER_MARKER: '<!-- project-auto-wizard issue helper -->'
 
   # Health Check 설정 (프로젝트별 수정 필요)
   # - HEALTH_CHECK_PATH: HTTP Health Check 경로 (빈값이면 HTTP 체크 건너뜀)
@@ -115,7 +115,7 @@ jobs:
       is_custom_branch: ${{ steps.parse.outputs.is_custom_branch }}
     steps:
       - name: 댓글에 👀 리액션 추가
-        if: contains(github.event.comment.body, '@suh-lab') && contains(github.event.comment.body, 'server')
+        if: contains(github.event.comment.body, '/wizard') && contains(github.event.comment.body, 'server')
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -143,8 +143,8 @@ jobs:
           fi
 
           # 명령어 파싱 (브랜치 파라미터 지원)
-          # 형식: @suh-lab server <command> [브랜치명]
-          if [[ "$COMMENT" =~ @suh-lab[[:space:]]+server[[:space:]]+build([[:space:]]+([^[:space:]]+))? ]]; then
+          # 형식: /wizard server <command> [브랜치명]
+          if [[ "$COMMENT" =~ /wizard[[:space:]]+server[[:space:]]+build([[:space:]]+([^[:space:]]+))? ]]; then
             echo "command=build" >> $GITHUB_OUTPUT
             echo "is_valid=true" >> $GITHUB_OUTPUT
             if [[ -n "${BASH_REMATCH[2]}" ]]; then
@@ -155,7 +155,7 @@ jobs:
               echo "is_custom_branch=false" >> $GITHUB_OUTPUT
               echo "✅ 명령어 감지: build"
             fi
-          elif [[ "$COMMENT" =~ @suh-lab[[:space:]]+server[[:space:]]+destroy([[:space:]]+([^[:space:]]+))? ]]; then
+          elif [[ "$COMMENT" =~ /wizard[[:space:]]+server[[:space:]]+destroy([[:space:]]+([^[:space:]]+))? ]]; then
             echo "command=destroy" >> $GITHUB_OUTPUT
             echo "is_valid=true" >> $GITHUB_OUTPUT
             if [[ -n "${BASH_REMATCH[2]}" ]]; then
@@ -166,7 +166,7 @@ jobs:
               echo "is_custom_branch=false" >> $GITHUB_OUTPUT
               echo "✅ 명령어 감지: destroy"
             fi
-          elif [[ "$COMMENT" =~ @suh-lab[[:space:]]+server[[:space:]]+status([[:space:]]+([^[:space:]]+))? ]]; then
+          elif [[ "$COMMENT" =~ /wizard[[:space:]]+server[[:space:]]+status([[:space:]]+([^[:space:]]+))? ]]; then
             echo "command=status" >> $GITHUB_OUTPUT
             echo "is_valid=true" >> $GITHUB_OUTPUT
             if [[ -n "${BASH_REMATCH[2]}" ]]; then
@@ -179,7 +179,7 @@ jobs:
             fi
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ @suh-lab server 명령어가 아님"
+            echo "ℹ️ /wizard server 명령어가 아님"
           fi
 
   # -----------------------------------------------------------------
@@ -519,17 +519,17 @@ jobs:
               '### 📋 명령어',
               '| 명령어 | 설명 |',
               '|--------|------|',
-              '| `@suh-lab server build` | 최신 커밋으로 재배포 |',
-              '| `@suh-lab server destroy` | Preview 환경 삭제 |',
-              '| `@suh-lab server status` | 현재 상태 확인 |',
+              '| `/wizard server build` | 최신 커밋으로 재배포 |',
+              '| `/wizard server destroy` | Preview 환경 삭제 |',
+              '| `/wizard server status` | 현재 상태 확인 |',
               '',
               '<details>',
               '<summary>🔧 고급 명령어 (다른 Issue/PR에서 제어)</summary>',
               '',
               '```',
-              `@suh-lab server build ${branchName}`,
-              `@suh-lab server destroy ${branchName}`,
-              `@suh-lab server status ${branchName}`,
+              `/wizard server build ${branchName}`,
+              `/wizard server destroy ${branchName}`,
+              `/wizard server status ${branchName}`,
               '```',
               '</details>',
               '',
@@ -594,7 +594,7 @@ jobs:
               '',
               '### 💡 다음 단계',
               '1. 위 링크에서 빌드/배포 로그를 확인하세요',
-              '2. 문제를 수정한 후 다시 시도하세요: `@suh-lab server build`',
+              '2. 문제를 수정한 후 다시 시도하세요: `/wizard server build`',
               '',
               '---',
               '*🤖 이 댓글은 PR Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -1115,17 +1115,17 @@ jobs:
               '### 📋 명령어',
               '| 명령어 | 설명 |',
               '|--------|------|',
-              '| `@suh-lab server build` | 최신 커밋으로 재배포 |',
-              '| `@suh-lab server destroy` | Preview 환경 삭제 |',
-              '| `@suh-lab server status` | 현재 상태 확인 |',
+              '| `/wizard server build` | 최신 커밋으로 재배포 |',
+              '| `/wizard server destroy` | Preview 환경 삭제 |',
+              '| `/wizard server status` | 현재 상태 확인 |',
               '',
               '<details>',
               '<summary>🔧 고급 명령어 (다른 Issue/PR에서 제어)</summary>',
               '',
               '```',
-              `@suh-lab server build ${branchName}`,
-              `@suh-lab server destroy ${branchName}`,
-              `@suh-lab server status ${branchName}`,
+              `/wizard server build ${branchName}`,
+              `/wizard server destroy ${branchName}`,
+              `/wizard server status ${branchName}`,
               '```',
               '</details>',
               '',
@@ -1188,7 +1188,7 @@ jobs:
               '',
               '### 💡 다음 단계',
               '1. 위 링크에서 빌드/배포 로그를 확인하세요',
-              '2. 문제를 수정한 후 다시 시도하세요: `@suh-lab server build`',
+              '2. 문제를 수정한 후 다시 시도하세요: `/wizard server build`',
               '',
               '---',
               '*🤖 이 댓글은 Issue Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -1219,7 +1219,7 @@ jobs:
     if: |
       (github.event_name == 'pull_request' && github.event.action == 'closed') ||
       (github.event_name == 'issues' && github.event.action == 'closed') ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@suh-lab') && contains(github.event.comment.body, 'server destroy'))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/wizard') && contains(github.event.comment.body, 'server destroy'))
     runs-on: ubuntu-latest
     steps:
       - name: PR/Issue 번호 가져오기
@@ -1302,7 +1302,7 @@ jobs:
               `| **컨테이너** | \`${projectName}-pr-${number}\` |`,
               '| **상태** | 삭제됨 |',
               '',
-              '다시 배포하려면: `@suh-lab server build`',
+              '다시 배포하려면: `/wizard server build`',
               '',
               '---',
               '*🤖 이 댓글은 PR/Issue Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -1401,8 +1401,8 @@ jobs:
                 '### 📋 명령어',
                 '| 명령어 | 설명 |',
                 '|--------|------|',
-                '| `@suh-lab server build` | 최신 커밋으로 재배포 |',
-                '| `@suh-lab server destroy` | Preview 환경 삭제 |',
+                '| `/wizard server build` | 최신 커밋으로 재배포 |',
+                '| `/wizard server destroy` | Preview 환경 삭제 |',
                 '',
                 '---',
                 `*🤖 이 댓글은 ${contextType} Preview 시스템에 의해 자동 생성되었습니다.*`
@@ -1416,7 +1416,7 @@ jobs:
                 `| **컨테이너** | \`${projectName}-pr-${number}\` |`,
                 '| **상태** | 🔴 Not Found |',
                 '',
-                '배포하려면: `@suh-lab server build`',
+                '배포하려면: `/wizard server build`',
                 '',
                 '---',
                 `*🤖 이 댓글은 ${contextType} Preview 시스템에 의해 자동 생성되었습니다.*`
@@ -1850,17 +1850,17 @@ jobs:
               '### 📋 명령어',
               '| 명령어 | 설명 |',
               '|--------|------|',
-              '| `@suh-lab server build` | 최신 커밋으로 재배포 |',
-              '| `@suh-lab server destroy` | Preview 환경 삭제 |',
-              '| `@suh-lab server status` | 현재 상태 확인 |',
+              '| `/wizard server build` | 최신 커밋으로 재배포 |',
+              '| `/wizard server destroy` | Preview 환경 삭제 |',
+              '| `/wizard server status` | 현재 상태 확인 |',
               '',
               '<details>',
               '<summary>🔧 고급 명령어 (다른 Issue/PR에서 제어)</summary>',
               '',
               '```',
-              `@suh-lab server build ${branchName}`,
-              `@suh-lab server destroy ${branchName}`,
-              `@suh-lab server status ${branchName}`,
+              `/wizard server build ${branchName}`,
+              `/wizard server destroy ${branchName}`,
+              `/wizard server status ${branchName}`,
               '```',
               '</details>',
               '',
@@ -1921,7 +1921,7 @@ jobs:
               '',
               '### 💡 다음 단계',
               '1. 위 링크에서 빌드/배포 로그를 확인하세요',
-              `2. 문제를 수정한 후 다시 시도하세요: \`@suh-lab server build ${branchName}\``,
+              `2. 문제를 수정한 후 다시 시도하세요: \`/wizard server build ${branchName}\``,
               '',
               '---',
               '*🤖 이 댓글은 Custom Branch Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -2051,7 +2051,7 @@ jobs:
               `| **컨테이너** | \`${containerName}\` |`,
               '| **상태** | 삭제됨 |',
               '',
-              `다시 배포하려면: \`@suh-lab server build ${branchName}\``,
+              `다시 배포하려면: \`/wizard server build ${branchName}\``,
               '',
               '---',
               '*🤖 이 댓글은 Custom Branch Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -2162,8 +2162,8 @@ jobs:
                 '### 📋 명령어',
                 '| 명령어 | 설명 |',
                 '|--------|------|',
-                `| \`@suh-lab server build ${branchName}\` | 최신 커밋으로 재배포 |`,
-                `| \`@suh-lab server destroy ${branchName}\` | Preview 환경 삭제 |`,
+                `| \`/wizard server build ${branchName}\` | 최신 커밋으로 재배포 |`,
+                `| \`/wizard server destroy ${branchName}\` | Preview 환경 삭제 |`,
                 '',
                 '---',
                 '*🤖 이 댓글은 Custom Branch Preview 시스템에 의해 자동 생성되었습니다.*'
@@ -2178,7 +2178,7 @@ jobs:
                 `| **컨테이너** | \`${containerName}\` |`,
                 '| **상태** | 🔴 Not Found |',
                 '',
-                `배포하려면: \`@suh-lab server build ${branchName}\``,
+                `배포하려면: \`/wizard server build ${branchName}\``,
                 '',
                 '---',
                 '*🤖 이 댓글은 Custom Branch Preview 시스템에 의해 자동 생성되었습니다.*'

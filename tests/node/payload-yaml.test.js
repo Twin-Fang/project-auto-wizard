@@ -525,10 +525,10 @@ test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 �
   }
 });
 
-test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER는 {{MAIN_BRANCH}}가 main으로 치환되어 있다", () => {
+test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER는 {{MAIN_BRANCH}}가 치환되어 있고 base 브랜치가 develop이다", () => {
   const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
   assert.ok(!text.includes("{{MAIN_BRANCH}}"), "플레이스홀더가 치환되지 않았습니다");
-  assert.match(text, /ISSUE_HELPER_BASE_BRANCH:\s*"main"/);
+  assert.match(text, /ISSUE_HELPER_BASE_BRANCH:\s*"develop"/);
 });
 
 test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", () => {
