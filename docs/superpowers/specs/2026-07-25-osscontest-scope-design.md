@@ -78,7 +78,7 @@
 | 개발 문서의 구체성 | README에 `wizard-prompts.yml` 커스터마이징 기능 문서화(이미 있는데 미문서화된 기능 — 저비용 고가치), 타입별 지원 표에 Flutter/Spring 실제 깊이 반영, `revert` 모드 동작 상세 문서화 |
 | 프로젝트 수준 | 액션 불필요 (이미 README에 충분히 반영) |
 
-**라이선스 검증 사전 준비**: 의존성 0개이므로 리스크가 낮으나, `license-checker`(npm)/`pip-licenses`(python) 스캔 리포트를 사전 생성해 "깨끗한 리포트" 한 장을 첨부용으로 준비. 원본 `SUH-DEVOPS-TEMPLATE`(Cassiiopeia/projectops)에서 포팅한 코드가 본인 소유임을 확인해 라이선스 충돌 없음을 명시.
+**라이선스 검증 사전 준비**: 의존성 0개이므로 리스크가 낮으나, `license-checker`(npm)/`pip-licenses`(python) 스캔 리포트를 사전 생성해 "깨끗한 리포트" 한 장을 첨부용으로 준비.
 
 **미해결 기술 부채**: HANDOFF.md에 남아있던 GitHub Models 403 이슈 실제 해결 여부 확인 — AI 엔진 체인이 실제 동작함을 증명.
 

@@ -17,7 +17,7 @@ class TestClassifyBumpLevel(unittest.TestCase):
     def test_feat_conventional_commit_is_minor(self):
         self.assertEqual(changelog_manager.classify_bump_level(["feat: add login flow"]), "minor")
 
-    def test_feat_projectops_convention_is_minor(self):
+    def test_feat_title_convention_is_minor(self):
         self.assertEqual(changelog_manager.classify_bump_level(["로그인 기능 : feat : 소셜 로그인 추가"]), "minor")
 
     def test_bang_marker_on_any_type_is_major(self):

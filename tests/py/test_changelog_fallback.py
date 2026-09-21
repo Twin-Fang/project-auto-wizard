@@ -10,7 +10,7 @@ from changelog_manager import classify_commits, render_fallback_md  # noqa: E402
 
 
 class TestClassifyCommits(unittest.TestCase):
-    def test_tier1_projectops_convention(self):
+    def test_tier1_title_convention(self):
         out = classify_commits(
             ["로그인 개선 : feat : 소셜 로그인 추가 https://github.com/o/r/issues/1"]
         )
