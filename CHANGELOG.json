@@ -1,15 +1,60 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-08-29T04:16:04Z",
-    "currentVersion": "0.9.0",
+    "lastUpdated": "2026-09-21T11:39:17Z",
+    "currentVersion": "0.10.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 20
+    "totalReleases": 21
   },
   "releases": [
+    {
+      "version": "0.10.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-09-21",
+      "pr_number": 130,
+      "raw_summary": "## [0.10.0]\n\n### ✨ 기능\n- 댓글 명령어와 이슈 마커에서 SUH-LAB 종속 이름 제거\n\n### 📝 문서\n- SUH-LAB 종속 네이밍 일반화 구현 계획 작성\n- 원본·라이선스 출처 표기 정리\n\n### ♻️ 리팩토링\n- projectops·SUH-DEVOPS-TEMPLATE 코드 식별자를 일반 이름으로 정리\n- heredoc 센티널 접두사를 __SUH_에서 __WIZARD_로 변경\n\n### ✅ 테스트\n- 원작자 종속 이름 재유입 방지 가드 추가\n\n### 🔧 변경사항\n- 이 레포 issue helper의 브랜치 자동 생성 활성화\n- docs/suh-template/hypercortex 폴더를 docs/hypercortex로 이동",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "댓글 명령어와 이슈 마커에서 SUH-LAB 종속 이름 제거"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "SUH-LAB 종속 네이밍 일반화 구현 계획 작성",
+            "원본·라이선스 출처 표기 정리"
+          ]
+        },
+        "리팩토링": {
+          "title": "♻️ 리팩토링",
+          "items": [
+            "projectops·SUH-DEVOPS-TEMPLATE 코드 식별자를 일반 이름으로 정리",
+            "heredoc 센티널 접두사를 __SUH_에서 __WIZARD_로 변경"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "원작자 종속 이름 재유입 방지 가드 추가"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "이 레포 issue helper의 브랜치 자동 생성 활성화",
+            "docs/suh-template/hypercortex 폴더를 docs/hypercortex로 이동"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.9.0",
       "project_types": [
