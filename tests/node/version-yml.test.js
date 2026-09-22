@@ -5,7 +5,7 @@ import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseExisting, parseExtraTopLevel, buildVersionYml } from "../../src/core/version-yml.js";
+import { parseExisting, parseExtraTopLevel, parseTemplateOptions, buildVersionYml, renderVersionYml } from "../../src/core/version-yml.js";
 import { readVersionYmlTemplate, resolvePayloadRoot } from "../../src/core/assets.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
@@ -128,4 +128,147 @@ test("buildVersionYml: escapes double quotes in deploy block values (issue #20 L
     deployValues,
   });
   assert.ok(text.includes('HOST: "a \\"quoted\\" host"'));
+});
+
+// ── Flutter 옵션 4개 키 (이슈 #131) ──────────────────────────────
+const FLUTTER_KEYS_RE = /env_mode|flutter_store|android_deploy_mode|ios_deploy_mode/;
+const BASE_BUILD = {
+  version: "1.0.0", versionCode: 1, branch: "main",
+  branches: { main: "main", develop: "develop", mode: "pr-flow" },
+  now: "2026-09-21 00:00:00", today: "2026-09-21",
+  templateOptions: { templateVersion: "0.10.0" },
+};
+const buildYml = (extra) => buildVersionYml({ templateText: readVersionYmlTemplate(PAYLOAD), ...BASE_BUILD, ...extra });
+
+test("buildVersionYml: Flutter 타입이면 options 아래 4개 키를 지정값으로 렌더한다", () => {
+  const out = buildYml({
+    types: ["flutter"],
+    flutterOptions: { envMode: "dotenv", stores: ["ios"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit" },
+  });
+  assert.match(out, /^      env_mode: "dotenv"/m);
+  assert.match(out, /^      flutter_store: "ios"/m);
+  assert.match(out, /^      android_deploy_mode: "store_prepare"/m);
+  assert.match(out, /^      ios_deploy_mode: "store_submit"/m);
+  assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
+});
+
+test("buildVersionYml: flutterOptions를 생략한 Flutter는 템플릿 기본값과 같은 값으로 렌더한다", () => {
+  const out = buildYml({ types: ["flutter"] });
+  assert.match(out, /^      env_mode: "dart-define"/m);
+  assert.match(out, /^      flutter_store: "android,ios"/m);
+  assert.match(out, /^      android_deploy_mode: "store_only"/m);
+  assert.match(out, /^      ios_deploy_mode: "store_only"/m);
+});
+
+test("buildVersionYml: 스토어를 하나도 고르지 않으면(빈 배열) flutter_store는 \"none\"이다", () => {
+  const out = buildYml({ types: ["flutter"], flutterOptions: { stores: [] } });
+  assert.match(out, /^      flutter_store: "none"/m);
+});
+
+test("buildVersionYml: Flutter 타입이 없으면 4개 키도 빈 줄도 남기지 않는다", () => {
+  const out = buildYml({ types: ["react"], flutterOptions: { envMode: "dotenv", stores: ["ios"] } });
+  assert.doesNotMatch(out, FLUTTER_KEYS_RE);
+  const lastLine = out.trimEnd().split("\n").at(-1);
+  assert.match(lastLine, /^      deploy_style:/, `options의 마지막 줄이 deploy_style이어야 한다:\n${out}`);
+});
+
+test("buildVersionYml: 멀티 타입(flutter+react)이면 렌더하고 deploy 블록 앞 빈 줄 구조를 유지한다", () => {
+  const out = buildYml({
+    types: ["flutter", "react"],
+    deployValues: new Map([["react", new Map([["HOST", "example"]])]]),
+  });
+  assert.match(out, /^      ios_deploy_mode:/m);
+  assert.ok(out.indexOf("ios_deploy_mode") < out.indexOf("\n\ndeploy:"), "deploy 블록은 옵션 뒤에 온다");
+  assert.strictEqual(parseExisting(out).options.iosDeployMode, "store_only");
+});
+
+test("parseTemplateOptions: 4개 키가 없으면 전부 null (기존 설치 판별용)", () => {
+  const out = parseTemplateOptions(buildYml({ types: ["react"] }));
+  assert.strictEqual(out.envMode, null);
+  assert.strictEqual(out.flutterStore, null);
+  assert.strictEqual(out.androidDeployMode, null);
+  assert.strictEqual(out.iosDeployMode, null);
+});
+
+test("parseTemplateOptions: 인라인 주석·홑따옴표·따옴표 없는 값을 모두 읽고 다른 옵션과 공존한다", () => {
+  const text = [
+    "metadata:",
+    "  template:",
+    "    options:",
+    '      env_mode: "dotenv" # dart-define | dotenv',
+    "      flutter_store: 'android'",
+    "      android_deploy_mode: store_prepare",
+    '      ios_deploy_mode: "store_submit"',
+    "      semver_auto: true",
+  ].join("\n");
+  const out = parseTemplateOptions(text);
+  assert.strictEqual(out.envMode, "dotenv");
+  assert.strictEqual(out.flutterStore, "android");
+  assert.strictEqual(out.androidDeployMode, "store_prepare");
+  assert.strictEqual(out.iosDeployMode, "store_submit");
+  assert.strictEqual(out.semverAuto, true);
+});
+
+test("렌더 → 파싱 왕복: buildVersionYml 결과를 parseExisting이 그대로 복원한다", () => {
+  const cases = [
+    { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_submit", iosDeployMode: "store_only", flutterStore: "android" },
+    { envMode: "dart-define", stores: ["android", "ios"], androidDeployMode: "store_only", iosDeployMode: "store_prepare", flutterStore: "android,ios" },
+    { envMode: "dart-define", stores: [], androidDeployMode: "store_only", iosDeployMode: "store_only", flutterStore: "none" },
+  ];
+  for (const c of cases) {
+    const { flutterStore, ...flutterOptions } = c;
+    const { options } = parseExisting(buildYml({ types: ["flutter"], flutterOptions }));
+    assert.strictEqual(options.envMode, c.envMode);
+    assert.strictEqual(options.flutterStore, flutterStore);
+    assert.strictEqual(options.androidDeployMode, c.androidDeployMode);
+    assert.strictEqual(options.iosDeployMode, c.iosDeployMode);
+  }
+});
+
+test("renderVersionYml: context의 Flutter 옵션 필드를 렌더에 반영한다", () => {
+  const ctx = createContext({
+    mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1, branch: "main",
+    branches: { main: "main", develop: "develop", mode: "pr-flow" },
+    now: "2026-09-21 00:00:00", today: "2026-09-21", templateVersion: "0.10.0",
+    envMode: "dotenv", flutterStore: ["android"], androidDeployMode: "store_submit", iosDeployMode: "store_only",
+  });
+  const out = renderVersionYml(ctx, readVersionYmlTemplate(PAYLOAD), {});
+  const { options } = parseExisting(out);
+  assert.strictEqual(options.envMode, "dotenv");
+  assert.strictEqual(options.flutterStore, "android");
+  assert.strictEqual(options.androidDeployMode, "store_submit");
+  assert.strictEqual(options.iosDeployMode, "store_only");
+});
+
+test("renderVersionYml: 미결정 context(빈 envMode·null 스토어)도 유효한 기본값으로 렌더한다", () => {
+  const ctx = createContext({
+    mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1, branch: "main",
+    branches: { main: "main", develop: "develop", mode: "pr-flow" },
+    now: "2026-09-21 00:00:00", today: "2026-09-21", templateVersion: "0.10.0",
+  });
+  const { options } = parseExisting(renderVersionYml(ctx, readVersionYmlTemplate(PAYLOAD), {}));
+  assert.strictEqual(options.envMode, "dart-define");
+  assert.strictEqual(options.flutterStore, "android,ios");
+  assert.strictEqual(options.androidDeployMode, "store_only");
+});
+
+test("integration: runFull이 Flutter 옵션을 version.yml에 쓰고 재실행해도 보존한다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-version-yml-flutter-"));
+  try {
+    const ctx = createContext({
+      mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+      paths: new Map(), now: "2026-09-21 00:00:00", today: "2026-09-21", templateVersion: "0.10.0",
+      envMode: "dotenv", flutterStore: ["ios"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit",
+    });
+    runFull(ctx, PAYLOAD, target);
+    runFull(ctx, PAYLOAD, target);
+    const { options } = parseExisting(readFileSync(join(target, "version.yml"), "utf8"));
+    assert.deepStrictEqual(
+      [options.envMode, options.flutterStore, options.androidDeployMode, options.iosDeployMode],
+      ["dotenv", "ios", "store_prepare", "store_submit"],
+    );
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
 });
