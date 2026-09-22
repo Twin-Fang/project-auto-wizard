@@ -15,6 +15,10 @@ import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { PATHS } from "../core/paths.js";
+import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
+import { inferInstalledStores } from "../core/installed-stores.js";
+import { savedFlutterState, askUnsetFlutterOptions, editFlutterOption, FLUTTER_EDIT_ITEMS } from "./interactive-flutter.js";
 import { runFull } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
@@ -89,6 +93,21 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
+  // Flutter 옵션 (이슈 #131) — 저장값이 있으면 재질문하지 않는다 (deploy_style과 같은 규약).
+  // 저장값 없는 기존 설치는 동작 보존을 위해 dotenv를 초기 선택으로, 스토어는 설치된 워크플로우로 추론한다.
+  // 환경변수 기본값 규칙(신규=dart-define, 기존 설치·저장값 없음=dotenv)은 resolveFlutterOptions가 단일 진실이다.
+  let flutter = savedFlutterState(existing);
+  const flutterAsk = {
+    envModeDefault: resolveFlutterOptions({
+      cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
+    }).envMode,
+    inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [],
+  };
+  // 이미 정해진 값은 건너뛰므로 여러 번 불러도 같은 질문이 반복되지 않는다.
+  const askFlutterOptions = async () => {
+    if (types.includes("flutter")) flutter = await askUnsetFlutterOptions(io, flutter, flutterAsk);
+  };
+
   // 층2 — 감지 로그 (#446). markers = 실제로 존재를 확인한 파일 (이슈 #77).
   let markers = detectMarkers(cwd, types);
   io.detectionLog?.({ types, version, branch, markers, warnings: detectWarnings });
@@ -125,6 +144,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
     }
 
+    // Flutter 옵션 (이슈 #131) — 환경변수 방식 → 스토어 배포 대상 → 플랫폼별 배포 모드.
+    await askFlutterOptions();
+
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
     // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
     if (mode === "full" && includeSemverAuto === null) {
@@ -154,7 +176,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // edit 루프
     let editing = true;
     while (editing) {
-      const what = await io.editMenu({ showOptional });
+      const what = await io.editMenu({ showOptional, showFlutter: showOptional && types.includes("flutter") });
       if (isCancel(what) || what === "done") { editing = false; break; }
       if (what === "type") {
         const t = await io.selectTypes(types);
@@ -180,9 +202,21 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       } else if (what === "secret") {
         const y = await io.askYesNo("Secret 백업 워크플로우를 포함할까요?", includeSecretBackup);
         if (!isCancel(y)) includeSecretBackup = y === true;
+      } else if (FLUTTER_EDIT_ITEMS.has(what)) {
+        flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
     }
   }
+
+  // 편집 루프에서 뒤늦게 flutter 타입이 추가된 경우에도 옵션을 확정한다 — 이미 정해진 값은 다시 묻지 않는다.
+  if (showOptional) await askFlutterOptions();
+  // 질문이 나오지 않은 경우(비 full 모드 등)도 동작 보존 기본값으로 채워 워크플로우 치환이 어긋나지 않게 한다.
+  const flutterOptions = {
+    envMode: flutter.envMode || flutterAsk.envModeDefault,
+    stores: flutter.stores,
+    androidDeployMode: flutter.androidDeployMode || DEFAULT_DEPLOY_MODE,
+    iosDeployMode: flutter.iosDeployMode || DEFAULT_DEPLOY_MODE,
+  };
 
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (이슈 #41)
 
@@ -226,12 +260,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }
 
   // @wizard env 계획 질문 (.sh wf_prompt_env_plan L3220 — full/workflows만)
-  const resolvers = makeResolvers(cwd, repoName, paths);
+  const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);
   let envValues = new Map(), envUseDefaults = true, envAnswers = [];
   if (showOptional) {
     const plan = await promptEnvPlan({
       payloadRoot: payload, types, io: io.engineIo ?? null, force: false,
       resolvers, includeNexus, includeSecretBackup, deployStyle, targetRoot: cwd, repoName,
+      flutterStore: flutterOptions.stores, // 선택 해제된 스토어 워크플로우의 ask 질문은 묻지 않는다 (D2 env-plan)
     });
     envValues = plan.values;
     envUseDefaults = plan.useDefaults;
@@ -247,6 +282,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // 설치 로그(#79)·완료 요약(#80)이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
     deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+    envMode: flutterOptions.envMode, flutterStore: flutterOptions.stores,
+    androidDeployMode: flutterOptions.androidDeployMode, iosDeployMode: flutterOptions.iosDeployMode,
     previousTemplateVersion: existing?.templateVersion || "",
   });
   ctx.templateVersion = templateVersion;
@@ -309,6 +346,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
+    storeCleanup: result?.storeCleanup ?? null,
+    flutterApp: result?.flutterApp ?? null,
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
