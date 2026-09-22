@@ -1,5 +1,5 @@
 // full 모드 오케스트레이터 (.sh execute_integration full case 등가).
-// 복사 순서: workflows(+env 치환) → version.yml → readme → scripts → gitignore(조건부)
+// 복사 순서: workflows(+env 치환) → flutter 앱 파일 → version.yml → readme → scripts → gitignore(조건부)
 // gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다 — issue #7.
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
@@ -12,10 +12,12 @@ import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
+import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline } from "../core/baseline.js";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
 import { log, maskValue } from "../core/logger.js";
 
 // context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
@@ -46,6 +48,12 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   //    hooks.decisions: 대화형 충돌 3지선 결정 Map (미지정=skip — 현행 force 동작)
   const wfCounters = copyWorkflows(context, payloadRoot, targetRoot, hooks);
   const deployValues = wfCounters.deployValues || new Map(); // Map<type, Map<key,value>>
+
+  // 1-1. Flutter 앱 파일(fastlane·ExportOptions) — 사용자가 값을 채워 쓰는 파일이라 없을 때만 만든다.
+  //      워크플로우 복사가 끝난 뒤에 실행한다(워크플로우가 이 파일들을 전제로 돈다).
+  const flutterApp = copyFlutterAppFiles(context, payloadRoot, targetRoot);
+  for (const f of flutterApp.created) log.info("flutter-app", "create", f);
+  for (const f of flutterApp.kept) log.info("flutter-app", "keep", `${f} (기존 파일 유지)`);
 
   // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다 (issue #20 M8).
   const vyPath = join(targetRoot, PATHS.versionFile);
@@ -80,7 +88,24 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   for (const f of cleanup.removed || []) log.info("cleanup", "remove", `${f} (이전 배포 방식 정리)`);
   for (const f of cleanup.backedUp || []) log.info("cleanup", "backup", `${f} → ${f}.bak`);
-  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0;
+
+  // 6-1. 선택 해제된 스토어 워크플로우 정리 — 스토어 대상을 줄여 재설치하면 이전 워크플로우가 남아
+  //      main push마다 계속 도는 것을 막는다. 규칙은 6과 같다(미수정 삭제, 수정본 .bak).
+  //      선택이 미결정(null)이거나 Flutter가 없으면 현행 동작 그대로 아무것도 지우지 않는다.
+  //      Fastfile·ExportOptions는 사용자 소유라 여기서 다루지 않는다.
+  const workflowsDir = join(targetRoot, PATHS.workflowsDir);
+  const storeCleanup = Array.isArray(context.flutterStore) && types.includes("flutter")
+    ? cleanupDeselectedStoreWorkflows(
+      workflowsDir,
+      existsSync(workflowsDir) ? readdirSync(workflowsDir) : [],
+      context.flutterStore,
+      previousBaseline)
+    : { removed: [], backedUp: [] };
+  for (const f of [...storeCleanup.removed, ...storeCleanup.backedUp]) delete previousBaseline?.files?.[f];
+  for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (선택 해제된 스토어 워크플로우 정리)`);
+  for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
+
+  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
   if (gitignoreUpdated) ensureGitignore(targetRoot);
 
   // 7. baseline 기록 (issue #69) — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
@@ -122,7 +147,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
