@@ -222,3 +222,67 @@ test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// Flutter 스토어 워크플로우 선택 (이슈 #131) — 설치하지 않을 워크플로우의 질문은 묻지 않는다.
+function makeFlutterFixturePayload() {
+  const root = mkdtempSync(join(tmpdir(), "paw-env-plan-flutter-"));
+  const dir = join(root, "workflows", "flutter");
+  mkdirSync(dir, { recursive: true });
+  const files = {
+    "PROJECT-FLUTTER-CI.yaml": "CI_ONLY",
+    "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml": "PLAY_ONLY",
+    "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml": "TESTFLIGHT_ONLY",
+    "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml": "TEST_TESTFLIGHT_ONLY",
+  };
+  for (const [name, key] of Object.entries(files)) {
+    writeFileSync(join(dir, name), ["name: X", "env:", `  ${key}: "v" # @wizard ask:v`, ""].join("\n"));
+  }
+  return root;
+}
+
+test("collectAsks: flutterStore가 null/미지정이면 스토어 워크플로우의 ask 키도 전부 수집된다 (현행 동작)", () => {
+  const root = makeFlutterFixturePayload();
+  try {
+    for (const opts of [{ flutterStore: null }, {}]) {
+      const asks = collectAsks(root, ["flutter"], opts);
+      for (const k of ["CI_ONLY", "PLAY_ONLY", "TESTFLIGHT_ONLY", "TEST_TESTFLIGHT_ONLY"]) {
+        assert.ok(asks.keys.includes(k), `${k} (${JSON.stringify(opts)})`);
+      }
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("collectAsks: 선택 해제된 스토어 워크플로우의 ask 키는 수집되지 않는다", () => {
+  const root = makeFlutterFixturePayload();
+  try {
+    const android = collectAsks(root, ["flutter"], { flutterStore: ["android"] });
+    assert.deepStrictEqual([...android.keys].sort(), ["CI_ONLY", "PLAY_ONLY"]);
+
+    const ios = collectAsks(root, ["flutter"], { flutterStore: ["ios"] });
+    assert.deepStrictEqual([...ios.keys].sort(), ["CI_ONLY", "TESTFLIGHT_ONLY", "TEST_TESTFLIGHT_ONLY"]);
+
+    const none = collectAsks(root, ["flutter"], { flutterStore: [] });
+    assert.deepStrictEqual(none.keys, ["CI_ONLY"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("collectAsks: Flutter가 아닌 타입은 flutterStore의 영향을 받지 않는다", () => {
+  const root = makeFlutterFixturePayload();
+  try {
+    const dir = join(root, "workflows", "react");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "PROJECT-REACT-CI.yaml"), ["name: R", "env:", '  REACT_ONLY: "v" # @wizard ask:v', ""].join("\n"));
+    const asks = collectAsks(root, ["react"], { flutterStore: [] });
+    assert.deepStrictEqual(asks.keys, ["REACT_ONLY"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("promptEnvPlan: flutterStore를 collectAsks까지 전달해 답변 목록에도 해제된 워크플로우 키가 없다", async () => {
+  const root = makeFlutterFixturePayload();
+  try {
+    const result = await promptEnvPlan({ payloadRoot: root, types: ["flutter"], force: true, flutterStore: ["android"], log: () => {} });
+    assert.deepStrictEqual(result.answers.map((a) => a.key).sort(), ["CI_ONLY", "PLAY_ONLY"]);
+    const all = await promptEnvPlan({ payloadRoot: root, types: ["flutter"], force: true, log: () => {} });
+    assert.strictEqual(all.answers.length, 4, "미지정(null)이면 현행 동작");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

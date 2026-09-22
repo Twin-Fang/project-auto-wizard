@@ -35,7 +35,7 @@ const TRUNK_BASED_EXCLUDED = new Set([
 // copyWorkflowsForType·surveyWorkflows·planWorkflows가 같은 함수를 써야 설치·충돌 조사·status/dry-run이
 // 서로 다른 파일 집합을 보지 않는다. flutterStore가 배열이 아니면(null=미결정, 비대화형 기본) 스토어 필터는
 // 걸지 않는다. 필터가 없어도 항상 함수를 돌려준다 — processDir은 null을 받지 못한다.
-function buildTypeRootFilter(type, deployStyle, flutterStore) {
+export function buildTypeRootFilter(type, deployStyle, flutterStore) {
   const filters = [];
   if (deployStyle === NO_DEPLOY_STYLE) filters.push(deployFilter(deployStyle));
   if (type === "flutter" && Array.isArray(flutterStore)) filters.push(storeWorkflowFilter(flutterStore));
