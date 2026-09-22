@@ -497,3 +497,70 @@ test("PLAYSTORE: 치환 후 미치환 토큰이 없고 actionlint 신규 경고�
   assertNoUnsubstitutedPlaceholders(PLAYSTORE);
   assertActionlintClean(PLAYSTORE);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml
+// ---------------------------------------------------------------------------------------------
+const IOS_TESTFLIGHT = "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml";
+
+test("IOS-TESTFLIGHT: main push paths 앵커 — 모노레포에서 paths 필터로 치환된다", () => {
+  assertPathsAnchor(IOS_TESTFLIGHT);
+});
+
+test("IOS-TESTFLIGHT: 환경변수 모드 — 빌드 job마다 Prepare env file, flutter build ios에 dart-define 플래그", () => {
+  assertWizardTokenLine(IOS_TESTFLIGHT, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedEnvMode(IOS_TESTFLIGHT);
+  assertLegacyEnvStepsRemoved(IOS_TESTFLIGHT);
+  assertEnvPreparedBeforeFlutterCommands(IOS_TESTFLIGHT, ["prepare-build", "build-ios"]);
+  assertEveryFlutterBuildUsesDartDefine(IOS_TESTFLIGHT, 1);
+  // .env는 보안상 아티팩트에 싣지 않고 build-ios가 시크릿으로 다시 만든다
+  const prepare = jobBlocks(rawWorkflow(IOS_TESTFLIGHT)).get("prepare-build");
+  assert.ok(!prepare.includes("ENV_FILE_PATH }}\n            ios/Flutter"), "project-files 아티팩트에 .env가 실려서는 안 됩니다");
+});
+
+test("IOS-TESTFLIGHT: 배포 모드 폴백 마커 — 설치 시 선택값이 표현식의 마지막 폴백 자리에 들어간다", () => {
+  assertWizardTokenLine(IOS_TESTFLIGHT, "  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.IOS_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:ios-deploy-mode");
+  const rendered = renderWorkflow(IOS_TESTFLIGHT, { iosDeployMode: "store_submit" });
+  assert.match(rendered, /^  DEPLOY_MODE: \$\{\{ github\.event\.inputs\.deploy_mode \|\| vars\.IOS_DEPLOY_MODE \|\| 'store_submit' \}\}\s*$/m);
+  assert.ok(!rendered.includes("@wizard fallback"));
+  assert.ok(renderWorkflow(IOS_TESTFLIGHT, { iosDeployMode: "" }).includes("|| 'store_only' }}"));
+});
+
+test("IOS-TESTFLIGHT: ExportOptions.plist 플레이스홀더가 남아 있으면 명확한 메시지로 중단한다", () => {
+  const verify = rawWorkflow(IOS_TESTFLIGHT).match(/- name: Verify ExportOptions\.plist\n[\s\S]*?(?=\n      - name: )/)[0];
+  assert.ok(verify.includes("grep -Eq '__[A-Z][A-Z0-9_]*__' ExportOptions.plist"));
+  assert.ok(verify.includes("채워지지 않은 플레이스홀더"));
+  assert.ok(verify.includes("exit 1"));
+  // 워크플로우 본문에 __TOKEN__ 리터럴이 실행 줄로 남으면 설치 후 검증(scanUnsubstituted)이 '미치환'으로 오탐한다
+  assertNoUnsubstitutedPlaceholders(IOS_TESTFLIGHT);
+});
+
+test("IOS-TESTFLIGHT: Gemfile — 사용자 Gemfile에 fastlane이 있으면 그것을 쓰고, 없으면 multi_json 우회 Gemfile을 생성한다", () => {
+  const text = rawWorkflow(IOS_TESTFLIGHT);
+  const check = `if [ -f Gemfile ] && grep -Eq "['\\"]fastlane['\\"]" Gemfile; then`;
+  const generated = `printf 'source "https://rubygems.org"\\ngem "fastlane"\\ngem "multi_json"\\n' > Gemfile`;
+  assert.ok(text.includes(check));
+  assert.ok(text.includes(generated));
+  assert.ok(text.indexOf(check) < text.indexOf(generated));
+  assert.ok(text.indexOf(generated) < text.indexOf("bundle install\n          echo \"✅ Fastlane installed"));
+});
+
+test("IOS-TESTFLIGHT: 프로젝트 파일 아티팩트가 Flutter 루트 아래로 업·다운로드된다", () => {
+  const text = rawWorkflow(IOS_TESTFLIGHT);
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/ios/Flutter/Secrets.xcconfig\n"));
+  assert.ok(text.includes("          name: project-files\n          path: ${{ env.FLUTTER_PROJECT_DIR }}\n"));
+  assert.deepStrictEqual(rootRelativeStepPaths(IOS_TESTFLIGHT), []);
+  assertHashFilesScopedToFlutterRoot(IOS_TESTFLIGHT);
+});
+
+test("IOS-TESTFLIGHT: 끊긴 웹 마법사 안내가 없고 필요한 Secrets 안내가 남는다", () => {
+  assertNoBrokenWebWizardGuide(IOS_TESTFLIGHT);
+  const text = rawWorkflow(IOS_TESTFLIGHT);
+  for (const secret of ["APPLE_CERTIFICATE_BASE64", "APP_STORE_CONNECT_API_KEY_BASE64", "IOS_PROVISIONING_PROFILE_NAME"]) {
+    assert.ok(text.includes(secret), secret);
+  }
+});
+
+test("IOS-TESTFLIGHT: actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertActionlintClean(IOS_TESTFLIGHT);
+});

@@ -5,17 +5,14 @@
 #
 # 이 워크플로우는 Flutter iOS 앱을 빌드하여 TestFlight에 자동 배포합니다.
 #
-# ★ 마법사 우선 아키텍처 ★
-# - 빌드에 필요한 설정 파일들은 웹 마법사가 생성합니다
-# - 워크플로우는 마법사가 생성한 파일들을 그대로 사용합니다
-# - 마법사 경로: .github/util/flutter/ios-testflight-setup-wizard/index.html
-#   (브라우저에서 열어서 사용)
+# 설정 파일(ios/fastlane/Fastfile, ios/ExportOptions.plist)은 project-auto-wizard가
+# 없을 때만 설치하며, 이미 있으면 덮어쓰지 않습니다.
 #
 # 빌드 파이프라인:
 #   1. flutter build ios --no-codesign (Flutter 빌드)
 #   2. xcodebuild archive (Xcode 아카이브 생성)
 #   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
-#   4. fastlane deploy (마법사 생성 Fastfile 사용, DEPLOY_MODE에 따라 TestFlight/심사 제출)
+#   4. fastlane deploy (ios/fastlane/Fastfile 사용, DEPLOY_MODE에 따라 TestFlight/심사 제출)
 #
 # ===================================================================
 # 🔑 필수 GitHub Secrets
@@ -31,6 +28,8 @@
 # APP_STORE_CONNECT_API_KEY_ID: API Key ID (10자리)
 # APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID 형식)
 # APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 파일 (base64 인코딩)
+# IOS_BUNDLE_ID (Secret 우선, 없으면 Variable): 앱 번들 ID —
+#   store_prepare/store_submit을 쓰면 필수(비어 있으면 Fastfile이 명확한 오류로 중단)
 #
 # 📝 환경 설정 (선택):
 # ENV_FILE (선택): .env 파일 내용
@@ -40,17 +39,13 @@
 # 🛠️ 초기 설정 방법
 # ===================================================================
 #
-# 1. 웹 마법사 실행:
-#    브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기
-#    → 필요한 정보 입력 후 설정 파일 다운로드
+# 1. GitHub Secrets 설정 (위 목록 참고)
 #
-# 2. GitHub Secrets 설정 (위 목록 참고)
-#
-# 3. 생성된 파일 커밋:
+# 2. ios/ExportOptions.plist의 플레이스홀더(팀 ID·번들 ID·프로비저닝 프로파일 이름)를 채워 커밋:
 #    git add ios/
 #    git commit -m "chore: iOS TestFlight 배포 설정"
 #
-# 4. {{MAIN_BRANCH}} 브랜치로 푸시하여 배포 시작
+# 3. {{MAIN_BRANCH}} 브랜치로 푸시하여 배포 시작
 #
 # ===================================================================
 
@@ -59,6 +54,7 @@ name: PROJECT-iOS-TestFlight-Deploy
 on:
   push:
     branches: ["{{MAIN_BRANCH}}"]
+    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
   workflow_dispatch:
     inputs:
       deploy_mode:
@@ -76,6 +72,8 @@ on:
 # ============================================
 env:
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
+  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
   FLUTTER_VERSION: "3.35.5"
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
@@ -83,7 +81,7 @@ env:
   # ============================================
   # 📝 환경 파일 설정
   # ============================================
-  # .env 파일 생성 경로 (프로젝트 루트 기준)
+  # dotenv 모드에서 .env 파일을 만들 경로 (Flutter 루트 기준)
   ENV_FILE_PATH: ".env"
 
   # ============================================
@@ -94,7 +92,7 @@ env:
   # ============================================
   # 📝 배포 모드 (store_only | store_prepare | store_submit)
   # ============================================
-  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.IOS_DEPLOY_MODE || 'store_only' }}
+  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.IOS_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:ios-deploy-mode
 
 jobs:
   prepare-build:
@@ -123,12 +121,19 @@ jobs:
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
 
-      - name: Create .env file
+      - name: Prepare env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          cat << 'EOF' > ${{ env.ENV_FILE_PATH }}
-          ${{ secrets.ENV_FILE || secrets.ENV }}
-          EOF
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       - name: Create Secrets.xcconfig file
         run: |
@@ -150,7 +155,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
@@ -218,11 +223,10 @@ jobs:
         with:
           name: project-files
           path: |
-            ${{ env.ENV_FILE_PATH }}
-            ios/Flutter/Secrets.xcconfig
-            pubspec.yaml
-            lib/
-            assets/
+            ${{ env.FLUTTER_PROJECT_DIR }}/ios/Flutter/Secrets.xcconfig
+            ${{ env.FLUTTER_PROJECT_DIR }}/pubspec.yaml
+            ${{ env.FLUTTER_PROJECT_DIR }}/lib/
+            ${{ env.FLUTTER_PROJECT_DIR }}/assets/
           retention-days: 1
           if-no-files-found: error
 
@@ -271,15 +275,20 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: project-files
-          path: .
+          path: ${{ env.FLUTTER_PROJECT_DIR }}
 
-      - name: Ensure .env file exists
+      - name: Prepare env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          if [ ! -f "${{ env.ENV_FILE_PATH }}" ]; then
-            cat << 'EOF' > ${{ env.ENV_FILE_PATH }}
-          ${{ secrets.ENV_FILE || secrets.ENV }}
-          EOF
-            echo "✅ ${{ env.ENV_FILE_PATH }} file created (fallback)"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
           fi
 
       - name: Set up Flutter
@@ -292,7 +301,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
@@ -333,6 +342,13 @@ jobs:
           if [ ! -f "ExportOptions.plist" ]; then
             exit 1
           fi
+          # 설치기가 만든 템플릿의 플레이스홀더를 채우지 않으면 xcodebuild가 이해하기 어려운 오류로 끝난다
+          if grep -Eq '__[A-Z][A-Z0-9_]*__' ExportOptions.plist; then
+            echo "❌ ios/ExportOptions.plist에 채워지지 않은 플레이스홀더가 남아 있습니다:"
+            grep -En '__[A-Z][A-Z0-9_]*__' ExportOptions.plist
+            echo "팀 ID·번들 ID·프로비저닝 프로파일 이름으로 바꿔 커밋한 뒤 다시 실행하세요."
+            exit 1
+          fi
 
       - name: Flutter build (no codesign)
         env:
@@ -341,7 +357,8 @@ jobs:
         run: |
           flutter build ios --release --no-codesign \
             --build-name="${{ needs.prepare-build.outputs.version }}" \
-            --build-number="${{ needs.prepare-build.outputs.build_number }}"
+            --build-number="${{ needs.prepare-build.outputs.build_number }}" \
+            ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
 
       - name: Create Archive
         env:
@@ -376,7 +393,7 @@ jobs:
           if-no-files-found: error
 
   # ============================================
-  # TestFlight 배포 (마법사 생성 Fastfile 사용)
+  # TestFlight 배포 (ios/fastlane/Fastfile 사용)
   # ============================================
   deploy-testflight:
     name: TestFlight 배포
@@ -414,8 +431,7 @@ jobs:
         run: |
           if [ ! -f "ios/fastlane/Fastfile" ]; then
             echo "❌ ios/fastlane/Fastfile이 없습니다!"
-            echo "웹 마법사를 실행하여 설정 파일을 생성하세요:"
-            echo "  브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기"
+            echo "ios/fastlane/Fastfile을 저장소에 추가(커밋)하세요. 필요한 Secrets는 워크플로우 상단 주석을 참고하세요."
             exit 1
           fi
           echo "✅ Fastfile 확인됨: ios/fastlane/Fastfile"
@@ -423,8 +439,13 @@ jobs:
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/ios
         run: |
-          # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
-          printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          # 저장소의 Gemfile에 fastlane이 있으면 그대로 쓴다 (Gemfile.lock 커밋 권장). 없으면 생성한다.
+          if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
+            echo "ℹ️ 저장소의 Gemfile을 사용합니다"
+          else
+            # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+            printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          fi
           bundle install
           echo "✅ Fastlane installed (Bundler)"
 
