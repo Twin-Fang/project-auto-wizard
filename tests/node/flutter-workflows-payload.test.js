@@ -291,3 +291,54 @@ test("CI: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없�
   assertNoUnsubstitutedPlaceholders(CI);
   assertActionlintClean(CI);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml
+// ---------------------------------------------------------------------------------------------
+const FIREBASE = "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml";
+
+test("FIREBASE: main push paths 앵커 — 모노레포에서 paths 필터로 치환된다", () => {
+  assertPathsAnchor(FIREBASE);
+});
+
+test("FIREBASE: FLUTTER_PROJECT_DIR·ENV_MODE 토큰과 치환 결과", () => {
+  assertWizardTokenLine(FIREBASE, '  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root');
+  assertWizardTokenLine(FIREBASE, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedFlutterRoot(FIREBASE);
+  assertRenderedEnvMode(FIREBASE);
+});
+
+test("FIREBASE: 환경변수 모드 — 빌드 job마다 Prepare env file, appbundle에 dart-define 플래그", () => {
+  assertLegacyEnvStepsRemoved(FIREBASE);
+  assertEnvPreparedBeforeFlutterCommands(FIREBASE, ["prepare-build", "build-android"]);
+  assertEveryFlutterBuildUsesDartDefine(FIREBASE, 1);
+});
+
+test("FIREBASE: FLUTTER_PROJECT_DIR 정비 — 레포 루트 기준 스텝은 워크스페이스로, 나머지는 접두를 붙인다", () => {
+  assertJobsUseFlutterDir(FIREBASE, ["prepare-build", "build-android"]);
+  const blocks = jobBlocks(rawWorkflow(FIREBASE));
+  // version.yml·changelog는 레포 루트 기준
+  const prepare = blocks.get("prepare-build");
+  assert.match(prepare, /name: 현재 버전 정보 가져오기\n        id: current_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: 릴리즈 노트 생성\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  // deploy 잡은 Flutter를 실행하지 않는다 — defaults 없이 AAB 경로에만 접두
+  assert.ok(!blocks.get("deploy-firebase").includes("defaults:"));
+  const text = rawWorkflow(FIREBASE);
+  assert.ok(text.includes("file: ${{ env.FLUTTER_PROJECT_DIR }}/build/app/outputs/bundle/release/app-release.aab"));
+  assert.ok(text.includes("path: ${{ env.FLUTTER_PROJECT_DIR }}/build/app/outputs/bundle/release/\n"));
+  assert.deepStrictEqual(
+    rootRelativeStepPaths(FIREBASE, ["serviceCredentialsFile: firebase-service-account.json"]),
+    [],
+  );
+  assertHashFilesScopedToFlutterRoot(FIREBASE);
+});
+
+test("FIREBASE: 끊긴 웹 마법사 안내가 없고 필요한 Secrets 안내가 남는다", () => {
+  assertNoBrokenWebWizardGuide(FIREBASE);
+  assert.ok(rawWorkflow(FIREBASE).includes("FIREBASE_SERVICE_ACCOUNT_JSON_BASE64"));
+});
+
+test("FIREBASE: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertNoUnsubstitutedPlaceholders(FIREBASE);
+  assertActionlintClean(FIREBASE);
+});
