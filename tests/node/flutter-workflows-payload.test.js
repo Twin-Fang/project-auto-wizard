@@ -342,3 +342,53 @@ test("FIREBASE: 치환 후 미치환 토큰이 없고 actionlint 신규 경고�
   assertNoUnsubstitutedPlaceholders(FIREBASE);
   assertActionlintClean(FIREBASE);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml
+// ---------------------------------------------------------------------------------------------
+const SELFHOSTED = "PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml";
+
+test("SELFHOSTED: main push paths 앵커 — 모노레포에서 paths 필터로 치환된다", () => {
+  assertPathsAnchor(SELFHOSTED);
+});
+
+test("SELFHOSTED: fastlane 없이 flutter build apk --release를 직접 실행한다", () => {
+  assertNoFastlane(SELFHOSTED);
+  const commands = flutterBuildCommands(rawWorkflow(SELFHOSTED));
+  assert.deepStrictEqual(commands, [`flutter build apk --release ${DART_DEFINE_FLAG}`]);
+  assert.ok(!rawWorkflow(SELFHOSTED).includes("fastlane build"));
+});
+
+test("SELFHOSTED: FLUTTER_PROJECT_DIR·ENV_MODE 토큰과 치환 결과", () => {
+  assertWizardTokenLine(SELFHOSTED, '  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root');
+  assertWizardTokenLine(SELFHOSTED, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedFlutterRoot(SELFHOSTED);
+  assertRenderedEnvMode(SELFHOSTED);
+});
+
+test("SELFHOSTED: 환경변수 모드 — build-android에 Prepare env file", () => {
+  assertLegacyEnvStepsRemoved(SELFHOSTED);
+  assert.ok(!rawWorkflow(SELFHOSTED).includes("Create .env file from GitHub Secret"));
+  assertEnvPreparedBeforeFlutterCommands(SELFHOSTED, ["build-android"]);
+  assertEveryFlutterBuildUsesDartDefine(SELFHOSTED, 1);
+});
+
+test("SELFHOSTED: 산출물 경로가 FLUTTER_PROJECT_DIR 기준으로 이어진다 (mv → 업로드 → SMB 업로드)", () => {
+  assertJobsUseFlutterDir(SELFHOSTED, ["build-android"]);
+  const text = rawWorkflow(SELFHOSTED);
+  // build-android(cwd = Flutter 루트): flutter가 만든 산출물을 옮긴다
+  assert.ok(text.includes("mv ./build/app/outputs/flutter-apk/app-release.apk ./android/app/build/outputs/apk/release/"));
+  // 아티팩트 업로드는 워크스페이스 기준이라 접두를 붙인다
+  assert.ok(text.includes("path: ${{ env.FLUTTER_PROJECT_DIR }}/android/app/build/outputs/apk/release/${{ env.APP_ARTIFACT_NAME }}-v"));
+  // deploy-android는 아티팩트를 자기 워크스페이스 경로로 내려받아 SMB로 올린다 — Flutter 루트와 무관
+  const deploy = jobBlocks(text).get("deploy-android");
+  assert.ok(!deploy.includes("FLUTTER_PROJECT_DIR"));
+  assert.ok(deploy.includes("path: android/app/build/outputs/"));
+  assert.deepStrictEqual(rootRelativeStepPaths(SELFHOSTED, ["path: android/app/build/outputs/"]), []);
+  assertHashFilesScopedToFlutterRoot(SELFHOSTED);
+});
+
+test("SELFHOSTED: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertNoUnsubstitutedPlaceholders(SELFHOSTED);
+  assertActionlintClean(SELFHOSTED);
+});
