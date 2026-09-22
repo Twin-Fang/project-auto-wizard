@@ -92,3 +92,27 @@ export function storeAppFilesFor(stores) {
     : STORE_PLATFORMS.filter((p) => stores.includes(p));
   return platforms.flatMap((p) => STORE_APP_FILES[p]);
 }
+
+const validOr = (isValid, value, fallback) => (isValid(value) ? value : fallback);
+
+// 옵션 최종 결정 — 우선순위: CLI > version.yml 저장값 > 기본값.
+//   cli      { envMode:"", stores:null|string[], androidDeployMode:"", iosDeployMode:"" } (빈값/null = 미지정)
+//   existing parseExisting() 결과 또는 null (version.yml이 없으면 신규 설치)
+//
+// - envMode 기본값: 신규 설치와 "Flutter를 새로 추가하는" 기존 설치는 dart-define, 이미 Flutter가
+//   설치돼 있던 프로젝트는 dotenv. 업데이트 한 번에 flutter_dotenv 프로젝트가 조용히 깨지지 않게
+//   하려는 것이라, 판단 기준은 "이 프로젝트에 Flutter가 이미 있었는가"다(단순 existing 존재 여부가
+//   아니다 — Spring 전용 프로젝트에 flutter 타입을 처음 추가하는 경우까지 dotenv로 묶으면 안 된다).
+// - stores: null은 "미결정" — 비대화형은 현행 동작(둘 다 설치), 대화형은 질문한다.
+// - 저장값은 유효할 때만 쓴다. version.yml은 사람이 고칠 수 있는데, 그 값이 워크플로우 표현식
+//   (`|| 'store_only'` 폴백 자리)에 그대로 들어가므로 목록 밖 문자열은 걸러야 한다.
+export function resolveFlutterOptions({ cli = {}, existing = null } = {}) {
+  const saved = existing?.options ?? {};
+  const hadFlutterAlready = Array.isArray(existing?.types) && existing.types.includes("flutter");
+  return {
+    envMode: cli.envMode || validOr(isEnvMode, saved.envMode, hadFlutterAlready ? LEGACY_ENV_MODE : DEFAULT_ENV_MODE),
+    stores: cli.stores ?? parseStoreList(saved.flutterStore),
+    androidDeployMode: cli.androidDeployMode || validOr(isDeployMode, saved.androidDeployMode, DEFAULT_DEPLOY_MODE),
+    iosDeployMode: cli.iosDeployMode || validOr(isDeployMode, saved.iosDeployMode, DEFAULT_DEPLOY_MODE),
+  };
+}
