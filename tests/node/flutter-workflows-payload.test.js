@@ -392,3 +392,52 @@ test("SELFHOSTED: 치환 후 미치환 토큰이 없고 actionlint 신규 경고
   assertNoUnsubstitutedPlaceholders(SELFHOSTED);
   assertActionlintClean(SELFHOSTED);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-ANDROID-TEST-APK.yaml
+// ---------------------------------------------------------------------------------------------
+const TEST_APK = "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml";
+
+test("TEST-APK: fastlane·Fastfile 분기 없이 flutter build apk --release를 직접 실행한다", () => {
+  assertNoFastlane(TEST_APK);
+  assert.deepStrictEqual(flutterBuildCommands(rawWorkflow(TEST_APK)), [`flutter build apk --release ${DART_DEFINE_FLAG}`]);
+  assert.ok(!rawWorkflow(TEST_APK).includes("android/fastlane/Fastfile"));
+});
+
+test("TEST-APK: FLUTTER_PROJECT_DIR·ENV_MODE 토큰과 치환 결과", () => {
+  assertWizardTokenLine(TEST_APK, '  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root');
+  assertWizardTokenLine(TEST_APK, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedFlutterRoot(TEST_APK);
+  assertRenderedEnvMode(TEST_APK);
+});
+
+test("TEST-APK: 환경변수 모드 — build-android-test에 Prepare env file", () => {
+  assertLegacyEnvStepsRemoved(TEST_APK);
+  assertEnvPreparedBeforeFlutterCommands(TEST_APK, ["build-android-test"]);
+  assertEveryFlutterBuildUsesDartDefine(TEST_APK, 1);
+  assert.ok(rawWorkflow(TEST_APK).includes(`printf '%s\\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"`));
+});
+
+test("TEST-APK: FLUTTER_PROJECT_DIR 정비 — 산출물·빌드정보·Firebase 경로가 Flutter 루트 기준이다", () => {
+  assertJobsUseFlutterDir(TEST_APK, ["build-android-test"]);
+  const text = rawWorkflow(TEST_APK);
+  assert.ok(text.includes("      - name: Setup Gradle\n        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android\n"));
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/android/app/build/outputs/apk/release/*.apk\n"));
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/build-info.txt\n"));
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json\n"));
+  assert.ok(text.includes("serviceCredentialsFile: ${{ env.FLUTTER_PROJECT_DIR }}/firebase-service-account.json"));
+  assert.deepStrictEqual(rootRelativeStepPaths(TEST_APK), []);
+  assertHashFilesScopedToFlutterRoot(TEST_APK);
+  // version.yml을 읽는 prepare-test-build는 레포 루트에서 그대로 실행한다
+  assert.ok(!jobBlocks(text).get("prepare-test-build").includes("FLUTTER_PROJECT_DIR"));
+});
+
+test("TEST-APK: 끊긴 웹 마법사 안내가 없고 필요한 Secrets 안내가 남는다", () => {
+  assertNoBrokenWebWizardGuide(TEST_APK);
+  assert.ok(rawWorkflow(TEST_APK).includes("RELEASE_KEYSTORE_BASE64"));
+});
+
+test("TEST-APK: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertNoUnsubstitutedPlaceholders(TEST_APK);
+  assertActionlintClean(TEST_APK);
+});
