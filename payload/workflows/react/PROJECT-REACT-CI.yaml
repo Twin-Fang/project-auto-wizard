@@ -36,6 +36,8 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
   NODE_VERSION: "20.15.0"
   ENV_FILE: ".env"
+  # 모노레포에서 이 프로젝트가 있는 하위 경로 ('.'이면 항상 검증)
+  PROJECT_PATH: "."  # @wizard auto:project-path
 
 permissions:
   contents: read
@@ -43,9 +45,35 @@ permissions:
   issues: write
 
 jobs:
+  # ===================================================================
+  # 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
+  # ===================================================================
+  changes:
+    name: 변경 감지
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      project: ${{ steps.filter.outputs.project }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 프로젝트 경로 변경 여부 판별
+        id: filter
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            project:
+              - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
+
   build:
     name: React/Next.js 애플리케이션 빌드
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
 
     steps:
       # 1. 소스코드 체크아웃
@@ -192,4 +220,23 @@ jobs:
           else
             echo "❌ 빌드 중 오류가 발생했습니다."
             echo "💡 Actions 탭에서 'build-log' 아티팩트를 다운로드하여 전체 로그를 확인하세요."
+          fi
+
+  # ===================================================================
+  # CI Gate (required check로 등록할 단일 job)
+  # ===================================================================
+  ci-gate:
+    name: CI Gate
+    if: ${{ always() }}
+    needs: [changes, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 결과 집계
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "needs 결과: $RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
+            echo "실패하거나 취소된 job이 있습니다."
+            exit 1
           fi
