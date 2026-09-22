@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { runDoctor, printDoctorReport, DOC } from "../../src/commands/doctor.js";
@@ -289,6 +289,113 @@ test("runDoctor: Workflow permissions 조회 실패는 WARN을 유지한다", ()
     const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
     assert.strictEqual(perm.status, "WARN");
     assert.ok(perm.actions?.length);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Flutter 스토어 배포 진단 (이슈 #131) ──────────────────────────────
+const ANDROID_FASTFILE = "app/android/fastlane/Fastfile.playstore";
+const IOS_FASTFILE = "app/ios/fastlane/Fastfile";
+const EXPORT_OPTIONS = "app/ios/ExportOptions.plist";
+const PLACEHOLDER_PLIST = "<plist><dict><string>__TEAM_ID__</string><string>__BUNDLE_ID__</string></dict></plist>\n";
+const FILLED_PLIST = "<plist><dict><string>ABCDE12345</string><string>com.example.app</string></dict></plist>\n";
+const NO_GH = fakeExec([["gh --version", { status: 1, stdout: "", stderr: "", error: new Error("not found") }]]);
+const isFlutterRow = (r) => r.name.startsWith("Flutter ") || r.name === "ExportOptions.plist";
+
+// storeLine이 ""면 flutter_store 저장값이 없는 (기능 이전) 설치를 흉내낸다.
+function writeFlutterProject(dir, { storeLine = 'flutter_store: "android,ios"', files = {} } = {}) {
+  const optionsLine = storeLine ? `      ${storeLine}\n` : "";
+  writeFileSync(join(dir, "version.yml"),
+    'version: "1.0.0"\nproject_types: ["flutter"]\nproject_paths:\n  flutter: "app"\n' +
+    `metadata:\n  template:\n    options:\n      nexus: false\n${optionsLine}`);
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), body);
+  }
+}
+
+test("runDoctor: Flutter 스토어 배포 파일이 없으면 플랫폼별로 없는 파일을 WARN으로 알린다 (Flutter 루트 반영)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    writeFlutterProject(dir);
+    const results = runDoctor(dir, { exec: NO_GH });
+    const android = results.find((r) => r.name === "Flutter Android 배포 파일");
+    const ios = results.find((r) => r.name === "Flutter iOS 배포 파일");
+    assert.strictEqual(android.status, "WARN");
+    assert.ok(android.value.includes(ANDROID_FASTFILE), "project_paths.flutter(app)가 경로에 반영되어야 한다");
+    assert.strictEqual(ios.status, "WARN");
+    assert.ok(ios.value.includes(IOS_FASTFILE) && ios.value.includes(EXPORT_OPTIONS));
+    assert.ok(!results.some((r) => r.name === "ExportOptions.plist"), "plist가 없으면 플레이스홀더 점검 행은 없다");
+    assert.ok(android.doc.endsWith("#flutter-store"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: ExportOptions.plist에 플레이스홀더가 남아 있으면 WARN, 값이 채워지면 OK", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    const files = { [ANDROID_FASTFILE]: "x", [IOS_FASTFILE]: "x", [EXPORT_OPTIONS]: PLACEHOLDER_PLIST };
+    writeFlutterProject(dir, { files });
+    let results = runDoctor(dir, { exec: NO_GH });
+    assert.strictEqual(results.find((r) => r.name === "Flutter Android 배포 파일").status, "OK");
+    assert.strictEqual(results.find((r) => r.name === "Flutter iOS 배포 파일").status, "OK");
+    const plist = results.find((r) => r.name === "ExportOptions.plist");
+    assert.strictEqual(plist.status, "WARN");
+    assert.ok(plist.value.includes("__TEAM_ID__") && plist.value.includes("__BUNDLE_ID__"));
+    const output = render(results);
+    assert.ok(output.includes("ExportOptions.plist") && output.includes("__TEAM_ID__"));
+
+    writeFileSync(join(dir, EXPORT_OPTIONS), FILLED_PLIST);
+    results = runDoctor(dir, { exec: NO_GH });
+    assert.strictEqual(results.find((r) => r.name === "ExportOptions.plist").status, "OK");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: 선택한 플랫폼만 점검한다 (android만 선택하면 iOS·ExportOptions 행이 없다)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    writeFlutterProject(dir, { storeLine: 'flutter_store: "android"', files: { [EXPORT_OPTIONS]: PLACEHOLDER_PLIST } });
+    const names = runDoctor(dir, { exec: NO_GH }).filter(isFlutterRow).map((r) => r.name);
+    assert.deepStrictEqual(names, ["Flutter Android 배포 파일"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: flutter_store가 none이면 Flutter 행이 없다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    writeFlutterProject(dir, { storeLine: 'flutter_store: "none"' });
+    assert.deepStrictEqual(runDoctor(dir, { exec: NO_GH }).filter(isFlutterRow), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: flutter_store 저장값이 없는 기존 설치는 설치된 스토어 워크플로우로 플랫폼을 추론한다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    writeFlutterProject(dir, {
+      storeLine: "",
+      files: { ".github/workflows/PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml": "" },
+    });
+    const names = runDoctor(dir, { exec: NO_GH }).filter(isFlutterRow).map((r) => r.name);
+    assert.deepStrictEqual(names, ["Flutter iOS 배포 파일"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: Flutter가 아닌 프로젝트는 저장된 스토어 옵션이 있어도 Flutter 행이 없다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
+  try {
+    writeFileSync(join(dir, "version.yml"),
+      'version: "1.0.0"\nproject_types: ["spring"]\nmetadata:\n  template:\n    options:\n      flutter_store: "ios"\n');
+    assert.deepStrictEqual(runDoctor(dir, { exec: NO_GH }).filter(isFlutterRow), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
