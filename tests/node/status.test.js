@@ -179,10 +179,11 @@ test("runStatus: env_mode·배포 모드 치환 일치 검증", () => {
 
 test("runStatus: 스토어 선택 필터 검증 — 둘 다 설치 후 하나 해제 시 삭제 오탐 없음", () => {
   // 시나리오: (1) --flutter-store android,ios로 설치 (둘 다 baseline에 기록)
-  //          (2) version.yml의 flutter_store를 "android"로 수기 편집 (사용자가 full을 안 돌림)
-  //          (3) runStatus 실행 → iOS 워크플로우가 디스크에도 있고 baseline에도 있지만,
-  //              context.flutterStore=["android"] 필터로 제외되는 상태
-  //          (4) iOS 파일이 removed로 오탐되지 않는지 확인 (context.flutterStore 필터링이 정상)
+  //          (2) version.yml의 flutter_store를 "android"로 수기 편집 + iOS 워크플로우 파일 삭제
+  //              (사용자가 full을 안 돌리고 직접 수정 후 iOS 파일 삭제)
+  //          (3) runStatus 실행 → iOS 파일이 디스크에는 없지만 baseline에는 있는 상태
+  //          (4) context.flutterStore=["android"] 필터가 있으면 iOS 파일이 스캔 대상에서 제외되어
+  //              removed 버킷에 나타나지 않아야 함. 필터가 없으면 removed에 나타나야 함.
   const target = mkdtempSync(join(tmpdir(), "paw-status-flutter-filter-"));
   try {
     cpSync(join(REPO_ROOT, "tests/fixtures/flutter/pubspec.yaml"), join(target, "pubspec.yaml"));
@@ -195,17 +196,25 @@ test("runStatus: 스토어 선택 필터 검증 — 둘 다 설치 후 하나 �
     ], { cwd: target, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
     const vyPath = join(target, "version.yml");
-    // (2) version.yml의 flutter_store를 "android"로만 수기 편집
+    // (2a) version.yml의 flutter_store를 "android"로만 수기 편집
     const original = readFileSync(vyPath, "utf8");
     const edited = original.replace(/flutter_store:\s*"?[\w,]+"?/, 'flutter_store: "android"');
     writeFileSync(vyPath, edited);
 
+    // (2b) iOS 워크플로우 파일을 실제로 삭제 (baseline은 그대로 두어 "디스크엔 없고 baseline엔 있음" 상태 생성)
+    const workflowsDir = join(target, ".github/workflows");
+    const iosFiles = ["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml", "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"];
+    for (const file of iosFiles) {
+      const filePath = join(workflowsDir, file);
+      if (existsSync(filePath)) rmSync(filePath);
+    }
+
     // (3) runStatus 실행 — context.flutterStore는 "android"로 해석되어 iOS 필터 적용됨
     const status = runStatus(resolvePayloadRoot(), target);
 
-    // (4) iOS 워크플로우가 removed로 오탐되지 않는지 확인
-    const iosFiles = status.buckets.removed.filter((f) => f.includes("IOS") || f.includes("ios") || f.includes("APPSTORE"));
-    assert.deepStrictEqual(iosFiles, [], `iOS 워크플로우가 removed로 오탐됨: ${JSON.stringify(iosFiles)}`);
+    // (4) context.flutterStore 필터가 있으면 iOS 파일이 classify 스캔 대상에서 제외되어 removed에 나타나지 않아야 함
+    const iosRemoved = status.buckets.removed.filter((f) => f.includes("IOS") || f.includes("ios"));
+    assert.deepStrictEqual(iosRemoved, [], `iOS 워크플로우가 removed로 오탐됨 (필터 배선 실패): ${JSON.stringify(iosRemoved)}`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
