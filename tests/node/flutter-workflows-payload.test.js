@@ -564,3 +564,63 @@ test("IOS-TESTFLIGHT: 끊긴 웹 마법사 안내가 없고 필요한 Secrets �
 test("IOS-TESTFLIGHT: actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
   assertActionlintClean(IOS_TESTFLIGHT);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml
+// ---------------------------------------------------------------------------------------------
+const IOS_TEST_TESTFLIGHT = "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml";
+
+test("IOS-TEST-TESTFLIGHT: FLUTTER_PROJECT_DIR·ENV_MODE 토큰과 치환 결과", () => {
+  assertWizardTokenLine(IOS_TEST_TESTFLIGHT, '  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root');
+  assertWizardTokenLine(IOS_TEST_TESTFLIGHT, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedFlutterRoot(IOS_TEST_TESTFLIGHT);
+  assertRenderedEnvMode(IOS_TEST_TESTFLIGHT);
+});
+
+test("IOS-TEST-TESTFLIGHT: 환경변수 모드 — flutter build를 하는 build-ios-test에만 Prepare env file", () => {
+  assertLegacyEnvStepsRemoved(IOS_TEST_TESTFLIGHT);
+  assertEnvPreparedBeforeFlutterCommands(IOS_TEST_TESTFLIGHT, ["build-ios-test"]);
+  assertEveryFlutterBuildUsesDartDefine(IOS_TEST_TESTFLIGHT, 1);
+  // 준비 job은 빌드하지 않는다 — .env를 아티팩트에 싣지 않는다
+  const prepare = jobBlocks(rawWorkflow(IOS_TEST_TESTFLIGHT)).get("prepare-test-build");
+  assert.ok(!prepare.includes("ENV_FILE_PATH"));
+});
+
+test("IOS-TEST-TESTFLIGHT: FLUTTER_PROJECT_DIR 정비 — job 기본 경로·워크스페이스 기준 스텝·아티팩트 경로", () => {
+  assertJobsUseFlutterDir(IOS_TEST_TESTFLIGHT, ["prepare-test-build", "build-ios-test", "deploy-testflight-test"]);
+  const blocks = jobBlocks(rawWorkflow(IOS_TEST_TESTFLIGHT));
+  const prepare = blocks.get("prepare-test-build");
+  assert.match(prepare, /name: 테스트 빌드 버전 설정\n        id: test_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: 릴리즈 노트 생성\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  const text = rawWorkflow(IOS_TEST_TESTFLIGHT);
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/*.ipa\n"));
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json\n"));
+  assert.ok(text.includes("          name: ios-ipa\n          path: ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/\n"));
+  assert.ok(text.includes('find "$GITHUB_WORKSPACE/${FLUTTER_PROJECT_DIR}/ios/build/ipa"'));
+  assert.ok(text.includes('if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]'));
+  assert.ok(text.includes("      - name: Install Fastlane\n        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/ios\n"));
+  assert.deepStrictEqual(rootRelativeStepPaths(IOS_TEST_TESTFLIGHT), []);
+  assertHashFilesScopedToFlutterRoot(IOS_TEST_TESTFLIGHT);
+});
+
+test("IOS-TEST-TESTFLIGHT: Gemfile — 사용자 Gemfile에 fastlane이 있으면 그것을 쓰고, 없으면 multi_json 우회 Gemfile을 생성한다", () => {
+  const text = rawWorkflow(IOS_TEST_TESTFLIGHT);
+  const check = `if [ -f Gemfile ] && grep -Eq "['\\"]fastlane['\\"]" Gemfile; then`;
+  const generated = `printf 'source "https://rubygems.org"\\ngem "fastlane"\\ngem "multi_json"\\n' > Gemfile`;
+  assert.ok(text.includes(check));
+  assert.ok(text.includes(generated));
+  assert.ok(text.indexOf(check) < text.indexOf(generated));
+});
+
+test("IOS-TEST-TESTFLIGHT: 끊긴 웹 마법사 안내가 없고 필요한 Secrets 안내가 남는다", () => {
+  assertNoBrokenWebWizardGuide(IOS_TEST_TESTFLIGHT);
+  const text = rawWorkflow(IOS_TEST_TESTFLIGHT);
+  for (const secret of ["APPLE_CERTIFICATE_BASE64", "APP_STORE_CONNECT_API_KEY_BASE64", "IOS_PROVISIONING_PROFILE_NAME"]) {
+    assert.ok(text.includes(secret), secret);
+  }
+});
+
+test("IOS-TEST-TESTFLIGHT: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertNoUnsubstitutedPlaceholders(IOS_TEST_TESTFLIGHT);
+  assertActionlintClean(IOS_TEST_TESTFLIGHT);
+});
