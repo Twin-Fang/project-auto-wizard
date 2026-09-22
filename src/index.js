@@ -9,6 +9,7 @@ import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
 import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
+import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
@@ -268,6 +269,16 @@ async function runInner(argv, {
     }
   }
 
+  // Flutter 옵션 — CLI 플래그 → version.yml 저장값 → 기본값(신규 dart-define, 기존 설치 dotenv 보존).
+  // Flutter 타입이 없는 프로젝트에서는 렌더·치환 단계가 전부 무시한다.
+  const flutterOptions = resolveFlutterOptions({
+    cli: {
+      envMode: opts.flutterEnvMode, stores: opts.flutterStore,
+      androidDeployMode: opts.androidDeployMode, iosDeployMode: opts.iosDeployMode,
+    },
+    existing,
+  });
+
   const context = createContext({
     mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
@@ -281,13 +292,17 @@ async function runInner(argv, {
     includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
-    resolvers: makeResolvers(cwd, repoName, paths),
+    resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
     now, today,
     // 설치 로그(#79)용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
     deployStyle: opts.deployStyle
       || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
     previousTemplateVersion: existing?.templateVersion || "",
+    envMode: flutterOptions.envMode,
+    flutterStore: flutterOptions.stores,
+    androidDeployMode: flutterOptions.androidDeployMode,
+    iosDeployMode: flutterOptions.iosDeployMode,
   });
 
   context.templateVersion = readTemplateVersion();
