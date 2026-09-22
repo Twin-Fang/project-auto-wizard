@@ -441,3 +441,59 @@ test("TEST-APK: 치환 후 미치환 토큰이 없고 actionlint 신규 경고�
   assertNoUnsubstitutedPlaceholders(TEST_APK);
   assertActionlintClean(TEST_APK);
 });
+
+// ---------------------------------------------------------------------------------------------
+// PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml
+// ---------------------------------------------------------------------------------------------
+const PLAYSTORE = "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml";
+const GEMFILE_FASTLANE_CHECK = `if [ -f Gemfile ] && grep -Eq "['\\"]fastlane['\\"]" Gemfile; then`;
+const GENERATED_GEMFILE = `printf 'source "https://rubygems.org"\\ngem "fastlane"\\ngem "multi_json"\\n' > Gemfile`;
+
+test("PLAYSTORE: main push paths 앵커 — 모노레포에서 paths 필터로 치환된다", () => {
+  assertPathsAnchor(PLAYSTORE);
+});
+
+test("PLAYSTORE: 환경변수 모드 — 빌드 job마다 Prepare env file, appbundle에 dart-define 플래그", () => {
+  assertWizardTokenLine(PLAYSTORE, '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode');
+  assertRenderedEnvMode(PLAYSTORE);
+  assertLegacyEnvStepsRemoved(PLAYSTORE);
+  assertEnvPreparedBeforeFlutterCommands(PLAYSTORE, ["prepare-build", "build-android"]);
+  assertEveryFlutterBuildUsesDartDefine(PLAYSTORE, 1);
+});
+
+test("PLAYSTORE: 배포 모드 폴백 마커 — 설치 시 선택값이 표현식의 마지막 폴백 자리에 들어간다", () => {
+  const marker = "  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode";
+  assertWizardTokenLine(PLAYSTORE, marker);
+  const rendered = renderWorkflow(PLAYSTORE, { androidDeployMode: "store_prepare" });
+  assert.match(rendered, /^  DEPLOY_MODE: \$\{\{ github\.event\.inputs\.deploy_mode \|\| vars\.ANDROID_DEPLOY_MODE \|\| 'store_prepare' \}\}\s*$/m);
+  assert.ok(!rendered.includes("@wizard fallback"), "치환 후 마커 주석이 지워져야 합니다");
+  // 선택값이 없으면(빈 문자열) 템플릿 기본값이 그대로 남는다
+  assert.ok(renderWorkflow(PLAYSTORE, { androidDeployMode: "" }).includes("|| 'store_only' }}"));
+});
+
+test("PLAYSTORE: ANDROID_PACKAGE_NAME(secrets 우선, 없으면 vars)을 PACKAGE_NAME으로 fastlane 단계에 넘긴다", () => {
+  const deploy = jobBlocks(rawWorkflow(PLAYSTORE)).get("deploy-playstore");
+  assert.ok(deploy.includes("PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}"));
+  assert.ok(deploy.indexOf("PACKAGE_NAME:") < deploy.indexOf("bundle exec fastlane deploy_internal"));
+});
+
+test("PLAYSTORE: Gemfile — 사용자 Gemfile에 fastlane이 있으면 그것을 쓰고, 없으면 multi_json 우회 Gemfile을 생성한다", () => {
+  const text = rawWorkflow(PLAYSTORE);
+  assert.ok(text.includes(GEMFILE_FASTLANE_CHECK), "fastlane 존재 확인 분기가 없습니다");
+  assert.ok(text.includes(GENERATED_GEMFILE), "multi_json 우회 Gemfile 생성이 사라졌습니다");
+  assert.ok(text.indexOf(GEMFILE_FASTLANE_CHECK) < text.indexOf(GENERATED_GEMFILE));
+  assert.ok(text.indexOf(GENERATED_GEMFILE) < text.indexOf("bundle install"), "bundle install은 분기 뒤에 와야 합니다");
+});
+
+test("PLAYSTORE: 모노레포에서도 프로젝트 파일 아티팩트가 Flutter 루트 아래로 업·다운로드된다", () => {
+  const text = rawWorkflow(PLAYSTORE);
+  assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/pubspec.yaml\n"));
+  assert.ok(text.includes("          name: project-files\n          path: ${{ env.FLUTTER_PROJECT_DIR }}\n"));
+  assert.deepStrictEqual(rootRelativeStepPaths(PLAYSTORE), []);
+  assertHashFilesScopedToFlutterRoot(PLAYSTORE);
+});
+
+test("PLAYSTORE: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
+  assertNoUnsubstitutedPlaceholders(PLAYSTORE);
+  assertActionlintClean(PLAYSTORE);
+});
