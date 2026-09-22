@@ -27,6 +27,7 @@ const CI_TARGETS = [
   { file: "next/PROJECT-NEXT-CI.yaml", type: "next", jobs: ["build"] },
   { file: "python/PROJECT-PYTHON-CI.yaml", type: "python", jobs: ["build-check"] },
   { file: "react/PROJECT-REACT-CI.yaml", type: "react", jobs: ["build"] },
+  { file: "spring/nexus/PROJECT-SPRING-NEXUS-CI.yml", type: "spring", jobs: ["build-check"] },
 ];
 
 const EXPECTED_JOB_IF =
@@ -206,3 +207,62 @@ test("actionlint 헬퍼는 존재하지 않는 job을 needs로 걸면 지적을 
   assert.notStrictEqual(broken, renderInstalled(file, type), "치환 대상 줄을 찾지 못했습니다");
   assert.ok(actionlintNewFindings(broken, "broken.yaml", ["changes", "ci-gate"]).length > 0);
 });
+
+// ── Spring publish 2종: on.push의 paths 앵커 ──────────────────────────────────
+// main push 배포 워크플로우는 job 단위 필터 없이 기존 `# @wizard paths-anchor` 방식을 쓴다. 이 두 파일은
+// push 블록에 branches와 tags(`v*.*.*`)가 함께 있어서, 앵커가 tags 목록에 삼켜지지 않는 위치·들여쓰기인지가 관건이다.
+//
+// 태그 push는 필터의 영향을 받지 않는다 — GitHub 문서(workflow syntax, `on.push.<branches|tags>`)에
+// "Path filters are not evaluated for pushes of tags"라고 명시돼 있다. 그래서 `paths`를 넣어도 `v*.*.*` 태그 배포는
+// 그대로 돈다. 아래 테스트는 치환 결과의 구조(keys 순서, tags 목록 무손상)를 고정하고, 실제 태그 push 동작은
+// 로컬에서 재현할 수 없어 PR 이후 테스트 레포에서 확인한다(이슈 검증 항목).
+const PUBLISH_TARGETS = [
+  "spring/nexus/PROJECT-SPRING-NEXUS-PUBLISH.yml",
+  "spring/nexus/PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml",
+];
+const PATHS_ANCHOR_LINE = "    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)";
+
+// on.push 블록(들여쓰기 4칸 이상 줄들). 다음 이벤트(`  workflow_dispatch:` 등)나 최상위 키에서 끝난다.
+function pushBlock(text) {
+  const onLines = topLevelBlock(text, "on");
+  const start = onLines.findIndex((l) => /^ {2}push:\s*$/.test(l));
+  assert.ok(start >= 0, "on.push 블록이 없습니다");
+  const block = [];
+  for (const line of onLines.slice(start + 1)) {
+    if (/^ {2}\S/.test(line)) break;
+    block.push(line);
+  }
+  while (block.length > 0 && block.at(-1).trim() === "") block.pop();
+  return block;
+}
+
+const pushKeys = (block) => block.filter((l) => /^ {4}[a-z-]+:/.test(l)).map((l) => l.trim().split(":")[0]);
+
+for (const file of PUBLISH_TARGETS) {
+  test(`${file}: on.push 블록 안에 paths 앵커가 한 번, branches·tags와 같은 들여쓰기로 있다`, () => {
+    const block = pushBlock(rawText(file));
+    assert.strictEqual(block.filter((l) => l === PATHS_ANCHOR_LINE).length, 1);
+    assert.deepStrictEqual(pushKeys(block), ["branches", "tags"]);
+  });
+
+  test(`${file}: 모노레포면 앵커가 paths 키로 치환돼도 tags 목록이 그대로인 유효한 push 블록이다`, () => {
+    const block = pushBlock(renderInstalled(file, "spring", new Map([["spring", MONOREPO_PATH]])));
+    assert.deepStrictEqual(pushKeys(block), ["branches", "tags", "paths"]);
+    const tagsAt = block.indexOf("    tags:");
+    assert.strictEqual(block[tagsAt + 1], "      - 'v*.*.*'", "태그 패턴이 그대로여야 합니다");
+    assert.strictEqual(block[tagsAt + 2], `    paths: ['${MONOREPO_PATH}/**']`);
+  });
+
+  test(`${file}: 단일 레포면 paths 키를 만들지 않는다 (앵커 주석만 남는다)`, () => {
+    const block = pushBlock(renderInstalled(file, "spring"));
+    assert.deepStrictEqual(pushKeys(block), ["branches", "tags"]);
+    assert.ok(block.includes(PATHS_ANCHOR_LINE));
+  });
+
+  for (const [label, paths] of [["단일 레포", new Map()], ["모노레포", new Map([["spring", MONOREPO_PATH]])]]) {
+    test(`${file}: 치환된 사본이 actionlint를 통과한다 (${label}, 신규 지적 0건)`, { skip: SKIP_ACTIONLINT }, () => {
+      const findings = actionlintNewFindings(renderInstalled(file, "spring", paths), file.split("/").pop(), []);
+      assert.deepStrictEqual(findings, [], `actionlint 신규 지적:\n  ${findings.join("\n  ")}`);
+    });
+  }
+}
