@@ -201,3 +201,24 @@ test("collectAsks: go 타입에서 deployStyle이 'none'이면 타입 루트 CD 
   assert.ok(asks.keys.includes("SSH_AUTH_METHOD"),
     "PR 프리뷰(go/python은 server-deploy 폴더가 없어 CD와 같은 위치에 있음)는 배포 방식과 무관하게 항상 설치되므로 이 키는 남는다");
 });
+
+test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는다 (ask만 수집, 이슈 #131)", () => {
+  const root = mkdtempSync(join(tmpdir(), "paw-env-plan-fallback-"));
+  try {
+    const flutterDir = join(root, "workflows", "flutter");
+    mkdirSync(flutterDir, { recursive: true });
+    writeFileSync(join(flutterDir, "PROJECT-FLUTTER-SAMPLE.yaml"), [
+      "name: SAMPLE",
+      "env:",
+      '  PROJECT_PATH: "."  # @wizard auto:project-path',
+      '  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode',
+      "  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode",
+      '  ASK_ONLY: "x"  # @wizard ask:x',
+      "",
+    ].join("\n"));
+    const asks = collectAsks(root, ["flutter"]);
+    assert.deepStrictEqual(asks.keys, ["ASK_ONLY"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
