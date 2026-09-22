@@ -153,9 +153,9 @@ test("printStatus: Flutter 타입이 아니면 Flutter 옵션은 표시하지 �
   assert.ok(!output.includes("flutter_store="));
 });
 
-test("runStatus: 스토어 일부만 설치한 Flutter 프로젝트에서도 드리프트·삭제 오탐이 없다", () => {
-  // 설치 때 env_mode·배포 모드가 워크플로우에 치환되고 iOS 스토어 워크플로우는 설치되지 않는다.
-  // status가 같은 옵션으로 비교하지 않으면 PLAYSTORE가 '수정됨'으로 오탐된다.
+test("runStatus: env_mode·배포 모드 치환 일치 검증", () => {
+  // 설치 때 env_mode·배포 모드가 워크플로우에 치환되고 status가 같은 옵션으로 비교하지 않으면
+  // PLAYSTORE가 '수정됨'으로 오탐된다. makeResolvers 4번째 인자가 없으면 여기서 실패한다.
   const target = mkdtempSync(join(tmpdir(), "paw-status-flutter-"));
   try {
     cpSync(join(REPO_ROOT, "tests/fixtures/flutter/pubspec.yaml"), join(target, "pubspec.yaml"));
@@ -172,6 +172,40 @@ test("runStatus: 스토어 일부만 설치한 Flutter 프로젝트에서도 드
     assert.strictEqual(status.options.envMode, "dotenv");
     assert.strictEqual(status.options.flutterStore, "android");
     assert.strictEqual(status.options.androidDeployMode, "store_prepare");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("runStatus: 스토어 선택 필터 검증 — 둘 다 설치 후 하나 해제 시 삭제 오탐 없음", () => {
+  // 시나리오: (1) --flutter-store android,ios로 설치 (둘 다 baseline에 기록)
+  //          (2) version.yml의 flutter_store를 "android"로 수기 편집 (사용자가 full을 안 돌림)
+  //          (3) runStatus 실행 → iOS 워크플로우가 디스크에도 있고 baseline에도 있지만,
+  //              context.flutterStore=["android"] 필터로 제외되는 상태
+  //          (4) iOS 파일이 removed로 오탐되지 않는지 확인 (context.flutterStore 필터링이 정상)
+  const target = mkdtempSync(join(tmpdir(), "paw-status-flutter-filter-"));
+  try {
+    cpSync(join(REPO_ROOT, "tests/fixtures/flutter/pubspec.yaml"), join(target, "pubspec.yaml"));
+    // (1) 두 스토어 모두 설치
+    execFileSync(process.execPath, [
+      join(REPO_ROOT, "bin/project-auto-wizard.js"),
+      "--mode", "full", "--force", "--type", "flutter",
+      "--main-branch", "main", "--develop-branch", "develop",
+      "--flutter-env-mode", "dotenv", "--flutter-store", "android,ios", "--android-deploy-mode", "store_prepare", "--ios-deploy-mode", "store_only",
+    ], { cwd: target, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+    const vyPath = join(target, "version.yml");
+    // (2) version.yml의 flutter_store를 "android"로만 수기 편집
+    const original = readFileSync(vyPath, "utf8");
+    const edited = original.replace(/flutter_store:\s*"?[\w,]+"?/, 'flutter_store: "android"');
+    writeFileSync(vyPath, edited);
+
+    // (3) runStatus 실행 — context.flutterStore는 "android"로 해석되어 iOS 필터 적용됨
+    const status = runStatus(resolvePayloadRoot(), target);
+
+    // (4) iOS 워크플로우가 removed로 오탐되지 않는지 확인
+    const iosFiles = status.buckets.removed.filter((f) => f.includes("IOS") || f.includes("ios") || f.includes("APPSTORE"));
+    assert.deepStrictEqual(iosFiles, [], `iOS 워크플로우가 removed로 오탐됨: ${JSON.stringify(iosFiles)}`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
