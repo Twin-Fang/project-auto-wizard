@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
+import { planFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { planUninstall } from "./uninstall.js";
 import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
@@ -33,6 +34,8 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
   return {
     mode,
     workflows: planWorkflows(context, payloadRoot, targetRoot),
+    // Flutter 스토어 배포 파일(Fastfile·ExportOptions.plist) — 이미 있는 파일은 덮어쓰지 않고 유지한다.
+    flutterApp: planFlutterAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
   };
 }
@@ -56,6 +59,13 @@ export function printDryRun(plan) {
       lines.push(`변경될 파일 (${w.changed.length}개, 기존 설치가 사용자 수정본이면 충돌):`);
       for (const f of w.changed) lines.push(`  ~ ${f.filename} [${f.type}]`);
       lines.push(`동일한 파일 (${w.unchanged.length}개, 변경 없음)`);
+    }
+    if (plan.flutterApp && (plan.flutterApp.created.length || plan.flutterApp.kept.length)) {
+      const { created, kept } = plan.flutterApp;
+      lines.push(`Flutter 스토어 배포 파일 — 신규 (${created.length}개):`);
+      for (const f of created) lines.push(`  + ${f}`);
+      lines.push(`Flutter 스토어 배포 파일 — 기존 파일 유지 (${kept.length}개, 덮어쓰지 않음):`);
+      for (const f of kept) lines.push(`  = ${f} (기존 파일 유지)`);
     }
     if (plan.versionYml) {
       lines.push(plan.versionYml.existed
