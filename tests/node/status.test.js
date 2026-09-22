@@ -1,12 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync, cpSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { runStatus, printStatus } from "../../src/commands/status.js";
+
+const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 function installFixture() {
   const target = mkdtempSync(join(tmpdir(), "paw-status-"));
@@ -97,6 +101,77 @@ test("runStatus: user-edited common workflow file appears in modifiedFiles", () 
 
     const status = runStatus(resolvePayloadRoot(), target);
     assert.ok(status.modifiedFiles.includes("PROJECT-COMMON-VERSION-CONTROL.yaml"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+function renderStatus(status) {
+  const originalLog = console.log;
+  let output = "";
+  console.log = (msg) => { output += msg; };
+  try {
+    printStatus(status);
+  } finally {
+    console.log = originalLog;
+  }
+  return output;
+}
+
+const FLUTTER_STATUS = {
+  installed: true, version: "1.0.0", templateVersion: "0.10.1", types: ["flutter"], branches: null,
+  options: {
+    nexus: false, secretBackup: false, semverAuto: true,
+    envMode: "dotenv", flutterStore: "android", androidDeployMode: "store_prepare", iosDeployMode: "store_only",
+  },
+  modifiedFiles: [],
+};
+
+test("printStatus: Flutter 타입이면 옵션 줄에 env_mode·flutter_store·배포 모드가 표시된다", () => {
+  const output = renderStatus(FLUTTER_STATUS);
+  assert.ok(output.includes("env_mode=dotenv"));
+  assert.ok(output.includes("flutter_store=android"));
+  assert.ok(output.includes("android_deploy_mode=store_prepare"));
+  assert.ok(output.includes("ios_deploy_mode=store_only"));
+});
+
+test("printStatus: Flutter 저장값이 없으면 실제로 적용되는 기본 동작을 함께 알려준다", () => {
+  const output = renderStatus({
+    ...FLUTTER_STATUS,
+    options: { nexus: false, secretBackup: false, semverAuto: true, envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null },
+  });
+  assert.ok(output.includes("env_mode=미설정(dotenv 유지)"));
+  assert.ok(output.includes("flutter_store=미설정(둘 다 설치)"));
+  assert.ok(output.includes("android_deploy_mode=미설정(store_only)"));
+  assert.ok(output.includes("ios_deploy_mode=미설정(store_only)"));
+  assert.ok(!output.includes("=null"));
+});
+
+test("printStatus: Flutter 타입이 아니면 Flutter 옵션은 표시하지 않는다", () => {
+  const output = renderStatus({ ...FLUTTER_STATUS, types: ["spring"] });
+  assert.ok(!output.includes("env_mode="));
+  assert.ok(!output.includes("flutter_store="));
+});
+
+test("runStatus: 스토어 일부만 설치한 Flutter 프로젝트에서도 드리프트·삭제 오탐이 없다", () => {
+  // 설치 때 env_mode·배포 모드가 워크플로우에 치환되고 iOS 스토어 워크플로우는 설치되지 않는다.
+  // status가 같은 옵션으로 비교하지 않으면 PLAYSTORE가 '수정됨'으로 오탐된다.
+  const target = mkdtempSync(join(tmpdir(), "paw-status-flutter-"));
+  try {
+    cpSync(join(REPO_ROOT, "tests/fixtures/flutter/pubspec.yaml"), join(target, "pubspec.yaml"));
+    execFileSync(process.execPath, [
+      join(REPO_ROOT, "bin/project-auto-wizard.js"),
+      "--mode", "full", "--force", "--type", "flutter",
+      "--main-branch", "main", "--develop-branch", "develop",
+      "--flutter-env-mode", "dotenv", "--flutter-store", "android", "--android-deploy-mode", "store_prepare",
+    ], { cwd: target, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+    const status = runStatus(resolvePayloadRoot(), target);
+    assert.deepStrictEqual(status.modifiedFiles, []);
+    assert.deepStrictEqual(status.buckets.removed, []);
+    assert.strictEqual(status.options.envMode, "dotenv");
+    assert.strictEqual(status.options.flutterStore, "android");
+    assert.strictEqual(status.options.androidDeployMode, "store_prepare");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
