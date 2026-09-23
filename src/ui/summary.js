@@ -8,7 +8,9 @@ const SEPARATOR = "────────────────────�
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
     // 설치 후 검증·기록 (#79, #80, #81)
-    answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null } = ctx || {};
+    answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
+    // Flutter 스토어 배포 (이슈 #131) — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
+    flutterApp = null, storeCleanup = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -105,10 +107,18 @@ export function printSummary(ctx) {
     err("");
   }
   // 배포 방식을 바꿔 재설치한 경우, 이전 CD를 어떻게 처리했는지 알린다 (#80).
-  if (cleanup?.removed?.length || cleanup?.backedUp?.length) {
-    err("  🧹 이전 배포 방식 정리:");
-    for (const f of cleanup.removed || []) err(`     • ${f} ${paint("삭제 (손대지 않은 파일)", A.dim, enabled)}`);
-    for (const f of cleanup.backedUp || []) err(`     • ${f} → ${f}.bak ${paint("수정하신 내용이 있어 백업", A.dim, enabled)}`);
+  printCleanup(err, enabled, "이전 배포 방식 정리", cleanup);
+  // 스토어 배포 대상을 해제한 경우도 같은 규칙으로 정리한 결과를 알린다 (#131).
+  printCleanup(err, enabled, "선택 해제한 스토어 배포 정리", storeCleanup);
+  // Fastfile·ExportOptions.plist는 사용자 소유라 없을 때만 만든다 — 만든 것과 그대로 둔 것을 나눠 보여준다 (#131).
+  const { created: appCreated = [], kept: appKept = [] } = flutterApp || {};
+  if (appCreated.length || appKept.length) {
+    err("  📱 Flutter 스토어 배포 파일:");
+    for (const f of appCreated) err(`     • ${f} ${paint("새로 생성", A.dim, enabled)}`);
+    for (const f of appKept) err(`     • ${f} ${paint("기존 파일 유지", A.dim, enabled)}`);
+    if (appCreated.some((f) => f.endsWith("ExportOptions.plist"))) {
+      err("     → ExportOptions.plist의 __TEAM_ID__ · __BUNDLE_ID__ · __PROVISIONING_PROFILE_NAME__ 을 실제 값으로 채워야 iOS 배포가 동작합니다");
+    }
     err("");
   }
   if (logPath) {
@@ -173,5 +183,14 @@ export function printSummary(ctx) {
   err(SEPARATOR);
   err("");
   err(paint("📖 워크플로우 구성과 릴리스 흐름은 README를 참고하세요.", A.cyan, enabled));
+  err("");
+}
+
+// 삭제·백업 정리 결과 한 블록 — 이전 배포 방식 정리와 스토어 선택 해제 정리가 같은 형식을 쓴다.
+function printCleanup(err, enabled, title, cleanup) {
+  if (!cleanup?.removed?.length && !cleanup?.backedUp?.length) return;
+  err(`  🧹 ${title}:`);
+  for (const f of cleanup.removed || []) err(`     • ${f} ${paint("삭제 (손대지 않은 파일)", A.dim, enabled)}`);
+  for (const f of cleanup.backedUp || []) err(`     • ${f} → ${f}.bak ${paint("수정하신 내용이 있어 백업", A.dim, enabled)}`);
   err("");
 }

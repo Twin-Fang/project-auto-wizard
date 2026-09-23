@@ -55,7 +55,8 @@ test("@wizard ask 마커의 대상 줄은 겹따옴표 값이어야 치환된다
   for (const file of allWorkflowFiles()) {
     readFileSync(file, "utf8").split(/\r?\n/).forEach((line, i) => {
       const p = parseWizardLine(line);
-      if (!p) return;
+      // fallback 마커 줄은 따옴표 값이 아니라 `${{ ... || 'literal' }}` 표현식이다 — 마지막 리터럴만 치환된다.
+      if (!p || p.action === "fallback") return;
       if (!new RegExp(`^\\s*${p.key}:\\s*"`).test(line)) bad.push(`${rel(file)}:${i + 1}  ${line.trim()}`);
     });
   }

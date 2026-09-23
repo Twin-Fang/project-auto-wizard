@@ -1,6 +1,9 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
 import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import {
+  ENV_MODES, DEPLOY_MODES, STORE_PLATFORMS, NO_STORE, isEnvMode, isDeployMode, parseStoreList,
+} from "../core/flutter-options.js";
 
 // argv(process.argv.slice(2)) → 파싱 결과. 오류 시 throw(호출부에서 exit 1).
 export function parseArgs(argv) {
@@ -16,6 +19,10 @@ export function parseArgs(argv) {
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
     developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
     deployStyle: "",         // 서버 배포 방식 (--deploy-style). 빈값=version.yml 저장값 → simple
+    flutterEnvMode: "",      // Flutter 환경변수 방식 (--flutter-env-mode). 빈값=저장값 → 신규 dart-define/기존 dotenv
+    flutterStore: null,      // Flutter 스토어 배포 대상 string[] (--flutter-store). null=미지정, none → []
+    androidDeployMode: "",   // Play Store 배포 모드 (--android-deploy-mode). 빈값=저장값 → store_only
+    iosDeployMode: "",       // iOS 배포 모드 (--ios-deploy-mode). 빈값=저장값 → store_only
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
@@ -83,6 +90,36 @@ export function parseArgs(argv) {
           throw new CliError(`--deploy-style 값이 올바르지 않습니다: ${v ?? "(없음)"} (${[...DEPLOY_STYLES.map((s) => s.value), NO_DEPLOY_STYLE].join(" | ")})`);
         }
         result.deployStyle = v; break;
+      }
+      case "--flutter-env-mode": {
+        const v = args.shift();
+        if (!isEnvMode(v)) {
+          throw new CliError(`--flutter-env-mode 값이 올바르지 않습니다: ${v ?? "(없음)"} (${ENV_MODES.join(" | ")})`);
+        }
+        result.flutterEnvMode = v; break;
+      }
+      case "--flutter-store": {
+        const v = args.shift();
+        // 빈 문자열은 parseStoreList가 []로 보지만, 스토어를 안 고르겠다는 뜻은 명시적인 none으로만 받는다.
+        const stores = v ? parseStoreList(v) : null;
+        if (stores === null) {
+          throw new CliError(`--flutter-store 값이 올바르지 않습니다: ${v || "(없음)"} (${[STORE_PLATFORMS.join(","), ...STORE_PLATFORMS, NO_STORE].join(" | ")})`);
+        }
+        result.flutterStore = stores; break;
+      }
+      case "--android-deploy-mode": {
+        const v = args.shift();
+        if (!isDeployMode(v)) {
+          throw new CliError(`--android-deploy-mode 값이 올바르지 않습니다: ${v ?? "(없음)"} (${DEPLOY_MODES.join(" | ")})`);
+        }
+        result.androidDeployMode = v; break;
+      }
+      case "--ios-deploy-mode": {
+        const v = args.shift();
+        if (!isDeployMode(v)) {
+          throw new CliError(`--ios-deploy-mode 값이 올바르지 않습니다: ${v ?? "(없음)"} (${DEPLOY_MODES.join(" | ")})`);
+        }
+        result.iosDeployMode = v; break;
       }
       case "--nexus":
         if (seenFlags.has("--no-nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");

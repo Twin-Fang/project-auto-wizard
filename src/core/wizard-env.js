@@ -2,12 +2,13 @@
 // ⚠️ YAML 파싱/재직렬화 금지 — 라인 단위 문자열 처리 (포맷·주석 보존이 unchanged 판정 전제).
 // 실측 기준: template_integrator.sh 3282~3360, 3003~3012.
 
-// KEY 정규식: .sh는 [A-Z_]+ (대문자+언더스코어만). ask/auto 마커가 있는 라인만 대상.
-const MARKER_RE = /#\s*@wizard\s+(ask|auto):(.*)$/;
+// KEY 정규식: .sh는 [A-Z_]+ (대문자+언더스코어만). ask/auto/fallback 마커가 있는 라인만 대상.
+// fallback(이슈 #131)은 `KEY: ${{ 런타임값 || 'literal' }}` 표현식 안의 기본 리터럴을 교체하는 마커다.
+const MARKER_RE = /#\s*@wizard\s+(ask|auto|fallback):(.*)$/;
 const KEY_RE = /^(\s*)([A-Z_]+):/;
 const PATHS_ANCHOR_RE = /#\s*@wizard\s+paths-anchor/;
 
-// 한 라인을 파싱해 {indent,key,action,arg} 반환. ask/auto 마커 없으면 null.
+// 한 라인을 파싱해 {indent,key,action,arg} 반환. ask/auto/fallback 마커 없으면 null.
 export function parseWizardLine(line) {
   const marker = line.match(MARKER_RE);
   if (!marker) return null;
@@ -45,8 +46,24 @@ export function setEnvLine(line, key, value) {
   return out + cr;
 }
 
+// `KEY: ${{ a || b || 'literal' }}  # @wizard fallback:<token>` — 표현식 안의 "마지막 홑따옴표 리터럴"만 교체하고
+// 마커 주석을 제거한다. setEnvLine은 `KEY: "값"` 형태의 따옴표 값만 다루므로 GitHub 표현식은 처리하지 못한다.
+// 리터럴은 `||` 체인의 맨 끝(런타임 입력·저장소 변수가 모두 비었을 때의 기본값)이라 런타임 우선순위는 바뀌지 않는다.
+// value가 빈 문자열이면 줄을 그대로 둔다 (setEnvLine과 같은 규약 — 템플릿 기본값이 남는다).
+const WIZARD_COMMENT_RE = /[^\S\r\n]*#[^\S\r\n]*@wizard[^\S\r\n].*$/;
+const LAST_LITERAL_RE = /^(.*)'[^']*'([^']*)$/;
+export function setFallbackLine(line, value) {
+  if (value === "" || value == null) return line;
+  const cr = line.endsWith("\r") ? "\r" : "";
+  const expression = (cr ? line.slice(0, -1) : line).replace(WIZARD_COMMENT_RE, "");
+  if (!LAST_LITERAL_RE.test(expression)) return line;
+  const escaped = String(value).replaceAll("'", "''"); // GitHub 표현식 문자열 리터럴의 따옴표 이스케이프
+  return expression.replace(LAST_LITERAL_RE, (_m, head, tail) => `${head}'${escaped}'${tail}`) + cr;
+}
+
 // resolver — .sh resolve_token 등가. 값 계산은 주입된 resolvers로 위임(순수성 유지).
-// resolvers: { repo, "spring-app-yml-dir"(type), "spring-app-yml-path"(type), "flutter-root" }
+// resolvers: { repo, "spring-app-yml-dir"(type), "spring-app-yml-path"(type), "flutter-root",
+//              "project-path"(type), "flutter-env-mode", "android-deploy-mode", "ios-deploy-mode" }
 export function resolveToken(name, type, resolvers = {}) {
   const fn = resolvers[name];
   return typeof fn === "function" ? (fn(type) ?? "") : "";
@@ -80,6 +97,11 @@ export function substituteEnv(content, opts = {}) {
   for (let i = 0; i < lines.length; i++) {
     const p = parseWizardLine(lines[i]); // 이미 \r 제거된 라인
     if (!p) continue;
+    // fallback은 따옴표 값이 아니라 표현식 안 리터럴을 바꾸므로 ask/auto와 경로가 다르다.
+    if (p.action === "fallback") {
+      lines[i] = setFallbackLine(lines[i], resolveToken(p.arg, type, resolvers));
+      continue;
+    }
     let val = "";
     if (p.action === "auto") {
       val = resolveToken(p.arg, type, resolvers);

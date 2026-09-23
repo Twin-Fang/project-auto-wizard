@@ -17,6 +17,10 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
       --develop-branch B   개발 브랜치 (기본: develop). 릴리스 브랜치와 같으면 trunk-based 모드
       --deploy-style STYLE           서버 배포 방식: simple | nginx | traefik | none (기본: simple)
+      --flutter-env-mode MODE        Flutter 환경변수 방식: dart-define | dotenv (기본: 신규 설치 dart-define, 기존 설치는 저장값·dotenv 유지)
+      --flutter-store CSV            Flutter 스토어 배포 대상: android,ios | android | ios | none (기본: 둘 다 설치)
+      --android-deploy-mode MODE     Play Store 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
+      --ios-deploy-mode MODE         iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --nexus / --no-nexus            라이브러리 publish 워크플로우 포함/제외 (Nexus + GitHub Packages)
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)

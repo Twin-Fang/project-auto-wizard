@@ -17,7 +17,7 @@ npx project-auto-wizard
 [![node](https://img.shields.io/badge/node-%3E%3D20.12-brightgreen)](package.json)
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.9.0 (2026-09-18)
+## 최신 버전 : v0.10.0 (2026-09-21)
 
 [전체 버전 기록 보기](CHANGELOG.md)
 
@@ -66,7 +66,7 @@ flutter.APP_ARTIFACT_NAME:
 
 `spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
 
-- **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종
+- **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종 — 스토어 배포(Play Store·TestFlight)는 고른 플랫폼만 설치되고 fastlane 파일도 함께 생성됩니다. 환경변수 방식·배포 모드 등 자세한 내용은 아래 "Flutter 워크플로우 상세"를 참고하세요.
 - **spring**: 서버 배포 1종(단일 서버 / 무중단 Nginx / 무중단 Traefik / 배포 안 함 중 택1) + PR 프리뷰 + 라이브러리 publish 2종(Nexus·GitHub Packages, `--nexus` opt-in)
   - 서버 배포 워크플로우는 **서로 대체재**라 하나만 설치합니다. 대화형에서 고르면 그것만 깔리고 **`push` 트리거까지 켜진 채로** 설치됩니다. 비대화형은 `--deploy-style simple|nginx|traefik|none` (기본: `simple`).
   - 고른 방식은 `version.yml`에 기록되므로 다시 실행해도 묻지 않습니다. 방식을 바꾸면 **이전 워크플로우를 마법사가 정리합니다** — 손대지 않은 파일은 삭제하고, 수정한 파일은 `.bak`으로 옮겨 내용을 보존합니다. 남겨두면 배포가 두 번 돕니다.
@@ -74,6 +74,81 @@ flutter.APP_ARTIFACT_NAME:
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI / PR 프리뷰 / SimpleCICD
 - **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 있는 프로젝트만 해당)
+
+<a id="flutter-store"></a>
+
+#### Flutter 워크플로우 상세
+
+프로젝트 타입에 `flutter`가 포함되면 마법사가 아래 선택지 3개를 묻습니다. 고른 값은 `version.yml`의 `metadata.template.options`(`env_mode`, `flutter_store`, `android_deploy_mode`, `ios_deploy_mode`)에 기록되므로 다시 실행해도 묻지 않고, 나중에 바꾸려면 확인 화면의 **수정하기 > 환경변수 방식 / 스토어 배포 대상 / 배포 모드**를 쓰세요. Flutter가 없는 프로젝트에는 이 질문·저장값이 전혀 나타나지 않습니다.
+
+| 선택지 | 값 | 기본값 | CLI 플래그 |
+|---|---|---|---|
+| 환경변수 방식 | `dart-define` / `dotenv` | 신규 설치는 `dart-define`. `version.yml`이 이미 있고 저장값이 없는 설치는 기존 동작을 보존하려고 `dotenv` 유지 | `--flutter-env-mode` |
+| 스토어 배포 대상 | Android(Play Store) / iOS(TestFlight) 다중 선택 | 대화형 신규 설치는 아무것도 선택하지 않은 상태, 비대화형·플래그 미지정은 현행 동작(둘 다 설치). 저장값이 없는 기존 설치는 이미 설치된 스토어 워크플로우에서 초기 선택을 추론 | `--flutter-store android,ios,none` |
+| 배포 모드 | 고른 플랫폼별 `store_only` / `store_prepare` / `store_submit` | `store_only` | `--android-deploy-mode`, `--ios-deploy-mode` |
+
+**설치되는 구성**
+
+- 항상 설치: `CI`, `ANDROID-FIREBASE-CICD`, `ANDROID-SELFHOSTED-CICD`, `ANDROID-TEST-APK`, `APP-BUILD-TRIGGER`
+- Android를 고르면: `ANDROID-PLAYSTORE-CICD` + `android/fastlane/Fastfile.playstore`
+- iOS를 고르면: `IOS-TESTFLIGHT` + `IOS-TEST-TESTFLIGHT` + `ios/fastlane/Fastfile` + `ios/ExportOptions.plist`
+- fastlane은 위 스토어 배포 워크플로우에서만 씁니다. `SELFHOSTED`와 `TEST-APK`는 `flutter build apk --release`를 직접 실행하며 Ruby·fastlane을 설치하지 않습니다.
+- `Fastfile`과 `ExportOptions.plist`는 **Flutter 루트 기준**으로(모노레포는 `--paths flutter=app`이면 `app/` 아래) **없을 때만 생성**합니다. 이미 있으면 덮어쓰지 않고 설치 요약과 `--dry-run`에 "기존 파일 유지"로 표시하며, `--mode uninstall`도 이 파일들은 건드리지 않습니다(사용자 소유 파일).
+- 스토어 대상을 해제하고 다시 실행하면 배포 방식을 바꿀 때와 같은 규칙으로 정리합니다 — 손대지 않은 워크플로우는 삭제하고, 수정한 것은 `.bak`으로 옮겨 보존합니다. `Fastfile`·`ExportOptions.plist`는 삭제하지 않습니다.
+
+**환경변수 방식**
+
+두 방식 모두 시크릿 `ENV_FILE`(없으면 `ENV`)에 `.env` 형식으로 값을 넣어 두면 됩니다. 두 방식을 동시에 쓰는 모드는 없습니다.
+
+- `dart-define`: `ENV_FILE`을 프로젝트 밖 임시 경로(러너 임시 폴더)에 쓰고 모든 `flutter build`에 `--dart-define-from-file`로 넘깁니다. 프로젝트 루트에는 `.env`를 만들지 않으며, 코드에서는 `String.fromEnvironment('KEY')`로 읽습니다. 값이 아닌 파일 경로를 넘기므로 `--verbose` 로그에도 값이 명령줄에 노출되지 않습니다.
+- `dotenv`: Flutter 루트에 `.env`를 만든 뒤 빌드합니다(`build_runner`가 그 뒤에 실행되는 순서 유지). `flutter_dotenv`·`envied`를 쓰는 프로젝트가 여기에 해당합니다. 이 `.env`에는 아래 파서 제약이 적용되지 않습니다.
+
+`dart-define` 방식에서 `ENV_FILE`은 Flutter의 `--dart-define-from-file` 파서가 읽으므로 다음 범위만 지원됩니다 (근거: Flutter 3.47.5 `flutter_tools/lib/src/runner/flutter_command.dart`의 `DotEnvRegex`).
+
+- 내용이 `{`로 시작하면 JSON 파일로 해석하고, 그렇지 않으면 `KEY=값` 줄로 해석합니다. 키는 `[a-zA-Z_][a-zA-Z0-9_]*` 형태여야 합니다.
+- `#`로 시작하는 주석 줄과 빈 줄은 무시합니다.
+- 값은 `"…"`, `'…'`, `` `…` `` 따옴표가 벗겨지고 그 뒤의 `# 주석`은 제거됩니다. 따옴표 없는 값은 공백 또는 `#` 앞까지 읽으며, 값 안의 `=`는 허용됩니다.
+- `export KEY=값` 형태와 멀티라인(`"""`) 값은 지원하지 않아 빌드가 오류로 종료됩니다.
+
+**배포 모드** — 플랫폼별로 아래처럼 동작합니다(모르는 값은 `store_only`로 취급). 기본값은 워크플로우 표현식의 폴백 자리에 반영되며, 저장소 변수 `ANDROID_DEPLOY_MODE`·`IOS_DEPLOY_MODE`와 `workflow_dispatch` 입력이 항상 우선합니다.
+
+| 모드 | Play Store (Android) | TestFlight / App Store (iOS) |
+|---|---|---|
+| `store_only` | internal 트랙에 업로드 | TestFlight 업로드 |
+| `store_prepare` | production 트랙에 draft 상태로 업로드 (Play Console에서 직접 출시) | 앱 버전·메타데이터 준비까지 (심사 제출 안 함) |
+| `store_submit` | production 트랙에 심사 제출 | 심사 제출까지 |
+
+> `store_submit`을 고르면 **main push마다 심사가 자동 제출**됩니다.
+
+**필요한 Secrets · Variables** — 설치 완료 화면과 실행 로그에도 설치된 워크플로우가 실제로 요구하는 Secret 목록이 출력됩니다.
+
+| 대상 | Secrets | Variables |
+|---|---|---|
+| 모든 Flutter 빌드 | `ENV_FILE` (없으면 `ENV`) | — |
+| Android 서명 (`PLAYSTORE`·`FIREBASE`·`TEST-APK`) | `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`, `GOOGLE_SERVICES_JSON` | — |
+| Play Store (`PLAYSTORE`) | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_PACKAGE_NAME` | `ANDROID_PACKAGE_NAME`(Secret이 없을 때 대신 사용), `ANDROID_DEPLOY_MODE`(선택) |
+| iOS (`IOS-TESTFLIGHT`·`IOS-TEST-TESTFLIGHT`) | `APP_STORE_CONNECT_API_KEY_BASE64`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`, `IOS_PROVISIONING_PROFILE_NAME`, `IOS_BUNDLE_ID`, `SECRETS_XCCONFIG`(선택) | `IOS_BUNDLE_ID`(Secret이 없을 때 대신 사용), `IOS_DEPLOY_MODE`(선택) |
+| Firebase 배포 (`FIREBASE`·`TEST-APK`) | `FIREBASE_SERVICE_ACCOUNT_JSON_BASE64` | — |
+| Selfhosted 배포 (`SELFHOSTED`) | `SERVER_HOST`, `SERVER_USER`, `SERVER_PASSWORD`, `DEBUG_KEYSTORE` | — |
+
+`ANDROID_PACKAGE_NAME`은 `PLAYSTORE` 워크플로우가 fastlane에 패키지명으로 넘깁니다(`secrets` 우선, 없으면 `vars`). iOS의 `IOS_BUNDLE_ID`와 같은 플랫폼 접두사 규칙입니다.
+
+**`ExportOptions.plist`에 채워야 할 값** — 마법사가 만든 `ios/ExportOptions.plist`에는 아래 플레이스홀더가 들어 있어 실제 값으로 바꿔야 합니다. 채우지 않고 `IOS-TESTFLIGHT`를 실행하면 `xcodebuild`의 알기 어려운 오류 대신 플레이스홀더가 남았다는 메시지로 검증 단계에서 중단되며, `--mode doctor`도 같은 항목을 WARN으로 알려줍니다.
+
+| 플레이스홀더 | 채울 값 |
+|---|---|
+| `__TEAM_ID__` | Apple Developer Team ID |
+| `__BUNDLE_ID__` | 앱 번들 ID (`IOS_BUNDLE_ID`와 같은 값) |
+| `__PROVISIONING_PROFILE_NAME__` | 프로비저닝 프로파일 이름 (`IOS_PROVISIONING_PROFILE_NAME`과 같은 값) |
+
+**모노레포와 `ci-gate`**
+
+- `--paths flutter=app`처럼 Flutter 하위 폴더를 지정하면 모든 Flutter 워크플로우가 그 폴더(`FLUTTER_PROJECT_DIR`)를 기준으로 동작하고, main push로 도는 배포 워크플로우(`PLAYSTORE`·`IOS-TESTFLIGHT`·`SELFHOSTED`·`FIREBASE`)는 `app/**`가 바뀔 때만 실행됩니다(Spring 등 다른 타입과 같은 `paths` 필터).
+- CI 워크플로우(Flutter·Go·Next·Python·React·Spring NEXUS-CI)는 `push`·`pull_request`에서 항상 실행되고, 첫 job `changes`가 변경 파일을 판별해 나머지 job을 건너뜁니다(건너뛴 job은 Success). 마지막 job `ci-gate`는 항상 실행되어 필수 job이 모두 success 또는 skipped이면 통과하고 failure·cancelled가 하나라도 있으면 실패합니다.
+- 브랜치 보호 규칙의 required status check에는 개별 job이 아니라 **`CI Gate`(`ci-gate`) 하나만** 등록하세요. 경로 필터로 워크플로우 자체를 건너뛰면 required check가 Pending에 머물러 머지가 막히지만, job을 건너뛰는 방식은 그렇지 않기 때문입니다.
+- 워크플로우 `paths` 필터는 태그 push에 적용되지 않습니다(GitHub 문서).
+
+**Gemfile** — 스토어 배포 워크플로우(`PLAYSTORE`·`IOS-TESTFLIGHT`·`IOS-TEST-TESTFLIGHT`)는 사용자 `Gemfile`에 `fastlane`이 있으면 그것을 쓰고, 없으면 실행할 때 생성합니다. 마법사는 Gemfile 템플릿을 배포하지 않습니다. fastlane 공식 문서가 권장하는 대로 `Gemfile`(`gem "fastlane"`)과 `Gemfile.lock`을 저장소에 커밋해 두면 버전이 고정되어 재현성이 좋아집니다.
 
 ### 실행 로그 (`.github/.wizard/logs/`)
 
@@ -154,6 +229,10 @@ npx project-auto-wizard [옵션]
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
       --develop-branch B   개발 브랜치 (기본: develop)
       --deploy-style S     서버 배포 방식: simple | nginx | traefik | none (기본: simple)
+      --flutter-env-mode M     Flutter 환경변수 방식: dart-define | dotenv (신규 기본: dart-define, 저장값 없는 기존 설치는 dotenv 유지)
+      --flutter-store CSV      Flutter 스토어 배포 대상: android,ios,none (미지정 시 둘 다 설치)
+      --android-deploy-mode M  Play Store 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
+      --ios-deploy-mode M      iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --nexus              라이브러리 publish 워크플로우 포함 (Nexus + GitHub Packages)
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
@@ -173,8 +252,8 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 
 | 명령 | 내용 |
 |---|---|
-| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
-| `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
+| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값(Flutter 프로젝트면 환경변수 방식·스토어 배포 대상·배포 모드 포함)과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
+| `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. Flutter 프로젝트에서는 고른 스토어 플랫폼의 필수 파일(`Fastfile`, `ExportOptions.plist` 등)과 `ExportOptions.plist`의 플레이스홀더 잔존 여부도 점검합니다(로컬 파일만 확인, 스토어 시크릿 등록 여부는 점검하지 않음). `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
 
 `doctor`는 항목마다 **그 설정이 무엇을 담당하는지**를 라벨에 함께 표시하고, 문제가 있는 항목만 `현상 → 그대로 두면 무엇이 안 되는지 → 어디를 눌러 고치는지 → 문서 링크` 순으로 펼쳐 보여줍니다. 정상 항목은 한 줄로 압축됩니다. GitHub 설정 화면에 실제로 표시되는 문자열(`Read and write permissions` 등)은 화면에서 찾을 수 있도록 원문 그대로 출력합니다.
 

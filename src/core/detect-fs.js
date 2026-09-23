@@ -116,7 +116,9 @@ export function findSpringAppYml(root, base = ".") {
 
 // 실 resolver 세트 생성 (.sh resolve_token 4종 등가) — index/interactive 공용.
 // paths: Map<type, path> (모노레포 경로).
-export function makeResolvers(root, repoName, paths) {
+// flutterOptions: resolveFlutterOptions 결과 또는 같은 필드를 가진 context (이슈 #131). null이면 Flutter 토큰이
+//   빈 값이라 템플릿 기본값(dart-define, store_only)이 그대로 남는다.
+export function makeResolvers(root, repoName, paths, flutterOptions = null) {
   const springBase = (t) => paths.get(t || "spring") || paths.get("spring") || ".";
   return {
     repo: () => repoName,
@@ -130,5 +132,11 @@ export function makeResolvers(root, repoName, paths) {
     },
     "spring-app-yml-path": (t) => findSpringAppYml(root, springBase(t)) || "",
     "flutter-root": () => paths.get("flutter") || ".",
+    // CI changes job의 경로 필터(이슈 #131) — 타입별 프로젝트 루트. 단일 레포·common은 "."(항상 변경됨으로 판정).
+    "project-path": (t) => paths.get(t) || ".",
+    // 빈 문자열이면 setEnvLine/setFallbackLine이 줄을 건너뛰어 템플릿 기본값이 남는다.
+    "flutter-env-mode": () => flutterOptions?.envMode || "",
+    "android-deploy-mode": () => flutterOptions?.androidDeployMode || "",
+    "ios-deploy-mode": () => flutterOptions?.iosDeployMode || "",
   };
 }

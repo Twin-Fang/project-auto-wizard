@@ -5,6 +5,7 @@ import { parseExisting } from "../core/version-yml.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
 import { PATHS } from "../core/paths.js";
+import { resolveFlutterOptions } from "../core/flutter-options.js";
 
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 상태를 확인할 대상 레포.
 export function runStatus(payloadRoot, targetRoot = ".") {
@@ -13,7 +14,12 @@ export function runStatus(payloadRoot, targetRoot = ".") {
 
   const existing = parseExisting(readFileSync(vyPath, "utf8"));
   const repoName = detectRepoName(targetRoot);
-  const resolvers = makeResolvers(targetRoot, repoName, existing.paths);
+  // 설치 때 워크플로우에 치환된 환경변수 방식·배포 모드와 스토어 선택을 비교 기준에도 똑같이 적용한다 —
+  // 그렇지 않으면 미수정 파일이 드리프트로, 선택 해제한 스토어 워크플로우가 "삭제함"으로 오탐된다.
+  const flutterOptions = resolveFlutterOptions({
+    cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
+  });
+  const resolvers = makeResolvers(targetRoot, repoName, existing.paths, flutterOptions);
   // version.yml에 branches 블록이 없으면(신기능 이전 설치·수기 편집) makeSrcText(null)이
   // {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}}를 치환하지 못해 모든 워크플로우가 드리프트로 오탐된다 —
   // 비교용 기본값으로 폴백(실제 저장값은 아니지만 드리프트 비교 목적에는 충분).
@@ -23,6 +29,7 @@ export function runStatus(payloadRoot, targetRoot = ".") {
     includeNexus: existing.options.nexus === true,
     includeSecretBackup: existing.options.secretBackup === true,
     repoName, resolvers, branches: branchesForCompare,
+    flutterStore: flutterOptions.stores,
   };
   const plan = planWorkflows(context, payloadRoot, targetRoot);
 
@@ -62,7 +69,8 @@ export function printStatus(status) {
   }
   const boolLabel = (v) => (v === null ? "미설정(기본 false)" : v);
   const semverAutoLabel = status.options.semverAuto === null ? "미설정(기본 false)" : status.options.semverAuto;
-  lines.push(`옵션            : nexus=${boolLabel(status.options.nexus)} secret_backup=${boolLabel(status.options.secretBackup)} semver_auto=${semverAutoLabel}`);
+  const flutterLabels = status.types.includes("flutter") ? flutterOptionLabels(status.options) : "";
+  lines.push(`옵션            : nexus=${boolLabel(status.options.nexus)} secret_backup=${boolLabel(status.options.secretBackup)} semver_auto=${semverAutoLabel}${flutterLabels}`);
   if (status.modifiedFiles.length) {
     lines.push("", `사용자가 수정한 워크플로우 파일 (${status.modifiedFiles.length}개):`);
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);
@@ -81,4 +89,14 @@ export function printStatus(status) {
   }
   lines.push("");
   console.log(lines.join("\n"));
+}
+
+// Flutter 타입일 때만 붙는 옵션 (이슈 #131). 저장값이 없으면 그 상태에서 실제로 적용되는 동작을 함께 알린다.
+function flutterOptionLabels(options) {
+  return [
+    ` env_mode=${options.envMode ?? "미설정(dotenv 유지)"}`,
+    ` flutter_store=${options.flutterStore ?? "미설정(둘 다 설치)"}`,
+    ` android_deploy_mode=${options.androidDeployMode ?? "미설정(store_only)"}`,
+    ` ios_deploy_mode=${options.iosDeployMode ?? "미설정(store_only)"}`,
+  ].join("");
 }

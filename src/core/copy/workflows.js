@@ -4,6 +4,7 @@
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
 import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE } from "../deploy-style.js";
+import { storeWorkflowFilter } from "../flutter-options.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -29,6 +30,17 @@ const TRUNK_BASED_EXCLUDED = new Set([
   "PROJECT-COMMON-VERSION-CONTROL.yaml",
   "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
 ]);
+
+// 타입 루트 디렉토리에 거는 파일 필터 — "배포 안 함"의 CD 제외와 Flutter 스토어 대상 선택을 합성한다.
+// copyWorkflowsForType·surveyWorkflows·planWorkflows가 같은 함수를 써야 설치·충돌 조사·status/dry-run이
+// 서로 다른 파일 집합을 보지 않는다. flutterStore가 배열이 아니면(null=미결정, 비대화형 기본) 스토어 필터는
+// 걸지 않는다. 필터가 없어도 항상 함수를 돌려준다 — processDir은 null을 받지 못한다.
+export function buildTypeRootFilter(type, deployStyle, flutterStore) {
+  const filters = [];
+  if (deployStyle === NO_DEPLOY_STYLE) filters.push(deployFilter(deployStyle));
+  if (type === "flutter" && Array.isArray(flutterStore)) filters.push(storeWorkflowFilter(flutterStore));
+  return (filename) => filters.every((keep) => keep(filename));
+}
 
 // 한 파일에 env 치환을 적용해 대상 파일을 갱신 (.sh configure_workflow_env 등가).
 // values/useDefaults: env 계획(promptEnvPlan) 결과 — 미지정이면 기본값 경로(현행 force 동작).
@@ -143,6 +155,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 // copy_workflows 본체 (동기 — 기존 호출부 무변경).
 // context: { types:[], paths:Map, includeNexus, includeSecretBackup, force, repoName, resolvers,
 //            envValues?:Map<key,value>, envUseDefaults?:boolean }  ← env 계획(promptEnvPlan) 결과 주입점
+//            flutterStore?:string[]|null }  ← Flutter 스토어 대상 (null=필터 없음, 배열=선택된 플랫폼만)
 // hooks: { decisions?: Map<filename, 'skip'|'backup'|'template'>,   — 진짜 충돌(changed) 결정
 //          restoreRemoved?: Set<filename> }                          — 사용자가 지운 파일 중 복원할 것
 //        미지정 파일은 'skip'(현행 force 동작 100% 유지). 대화형 수집은 copyWorkflowsInteractive 참조.
@@ -270,7 +283,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
 //   conflicts — 양쪽이 다 바뀐 진짜 충돌. upstreamOnly/localOnly는 자동 처리되므로 여기 없다.
 //   removed   — 우리가 깔았는데 사용자가 지운 파일. 되살리기 전에 물어봐야 한다.
 export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {} } = context;
+  const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {}, flutterStore = null } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
@@ -297,7 +310,7 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) {
-      collect(typeDir, envOpts, type, () => false, deployStyle === NO_DEPLOY_STYLE ? keepDeploy : null);
+      collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore));
     }
     const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
@@ -328,8 +341,9 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 }
 
 function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
-  const { includeNexus, deployStyle = "", envOptsFor, collectAsks = null, dirCtx } = ctx;
+  const { includeNexus, deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
   const keepDeploy = deployFilter(deployStyle);
+  const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore);
   const { srcText, baselineTargets } = dirCtx;
   const typeDir = join(projectTypesDir, type);
   const envOpts = envOptsFor(type);
@@ -341,8 +355,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // 바로 있는 타입도 있다 — "배포 안 함"일 때는 타입 루트에서도 CD 파일(SIMPLE-CICD 등)을
   // 걸러야 한다. simple/nginx/traefik은 오늘과 동일하게 필터 없이 전부 복사한다.
   if (exists(typeDir)) {
-    const typeRootFilter = deployStyle === NO_DEPLOY_STYLE ? keepDeploy : undefined;
-    const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters, typeRootFilter);
+    const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters, keepTypeRoot);
     untouched.push(...c.unchanged, ...c.localOnly);
   }
 
@@ -374,7 +387,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
       if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
-      if (srcDir === typeDir && deployStyle === NO_DEPLOY_STYLE && !keepDeploy(filename)) continue; // 타입 루트 CD도 배제
+      if (srcDir === typeDir && !keepTypeRoot(filename)) continue; // 타입 루트: 배제된 CD·안 고른 스토어 워크플로우
       if (!existsSync(target)) continue;          // 건너뛴 파일 제외
       if (untouched.includes(filename)) continue; // unchanged/localOnly 제외
       configureEnv(target, { ...envOpts, collectAsks }); // env 계획 values/useDefaults 포함
@@ -386,7 +399,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
 // changed뿐 아니라 newFiles/unchanged까지 전부 반환한다는 점이 listWorkflowConflicts(changed만
 // 반환)와 다르다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
 export function planWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {} } = context;
+  const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {}, flutterStore = null } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
@@ -427,8 +440,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers };
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) {
-      const typeRootFilter = deployStyle === NO_DEPLOY_STYLE ? deployFilter(deployStyle) : null;
-      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, typeRootFilter), type);
+      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, buildTypeRootFilter(type, deployStyle, flutterStore)), type);
     }
 
     const serverDeployDir = join(typeDir, "server-deploy");

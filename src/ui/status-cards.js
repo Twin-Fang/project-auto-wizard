@@ -2,6 +2,7 @@
 // (층5의 Breaking Changes 박스는 core/breaking-check.js가 담당.
 //  원본의 층4 IDE Skills 상태는 project-auto-wizard 스코프 제외 — Agent Skills 미포함)
 import { A, paint } from "./ansi.js";
+import { DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
 const GUT = paint("│", A.gray);
 const HEAD = paint("◆", A.cyan);
@@ -29,7 +30,8 @@ export function printDetectionLog({ types = [], version = "", branch = "", marke
 
 // 층3 — 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
-  includeNexus = null, includeSecretBackup = null, paths = new Map(), showOptional = false },
+  includeNexus = null, includeSecretBackup = null, paths = new Map(), showOptional = false,
+  flutter = null, envModeDefault = "" },
   out = (s) => process.stderr.write(s)) {
   out(`${HEAD}  ${paint("프로젝트 분석 결과", A.bold)}\n`);
   const row = (icon, label, value) => out(`${GUT}  ${icon} ${label.padEnd(10)} ${value}\n`);
@@ -40,6 +42,16 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
   if (showOptional) {
     row("📦", "Nexus", includeNexus === true ? paint("포함", A.green) : paint("제외", A.dim));
     row("🔐", "Secret백업", includeSecretBackup === true ? paint("포함", A.green) : paint("제외", A.dim));
+    // Flutter 옵션 (이슈 #131 fable5.1 리뷰 Important #1) — 확정 직전 화면에서도 선택값을 보여준다.
+    if (flutter && types.includes("flutter")) {
+      const stores = flutter.stores ?? [];
+      const modeParts = stores.map(
+        (p) => `${p}=${(p === "android" ? flutter.androidDeployMode : flutter.iosDeployMode) || DEFAULT_DEPLOY_MODE}`,
+      );
+      row("⚙️", "환경변수", flutter.envMode || envModeDefault);
+      row("🏬", "스토어", stores.length ? stores.join(", ") : "없음");
+      row("🚀", "배포모드", modeParts.length ? modeParts.join(" ") : "없음");
+    }
   }
   // 모노레포 경로 — 루트가 아닌 항목이 하나라도 있으면 표시
   const nonRoot = [...paths.entries()].filter(([, p]) => p && p !== ".");

@@ -1,0 +1,86 @@
+# ===================================================================
+# 이 파일은 사용자 소유입니다. 모드별 동작을 여기서 수정하세요.
+# ===================================================================
+#
+# Google Play 배포용 Fastfile 템플릿입니다.
+# PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD 워크플로우가 이 파일을 android/fastlane/Fastfile로
+# 복사한 뒤 `bundle exec fastlane deploy_internal`을 실행합니다.
+# project-auto-wizard는 이 파일이 이미 있으면 덮어쓰지 않으므로 자유롭게 수정해도 됩니다.
+#
+# 배포 모드 (워크플로우가 DEPLOY_MODE 환경변수로 전달)
+# ┌───────────────┬────────────┬──────────────────┬──────────────────────────────┐
+# │ DEPLOY_MODE   │ track      │ release_status   │ 동작                         │
+# ├───────────────┼────────────┼──────────────────┼──────────────────────────────┤
+# │ store_only    │ internal   │ completed        │ 내부 테스트 트랙에 업로드    │
+# │ store_prepare │ production │ draft            │ 프로덕션에 초안으로 업로드   │
+# │               │            │                  │ (Play Console에서 직접 출시) │
+# │ store_submit  │ production │ completed        │ 프로덕션 심사 제출까지 진행  │
+# └───────────────┴────────────┴──────────────────┴──────────────────────────────┘
+# 알 수 없는 값이나 빈 값은 store_only로 처리합니다.
+#
+# 워크플로우가 넘기는 환경변수
+#   PACKAGE_NAME          앱 패키지명 (ANDROID_PACKAGE_NAME secrets/variables)
+#   AAB_PATH              업로드할 .aab 절대경로
+#   GOOGLE_PLAY_JSON_KEY  서비스 계정 JSON 키 파일 경로
+#   VERSION_NAME          버전 이름 (Play Console의 릴리스 이름)
+#   VERSION_CODE          버전 코드 (변경 이력 파일명과 일치)
+#   DEPLOY_MODE           위 표의 배포 모드
+#
+# 변경 이력은 워크플로우가 android/fastlane/metadata/android/ko-KR/changelogs/<VERSION_CODE>.txt
+# 로 만들어 두며, upload_to_play_store가 metadata_path 아래에서 버전 코드로 찾아 업로드합니다.
+
+default_platform(:android)
+
+platform :android do
+  desc "AAB를 Google Play에 업로드합니다 (DEPLOY_MODE: store_only | store_prepare | store_submit)"
+  lane :deploy_internal do
+    package_name = ENV["PACKAGE_NAME"].to_s.strip
+    if package_name.empty?
+      UI.user_error!("PACKAGE_NAME이 비어 있습니다. ANDROID_PACKAGE_NAME secrets/variables를 등록하세요. (예: com.example.app)")
+    end
+
+    aab_path = ENV["AAB_PATH"].to_s.strip
+    json_key = ENV["GOOGLE_PLAY_JSON_KEY"].to_s.strip
+    version_name = ENV["VERSION_NAME"].to_s.strip
+    version_code = ENV["VERSION_CODE"].to_s.strip
+    if aab_path.empty? || json_key.empty? || version_name.empty? || version_code.empty?
+      UI.user_error!("AAB_PATH, GOOGLE_PLAY_JSON_KEY, VERSION_NAME, VERSION_CODE 환경변수가 모두 필요합니다. 워크플로우에서 전달하는지 확인하세요.")
+    end
+
+    deploy_mode = ENV["DEPLOY_MODE"].to_s.strip
+    track, release_status =
+      case deploy_mode
+      when "store_prepare"
+        ["production", "draft"]
+      when "store_submit"
+        ["production", "completed"]
+      when "store_only"
+        ["internal", "completed"]
+      else
+        UI.important("알 수 없는 DEPLOY_MODE '#{deploy_mode}' 입니다. store_only로 처리합니다.") unless deploy_mode.empty?
+        ["internal", "completed"]
+      end
+
+    # lane은 Fastfile이 있는 android/fastlane 디렉토리에서 실행되므로,
+    # 워크플로우가 변경 이력을 만드는 android/fastlane/metadata/android와 같은 경로를 가리킵니다.
+    metadata_path = File.expand_path("metadata/android")
+    changelog_file = File.join(metadata_path, "ko-KR", "changelogs", "#{version_code}.txt")
+    UI.important("변경 이력 파일이 없습니다: #{changelog_file}") unless File.exist?(changelog_file)
+
+    UI.message("Play 배포: DEPLOY_MODE=#{deploy_mode.inspect} → track=#{track}, release_status=#{release_status}")
+
+    upload_to_play_store(
+      package_name: package_name,
+      json_key: json_key,
+      aab: aab_path,
+      track: track,
+      release_status: release_status,
+      version_name: version_name,
+      metadata_path: metadata_path,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end
