@@ -9,6 +9,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runInteractive } from "../../src/commands/interactive.js";
+import { printAnalysisCard } from "../../src/ui/status-cards.js";
 
 const CANCEL = Symbol("cancel");
 const WF_DIR = ".github/workflows";
@@ -20,7 +21,7 @@ const initialsOf = (arg) => arg.initialValues;
 
 // envMode/stores/deployMode: (arg) => 답변. 기본은 "질문의 초기값 그대로 Enter".
 function stubIo({ envMode = initialOf, stores = initialsOf, deployMode = initialOf, confirmProjectMenu, editMenu, selectTypes } = {}) {
-  const calls = { envMode: [], stores: [], deployMode: [], editMenu: [], notes: [] };
+  const calls = { envMode: [], stores: [], deployMode: [], editMenu: [], notes: [], cards: [] };
   const io = {
     selectMode: async () => "full",
     confirmProjectMenu: confirmProjectMenu ?? (async () => "continue"),
@@ -33,6 +34,13 @@ function stubIo({ envMode = initialOf, stores = initialsOf, deployMode = initial
     cancelMessage: () => {},
     summary: () => {},
     outro: () => {},
+    // 실제 화면에 쓰이는 printAnalysisCard를 그대로 통과시킨다 — io.analysisCard를 빼먹으면
+    // interactive.js가 summarize() fallback으로 새어나가 실사용 경로를 검증하지 못한다(fable5.1 fix round 2).
+    analysisCard: (info) => {
+      let text = "";
+      printAnalysisCard(info, (s) => { text += s; });
+      calls.cards.push(text);
+    },
     editMenu: async (arg) => { calls.editMenu.push(arg); return editMenu ? editMenu(calls.editMenu.length) : "done"; },
     selectTypes,
     selectEnvMode: async (arg) => { calls.envMode.push(arg); return envMode(arg); },
@@ -180,11 +188,11 @@ test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대�
       deployMode: (a) => (a.platform === "ios" ? "store_submit" : "store_only"),
     });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
-    const card = calls.notes.find((n) => n.title === "프로젝트 분석 결과");
-    assert.ok(card, "확인 카드 note가 있어야 한다");
-    assert.match(card.text, /환경변수 방식 : dotenv/);
-    assert.match(card.text, /스토어 배포 대상 : android, ios/);
-    assert.match(card.text, /배포 모드 : android=store_only ios=store_submit/);
+    assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
+    const cardText = calls.cards[0];
+    assert.match(cardText, /환경변수\s+dotenv/);
+    assert.match(cardText, /스토어\s+android, ios/);
+    assert.match(cardText, /배포모드\s+android=store_only ios=store_submit/);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
@@ -226,8 +234,8 @@ test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않�
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
     assert.deepStrictEqual(calls.editMenu[0], { showOptional: true, showFlutter: false });
     assert.deepStrictEqual([calls.envMode, calls.stores, calls.deployMode], [[], [], []]);
-    const card = calls.notes.find((n) => n.title === "프로젝트 분석 결과");
-    assert.ok(card && !card.text.includes("환경변수 방식"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");
+    assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
+    assert.ok(!calls.cards[0].includes("환경변수"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

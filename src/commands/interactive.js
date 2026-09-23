@@ -165,7 +165,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   while (!confirmed) {
     // 층3 — 프로젝트 분석 개요 카드 (#446). 스텁엔 없음 → note 폴백.
     if (io.analysisCard) {
-      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, includeNexus, includeSecretBackup, showOptional, paths });
+      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, includeNexus, includeSecretBackup, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault });
     } else {
       io.note?.(summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
     }
