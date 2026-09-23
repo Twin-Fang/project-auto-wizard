@@ -334,7 +334,14 @@ async function runInner(argv, {
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
+    storeCleanup: result?.storeCleanup ?? null,
+    flutterApp: result?.flutterApp ?? null,
   });
+  // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
+  // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
+  for (const w of [prompts.deployModeWarning(flutterOptions.androidDeployMode), prompts.deployModeWarning(flutterOptions.iosDeployMode)]) {
+    if (w) console.error(`⚠️  ${w}`);
+  }
   return 0;
 }
 
