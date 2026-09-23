@@ -15,6 +15,7 @@ on:
     branches: ["{{MAIN_BRANCH}}"]
     tags:
       - 'v*.*.*'
+    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
 
 concurrency:
   group: nexus-publish-${{ github.ref }}

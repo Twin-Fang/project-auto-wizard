@@ -32,7 +32,10 @@
 # FLUTTER_VERSION : Flutter SDK 버전
 # JAVA_VERSION    : Java 버전 (Android 빌드용)
 # XCODE_VERSION   : Xcode 버전 (iOS 빌드용)
-# ENV_FILE_PATH   : .env 파일 경로 (기본값: 루트의 .env)
+# ENV_FILE_PATH   : dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 기본값: .env)
+# ENV_MODE        : 환경변수 전달 방식 — dart-define(--dart-define-from-file) | dotenv(.env 파일)
+# FLUTTER_PROJECT_DIR : Flutter 루트 경로 (설치 시 자동 설정, 모노레포는 app 등)
+# PROJECT_PATH    : 변경 감지 기준 경로 (설치 시 자동 설정, "."이면 항상 실행)
 #
 # ==========================================================================================
 # 🔑 필수 GitHub Secrets
@@ -40,6 +43,8 @@
 # ENV_FILE (선택): .env 파일 내용
 #
 # ※ CI는 빌드 검증 목적이므로 서명/배포 관련 Secrets 불필요
+# ※ 모노레포에서 이 CI를 required check로 쓰려면 개별 job이 아니라 `ci-gate` 하나만 등록하세요.
+#    (경로가 바뀌지 않아 건너뛴 job은 Success로 집계되고, ci-gate가 최종 결과를 판정합니다)
 # ==========================================================================================
 
 name: PROJECT-Flutter-CI
@@ -73,6 +78,13 @@ permissions:
 # 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
 # ==========================================================================================
 env:
+  # 🎯 모노레포 변경 감지 경로 (설치 시 자동 설정, 단일 레포는 ".")
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
+  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
+  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
+
   # 🎯 CI 모드 설정
   ANALYZE_ONLY: "false"     # true: analyze만 실행 (빌드 스킵), false: analyze + 빌드
 
@@ -84,7 +96,7 @@ env:
   FLUTTER_VERSION: "3.35.5"
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
-  ENV_FILE_PATH: ".env"     # 환경변수 파일 경로 (커스터마이징 가능)
+  ENV_FILE_PATH: ".env"     # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 커스터마이징 가능)
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
@@ -92,10 +104,36 @@ concurrency:
 
 jobs:
   # ===================================================================
+  # Job 0: 변경 감지 (PROJECT_PATH 아래가 바뀌었을 때만 이후 job 실행)
+  # ===================================================================
+  changes:
+    name: 변경 감지
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      project: ${{ steps.filter.outputs.project }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 프로젝트 경로 변경 여부 판별
+        id: filter
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            project:
+              - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
+
+  # ===================================================================
   # Job 1: 준비 단계
   # ===================================================================
   prepare:
     name: CI 준비
+    needs: changes
+    if: ${{ (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') }}
     runs-on: ubuntu-latest
 
     outputs:
@@ -229,7 +267,11 @@ jobs:
   analyze:
     name: 코드 분석
     runs-on: ubuntu-latest
-    needs: prepare
+    needs: [changes, prepare]
+    if: ${{ (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') }}
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -246,13 +288,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # .env 파일 생성
-      - name: Create .env file
+      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Prepare env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          cat << 'EOF' > ${{ env.ENV_FILE_PATH }}
-          ${{ secrets.ENV_FILE || secrets.ENV }}
-          EOF
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       # Flutter 설정
       - name: Set up Flutter
@@ -271,7 +320,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       # 프로젝트 의존성 설치
@@ -317,10 +366,14 @@ jobs:
   build-android:
     name: Android 빌드
     if: |
+      (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') &&
       needs.prepare.outputs.analyze_only != 'true' &&
       needs.prepare.outputs.enable_android == 'true'
     runs-on: ubuntu-latest
-    needs: prepare
+    needs: [changes, prepare]
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -337,13 +390,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # .env 파일 생성
-      - name: Create .env file
+      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Prepare env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          cat << 'EOF' > ${{ env.ENV_FILE_PATH }}
-          ${{ secrets.ENV_FILE || secrets.ENV }}
-          EOF
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       # Flutter 설정
       - name: Set up Flutter
@@ -362,7 +422,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       # Gradle 캐시
@@ -372,7 +432,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/build.gradle', env.FLUTTER_PROJECT_DIR), format('{0}/android/**/gradle-wrapper.properties', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -399,7 +459,7 @@ jobs:
 
       # Gradle 셋업
       - name: Setup Gradle
-        working-directory: android
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           echo "✅ Gradle wrapper permissions set"
@@ -409,7 +469,7 @@ jobs:
         id: build
         run: |
           echo "📦 Flutter APK 빌드 시작 (debug)..."
-          flutter build apk --debug
+          flutter build apk --debug ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           echo "✅ APK 빌드 완료"
           ls -la ./build/app/outputs/flutter-apk/ || true
 
@@ -439,10 +499,14 @@ jobs:
   build-ios:
     name: iOS 빌드
     if: |
+      (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') &&
       needs.prepare.outputs.analyze_only != 'true' &&
       needs.prepare.outputs.enable_ios == 'true'
     runs-on: macos-26
-    needs: prepare
+    needs: [changes, prepare]
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     outputs:
       status: ${{ steps.result.outputs.status }}
@@ -479,13 +543,20 @@ jobs:
           echo "=== Downloading iOS platform ==="
           xcodebuild -downloadPlatform iOS
 
-      # .env 파일 생성
-      - name: Create .env file
+      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Prepare env file
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          cat << 'EOF' > ${{ env.ENV_FILE_PATH }}
-          ${{ secrets.ENV_FILE || secrets.ENV }}
-          EOF
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       # Flutter 설정
       - name: Set up Flutter
@@ -504,7 +575,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       # 프로젝트 의존성 설치
@@ -534,7 +605,7 @@ jobs:
         id: build
         run: |
           echo "📦 Flutter iOS 빌드 시작..."
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           echo "✅ iOS 빌드 완료"
 
       # 빌드 결과 기록
@@ -562,9 +633,9 @@ jobs:
   # ===================================================================
   report:
     name: 결과 보고
-    if: always() && github.event_name == 'pull_request'
+    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.project == 'true'
     runs-on: ubuntu-latest
-    needs: [prepare, analyze, build-android, build-ios]
+    needs: [changes, prepare, analyze, build-android, build-ios]
 
     steps:
       - name: 최종 결과 댓글 업데이트
@@ -714,3 +785,23 @@ jobs:
             } else {
               console.log('⚠️ 댓글 ID가 없어 업데이트를 건너뜁니다.');
             }
+
+  # ===================================================================
+  # Job 6: CI Gate (required check로 등록할 단일 진입점)
+  # ===================================================================
+  # 건너뛴(skipped) job은 통과로 보고 failure/cancelled가 하나라도 있으면 실패한다.
+  ci-gate:
+    name: CI Gate
+    if: ${{ always() }}
+    needs: [changes, prepare, analyze, build-android, build-ios, report]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 결과 집계
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "needs 결과: $RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
+            echo "실패하거나 취소된 job이 있습니다."
+            exit 1
+          fi

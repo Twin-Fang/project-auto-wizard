@@ -1,15 +1,80 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-09-21T11:39:17Z",
-    "currentVersion": "0.10.0",
+    "lastUpdated": "2026-09-23T04:45:02Z",
+    "currentVersion": "0.11.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 21
+    "totalReleases": 22
   },
   "releases": [
+    {
+      "version": "0.11.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-09-23",
+      "pr_number": 133,
+      "raw_summary": "## [0.11.0]\n\n### ✨ 기능\n- IOS-TEST-TESTFLIGHT에 FLUTTER_PROJECT_DIR·환경변수 모드·Gemfile C-lite 적용\n- IOS-TESTFLIGHT에 main push 앵커·배포 모드 폴백·ExportOptions 검증 적용\n- PLAYSTORE에 main push 앵커·환경변수 모드·배포 모드 폴백·PACKAGE_NAME 적용\n- TEST-APK에서 fastlane 분기 제거하고 직접 빌드로 전환\n- SELFHOSTED에서 fastlane 빌드 제거하고 직접 빌드로 전환\n- FIREBASE-CICD에 main push 앵커·FLUTTER_PROJECT_DIR·환경변수 모드 적용\n- PROJECT-FLUTTER-CI에 ci-gate·FLUTTER_PROJECT_DIR·환경변수 모드 적용\n- Spring NEXUS-CI에 changes·ci-gate, publish 2종에 paths 앵커 추가\n- Go·Next·Python·React CI에 changes와 ci-gate job 추가\n- dry-run과 설치 요약에 Flutter 스토어 배포 파일 표시 추가\n- doctor에 Flutter 스토어 배포 필수 파일·ExportOptions 검사 추가\n- status 명령에 Flutter 옵션 표시 추가\n- 대화형 마법사에 Flutter 질문 흐름과 수정 메뉴 연결\n- 환경변수 방식·스토어 배포 대상·배포 모드 선택 프롬프트 추가\n- runFull에 스토어 워크플로우 정리와 Flutter 앱 파일 복사 연동\n- Flutter iOS 배포용 Fastfile과 ExportOptions.plist 템플릿 추가\n- Flutter Play Store 배포용 Fastfile.playstore 템플릿 추가\n- Flutter 앱 파일(fastlane·ExportOptions) 복사 모듈 추가\n- env 계획 질문에도 스토어 워크플로우 필터 적용\n- 스토어 워크플로우 필터를 복사·조사·계획 경로에 일관 적용\n- 비대화형 경로에 Flutter 옵션 결정 연결\n- Flutter 옵션 CLI 플래그 4종 추가\n- version.yml에 Flutter 옵션 4개 키 파싱·렌더 추가\n- @wizard fallback 마커와 Flutter 리졸버 4종 추가\n- resolveFlutterOptions 우선순위 해석 추가\n- Flutter 옵션 코어 모듈(flutter-options.js) 추가\n\n### 🐛 수정\n- 실제 확인 카드(printAnalysisCard)에 Flutter 옵션 표시\n- 확인 화면에 Flutter 옵션 표시·스토어 해제 시 배포 모드 초기화\n- 비대화형 설치 요약에 Flutter 스토어 정리·생성 결과 표시\n\n### 📝 문서\n- Flutter 모노레포 필터·dart-define·스토어 배포 구현 계획 작성\n- breaking-changes 고지와 README에 Flutter 스토어 배포 문서화\n\n### ✅ 테스트\n- status 명령의 스토어 필터 검증 — 실제 파일 삭제 시나리오 추가\n- status 명령의 스토어 필터 오탐 방지 시나리오 보강",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "IOS-TEST-TESTFLIGHT에 FLUTTER_PROJECT_DIR·환경변수 모드·Gemfile C-lite 적용",
+            "IOS-TESTFLIGHT에 main push 앵커·배포 모드 폴백·ExportOptions 검증 적용",
+            "PLAYSTORE에 main push 앵커·환경변수 모드·배포 모드 폴백·PACKAGE_NAME 적용",
+            "TEST-APK에서 fastlane 분기 제거하고 직접 빌드로 전환",
+            "SELFHOSTED에서 fastlane 빌드 제거하고 직접 빌드로 전환",
+            "FIREBASE-CICD에 main push 앵커·FLUTTER_PROJECT_DIR·환경변수 모드 적용",
+            "PROJECT-FLUTTER-CI에 ci-gate·FLUTTER_PROJECT_DIR·환경변수 모드 적용",
+            "Spring NEXUS-CI에 changes·ci-gate, publish 2종에 paths 앵커 추가",
+            "Go·Next·Python·React CI에 changes와 ci-gate job 추가",
+            "dry-run과 설치 요약에 Flutter 스토어 배포 파일 표시 추가",
+            "doctor에 Flutter 스토어 배포 필수 파일·ExportOptions 검사 추가",
+            "status 명령에 Flutter 옵션 표시 추가",
+            "대화형 마법사에 Flutter 질문 흐름과 수정 메뉴 연결",
+            "환경변수 방식·스토어 배포 대상·배포 모드 선택 프롬프트 추가",
+            "runFull에 스토어 워크플로우 정리와 Flutter 앱 파일 복사 연동",
+            "Flutter iOS 배포용 Fastfile과 ExportOptions.plist 템플릿 추가",
+            "Flutter Play Store 배포용 Fastfile.playstore 템플릿 추가",
+            "Flutter 앱 파일(fastlane·ExportOptions) 복사 모듈 추가",
+            "env 계획 질문에도 스토어 워크플로우 필터 적용",
+            "스토어 워크플로우 필터를 복사·조사·계획 경로에 일관 적용",
+            "비대화형 경로에 Flutter 옵션 결정 연결",
+            "Flutter 옵션 CLI 플래그 4종 추가",
+            "version.yml에 Flutter 옵션 4개 키 파싱·렌더 추가",
+            "@wizard fallback 마커와 Flutter 리졸버 4종 추가",
+            "resolveFlutterOptions 우선순위 해석 추가",
+            "Flutter 옵션 코어 모듈(flutter-options.js) 추가"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "실제 확인 카드(printAnalysisCard)에 Flutter 옵션 표시",
+            "확인 화면에 Flutter 옵션 표시·스토어 해제 시 배포 모드 초기화",
+            "비대화형 설치 요약에 Flutter 스토어 정리·생성 결과 표시"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "Flutter 모노레포 필터·dart-define·스토어 배포 구현 계획 작성",
+            "breaking-changes 고지와 README에 Flutter 스토어 배포 문서화"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "status 명령의 스토어 필터 검증 — 실제 파일 삭제 시나리오 추가",
+            "status 명령의 스토어 필터 오탐 방지 시나리오 보강"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.10.0",
       "project_types": [

@@ -3,6 +3,7 @@
 // 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
 
@@ -33,8 +34,10 @@ export async function confirmProjectMenu() {
   });
 }
 
-// 수정 메뉴 — 어떤 항목을 고칠지. showOptional=full/workflows에서만 nexus/secret 노출.
-export async function editMenu({ showOptional = false } = {}) {
+// 수정 메뉴 항목 — showOptional=full/workflows에서만 nexus/secret 노출,
+// showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출 (이슈 #131).
+// 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
+export function editMenuOptions({ showOptional = false, showFlutter = false } = {}) {
   const options = [
     { value: "type", label: "프로젝트 타입" },
     { value: "version", label: "버전" },
@@ -44,8 +47,18 @@ export async function editMenu({ showOptional = false } = {}) {
     options.push({ value: "nexus", label: "Nexus publish 포함 여부" });
     options.push({ value: "secret", label: "Secret 백업 포함 여부" });
   }
+  if (showFlutter) {
+    options.push({ value: "envMode", label: "환경변수 방식" });
+    options.push({ value: "flutterStore", label: "스토어 배포 대상" });
+    options.push({ value: "deployMode", label: "배포 모드" });
+  }
   options.push({ value: "done", label: "모두 맞음, 계속" });
-  return engine.select({ message: "어떤 항목을 수정할까요?", options });
+  return options;
+}
+
+// 수정 메뉴 — 어떤 항목을 고칠지.
+export async function editMenu({ showOptional = false, showFlutter = false } = {}) {
+  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showOptional, showFlutter }) });
 }
 
 const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
@@ -101,6 +114,78 @@ export async function selectDeployStyle() {
       { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD 워크플로우/배포 설정을 생성하지 않음" },
     ],
   });
+}
+
+// ── Flutter 옵션 (이슈 #131) ─────────────────────────────────────────
+// 프로젝트 타입에 flutter가 포함된 경우에만 interactive.js가 묻는다. 세 함수 모두 취소(ESC) 시 CANCEL을
+// 그대로 돌려주고, "ESC = 기본값" 처리는 호출부가 한다 (selectDeployStyle과 같은 규약).
+const ENV_MODE_LABELS = {
+  "dart-define": "dart-define (신규 설치 기본) — 시크릿을 --dart-define-from-file로 빌드에 전달, 프로젝트에 .env를 만들지 않음",
+  dotenv: "dotenv — Flutter 루트에 .env를 만들어 flutter_dotenv·envied가 읽음 (기존 설치 유지값)",
+};
+
+const STORE_LABELS = {
+  android: "Android — Google Play Store (fastlane)",
+  ios: "iOS — TestFlight / App Store Connect (fastlane)",
+};
+
+const DEPLOY_MODE_LABELS = {
+  android: {
+    store_only: "store_only — internal 트랙에 업로드 (기본)",
+    store_prepare: "store_prepare — production 트랙에 draft로 업로드 (Play Console에서 직접 출시)",
+    store_submit: "store_submit — production 심사 제출까지",
+  },
+  ios: {
+    store_only: "store_only — TestFlight 업로드 (기본)",
+    store_prepare: "store_prepare — 앱 버전·메타데이터 준비까지 (심사 제출 안 함)",
+    store_submit: "store_submit — 심사 제출까지",
+  },
+};
+
+const PLATFORM_TITLES = { android: "Android (Play Store)", ios: "iOS (TestFlight)" };
+
+// 환경변수 방식 — 시크릿 ENV_FILE(.env 형식)을 Flutter 빌드에 넘기는 방법.
+export async function selectEnvMode({ initialValue = DEFAULT_ENV_MODE } = {}) {
+  engine.note(
+    "시크릿 ENV_FILE(.env 형식)을 Flutter 빌드에 넘기는 방식입니다.\n" +
+    "dart-define은 String.fromEnvironment로 읽고, dotenv는 flutter_dotenv·envied가 .env 파일을 읽습니다.\n" +
+    "나중에 확인 화면의 '수정하기 > 환경변수 방식'에서 바꿀 수 있습니다.",
+    "환경변수 방식",
+  );
+  return engine.select({
+    message: "Flutter 환경변수는 어떤 방식으로 넘길까요?",
+    options: ENV_MODES.map((value) => ({ value, label: ENV_MODE_LABELS[value] })),
+    initialIndex: Math.max(0, ENV_MODES.indexOf(initialValue)),
+  });
+}
+
+// 스토어 배포 대상 — 고른 플랫폼의 워크플로우와 fastlane 템플릿만 설치한다. 아무것도 안 고르면 스토어 배포 없이 설치.
+export async function selectFlutterStores({ initialValues = [] } = {}) {
+  engine.note(
+    "고른 플랫폼의 스토어 배포 워크플로우와 fastlane 파일(Fastfile 등)만 설치합니다.\n" +
+    "아무것도 고르지 않으면 스토어 배포 없이 설치합니다 (Firebase·Selfhosted·Test APK·CI는 항상 설치).",
+    "스토어 배포 대상",
+  );
+  return engine.multiselect({
+    message: "스토어에 배포할 플랫폼을 선택하세요 (Space 토글, Enter 확정)",
+    options: STORE_PLATFORMS.map((value) => ({ value, label: STORE_LABELS[value] })),
+    initialValues,
+    required: false,
+  });
+}
+
+// 배포 모드 — 플랫폼별로 한 번씩 묻는다. 런타임의 저장소 변수와 workflow_dispatch 입력이 항상 이 값보다 우선한다.
+export async function selectDeployMode({ platform, initialValue = DEFAULT_DEPLOY_MODE }) {
+  return engine.select({
+    message: `${PLATFORM_TITLES[platform]} 배포 모드를 선택하세요`,
+    options: DEPLOY_MODES.map((value) => ({ value, label: DEPLOY_MODE_LABELS[platform][value] })),
+    initialIndex: Math.max(0, DEPLOY_MODES.indexOf(initialValue)),
+  });
+}
+
+// store_submit은 main push마다 심사를 제출하므로 고른 직후 한 줄로 알린다. 호출부(interactive)가 note로 출력한다.
+export function deployModeWarning(mode) {
+  return mode === "store_submit" ? "store_submit을 고르면 main push마다 심사가 자동 제출됩니다." : "";
 }
 
 // 브랜치 전략 선택 (이슈 #93). 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에

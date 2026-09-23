@@ -1,1 +1,24 @@
-{}
+{
+  "0.10.1": [
+    {
+      "severity": "warning",
+      "title": "Flutter SELFHOSTED·TEST-APK가 flutter build를 직접 실행",
+      "message": "SELFHOSTED·TEST-APK가 fastlane build 대신 flutter build apk --release를 직접 실행하고 Ruby·fastlane 설치 스텝이 사라집니다. fastlane은 스토어 배포 3종(PLAYSTORE·IOS-TESTFLIGHT·IOS-TEST-TESTFLIGHT)에서만 사용합니다."
+    },
+    {
+      "severity": "warning",
+      "title": "Flutter 환경변수 기본 방식이 dart-define으로 변경",
+      "message": "신규 설치의 기본값이 dart-define(--dart-define-from-file)으로 바뀝니다. 기존 설치는 version.yml에 저장값이 없으면 dotenv(.env 생성)를 유지하며, 바꾸려면 마법사 '수정하기 > 환경변수 방식' 또는 --flutter-env-mode를 쓰세요."
+    },
+    {
+      "severity": "warning",
+      "title": "Flutter 워크플로우가 FLUTTER_PROJECT_DIR 기준으로 동작",
+      "message": "FIREBASE·SELFHOSTED·CI·TEST-APK·IOS-TEST-TESTFLIGHT도 PLAYSTORE처럼 Flutter 루트(FLUTTER_PROJECT_DIR)에서 동작합니다. Flutter가 하위 폴더에 있는 모노레포는 --paths flutter=<경로>로 지정하세요."
+    },
+    {
+      "severity": "warning",
+      "title": "모노레포 CI required check는 ci-gate 하나만 등록",
+      "message": "CI 워크플로우(Flutter·Go·Next·Python·React·Spring NEXUS-CI)는 항상 실행되고 변경이 없으면 job을 건너뜁니다. required check로 쓰려면 개별 job이 아닌 CI Gate(ci-gate) 하나만 등록하세요."
+    }
+  ]
+}

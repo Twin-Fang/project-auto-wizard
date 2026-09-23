@@ -134,3 +134,64 @@ test("printSummary: versionCode 미지정 시에도 예외 없이 동작하고 �
   });
   assert.ok(!output.includes("빌드 번호"));
 });
+
+test("printSummary: Flutter 스토어 배포 파일을 '새로 생성'과 '기존 파일 유지'로 나눠 보여주고 ExportOptions 안내를 덧붙인다", () => {
+  const output = captureStderr(() => {
+    printSummary({
+      mode: "full", types: ["flutter"], version: "1.0.0",
+      flutterApp: {
+        created: ["ios/fastlane/Fastfile", "ios/ExportOptions.plist"],
+        kept: ["android/fastlane/Fastfile.playstore"],
+      },
+    });
+  });
+  assert.ok(output.includes("Flutter 스토어 배포 파일"));
+  assert.ok(output.includes("ios/fastlane/Fastfile 새로 생성"));
+  assert.ok(output.includes("android/fastlane/Fastfile.playstore 기존 파일 유지"));
+  assert.ok(output.includes("__TEAM_ID__") && output.includes("__BUNDLE_ID__") && output.includes("__PROVISIONING_PROFILE_NAME__"));
+});
+
+test("printSummary: ExportOptions.plist를 새로 만들지 않았으면(이미 있음) 플레이스홀더 안내를 출력하지 않는다", () => {
+  const output = captureStderr(() => {
+    printSummary({ mode: "full", types: ["flutter"], version: "1.0.0", flutterApp: { created: [], kept: ["ios/ExportOptions.plist"] } });
+  });
+  assert.ok(output.includes("ios/ExportOptions.plist 기존 파일 유지"));
+  assert.ok(!output.includes("__TEAM_ID__"));
+});
+
+test("printSummary: 선택 해제한 스토어 배포 워크플로우의 정리 결과(삭제/.bak 백업)를 보여준다", () => {
+  const output = captureStderr(() => {
+    printSummary({
+      mode: "full", types: ["flutter"], version: "1.0.0",
+      storeCleanup: {
+        removed: ["PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"],
+        backedUp: ["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"],
+      },
+    });
+  });
+  assert.ok(output.includes("선택 해제한 스토어 배포 정리"));
+  assert.ok(output.includes("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml 삭제 (손대지 않은 파일)"));
+  assert.ok(output.includes("PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml → PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml.bak"));
+});
+
+test("printSummary: flutterApp·storeCleanup이 없거나 비어 있으면 해당 블록을 출력하지 않는다", () => {
+  const output = captureStderr(() => {
+    printSummary({
+      mode: "full", types: ["flutter"], version: "1.0.0",
+      flutterApp: { created: [], kept: [] }, storeCleanup: { removed: [], backedUp: [] },
+    });
+  });
+  assert.ok(!output.includes("Flutter 스토어 배포 파일"));
+  assert.ok(!output.includes("스토어 배포 정리"));
+});
+
+test("printSummary: 배포 방식 변경 정리(cleanup) 출력은 그대로 유지된다", () => {
+  const output = captureStderr(() => {
+    printSummary({
+      mode: "full", types: ["spring"], version: "1.0.0",
+      cleanup: { removed: ["PROJECT-SPRING-SIMPLE-CICD.yaml"], backedUp: [] },
+    });
+  });
+  assert.ok(output.includes("이전 배포 방식 정리"));
+  assert.ok(output.includes("PROJECT-SPRING-SIMPLE-CICD.yaml 삭제 (손대지 않은 파일)"));
+});

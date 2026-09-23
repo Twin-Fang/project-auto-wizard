@@ -6,10 +6,8 @@
 # 이 워크플로우는 기능 브랜치에서 수동으로 실행하여
 # 테스트용 iOS 빌드를 TestFlight에 배포합니다.
 #
-# ★ 마법사 우선 아키텍처 ★
-# - 빌드에 필요한 설정 파일들은 웹 마법사가 생성합니다
-# - 워크플로우는 마법사가 생성한 파일들을 그대로 사용합니다
-# - 마법사 경로: .github/util/flutter/ios-testflight-setup-wizard/index.html
+# 설정 파일(ios/fastlane/Fastfile, ios/ExportOptions.plist)은 project-auto-wizard가
+# 없을 때만 설치하며, 이미 있으면 덮어쓰지 않습니다.
 #
 # 주요 특징:
 # - workflow_dispatch로 수동 실행 또는 repository_dispatch로 트리거
@@ -22,7 +20,7 @@
 #   1. flutter build ios --no-codesign (Flutter 빌드)
 #   2. xcodebuild archive (Xcode 아카이브 생성)
 #   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
-#   4. fastlane upload_testflight (마법사 생성 Fastfile 사용)
+#   4. fastlane upload_testflight (ios/fastlane/Fastfile 사용)
 #
 # ===================================================================
 # 🔑 필수 GitHub Secrets
@@ -63,6 +61,11 @@ env:
   FLUTTER_VERSION: "3.35.5"
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
+  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
+  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
+  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
+  # dotenv 모드에서 .env 파일을 만들 경로 (Flutter 루트 기준)
   ENV_FILE_PATH: ".env"
 
 jobs:
@@ -186,6 +189,9 @@ jobs:
   prepare-test-build:
     name: 테스트 빌드 준비
     runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     needs: notify-start
     if: |
       always() &&
@@ -214,13 +220,6 @@ jobs:
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
 
-      - name: Create .env file
-        env:
-          ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
-        run: |
-          printf '%s\n' "$ENV_CONTENT" > ${{ env.ENV_FILE_PATH }}
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
-
       - name: Create Secrets.xcconfig file
         env:
           SECRETS_XCCONFIG_CONTENT: ${{ secrets.SECRETS_XCCONFIG }}
@@ -237,6 +236,7 @@ jobs:
       # 테스트 빌드 버전 설정 (version.yml에서 동적 읽기)
       - name: 테스트 빌드 버전 설정
         id: test_version
+        working-directory: ${{ github.workspace }}   # version_manager.py가 레포 루트 version.yml을 읽어야 함
         run: |
           # version_manager.py로 버전 가져오기 (프로덕션 워크플로우와 동일한 방식)
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
@@ -309,6 +309,7 @@ jobs:
       # 릴리즈 노트 생성
       - name: 릴리즈 노트 생성
         id: release_notes
+        working-directory: ${{ github.workspace }}   # final_release_notes.txt(upload 짝)는 레포 루트 기준
         run: |
           BUILD_NUMBER="${{ steps.test_version.outputs.build_number }}"
           BRANCH_NAME="${{ steps.issue_info.outputs.branch_name }}"
@@ -358,11 +359,10 @@ jobs:
         with:
           name: project-files
           path: |
-            ${{ env.ENV_FILE_PATH }}
-            ios/Flutter/Secrets.xcconfig
-            pubspec.yaml
-            lib/
-            assets/
+            ${{ env.FLUTTER_PROJECT_DIR }}/ios/Flutter/Secrets.xcconfig
+            ${{ env.FLUTTER_PROJECT_DIR }}/pubspec.yaml
+            ${{ env.FLUTTER_PROJECT_DIR }}/lib/
+            ${{ env.FLUTTER_PROJECT_DIR }}/assets/
           retention-days: 1
 
       # 진행 상황 업데이트 - 준비 실패
@@ -419,6 +419,9 @@ jobs:
   build-ios-test:
     name: iOS 테스트 빌드
     runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     needs: [notify-start, prepare-test-build]
     if: |
       !cancelled() &&
@@ -517,15 +520,20 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: project-files
-          path: .
+          path: ${{ env.FLUTTER_PROJECT_DIR }}
 
-      - name: Ensure .env file exists
+      - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          if [ ! -f "${{ env.ENV_FILE_PATH }}" ]; then
-            printf '%s\n' "$ENV_CONTENT" > ${{ env.ENV_FILE_PATH }}
-            echo "✅ ${{ env.ENV_FILE_PATH }} file created (fallback)"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
           fi
 
       - name: Set up Flutter
@@ -538,7 +546,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
@@ -579,9 +587,8 @@ jobs:
         run: |
           cd ios
           if [ ! -f "ExportOptions.plist" ]; then
-            echo "❌ ios/ExportOptions.plist이 없습니다!"
-            echo "웹 마법사를 실행하여 설정 파일을 생성하세요:"
-            echo "  브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기"
+            echo "❌ ios/ExportOptions.plist가 없습니다!"
+            echo "ios/ExportOptions.plist를 저장소에 추가(커밋)하세요. 필요한 Secrets는 워크플로우 상단 주석을 참고하세요."
             exit 1
           fi
           echo "✅ ExportOptions.plist 확인됨"
@@ -593,7 +600,8 @@ jobs:
         run: |
           flutter build ios --release --no-codesign \
             --build-name="${{ needs.prepare-test-build.outputs.version }}" \
-            --build-number="${{ needs.prepare-test-build.outputs.build_number }}"
+            --build-number="${{ needs.prepare-test-build.outputs.build_number }}" \
+            ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
 
       - name: Create Archive
         env:
@@ -636,8 +644,8 @@ jobs:
         with:
           name: ios-ipa
           path: |
-            ios/build/ipa/*.ipa
-            build-metadata.json
+            ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/*.ipa
+            ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json
           retention-days: 1
 
       # 진행 상황 업데이트 - IPA 빌드 완료
@@ -755,11 +763,14 @@ jobs:
             console.log(`❌ 진행 상황 업데이트 완료: IPA 빌드 실패`);
 
   # ===================================================================
-  # TestFlight 배포 (마법사 생성 Fastfile 사용)
+  # TestFlight 배포 (ios/fastlane/Fastfile 사용)
   # ===================================================================
   deploy-testflight-test:
     name: TestFlight 테스트 배포
     runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
     needs: [notify-start, prepare-test-build, build-ios-test]
     if: |
       !cancelled() &&
@@ -784,7 +795,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ios-ipa
-          path: ios/build/ipa/
+          path: ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/
 
       - name: Download release notes
         uses: actions/download-artifact@v8
@@ -796,17 +807,21 @@ jobs:
         run: |
           if [ ! -f "ios/fastlane/Fastfile" ]; then
             echo "❌ ios/fastlane/Fastfile이 없습니다!"
-            echo "웹 마법사를 실행하여 설정 파일을 생성하세요:"
-            echo "  브라우저에서 .github/util/flutter/ios-testflight-setup-wizard/index.html 열기"
+            echo "ios/fastlane/Fastfile을 저장소에 추가(커밋)하세요. 필요한 Secrets는 워크플로우 상단 주석을 참고하세요."
             exit 1
           fi
           echo "✅ Fastfile 확인됨: ios/fastlane/Fastfile"
 
       - name: Install Fastlane
-        working-directory: ios
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/ios
         run: |
-          # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
-          printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          # 저장소의 Gemfile에 fastlane이 있으면 그대로 쓴다 (Gemfile.lock 커밋 권장). 없으면 생성한다.
+          if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
+            echo "ℹ️ 저장소의 Gemfile을 사용합니다"
+          else
+            # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+            printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          fi
           bundle install
           echo "✅ Fastlane installed (Bundler)"
 
@@ -816,7 +831,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           # IPA 파일 찾기
-          IPA_PATH=$(find $GITHUB_WORKSPACE/ios/build/ipa -name "*.ipa" | head -1)
+          IPA_PATH=$(find "$GITHUB_WORKSPACE/${FLUTTER_PROJECT_DIR}/ios/build/ipa" -name "*.ipa" | head -1)
           echo "📦 Found IPA at: $IPA_PATH"
 
           if [ ! -f "$IPA_PATH" ]; then
@@ -825,9 +840,9 @@ jobs:
             exit 1
           fi
 
-          # Release notes 준비
-          if [ -f "final_release_notes.txt" ]; then
-            RELEASE_NOTES=$(cat final_release_notes.txt)
+          # Release notes 준비 (final_release_notes.txt는 레포 루트 기준 — working-directory가 FLUTTER_PROJECT_DIR이므로 절대경로 사용)
+          if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]; then
+            RELEASE_NOTES=$(cat "$GITHUB_WORKSPACE/final_release_notes.txt")
             echo "📝 Release Notes:"
             echo "$RELEASE_NOTES"
           else
@@ -844,7 +859,7 @@ jobs:
           echo "🔧 IPA_PATH: $IPA_PATH"
           echo "🔧 API_KEY_PATH: $API_KEY_PATH"
 
-          # Fastlane 실행 (마법사가 생성한 Fastfile 사용)
+          # Fastlane 실행 (ios/fastlane/Fastfile 사용)
           cd ios
           bundle exec fastlane upload_testflight
 

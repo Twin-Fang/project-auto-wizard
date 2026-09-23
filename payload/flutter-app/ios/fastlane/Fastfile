@@ -1,0 +1,117 @@
+# ===================================================================
+# 이 파일은 사용자 소유입니다. 모드별 동작을 여기서 수정하세요.
+# ===================================================================
+#
+# iOS 배포용 Fastfile 템플릿입니다. Flutter 워크플로우가 IPA를 만든 뒤
+# `cd ios && bundle exec fastlane <lane>`으로 실행합니다.
+# project-auto-wizard는 이 파일이 이미 있으면 덮어쓰지 않으므로 자유롭게 수정해도 됩니다.
+#
+# lane
+#   deploy              PROJECT-FLUTTER-IOS-TESTFLIGHT 워크플로우 (DEPLOY_MODE에 따라 분기)
+#   upload_testflight   PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT 워크플로우 (IPA를 TestFlight에 올리기만 함)
+#
+# deploy lane의 배포 모드 (워크플로우가 DEPLOY_MODE 환경변수로 전달)
+# ┌───────────────┬──────────────────────────────────────────────────────────────┐
+# │ DEPLOY_MODE   │ 동작                                                         │
+# ├───────────────┼──────────────────────────────────────────────────────────────┤
+# │ store_only    │ TestFlight 업로드까지 (upload_to_testflight)                 │
+# │ store_prepare │ TestFlight 업로드 후, App Store 버전과 메타데이터를 준비     │
+# │               │ (upload_to_app_store, submit_for_review: false). 빌드는 이   │
+# │               │ 단계에서 버전에 연결되지 않고, store_submit이 build_number   │
+# │               │ 로 다시 호출될 때 한번에 연결·제출됩니다.                    │
+# │ store_submit  │ store_prepare와 같은 호출이고 심사 제출까지 진행             │
+# │               │ (submit_for_review: true, 이때 빌드가 버전에 연결됩니다)     │
+# └───────────────┴──────────────────────────────────────────────────────────────┘
+# 알 수 없는 값이나 빈 값은 store_only로 처리합니다.
+#
+# 워크플로우가 넘기는 환경변수
+#   APP_STORE_CONNECT_API_KEY_ID   App Store Connect API Key ID
+#   APP_STORE_CONNECT_ISSUER_ID    App Store Connect Issuer ID
+#   API_KEY_PATH                   AuthKey_XXXX.p8 파일 경로
+#   IPA_PATH                       업로드할 .ipa 절대경로
+#   RELEASE_NOTES                  TestFlight "What to Test" 문구 (changelog)
+#   APP_IDENTIFIER                 번들 ID (upload_testflight lane은 없으면 fastlane이 추론하지만,
+#                                  deploy lane의 store_prepare/store_submit은 필수입니다)
+#   DEPLOY_MODE                    위 표의 배포 모드 (deploy lane만)
+#   APP_VERSION, BUILD_NUMBER      앱 버전, 빌드 번호 (deploy lane만)
+#   SKIP_WAITING_FOR_BUILD_PROCESSING  "true"면 빌드 처리 완료를 기다리지 않음 (store_only만 적용)
+#
+# 참고
+# - store_prepare/store_submit은 App Store 버전에 빌드를 연결해야 하므로 빌드 처리가 끝날 때까지
+#   기다립니다 (SKIP_WAITING_FOR_BUILD_PROCESSING을 무시).
+# - 스크린샷은 올리지 않습니다. 메타데이터는 ios/fastlane/metadata/ 아래에 파일이 있을 때만 올립니다.
+#   심사 제출 시 "What's New" 등 필수 항목은 이 폴더나 App Store Connect에서 미리 채워 두세요.
+# - store_submit에서 수출 규정 오류가 나면 Info.plist에 ITSAppUsesNonExemptEncryption을 지정하거나
+#   upload_to_app_store에 submission_information을 추가하세요.
+# - store_submit은 심사 승인 후 자동 출시하지 않습니다 (automatic_release: false).
+
+default_platform(:ios)
+
+def require_env(name)
+  value = ENV[name].to_s.strip
+  UI.user_error!("#{name} 환경변수가 비어 있습니다. 워크플로우에서 값을 전달하는지 확인하세요.") if value.empty?
+  value
+end
+
+def load_api_key
+  app_store_connect_api_key(
+    key_id: require_env("APP_STORE_CONNECT_API_KEY_ID"),
+    issuer_id: require_env("APP_STORE_CONNECT_ISSUER_ID"),
+    key_filepath: require_env("API_KEY_PATH")
+  )
+end
+
+# APP_IDENTIFIER가 있을 때만 옵션에 포함해, 없으면 fastlane 기본 추론에 맡깁니다.
+def app_identifier_option
+  app_identifier = ENV["APP_IDENTIFIER"].to_s.strip
+  app_identifier.empty? ? {} : { app_identifier: app_identifier }
+end
+
+def upload_ipa_to_testflight(api_key, skip_waiting_for_build_processing)
+  options = {
+    api_key: api_key,
+    ipa: require_env("IPA_PATH"),
+    skip_waiting_for_build_processing: skip_waiting_for_build_processing
+  }
+  release_notes = ENV["RELEASE_NOTES"].to_s.strip
+  options[:changelog] = release_notes unless release_notes.empty?
+  upload_to_testflight(**options, **app_identifier_option)
+end
+
+platform :ios do
+  desc "IPA를 TestFlight에 업로드합니다 (테스트 빌드용)"
+  lane :upload_testflight do
+    upload_ipa_to_testflight(load_api_key, false)
+  end
+
+  desc "IPA를 업로드하고 DEPLOY_MODE에 따라 TestFlight / 심사 준비 / 심사 제출까지 진행합니다"
+  lane :deploy do
+    api_key = load_api_key
+    deploy_mode = ENV["DEPLOY_MODE"].to_s.strip
+
+    case deploy_mode
+    when "store_prepare", "store_submit"
+      UI.message("DEPLOY_MODE=#{deploy_mode}: 빌드 처리 완료까지 기다린 뒤 App Store 버전을 준비합니다.")
+      upload_ipa_to_testflight(api_key, false)
+
+      upload_to_app_store(
+        api_key: api_key,
+        app_identifier: require_env("APP_IDENTIFIER"),
+        app_version: require_env("APP_VERSION"),
+        build_number: require_env("BUILD_NUMBER"),
+        skip_binary_upload: true,
+        skip_screenshots: true,
+        skip_metadata: Dir.glob("metadata/*").empty?,
+        submit_for_review: deploy_mode == "store_submit",
+        automatic_release: false,
+        force: true,
+        precheck_include_in_app_purchases: false
+      )
+    when "store_only"
+      upload_ipa_to_testflight(api_key, ENV["SKIP_WAITING_FOR_BUILD_PROCESSING"].to_s.strip.downcase == "true")
+    else
+      UI.important("알 수 없는 DEPLOY_MODE '#{deploy_mode}' 입니다. store_only로 처리합니다.") unless deploy_mode.empty?
+      upload_ipa_to_testflight(api_key, ENV["SKIP_WAITING_FOR_BUILD_PROCESSING"].to_s.strip.downcase == "true")
+    end
+  end
+end

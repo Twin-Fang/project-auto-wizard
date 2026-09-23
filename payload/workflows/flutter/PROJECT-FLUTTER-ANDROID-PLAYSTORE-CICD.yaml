@@ -16,6 +16,7 @@
 # RELEASE_KEY_PASSWORD: key 비밀번호
 # GOOGLE_SERVICES_JSON: Firebase google-services.json
 # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Play Console 서비스 계정 (base64)
+# ANDROID_PACKAGE_NAME: 앱 패키지명 (Secret 우선, 없으면 Variable) — fastlane에 PACKAGE_NAME으로 전달
 # ===================================================================
 
 name: PROJECT-FLUTTER-ANDROID-PLAYSTORE-INTERNAL-CICD
@@ -23,6 +24,7 @@ name: PROJECT-FLUTTER-ANDROID-PLAYSTORE-INTERNAL-CICD
 on:
   push:
     branches: ["{{MAIN_BRANCH}}"]
+    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
   workflow_dispatch:
     inputs:
       deploy_mode:
@@ -48,8 +50,10 @@ env:
   # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등.
   # 통합 시점에 integrator의 flutter-root resolver가 project_paths.flutter 값으로 1회 치환.
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
-  # 배포 모드 (store_only | store_prepare | store_submit)
-  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}
+  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
+  # 배포 모드 (store_only | store_prepare | store_submit) — 마지막 폴백값은 설치 시 선택값으로 설정, 변수·수동 입력이 항상 우선
+  DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode
 
 jobs:
   prepare-build:
@@ -76,12 +80,19 @@ jobs:
       - name: Pull latest changes
         run: git pull origin main
 
-      - name: Create .env file
+      - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          printf '%s\n' "$ENV_CONTENT" > .env
-          echo ".env file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > .env
+            echo ".env file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -93,7 +104,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
@@ -180,9 +191,9 @@ jobs:
         with:
           name: project-files
           path: |
-            pubspec.yaml
-            lib/
-            assets/
+            ${{ env.FLUTTER_PROJECT_DIR }}/pubspec.yaml
+            ${{ env.FLUTTER_PROJECT_DIR }}/lib/
+            ${{ env.FLUTTER_PROJECT_DIR }}/assets/
           retention-days: 1
           if-no-files-found: error
 
@@ -209,15 +220,22 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: project-files
-          path: .
+          path: ${{ env.FLUTTER_PROJECT_DIR }}
 
-      # .env 파일 생성 (보안을 위해 아티팩트가 아닌 시크릿에서 생성)
-      - name: Create .env file
+      # 환경변수 준비 (보안을 위해 아티팩트가 아닌 시크릿에서 생성) — ENV_MODE=dotenv면 .env 파일, dart-define이면 임시 파일
+      - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          printf '%s\n' "$ENV_CONTENT" > .env
-          echo "✅ .env 파일 생성됨 (크기: $(wc -c < .env) bytes)"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > .env
+            echo ".env file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       # Release Keystore 설정
       - name: Setup Release Keystore
@@ -257,7 +275,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
@@ -279,7 +297,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle*', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/build.gradle*', env.FLUTTER_PROJECT_DIR), format('{0}/android/**/gradle-wrapper.properties', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -366,7 +384,8 @@ jobs:
             --release \
             --build-name="$VERSION_NAME" \
             --build-number="$VERSION_CODE" \
-            --verbose
+            --verbose \
+            ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           
           BUILD_EXIT_CODE=$?
           
@@ -565,8 +584,13 @@ jobs:
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
-          printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          # 저장소의 Gemfile에 fastlane이 있으면 그대로 쓴다 (Gemfile.lock 커밋 권장). 없으면 생성한다.
+          if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
+            echo "ℹ️ 저장소의 Gemfile을 사용합니다"
+          else
+            # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+            printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
+          fi
           bundle install
           echo "✅ Fastlane 설치 완료 (Bundler)"
           bundle exec fastlane --version
@@ -585,6 +609,7 @@ jobs:
       - name: Upload to Play Store Internal Testing
         env:
           DEPLOY_MODE: ${{ env.DEPLOY_MODE }}
+          PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
           echo "=========================================="
           echo "🚀 Play Store 배포 시작"

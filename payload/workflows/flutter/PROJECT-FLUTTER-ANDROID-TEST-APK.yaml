@@ -39,8 +39,8 @@
 # 🔥 Firebase App Distribution (선택):
 # FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: Firebase 서비스 계정 JSON (base64)
 #
-# 🪄 빠른 설정: .github/util/flutter/firebase-wizard/firebase-wizard.html을
-#    브라우저에서 열어 5단계 마법사로 Firebase 배포를 자동 설정할 수 있습니다.
+# ※ 위 Secrets는 저장소 Settings → Secrets and variables → Actions에 등록하세요.
+#    Firebase 업로드를 쓰려면 아래 env의 FIREBASE_APP_ID·FIREBASE_TESTER_GROUP도 수정합니다.
 #
 # ===================================================================
 
@@ -61,6 +61,11 @@ on:
 env:
   FLUTTER_VERSION: "3.35.5"
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
+  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
+  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
+  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
+  # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준)
   ENV_FILE_PATH: ".env"
   FIREBASE_APP_ID: "{FIREBASE_APP_ID}"
   FIREBASE_TESTER_GROUP: "{TESTER_GROUP}"
@@ -299,6 +304,9 @@ jobs:
     name: Android 테스트 APK 빌드
     runs-on: ubuntu-latest
     needs: prepare-test-build
+    defaults:
+      run:
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     steps:
       - name: Checkout repository
@@ -310,12 +318,20 @@ jobs:
       - name: Pull latest changes
         run: git pull origin ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}
 
-      - name: Create .env file
+      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
-          printf '%s\n' "$ENV_CONTENT" > ${{ env.ENV_FILE_PATH }}
-          echo "✅ ${{ env.ENV_FILE_PATH }} file created"
+          if [ "$ENV_MODE" = "dotenv" ]; then
+            printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
+            echo "✅ $ENV_FILE_PATH file created"
+          elif [ -n "$ENV_CONTENT" ]; then
+            DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
+            printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
+            echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
+            echo "dart-define file prepared"
+          fi
 
       - name: Setup Release Keystore
         env:
@@ -371,7 +387,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Cache Gradle dependencies
@@ -380,7 +396,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/build.gradle', env.FLUTTER_PROJECT_DIR), format('{0}/android/**/gradle-wrapper.properties', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -395,7 +411,7 @@ jobs:
 
       # Gradle 셋업
       - name: Setup Gradle
-        working-directory: android
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           echo "✅ Gradle wrapper permissions set"
@@ -411,28 +427,6 @@ jobs:
         run: |
           echo "✅ Java setup completed"
           java -version
-
-      # Ruby 설정
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.4.1"
-          bundler-cache: true
-
-      - name: Verify Ruby version
-        run: |
-          echo "✅ Ruby setup completed"
-          ruby -v
-
-      # Fastlane 설치 (Bundler 방식 - gem 충돌 방지)
-      - name: Install Fastlane
-        working-directory: android
-        run: |
-          # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
-          printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
-          bundle install
-          echo "✅ Fastlane installed (Bundler)"
-          bundle exec fastlane --version
 
       # 진행상황 - 준비 완료
       - name: 진행상황 - 준비 완료
@@ -539,18 +533,11 @@ jobs:
           echo "✅ pubspec.yaml 버전 변경 완료:"
           grep "^version:" pubspec.yaml
 
-      # APK 빌드 (Fastlane 또는 직접 빌드)
+      # APK 빌드 (flutter로 직접 빌드)
       - name: Build APK
         run: |
-          # Fastlane Fastfile이 있으면 사용, 없으면 직접 빌드
-          if [ -f "android/fastlane/Fastfile" ]; then
-            echo "📦 Fastlane을 사용하여 빌드..."
-            cd android
-            bundle exec fastlane build --verbose || flutter build apk --release
-          else
-            echo "📦 Flutter 직접 빌드..."
-            flutter build apk --release
-          fi
+          echo "📦 Flutter 직접 빌드..."
+          flutter build apk --release ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           ls -la ./build/app/outputs/flutter-apk/ || true
           echo "✅ APK built"
 
@@ -693,9 +680,9 @@ jobs:
         with:
           name: ${{ steps.apk_filename.outputs.artifact_name }}
           path: |
-            ./android/app/build/outputs/apk/release/*.apk
-            build-info.txt
-            build-metadata.json
+            ${{ env.FLUTTER_PROJECT_DIR }}/android/app/build/outputs/apk/release/*.apk
+            ${{ env.FLUTTER_PROJECT_DIR }}/build-info.txt
+            ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json
           retention-days: 7
           if-no-files-found: error
 
@@ -730,9 +717,9 @@ jobs:
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ env.FIREBASE_APP_ID }}
-          serviceCredentialsFile: firebase-service-account.json
+          serviceCredentialsFile: ${{ env.FLUTTER_PROJECT_DIR }}/firebase-service-account.json
           groups: ${{ env.FIREBASE_TESTER_GROUP }}
-          file: ./android/app/build/outputs/apk/release/${{ steps.apk_filename.outputs.apk_name }}
+          file: ${{ env.FLUTTER_PROJECT_DIR }}/android/app/build/outputs/apk/release/${{ steps.apk_filename.outputs.apk_name }}
           releaseNotes: |
             테스트 빌드 #${{ needs.prepare-test-build.outputs.build_number }}
             브랜치: ${{ needs.prepare-test-build.outputs.branch_name }}
