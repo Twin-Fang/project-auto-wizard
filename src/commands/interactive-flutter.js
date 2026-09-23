@@ -69,8 +69,14 @@ export async function editFlutterOption(io, what, state, envModeDefault) {
   if (what === "flutterStore") {
     const picked = await io.selectFlutterStores({ initialValues: state.stores ?? [] });
     if (!Array.isArray(picked)) return state;
-    // 새로 추가된 플랫폼만 배포 모드를 묻는다 — 이미 정한 플랫폼의 모드는 그대로 둔다.
-    return askUnsetDeployModes(io, { ...state, stores: normalizeStores(picked) });
+    const stores = normalizeStores(picked);
+    // 해제된 플랫폼의 배포 모드는 초기화한다 — 그대로 두면 재선택 시 옛 값이 남아 다시 묻지 않는다.
+    const reset = { ...state, stores };
+    for (const platform of STORE_PLATFORMS) {
+      if (!stores.includes(platform)) reset[DEPLOY_MODE_KEY[platform]] = "";
+    }
+    // 새로 추가되거나 방금 초기화된 플랫폼만 배포 모드를 묻는다 — 이미 정한 플랫폼의 모드는 그대로 둔다.
+    return askUnsetDeployModes(io, reset);
   }
   if (what === "deployMode") {
     const stores = state.stores ?? [];

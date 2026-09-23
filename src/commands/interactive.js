@@ -167,7 +167,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     if (io.analysisCard) {
       io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, includeNexus, includeSecretBackup, showOptional, paths });
     } else {
-      io.note?.(summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional }), "프로젝트 분석 결과");
+      io.note?.(summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
     }
     const choice = await io.confirmProjectMenu();
     if (choice === "cancel") { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
@@ -374,7 +374,7 @@ export async function pickBranch(io, message, def, remoteBranches, isCancel) {
   return isCancel(v) || !v ? def : v;
 }
 
-function summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional }) {
+function summarize({ mode, types, version, branch, includeNexus, includeSecretBackup, showOptional, flutter, envModeDefault }) {
   const lines = [
     `통합 모드 : ${modeLabel(mode)}`,
     `프로젝트 타입 : ${types.join(", ")}${types.length > 1 ? " (멀티)" : ""}`,
@@ -384,6 +384,13 @@ function summarize({ mode, types, version, branch, includeNexus, includeSecretBa
   if (showOptional) {
     lines.push(`Nexus publish : ${includeNexus ? "포함" : "제외"}`);
     lines.push(`Secret 백업 : ${includeSecretBackup ? "포함" : "제외"}`);
+    if (types.includes("flutter")) {
+      const stores = flutter.stores ?? [];
+      const modeParts = stores.map((p) => `${p}=${(p === "android" ? flutter.androidDeployMode : flutter.iosDeployMode) || DEFAULT_DEPLOY_MODE}`);
+      lines.push(`환경변수 방식 : ${flutter.envMode || envModeDefault}`);
+      lines.push(`스토어 배포 대상 : ${stores.length ? stores.join(", ") : "없음"}`);
+      lines.push(`배포 모드 : ${modeParts.length ? modeParts.join(" ") : "없음"}`);
+    }
   }
   return lines.join("\n");
 }

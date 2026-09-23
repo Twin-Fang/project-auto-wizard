@@ -90,6 +90,43 @@ test("CLI 플래그는 저장되고, 플래그 없이 재실행해도 유지되�
   }
 });
 
+// fable5.1 리뷰 Important #2 회귀 방지 — store_submit 경고는 Flutter 타입이고 해당 스토어를
+// 선택했을 때만 떠야 한다. android_deploy_mode만 보고 판단하면 Flutter 타입이 아니거나 android
+// 스토어를 선택하지 않은 프로젝트에서도 잘못 떠버린다.
+test("store_submit 경고: Flutter 타입이 아닌 프로젝트에는 --android-deploy-mode를 줘도 뜨지 않는다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-flutter-options-node-"));
+  writeFileSync(join(target, "package.json"), "{}\n");
+  const originalError = console.error;
+  let stderr = "";
+  console.error = (msg) => { stderr += msg; };
+  try {
+    const code = await install(target, ["--type", "node", "--android-deploy-mode", "store_submit"]);
+    assert.strictEqual(code, 0);
+    assert.ok(!stderr.includes("심사가 자동 제출"), `Flutter 타입이 아니면 store_submit 경고가 없어야 한다, got: ${stderr}`);
+  } finally {
+    console.error = originalError;
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("store_submit 경고: Flutter 타입이지만 android 스토어를 선택하지 않으면 android 경고가 뜨지 않는다", async () => {
+  const target = flutterTarget();
+  const originalError = console.error;
+  let stderr = "";
+  console.error = (msg) => { stderr += msg; };
+  try {
+    const code = await install(target, [
+      "--type", "flutter", "--flutter-store", "ios",
+      "--android-deploy-mode", "store_submit", "--ios-deploy-mode", "store_only",
+    ]);
+    assert.strictEqual(code, 0);
+    assert.ok(!stderr.includes("심사가 자동 제출"), `android를 선택하지 않았으면 store_submit 경고가 없어야 한다, got: ${stderr}`);
+  } finally {
+    console.error = originalError;
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("Flutter 타입이 없으면 옵션 키를 기록하지 않는다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-options-node-"));
   writeFileSync(join(target, "package.json"), "{}\n");

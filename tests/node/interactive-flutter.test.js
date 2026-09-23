@@ -169,6 +169,54 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
   }
 });
 
+// fable5.1 리뷰 Important #1 회귀 방지 — 확인 카드에 Flutter 선택값(환경변수 방식·스토어 배포
+// 대상·배포 모드)이 보여야 한다. 수정 메뉴에서만 보이고 확정 직전 화면에 없으면 재확인이 안 된다.
+test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포 모드)이 표시된다", async () => {
+  const target = flutterProject();
+  try {
+    const { io, calls } = stubIo({
+      envMode: () => "dotenv",
+      stores: () => ["android", "ios"],
+      deployMode: (a) => (a.platform === "ios" ? "store_submit" : "store_only"),
+    });
+    assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
+    const card = calls.notes.find((n) => n.title === "프로젝트 분석 결과");
+    assert.ok(card, "확인 카드 note가 있어야 한다");
+    assert.match(card.text, /환경변수 방식 : dotenv/);
+    assert.match(card.text, /스토어 배포 대상 : android, ios/);
+    assert.match(card.text, /배포 모드 : android=store_only ios=store_submit/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// fable5.1 리뷰 Important #2 회귀 방지 — flutterStore 수정에서 플랫폼을 해제했다가 다시 선택하면
+// 배포 모드를 다시 물어야 한다(옛 값이 남아있으면 안 된다).
+test("수정하기: 스토어 해제 후 재선택하면 배포 모드를 다시 묻는다", async () => {
+  const target = flutterProject();
+  try {
+    let menuRound = 0;
+    let storesCalls = 0;
+    const { io, calls } = stubIo({
+      stores: () => {
+        storesCalls += 1;
+        if (storesCalls === 1) return ["android"]; // 초기 질문
+        if (storesCalls === 2) return []; // 수정 — 해제
+        return ["android"]; // 수정 — 재선택
+      },
+      deployMode: () => "store_prepare",
+      confirmProjectMenu: async () => (++menuRound === 1 ? "edit" : "continue"),
+      editMenu: (round) => ["flutterStore", "flutterStore", "done"][round - 1],
+    });
+    assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
+
+    assert.strictEqual(calls.deployMode.length, 2, "해제→재선택이면 배포 모드를 다시 물어야 한다");
+    assert.match(versionYml(target), /android_deploy_mode:\s*"?store_prepare"?/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않고 수정 메뉴에도 항목이 없다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-flutter-basic-"));
   try {
@@ -178,6 +226,8 @@ test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않�
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
     assert.deepStrictEqual(calls.editMenu[0], { showOptional: true, showFlutter: false });
     assert.deepStrictEqual([calls.envMode, calls.stores, calls.deployMode], [[], [], []]);
+    const card = calls.notes.find((n) => n.title === "프로젝트 분석 결과");
+    assert.ok(card && !card.text.includes("환경변수 방식"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
