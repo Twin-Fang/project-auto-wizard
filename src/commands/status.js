@@ -69,8 +69,9 @@ export function printStatus(status) {
   }
   const boolLabel = (v) => (v === null ? "미설정(기본 false)" : v);
   const semverAutoLabel = status.options.semverAuto === null ? "미설정(기본 false)" : status.options.semverAuto;
+  const copilotAiLabel = boolLabel(status.options.copilotAi ?? null);
   const flutterLabels = status.types.includes("flutter") ? flutterOptionLabels(status.options) : "";
-  lines.push(`옵션            : nexus=${boolLabel(status.options.nexus)} secret_backup=${boolLabel(status.options.secretBackup)} semver_auto=${semverAutoLabel}${flutterLabels}`);
+  lines.push(`옵션            : nexus=${boolLabel(status.options.nexus)} secret_backup=${boolLabel(status.options.secretBackup)} semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${flutterLabels}`);
   if (status.modifiedFiles.length) {
     lines.push("", `사용자가 수정한 워크플로우 파일 (${status.modifiedFiles.length}개):`);
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);

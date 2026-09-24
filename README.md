@@ -1,6 +1,6 @@
 # project-auto-wizard
 
-> **One command DevOps** — `npx` 한 줄로 어떤 프로젝트든 GitHub-native AI 릴리스 자동화를 설치하는 마법사
+> **One command DevOps** — `npx` 한 줄로 어떤 프로젝트든 GitHub-native 릴리스 자동화(GitHub Copilot AI 요약은 선택)를 설치하는 마법사
 
 - 새 프로젝트를 시작하면 코드를 작성하기 전부터 버전 관리, 배포 자동화, 변경 기록 작성처럼 먼저 정해야 할 일이 많다. project-auto-wizard는 이 준비 과정을 명령 한 번으로 구성하고, 프로젝트 상태 관리가 GitHub 안에서 자동으로 동작하도록 해 개발자가 기능 구현에 집중하도록 돕는 오픈소스 도구
 
@@ -38,7 +38,7 @@ npx project-auto-wizard --mode full --force --type spring,react   # CI에서 비
 | 축 | 내용 |
 |---|---|
 | ① **npx 마법사** | 마커 파일로 프로젝트 타입 자동 감지 — **10타입 + 멀티타입 + 모노레포 경로**까지. 질문은 최소한만 |
-| ② **GitHub-native AI Release Automation** | 릴리스 PR을 열면: 버전 확정 → **AI가 릴리스 노트 작성** → CHANGELOG 갱신 → automerge → tag + GitHub Release. **API 키 0개** (GitHub Models) |
+| ② **GitHub-native Release Automation** | 릴리스 PR을 열면: 버전 확정 → **릴리스 노트 작성**(기본은 규칙 기반, GitHub Copilot AI는 선택) → CHANGELOG 갱신 → automerge → tag + GitHub Release. **API 키 0개** |
 | ③ **타입별 CI/CD 워크플로우** | Spring(무중단 배포 포함)·Flutter(스토어 배포)·React·Next·Python·Go 등 타입에 맞는 GitHub Actions 자동 배치 |
 
 ### 지원 프로젝트 타입
@@ -183,18 +183,23 @@ npx project-auto-wizard --mode uninstall --force         # 워크플로우·스�
 npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignore --purge-version  # 완전 삭제
 ```
 
-## API 키 0개 AI — 요약 엔진 체인
+## 요약 엔진 체인
 
-릴리스 노트는 3단 엔진 체인으로 생성됩니다. **상용 서드파티 서비스에 전혀 의존하지 않으며, 어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
+릴리스 노트는 3단 엔진 체인으로 생성됩니다. **어떤 단계가 실패해도 릴리스는 절대 막히지 않습니다.**
+
+> GitHub Models는 2026-07-30에 종료되어 더 이상 사용하지 않습니다.
 
 ```mermaid
 flowchart LR
-    B["사용자 지정 AI<br/>(AI_API_KEY)"] -->|"키 없음/실패"| C["GitHub Models<br/>(GITHUB_TOKEN만, 무료)"]
-    C -->|"rate limit/실패"| D["규칙 기반 fallback<br/>(항상 성공)"]
+    B["사용자 지정 AI<br/>(AI_API_KEY + AI_API_BASE_URL + AI_MODEL)"] -->|"미설정/실패"| C["GitHub Copilot CLI<br/>(선택, GITHUB_TOKEN)"]
+    C -->|"꺼짐/사용 불가/실패"| D["규칙 기반 fallback<br/>(항상 성공)"]
 ```
 
-- 기본값은 **GitHub Models** — Actions의 `GITHUB_TOKEN` + `permissions: models: read`만으로 동작. **비용 0, 설정 0.**
-- `AI_API_KEY`/`AI_API_BASE_URL`/`AI_MODEL` secret으로 OpenAI-호환 엔드포인트(Groq, Gemini 호환 모드, Ollama 등) 교체 가능.
+- 기본값은 **규칙 기반 요약**입니다. 설치 마법사에서 Copilot을 켜면(`--copilot`, `version.yml`의 `copilot_ai: true`) Actions의 `GITHUB_TOKEN` + `permissions: copilot-requests: write`로 Copilot CLI가 요약을 생성합니다 — 별도 API 키는 필요 없습니다.
+- **Copilot은 GitHub Copilot AI Credits를 소비합니다.** 개인 저장소는 저장소 소유자의 Copilot 좌석에, 조직 저장소는 조직에 과금되며 조직은 "Allow use of Copilot CLI billed to the organization" 정책을 켜야 합니다. 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다. PR에 푸시할 때마다 요약이 새로 생성되므로 그만큼 크레딧이 소비됩니다.
+- Copilot 모델은 저비용 소형 모델(`claude-haiku-4.5`)로 고정되어 있고, 저장소 변수 `COPILOT_MODEL`로 바꿀 수 있습니다.
+- GitHub은 Copilot CLI를 `run` 스텝에서 직접 호출하기보다 Agentic Workflows를 쓰라고 권고하지만, 이 프로젝트는 직접 호출을 택했습니다. 프롬프트 입력이 PR 제목·커밋 메시지·`git diff --stat`뿐이고, 빈 임시 디렉터리에서 shell/write/url 도구와 내장 MCP를 모두 막은 텍스트 생성 전용으로 호출하며, 포크 PR은 기존 가드로 건너뛰어 프롬프트 인젝션 위험을 낮췄기 때문입니다.
+- `AI_API_KEY`(**Secret**)와 `AI_API_BASE_URL`·`AI_MODEL`(**Variables**)을 **모두** 설정하면 OpenAI-호환 엔드포인트(Groq, Gemini 호환 모드, Ollama 등)를 최우선으로 사용합니다. 셋 중 하나라도 없으면 이 단계는 건너뜁니다.
 - 규칙 fallback 3단: 프로젝트 컨벤션 → Conventional Commits → 무형식 bullet. 커밋 컨벤션이 없어도 동작.
 
 ## 릴리스 흐름
@@ -204,7 +209,7 @@ flowchart LR
     subgraph pr-flow ["pr-flow (기본)"]
         D1[develop push] --> PR[develop→main 릴리스 PR]
         PR --> V["버전 확정 (patch+1)"]
-        V --> AI[AI 릴리스 노트]
+        V --> AI[릴리스 노트]
         AI --> CL[CHANGELOG.json/md 갱신]
         CL --> AM[automerge]
         AM --> TAG["tag vX.Y.Z + GitHub Release"]
@@ -236,6 +241,7 @@ npx project-auto-wizard [옵션]
       --nexus              라이브러리 publish 워크플로우 포함 (Nexus + GitHub Packages)
       --secret-backup      Secret 서버 백업 워크플로우 포함
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
+      --copilot            Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비, --no-copilot으로 끔)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
@@ -270,9 +276,10 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
       secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.
       속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).
       등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT
-  [i] GitHub Models — AI 릴리스 노트 생성
-      조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).
-      차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
+  [i] Copilot AI 요약 — AI 릴리스 노트 생성(선택)
+      기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).
+      켜면 GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.
+      꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
 
   ✓ 문제를 찾지 못했습니다.
 ```
@@ -296,7 +303,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 ### 자체 AI PR 요약봇
 
-상용 PR 리뷰 SaaS 없이 동작하는 자체 요약봇입니다. 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 API 키 0개 AI 엔진 체인으로 요약 코멘트를 자동으로 답니다.
+상용 PR 리뷰 SaaS 없이 동작하는 자체 요약봇입니다. 릴리스 브랜치(`--main-branch`)를 대상으로 하는 PR이 열릴 때 요약 엔진 체인(기본은 규칙 기반, Copilot은 선택)으로 요약 코멘트를 자동으로 답니다.
 
 기본 설치(pr-flow) 기준으로 일상적인 기능 PR은 `develop`을 대상으로 열리므로, 이 봇은 develop→main 릴리스 PR에서만 실제로 동작합니다 — 해당 PR에서는 `AUTO-CHANGELOG-CONTROL`이 이미 같은 엔진으로 체인지로그 요약을 생성하므로, 이 봇은 그 요약을 PR 코멘트 형태로도 남겨주는 보조 역할입니다. 릴리스 브랜치 = 개발 브랜치인 trunk-based 모드에서는 모든 PR이 곧 릴리스 대상 브랜치를 향하므로 매 PR마다 동작합니다.
 
@@ -308,7 +315,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 |---|---|
 | **`WORKFLOW_PAT` secret** (선택 — 속도 최적화용) | 없어도 `GITHUB_TOKEN` 폴백이 automerge부터 Release 발행까지 자동으로 이어갑니다(실제 병합 후 최대 ~20초 추가). 더 빠르게 하고 싶다면 Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 |
 | **Workflow permissions** | Settings → Actions → Workflow permissions: **Read and write** |
-| **GitHub Models** | 기본 활성 — 별도 설정 불필요. 조직 정책으로 차단된 경우 자동으로 규칙 fallback |
+| **Copilot AI 요약** (선택) | 기본 꺼짐. 켜려면 마법사에서 선택하거나 `version.yml`의 `copilot_ai`를 `true`로 — AI Credits가 소비되며 조직은 "Allow use of Copilot CLI billed to the organization" 정책이 필요합니다. 사용할 수 없으면 자동으로 규칙 fallback |
 
 ## 설계 원칙
 

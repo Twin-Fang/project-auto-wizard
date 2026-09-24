@@ -290,6 +290,8 @@ async function runInner(argv, {
     // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
     // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
     includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
+    // Copilot AI 요약은 AI Credits를 소비하는 opt-in — 신규·기존 설치 모두 명시하지 않으면 false다.
+    includeCopilotAi: opts.includeCopilotAi ?? existing?.options?.copilotAi ?? false,
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),

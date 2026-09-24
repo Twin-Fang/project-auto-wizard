@@ -15,6 +15,7 @@ export function parseArgs(argv) {
     includeNexus: null,      // null=미설정
     includeSecretBackup: null,
     includeSemverAuto: null,  // --semver-auto / --no-semver-auto (기본 true — 미지정 시 다운스트림에서 해석)
+    includeCopilotAi: null,   // --copilot / --no-copilot (기본 false — AI Credits를 소비하는 opt-in)
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
     mainBranch: "",          // 릴리스 브랜치 (--main-branch). 빈값=감지된 default branch
     developBranch: "",       // 개발 브랜치 (--develop-branch). 빈값=develop
@@ -139,6 +140,12 @@ export function parseArgs(argv) {
       case "--no-semver-auto":
         if (seenFlags.has("--semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
         seenFlags.add("--no-semver-auto"); result.includeSemverAuto = false; break;
+      case "--copilot":
+        if (seenFlags.has("--no-copilot")) throw new CliError("--copilot과 --no-copilot은 동시에 지정할 수 없습니다");
+        seenFlags.add("--copilot"); result.includeCopilotAi = true; break;
+      case "--no-copilot":
+        if (seenFlags.has("--copilot")) throw new CliError("--copilot과 --no-copilot은 동시에 지정할 수 없습니다");
+        seenFlags.add("--no-copilot"); result.includeCopilotAi = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
       case "--main-branch": {
         const v = args.shift();

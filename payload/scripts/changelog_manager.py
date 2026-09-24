@@ -27,7 +27,9 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import traceback
 import urllib.error
 import urllib.request
@@ -123,7 +125,7 @@ def _parse_markdown_sections(md_content: str) -> dict:
     """
     섹션 파서: `### 카테고리` 헤딩 + `- 항목` 불릿 형식.
 
-    AI 엔진 체인(사용자 지정 API → GitHub Models)과 규칙 기반 폴백이
+    AI 엔진 체인(사용자 지정 API → Copilot CLI)과 규칙 기반 폴백이
     동일하게 생성하는 형식이므로 1순위로 시도한다.
     """
     detected: dict[str, dict] = {}
@@ -389,21 +391,19 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
         return False
     prompt = _BUMP_AI_PROMPT_PREFIX + "\n".join(f"- {line}" for line in unclassified_lines)
 
-    ai_api_key = os.environ.get('AI_API_KEY')
-    github_token = os.environ.get('GITHUB_TOKEN')
-    candidates = [
-        (ai_api_key, os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL, os.environ.get('AI_MODEL') or _AI_DEFAULT_MODEL),
-        (github_token, _AI_DEFAULT_BASE_URL, _AI_DEFAULT_MODEL),
-    ]
-    for token, base_url, model in candidates:
-        if not token:
-            continue
+    settings = _user_api_settings()
+    if settings:
+        api_key, base_url, model = settings
         try:
-            response = call_openai_compatible(base_url, token, model, prompt)
-            return response.strip() == 'MINOR'
+            return call_openai_compatible(base_url, api_key, model, prompt).strip() == 'MINOR'
         except Exception as e:
             print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
-            continue
+
+    if _copilot_enabled():
+        try:
+            return call_copilot_cli(prompt).strip() == 'MINOR'
+        except Exception as e:
+            print(f"[warn] bump AI assist (copilot) failed: {e}", file=sys.stderr)
     return False
 
 
@@ -694,8 +694,67 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
 
 # ------------------------ ai-summary 엔진 체인 ------------------------
 
-_AI_DEFAULT_BASE_URL = "https://models.github.ai/inference"
-_AI_DEFAULT_MODEL = "openai/gpt-4o-mini"
+_COPILOT_DEFAULT_MODEL = "claude-haiku-4.5"
+_COPILOT_TIMEOUT_SECONDS = 90
+
+
+def _user_api_settings() -> tuple[str, str, str] | None:
+    """사용자 지정 AI 티어 설정. AI_API_KEY와 AI_API_BASE_URL, AI_MODEL이 모두 있어야 한다.
+
+    키만 있고 URL·모델이 비어 있으면 그 키를 어디로도 보내지 않고 경고 후 건너뛴다
+    (종료된 기본 엔드포인트으로 사용자 키가 흘러가던 문제 방지)."""
+    api_key = os.environ.get('AI_API_KEY')
+    if not api_key:
+        return None
+    base_url = os.environ.get('AI_API_BASE_URL')
+    model = os.environ.get('AI_MODEL')
+    if not base_url or not model:
+        print(
+            "::warning::AI_API_KEY가 설정됐지만 AI_API_BASE_URL/AI_MODEL이 없어 사용자 API 티어를 건너뜁니다",
+            file=sys.stderr,
+        )
+        return None
+    return api_key, base_url, model
+
+
+def _copilot_enabled() -> bool:
+    """version.yml의 copilot_ai가 켜져 있고(워크플로우가 COPILOT_AI로 전달) 토큰이 있을 때만 True."""
+    return os.environ.get('COPILOT_AI', '').strip().lower() == 'true' and bool(os.environ.get('GITHUB_TOKEN'))
+
+
+def call_copilot_cli(prompt: str) -> str:
+    """Copilot CLI를 텍스트 생성 전용으로 호출해 응답 텍스트를 반환.
+
+    프롬프트에 필요한 정보가 이미 다 들어 있으므로 에이전트 기능은 전부 막는다:
+    빈 임시 디렉터리에서 실행하고, shell/write/url 도구를 거부하며, 내장 MCP와
+    커스텀 지침 로딩을 끈다.
+    실패(비정상 종료·타임아웃·CLI 없음)는 예외로 올려 호출부가 fallback한다."""
+    model = os.environ.get('COPILOT_MODEL') or _COPILOT_DEFAULT_MODEL
+    with tempfile.TemporaryDirectory() as workdir:
+        result = subprocess.run(
+            [
+                'copilot', '-p', prompt, '-s',
+                '--no-ask-user', '--no-color', '--no-custom-instructions', '--disable-builtin-mcps',
+                '--deny-tool=shell', '--deny-tool=write', '--deny-tool=url',
+                '--model', model,
+            ],
+            cwd=workdir, stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=_COPILOT_TIMEOUT_SECONDS,
+        )
+    if result.returncode != 0:
+        raise RuntimeError(f"copilot exited with {result.returncode}: {result.stderr.strip()[:200]}")
+    return result.stdout
+
+
+def _is_valid_copilot_summary(text: str) -> bool:
+    """프롬프트가 요구한 Markdown 형식인지 최소한만 검사한다.
+
+    섹션 헤딩('### ')이 하나도 없거나 코드펜스로 시작하는(통째로 감싼) 응답은 릴리스 노트로
+    쓰지 않는다."""
+    stripped = text.strip()
+    if not stripped or stripped.startswith('```'):
+        return False
+    return any(line.startswith('### ') for line in stripped.splitlines())
 
 
 def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str, diff_stat: str | None = None) -> str:
@@ -760,16 +819,13 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
         except Exception:
             diff_stat = None
 
-    ai_api_key = os.environ.get('AI_API_KEY')
-    ai_base_url = os.environ.get('AI_API_BASE_URL') or _AI_DEFAULT_BASE_URL
-    ai_model = os.environ.get('AI_MODEL') or _AI_DEFAULT_MODEL
-    github_token = os.environ.get('GITHUB_TOKEN')
-
     engine = None
     summary_text = None
     prompt = _build_ai_prompt(commit_lines, pr_title, version, diff_stat)
 
-    if ai_api_key:
+    settings = _user_api_settings()
+    if settings:
+        ai_api_key, ai_base_url, ai_model = settings
         try:
             candidate = call_openai_compatible(ai_base_url, ai_api_key, ai_model, prompt)
             if candidate and candidate.strip():
@@ -780,19 +836,16 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
         except Exception as e:
             print(f"[warn] user-api failed: {e}", file=sys.stderr)
 
-    if summary_text is None and github_token:
+    if summary_text is None and _copilot_enabled():
         try:
-            # GitHub Models는 자체 모델 카탈로그만 서빙한다 — 사용자 API용으로
-            # AI_MODEL이 오버라이드돼 있어도 여기서는 기본 모델을 쓴다
-            # (커스텀 모델명은 models.github.ai에서 404).
-            candidate = call_openai_compatible(_AI_DEFAULT_BASE_URL, github_token, _AI_DEFAULT_MODEL, prompt)
-            if candidate and candidate.strip():
+            candidate = call_copilot_cli(prompt)
+            if _is_valid_copilot_summary(candidate):
                 summary_text = candidate
-                engine = "github-models"
+                engine = "copilot"
             else:
-                print("[warn] github-models failed: empty content in response", file=sys.stderr)
+                print("[warn] copilot failed: empty or not in the requested Markdown format", file=sys.stderr)
         except Exception as e:
-            print(f"[warn] github-models failed: {e}", file=sys.stderr)
+            print(f"[warn] copilot failed: {e}", file=sys.stderr)
 
     if summary_text is None:
         classified = classify_commits(commit_lines)
