@@ -44,13 +44,13 @@ const FLUTTER_OPTION_KEYS = {
 };
 
 // metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
-// 반환: { nexus: bool|null, secretBackup: bool|null, semverAuto: bool|null, deployStyle: string|null,
+// 반환: { nexus: bool|null, secretBackup: bool|null, semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
 //         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
 // (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
   const out = {
-    nexus: null, secretBackup: null, semverAuto: null, deployStyle: null,
+    nexus: null, secretBackup: null, semverAuto: null, copilotAi: null, deployStyle: null,
     envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
   };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
@@ -86,6 +86,13 @@ export function parseTemplateOptions(content) {
         const v = strip(m[1]);
         if (v === "true") out.semverAuto = true;
         if (v === "false") out.semverAuto = false;
+        continue;
+      }
+      m = line.match(/^\s+copilot_ai:\s*(.+)/);
+      if (m) {
+        const v = strip(m[1]);
+        if (v === "true") out.copilotAi = true;
+        if (v === "false") out.copilotAi = false;
         continue;
       }
       // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료 (.sh L2404~2408)
@@ -204,7 +211,7 @@ export function buildVersionYml({
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
-    includeSemverAuto = true, deployStyle = "", optionsDate = today,
+    includeSemverAuto = true, includeCopilotAi = false, deployStyle = "", optionsDate = today,
   } = templateOptions || {};
 
   // project_paths 블록 (full-line 토큰 {{PROJECT_PATHS}} — 없으면 라인 제거)
@@ -244,6 +251,7 @@ export function buildVersionYml({
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     OPT_NEXUS: String(includeNexus), OPT_SECRET_BACKUP: String(includeSecretBackup),
     OPT_SEMVER_AUTO: String(includeSemverAuto),
+    OPT_COPILOT_AI: String(includeCopilotAi),
     OPT_DEPLOY_STYLE: String(deployStyle || ""),
   };
 
@@ -273,7 +281,7 @@ export function buildVersionYml({
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null,
-    includeNexus = false, includeSecretBackup = false, includeSemverAuto, deployStyle,
+    includeNexus = false, includeSecretBackup = false, includeSemverAuto, includeCopilotAi, deployStyle,
     envMode, flutterStore, androidDeployMode, iosDeployMode } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
@@ -282,6 +290,7 @@ export function renderVersionYml(context, templateText, { pathMarkers, deployVal
     templateOptions: {
       templateVersion, includeNexus, includeSecretBackup,
       includeSemverAuto: includeSemverAuto !== false,
+      includeCopilotAi: includeCopilotAi === true,
       deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
       optionsDate: today,
     },

@@ -24,6 +24,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --nexus / --no-nexus            라이브러리 publish 워크플로우 포함/제외 (Nexus + GitHub Packages)
       --secret-backup / --no-secret-backup   Secret 백업 워크플로우 포함/제외
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
+      --copilot / --no-copilot  Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비)
       --force              full 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거

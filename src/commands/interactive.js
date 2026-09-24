@@ -88,6 +88,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let includeNexus = existing?.options?.nexus ?? false;
   let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
+  let includeCopilotAi = existing?.options?.copilotAi ?? null;
   // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (nexus/secret_backup과 같은 규약).
   let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
@@ -153,11 +154,18 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
       includeSemverAuto = y2 === true;
     }
+
+    // Copilot AI 요약 — AI Credits를 소비하므로 opt-in(기본 No). 저장값 있으면 재질문 생략.
+    if (mode === "full" && includeCopilotAi === null) {
+      const y3 = await io.askYesNo("Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)", false);
+      includeCopilotAi = y3 === true;
+    }
   }
   // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
   // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
   // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
   includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
+  includeCopilotAi = includeCopilotAi === true;
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
@@ -278,6 +286,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     mode, force: true, types, version, versionCode, branch, branches, paths,
     includeNexus, includeSecretBackup,
     includeSemverAuto,
+    includeCopilotAi,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그(#79)·완료 요약(#80)이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
