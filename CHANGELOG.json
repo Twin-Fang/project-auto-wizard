@@ -1,15 +1,49 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-09-23T04:45:02Z",
-    "currentVersion": "0.11.0",
+    "lastUpdated": "2026-09-24T06:13:30Z",
+    "currentVersion": "0.12.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 22
+    "totalReleases": 23
   },
   "releases": [
+    {
+      "version": "0.12.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-09-24",
+      "pr_number": 136,
+      "raw_summary": "## [0.12.0]\n\n### ✨ 기능\n- 워크플로우를 opt-in Copilot 게이트·엔진 표기·중립 PR Summary 라벨로 전환 (#134)\n- 마법사에 Copilot AI 요약 opt-in 옵션(copilot_ai)과 --copilot 플래그 추가 (#134)\n- GitHub Models 티어를 opt-in Copilot CLI로 교체하고 죽은 API 기본값 제거 (#134)\n\n### 🐛 수정\n- 요구 문구에서 종료된 서비스 명칭을 제거하도록 docstring 정정 (#134)\n\n### 📝 문서\n- GitHub Models 종료 대응 Copilot CLI 엔진 교체 구현 계획 작성 (#134)\n- 표방 문구에서 기본 동작과 다른 AI 릴리스 자동화 수식을 정정 (#134)\n- GitHub Models 종료와 Copilot 과금·opt-in 옵션에 맞게 안내 문구와 README 정정 (#134)",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "워크플로우를 opt-in Copilot 게이트·엔진 표기·중립 PR Summary 라벨로 전환 (#134)",
+            "마법사에 Copilot AI 요약 opt-in 옵션(copilot_ai)과 --copilot 플래그 추가 (#134)",
+            "GitHub Models 티어를 opt-in Copilot CLI로 교체하고 죽은 API 기본값 제거 (#134)"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "요구 문구에서 종료된 서비스 명칭을 제거하도록 docstring 정정 (#134)"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "GitHub Models 종료 대응 Copilot CLI 엔진 교체 구현 계획 작성 (#134)",
+            "표방 문구에서 기본 동작과 다른 AI 릴리스 자동화 수식을 정정 (#134)",
+            "GitHub Models 종료와 Copilot 과금·opt-in 옵션에 맞게 안내 문구와 README 정정 (#134)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.11.0",
       "project_types": [
