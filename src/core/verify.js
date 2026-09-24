@@ -43,7 +43,7 @@ export function scanUnsubstituted(workflowsDir, filenames = []) {
 const AUTO_SECRETS = new Set(["GITHUB_TOKEN"]);
 // 없어도 워크플로우가 도는 secret — 폴백이 문서화돼 있다. 필수와 섞어 "등록해야 동작합니다"라고
 // 하면 안내 자체를 못 믿게 되므로 분리한다.
-//   AI_API_KEY   → 없으면 GitHub Models(무료) → 규칙 fallback
+//   AI_API_KEY   → 없으면 Copilot(opt-in, copilot_ai) → 규칙 fallback
 //   WORKFLOW_PAT → 없으면 GITHUB_TOKEN
 export const OPTIONAL_SECRETS = new Set(["AI_API_KEY", "WORKFLOW_PAT"]);
 const SECRET_RE = /secrets\.([A-Z][A-Z0-9_]*)/g;

@@ -54,7 +54,7 @@ export function printSummary(ctx) {
   if (mode === "full" || mode === "workflows") {
     err("");
     err("릴리스 노트 요약 엔진:");
-    err("  🤖 AI_API_KEY(선택) → GitHub Models(기본·무료·API 키 불필요) → 규칙 fallback — 릴리스는 절대 막히지 않음");
+    err("  🤖 AI_API_KEY(선택) → Copilot(선택·AI Credits 소비, 기본 꺼짐) → 규칙 fallback — 릴리스는 절대 막히지 않음");
   }
 
   err("");

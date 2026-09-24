@@ -161,10 +161,11 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   }
 
   add({
-    name: "GitHub Models 활성화", label: "GitHub Models", purpose: "AI 릴리스 노트 생성", status: "INFO",
+    name: "Copilot AI 요약", label: "Copilot AI 요약", purpose: "AI 릴리스 노트 생성(선택)", status: "INFO",
     note: [
-      "조직 정책으로 차단됐는지는 자동으로 확인할 수 없습니다 (Settings → Models).",
-      "차단돼 있어도 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.",
+      "기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).",
+      "켜면 GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.",
+      "꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.",
     ],
   });
 
