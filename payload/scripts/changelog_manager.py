@@ -702,7 +702,7 @@ def _user_api_settings() -> tuple[str, str, str] | None:
     """사용자 지정 AI 티어 설정. AI_API_KEY와 AI_API_BASE_URL, AI_MODEL이 모두 있어야 한다.
 
     키만 있고 URL·모델이 비어 있으면 그 키를 어디로도 보내지 않고 경고 후 건너뛴다
-    (종료된 GitHub Models 기본값으로 사용자 키가 흘러가던 문제 방지)."""
+    (종료된 기본 엔드포인트으로 사용자 키가 흘러가던 문제 방지)."""
     api_key = os.environ.get('AI_API_KEY')
     if not api_key:
         return None
