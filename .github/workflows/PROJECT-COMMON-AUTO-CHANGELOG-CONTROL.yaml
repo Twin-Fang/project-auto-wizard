@@ -12,8 +12,8 @@
 #      commits) and bumps accordingly.
 #    - Otherwise: always patch+1 (legacy behavior).
 # 2. Generates the release summary locally with changelog_manager.py
-#    ai-summary (engine chain: user API key -> GitHub Models -> rule-based
-#    fallback; always succeeds, no third-party service involved)
+#    ai-summary (engine chain: user API key -> Copilot CLI, opt-in via
+#    version.yml copilot_ai -> rule-based fallback; always succeeds)
 #    - The AI prompt includes commit subjects plus a capped
 #      `git diff --stat` (file-level change summary, no diff body)
 #      for richer context without token-cost blowup.
@@ -34,8 +34,10 @@
 # - secrets.WORKFLOW_PAT: PAT used for the merge. Without it the merge is
 #   performed with GITHUB_TOKEN, and GitHub will NOT trigger downstream
 #   main-push workflows (e.g. RELEASE-PUBLISH) for that merge.
-# - secrets.AI_API_KEY (+ vars.AI_API_BASE_URL / vars.AI_MODEL): preferred
-#   summary engine. Falls back to GitHub Models, then to rule-based.
+# - secrets.AI_API_KEY (+ vars.AI_API_BASE_URL / vars.AI_MODEL, all three
+#   required together): preferred summary engine. Falls back to Copilot CLI
+#   (only when version.yml copilot_ai is true; optional vars.COPILOT_MODEL),
+#   then to rule-based.
 #
 # Issue #90: without WORKFLOW_PAT, a wait-for-merge-and-trigger-release job
 # polls until the automerge actually lands, then wakes RELEASE-PUBLISH via
@@ -60,7 +62,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  models: read
+  copilot-requests: write
 
 jobs:
   changelog-and-merge:
@@ -93,6 +95,20 @@ jobs:
           SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
           echo "semver_auto option: $SEMVER_AUTO"
+
+      - name: Read copilot_ai option from version.yml
+        id: copilot_options
+        run: |
+          # scoped to the metadata: -> template: -> options: chain so an
+          # unrelated "copilot_ai:" key can never hijack the value
+          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
+          echo "copilot_ai option: $COPILOT_AI"
+
+      - name: Install Copilot CLI
+        if: steps.copilot_options.outputs.copilot_ai == 'true'
+        continue-on-error: true
+        run: npm install -g @github/copilot@1.0.88
 
       - name: Collect commits since last release
         id: collect
@@ -149,6 +165,8 @@ jobs:
           AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
+          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           # Idempotency: if the PR head is already this workflow's own
           # version-confirm commit (re-run / synchronize retrigger), do not
@@ -175,6 +193,7 @@ jobs:
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Generate summary with the AI engine chain
+        id: summary
         env:
           # PR title goes through the env block — never inline-interpolate
           # untrusted text into the shell string (quote injection).
@@ -183,28 +202,37 @@ jobs:
           AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
+          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
 
-          python3 .github/scripts/changelog_manager.py ai-summary \
+          SUMMARY_RESULT=$(python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
             --version "$VERSION" \
             --output summary.md \
             --pr-title "$PR_TITLE" \
-            --diff-stat-file diff_stat.txt
+            --diff-stat-file diff_stat.txt | tail -n 1)
+          ENGINE=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("engine") or "unknown")' "$SUMMARY_RESULT" 2>/dev/null || echo "unknown")
+          echo "summary engine: $ENGINE"
+          echo "engine=$ENGINE" >> $GITHUB_OUTPUT
 
           # update-from-summary reads ./pr_body.md
           cp summary.md pr_body.md
 
       - name: Post AI summary comment
         continue-on-error: true
+        env:
+          ENGINE: ${{ steps.summary.outputs.engine }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
           {
-            echo "🤖 **AI Summary (project-auto-wizard)**"
+            echo "📋 **PR Summary (project-auto-wizard)**"
             echo ""
             cat summary.md
+            echo ""
+            echo "<sub>engine: ${ENGINE:-unknown}</sub>"
           } > comment_body.md
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json

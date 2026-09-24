@@ -146,9 +146,10 @@ test("AUTO-CHANGELOG-CONTROL exists in payload", () => {
   assert.ok(files.includes(changelogPath), `${changelogPath} missing`);
 });
 
-test("AUTO-CHANGELOG-CONTROL grants models: read", () => {
+test("AUTO-CHANGELOG-CONTROL grants copilot-requests: write (GitHub Models 종료, #134)", () => {
   const body = readFileSync(changelogPath, "utf8");
-  assert.ok(body.includes("models: read"));
+  assert.ok(body.includes("copilot-requests: write"));
+  assert.ok(!body.includes("models: read"));
 });
 
 test("AUTO-CHANGELOG-CONTROL uses the ai-summary engine chain", () => {
