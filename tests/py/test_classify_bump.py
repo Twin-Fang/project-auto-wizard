@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -85,6 +86,19 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         self.env_patcher.start()
         self.addCleanup(self.env_patcher.stop)
 
+    def _set_user_api_env(self):
+        changelog_manager.os.environ.update({
+            "AI_API_KEY": "sk-test",
+            "AI_API_BASE_URL": "https://api.example.com/v1",
+            "AI_MODEL": "example-model",
+        })
+
+    def _enable_copilot(self):
+        changelog_manager.os.environ.update({"COPILOT_AI": "true", "GITHUB_TOKEN": "ghs_test"})
+
+    def _completed(self, stdout, returncode=0):
+        return subprocess.CompletedProcess(args=["copilot"], returncode=returncode, stdout=stdout, stderr="")
+
     def _run(self, commit_lines):
         import contextlib
         import io
@@ -103,7 +117,7 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         return m
 
     def test_ai_upgrades_patch_to_minor_when_response_is_MINOR(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-test"
+        self._set_user_api_env()
         with unittest.mock.patch.object(
             changelog_manager.urllib.request, "urlopen", return_value=self._mock_response("MINOR"),
         ):
@@ -112,7 +126,7 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         self.assertEqual(last_line, "minor")
 
     def test_ai_keeps_patch_when_response_is_PATCH(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-test"
+        self._set_user_api_env()
         with unittest.mock.patch.object(
             changelog_manager.urllib.request, "urlopen", return_value=self._mock_response("PATCH"),
         ):
@@ -121,7 +135,7 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         self.assertEqual(last_line, "patch")
 
     def test_ai_never_produces_major(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-test"
+        self._set_user_api_env()
         with unittest.mock.patch.object(
             changelog_manager.urllib.request, "urlopen", return_value=self._mock_response("MAJOR"),
         ):
@@ -131,7 +145,7 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         self.assertEqual(last_line, "patch")
 
     def test_ai_call_failure_falls_back_to_rule_result(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-test"
+        self._set_user_api_env()
         with unittest.mock.patch.object(
             changelog_manager.urllib.request, "urlopen", side_effect=URLError("timed out"),
         ):
@@ -149,6 +163,63 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
             rc, last_line = self._run(["feat: add login"])
         self.assertEqual(last_line, "minor")
         mock_urlopen.assert_not_called()
+
+    def test_user_key_without_url_and_model_sends_nothing(self):
+        changelog_manager.os.environ["AI_API_KEY"] = "sk-test"
+        with unittest.mock.patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:
+            rc, last_line = self._run(["add dark mode toggle to settings screen"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(last_line, "patch")
+        mock_urlopen.assert_not_called()
+
+    def test_copilot_upgrades_patch_to_minor_when_response_is_exactly_MINOR(self):
+        self._enable_copilot()
+        with unittest.mock.patch.object(
+            changelog_manager.subprocess, "run", return_value=self._completed("MINOR\n"),
+        ) as mock_run:
+            rc, last_line = self._run(["add dark mode toggle to settings screen"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(last_line, "minor")
+        mock_run.assert_called_once()
+
+    def test_copilot_response_other_than_exactly_MINOR_stays_patch(self):
+        self._enable_copilot()
+        for response in ("PATCH", "MAJOR", "MINOR because it adds a feature", ""):
+            with self.subTest(response=response):
+                with unittest.mock.patch.object(
+                    changelog_manager.subprocess, "run", return_value=self._completed(response),
+                ):
+                    rc, last_line = self._run(["add dark mode toggle to settings screen"])
+                self.assertEqual(rc, 0)
+                self.assertEqual(last_line, "patch")
+
+    def test_copilot_disabled_never_spawns_even_with_token(self):
+        changelog_manager.os.environ["GITHUB_TOKEN"] = "ghs_test"
+        with unittest.mock.patch.object(changelog_manager.subprocess, "run") as mock_run:
+            rc, last_line = self._run(["add dark mode toggle to settings screen"])
+        self.assertEqual(last_line, "patch")
+        mock_run.assert_not_called()
+
+    def test_copilot_failure_stays_patch(self):
+        self._enable_copilot()
+        with unittest.mock.patch.object(
+            changelog_manager.subprocess, "run", side_effect=FileNotFoundError("copilot"),
+        ):
+            rc, last_line = self._run(["add dark mode toggle to settings screen"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(last_line, "patch")
+
+    def test_user_api_failure_chains_to_copilot(self):
+        self._set_user_api_env()
+        self._enable_copilot()
+        with unittest.mock.patch.object(
+            changelog_manager.urllib.request, "urlopen", side_effect=URLError("timed out"),
+        ):
+            with unittest.mock.patch.object(
+                changelog_manager.subprocess, "run", return_value=self._completed("MINOR"),
+            ):
+                rc, last_line = self._run(["add dark mode toggle to settings screen"])
+        self.assertEqual(last_line, "minor")
 
 
 if __name__ == "__main__":

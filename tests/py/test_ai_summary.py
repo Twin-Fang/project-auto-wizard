@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -46,6 +47,13 @@ class TestAiSummary(unittest.TestCase):
         self.env_patcher.start()
         self.addCleanup(self.env_patcher.stop)
 
+    def _set_user_api_env(self):
+        changelog_manager.os.environ.update({
+            "AI_API_KEY": "sk-user-key",
+            "AI_API_BASE_URL": "https://api.example.com/v1",
+            "AI_MODEL": "example-model",
+        })
+
     def _run_main(self, extra_args=None, output=None):
         args = [
             "ai-summary",
@@ -65,7 +73,7 @@ class TestAiSummary(unittest.TestCase):
         return rc, _last_json_line(out_buf.getvalue()), err_buf.getvalue()
 
     def test_user_api_key_success(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
 
         mock_resp = _mock_response({
             "choices": [{"message": {"content": "## Release summary\n주요 변경 사항입니다."}}]
@@ -89,31 +97,23 @@ class TestAiSummary(unittest.TestCase):
         content = self.output_file.read_text(encoding="utf-8")
         self.assertIn("주요 변경 사항입니다.", content)
 
-    def test_github_token_fallback_to_models_endpoint(self):
+    def test_github_token_alone_no_longer_calls_network_or_copilot(self):
         changelog_manager.os.environ["GITHUB_TOKEN"] = "ghp_test_token"
 
-        mock_resp = _mock_response({
-            "choices": [{"message": {"content": "github models summary"}}]
-        })
-
-        with patch.object(changelog_manager.urllib.request, "urlopen", return_value=mock_resp) as mock_urlopen:
-            rc, payload, _ = self._run_main_capture()
+        with patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:
+            with patch.object(changelog_manager.subprocess, "run") as mock_run:
+                rc, payload, _ = self._run_main_capture()
 
         self.assertEqual(rc, 0)
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["engine"], "github-models")
-        req = mock_urlopen.call_args[0][0]
-        self.assertIn("models.github.ai", req.full_url)
-        self.assertEqual(req.get_header("Authorization"), "Bearer ghp_test_token")
-
-        content = self.output_file.read_text(encoding="utf-8")
-        self.assertIn("github models summary", content)
+        self.assertEqual(payload["engine"], "fallback")
+        mock_urlopen.assert_not_called()
+        mock_run.assert_not_called()
 
     def test_http_error_429_falls_back_to_rule_based(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
 
         http_error = HTTPError(
-            url="https://models.github.ai/inference/chat/completions",
+            url="https://api.example.com/v1/chat/completions",
             code=429,
             msg="Too Many Requests",
             hdrs=None,
@@ -141,7 +141,7 @@ class TestAiSummary(unittest.TestCase):
         self.assertTrue(len(content.strip()) > 0)
 
     def test_pr_title_included_in_prompt(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
         mock_resp = _mock_response({
             "choices": [{"message": {"content": "summary text"}}]
         })
@@ -190,7 +190,7 @@ class TestAiSummary(unittest.TestCase):
     # ---------------- engine chain robustness (Important 2 & 4) ----------------
 
     def test_empty_content_200_falls_back(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
         mock_resp = _mock_response({
             "choices": [{"message": {"content": "   "}}]
         })
@@ -203,30 +203,26 @@ class TestAiSummary(unittest.TestCase):
         content = self.output_file.read_text(encoding="utf-8")
         self.assertTrue(len(content.strip()) > 0)
 
-    def test_tier1_failure_chains_to_github_models(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
-        changelog_manager.os.environ["GITHUB_TOKEN"] = "ghp_test_token"
+    def test_tier1_failure_chains_to_copilot(self):
+        self._set_user_api_env()
+        changelog_manager.os.environ.update({"COPILOT_AI": "true", "GITHUB_TOKEN": "ghp_test_token"})
+        completed = subprocess.CompletedProcess(
+            args=["copilot"], returncode=0, stdout="## [1.2.3]\n\n### ✨ 기능\n- tier2 summary\n", stderr="",
+        )
 
-        mock_resp = _mock_response({
-            "choices": [{"message": {"content": "tier2 summary"}}]
-        })
-        side_effects = [URLError("connection refused"), mock_resp]
-
-        with patch.object(changelog_manager.urllib.request, "urlopen", side_effect=side_effects) as mock_urlopen:
-            rc, payload, stderr = self._run_main_capture()
+        with patch.object(changelog_manager.urllib.request, "urlopen", side_effect=URLError("connection refused")) as mock_urlopen:
+            with patch.object(changelog_manager.subprocess, "run", return_value=completed):
+                rc, payload, stderr = self._run_main_capture()
 
         self.assertEqual(rc, 0)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["engine"], "github-models")
-        self.assertEqual(mock_urlopen.call_count, 2)
-        second_req = mock_urlopen.call_args_list[1][0][0]
-        self.assertIn("models.github.ai", second_req.full_url)
-        self.assertEqual(second_req.get_header("Authorization"), "Bearer ghp_test_token")
+        self.assertEqual(payload["engine"], "copilot")
+        self.assertEqual(mock_urlopen.call_count, 1)
         self.assertIn("[warn] user-api failed", stderr)
-        self.assertEqual(self.output_file.read_text(encoding="utf-8"), "tier2 summary")
+        self.assertIn("tier2 summary", self.output_file.read_text(encoding="utf-8"))
 
     def test_malformed_body_missing_choices_falls_back(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
         mock_resp = _mock_response({"error": "something went wrong"})
 
         with patch.object(changelog_manager.urllib.request, "urlopen", return_value=mock_resp):
@@ -237,20 +233,20 @@ class TestAiSummary(unittest.TestCase):
         content = self.output_file.read_text(encoding="utf-8")
         self.assertTrue(len(content.strip()) > 0)
 
-    def test_urlerror_falls_back(self):
-        changelog_manager.os.environ["GITHUB_TOKEN"] = "ghp_test_token"
+    def test_copilot_failure_falls_back(self):
+        changelog_manager.os.environ.update({"COPILOT_AI": "true", "GITHUB_TOKEN": "ghp_test_token"})
 
-        with patch.object(changelog_manager.urllib.request, "urlopen", side_effect=URLError("timed out")):
+        with patch.object(changelog_manager.subprocess, "run", side_effect=FileNotFoundError("copilot")):
             rc, payload, stderr = self._run_main_capture()
 
         self.assertEqual(rc, 0)
         self.assertEqual(payload["engine"], "fallback")
-        self.assertIn("[warn] github-models failed", stderr)
+        self.assertIn("[warn] copilot failed", stderr)
         content = self.output_file.read_text(encoding="utf-8")
         self.assertTrue(len(content.strip()) > 0)
 
     def test_diff_stat_included_when_provided(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
         diff_stat_file = Path(self.tmp) / "diff_stat.txt"
         diff_stat_file.write_text(" src/foo.js | 12 +++++++\n src/bar.js |  3 +--\n", encoding="utf-8")
 
@@ -265,7 +261,7 @@ class TestAiSummary(unittest.TestCase):
         self.assertIn("src/foo.js", body["messages"][0]["content"])
 
     def test_missing_diff_stat_file_is_tolerated(self):
-        changelog_manager.os.environ["AI_API_KEY"] = "sk-user-key"
+        self._set_user_api_env()
         mock_resp = _mock_response({"choices": [{"message": {"content": "summary text"}}]})
 
         with patch.object(changelog_manager.urllib.request, "urlopen", return_value=mock_resp):

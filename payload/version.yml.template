@@ -6,6 +6,9 @@
 #   (default) — feat: commits bump minor, a `!` breaking marker on any commit
 #   type bumps major. Set semver_auto: false to always patch-bump instead
 #   (then edit major/minor manually, e.g., 1.0.5 -> 1.1.0 or 2.0.0).
+# - copilot_ai: opt-in (default false) — true lets the release/PR summary
+#   workflows call GitHub Copilot CLI, which consumes GitHub Copilot AI Credits.
+#   Falls back to rule-based summaries whenever Copilot is off or unavailable.
 # ===
 # Supported project types: spring, flutter, next, react, react-native,
 #                          react-native-expo, node, python, basic, go
@@ -47,6 +50,7 @@ metadata:
       nexus: {{OPT_NEXUS}}
       secret_backup: {{OPT_SECRET_BACKUP}}
       semver_auto: {{OPT_SEMVER_AUTO}}
+      copilot_ai: {{OPT_COPILOT_AI}}
       deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik | none (서버 배포 워크플로우)
 {{FLUTTER_OPTIONS}}
 {{DEPLOY}}

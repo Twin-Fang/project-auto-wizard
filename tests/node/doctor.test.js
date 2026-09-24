@@ -81,7 +81,7 @@ test("runDoctor: all checks OK", () => {
     assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "OK");
     assert.strictEqual(results.find((r) => r.name === "WORKFLOW_PAT secret").status, "OK");
     assert.strictEqual(results.find((r) => r.name === "automerge 호환성(merge commit 허용)").status, "OK");
-    assert.strictEqual(results.find((r) => r.name === "GitHub Models 활성화").status, "INFO");
+    assert.strictEqual(results.find((r) => r.name === "Copilot AI 요약").status, "INFO");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
