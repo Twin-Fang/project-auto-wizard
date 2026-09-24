@@ -1,6 +1,6 @@
 # project-auto-wizard
 
-> **One command DevOps** — `npx` 한 줄로 어떤 프로젝트든 GitHub-native AI 릴리스 자동화를 설치하는 마법사
+> **One command DevOps** — `npx` 한 줄로 어떤 프로젝트든 GitHub-native 릴리스 자동화(GitHub Copilot AI 요약은 선택)를 설치하는 마법사
 
 - 새 프로젝트를 시작하면 코드를 작성하기 전부터 버전 관리, 배포 자동화, 변경 기록 작성처럼 먼저 정해야 할 일이 많다. project-auto-wizard는 이 준비 과정을 명령 한 번으로 구성하고, 프로젝트 상태 관리가 GitHub 안에서 자동으로 동작하도록 해 개발자가 기능 구현에 집중하도록 돕는 오픈소스 도구
 
@@ -197,7 +197,7 @@ flowchart LR
 
 - 기본값은 **규칙 기반 요약**입니다. 설치 마법사에서 Copilot을 켜면(`--copilot`, `version.yml`의 `copilot_ai: true`) Actions의 `GITHUB_TOKEN` + `permissions: copilot-requests: write`로 Copilot CLI가 요약을 생성합니다 — 별도 API 키는 필요 없습니다.
 - **Copilot은 GitHub Copilot AI Credits를 소비합니다.** 개인 저장소는 저장소 소유자의 Copilot 좌석에, 조직 저장소는 조직에 과금되며 조직은 "Allow use of Copilot CLI billed to the organization" 정책을 켜야 합니다. 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다. PR에 푸시할 때마다 요약이 새로 생성되므로 그만큼 크레딧이 소비됩니다.
-- Copilot 모델은 저비용 소형 모델로 고정되어 있고, 저장소 변수 `COPILOT_MODEL`로 바꿀 수 있습니다.
+- Copilot 모델은 저비용 소형 모델(`claude-haiku-4.5`)로 고정되어 있고, 저장소 변수 `COPILOT_MODEL`로 바꿀 수 있습니다.
 - GitHub은 Copilot CLI를 `run` 스텝에서 직접 호출하기보다 Agentic Workflows를 쓰라고 권고하지만, 이 프로젝트는 직접 호출을 택했습니다. 프롬프트 입력이 PR 제목·커밋 메시지·`git diff --stat`뿐이고, 빈 임시 디렉터리에서 shell/write/url 도구와 내장 MCP를 모두 막은 텍스트 생성 전용으로 호출하며, 포크 PR은 기존 가드로 건너뛰어 프롬프트 인젝션 위험을 낮췄기 때문입니다.
 - `AI_API_KEY`(**Secret**)와 `AI_API_BASE_URL`·`AI_MODEL`(**Variables**)을 **모두** 설정하면 OpenAI-호환 엔드포인트(Groq, Gemini 호환 모드, Ollama 등)를 최우선으로 사용합니다. 셋 중 하나라도 없으면 이 단계는 건너뜁니다.
 - 규칙 fallback 3단: 프로젝트 컨벤션 → Conventional Commits → 무형식 bullet. 커밋 컨벤션이 없어도 동작.
@@ -209,7 +209,7 @@ flowchart LR
     subgraph pr-flow ["pr-flow (기본)"]
         D1[develop push] --> PR[develop→main 릴리스 PR]
         PR --> V["버전 확정 (patch+1)"]
-        V --> AI[AI 릴리스 노트]
+        V --> AI[릴리스 노트]
         AI --> CL[CHANGELOG.json/md 갱신]
         CL --> AM[automerge]
         AM --> TAG["tag vX.Y.Z + GitHub Release"]

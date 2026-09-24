@@ -1,5 +1,5 @@
 // --help 텍스트.
-export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-native AI 릴리스 자동화 설치 마법사
+export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 설치 마법사
 
 사용법:
   npx project-auto-wizard [옵션]

@@ -29,7 +29,7 @@ export function printSummary(ctx) {
     case "full":
       err("  ✅ 버전 관리 시스템 (version.yml)");
       err("  ✅ README.md 자동 버전 업데이트");
-      err("  ✅ GitHub Actions 워크플로우 (AI 릴리스 자동화 포함)");
+      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
       if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
       break;
     case "version":
@@ -37,7 +37,7 @@ export function printSummary(ctx) {
       err("  ✅ README.md 자동 버전 업데이트");
       break;
     case "workflows":
-      err("  ✅ GitHub Actions 워크플로우 (AI 릴리스 자동화 포함)");
+      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
       break;
   }
 
@@ -48,7 +48,7 @@ export function printSummary(ctx) {
     if (branches.mode === "trunk-based") {
       err(`  🌿 ${branches.main} 단일 브랜치 (trunk-based) — RELEASE-PUBLISH 하나가 버전확정→체인지로그→tag→Release를 순차 처리`);
     } else {
-      err(`  🌿 개발 ${branches.develop} → 릴리스 ${branches.main} (pr-flow) — 릴리스 PR에서 버전확정·AI 체인지로그·automerge`);
+      err(`  🌿 개발 ${branches.develop} → 릴리스 ${branches.main} (pr-flow) — 릴리스 PR에서 버전확정·체인지로그·automerge`);
     }
   }
   if (mode === "full" || mode === "workflows") {
