@@ -1,7 +1,5 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter iOS 테스트용 TestFlight 배포 워크플로우
-# ===================================================================
 #
 # 이 워크플로우는 기능 브랜치에서 수동으로 실행하여
 # 테스트용 iOS 빌드를 TestFlight에 배포합니다.
@@ -22,26 +20,22 @@
 #   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
 #   4. fastlane upload_testflight (ios/fastlane/Fastfile 사용)
 #
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 #
-# 🔐 Apple 인증서 & 프로비저닝 프로파일:
+# Apple 인증서 & 프로비저닝 프로파일:
 # APPLE_CERTIFICATE_BASE64: .p12 인증서 (base64 인코딩)
 # APPLE_CERTIFICATE_PASSWORD: .p12 인증서 비밀번호
 # APPLE_PROVISIONING_PROFILE_BASE64: .mobileprovision 파일 (base64 인코딩)
 # IOS_PROVISIONING_PROFILE_NAME: 프로비저닝 프로파일 이름
 #
-# 🔐 App Store Connect API:
+# App Store Connect API:
 # APP_STORE_CONNECT_API_KEY_ID: API Key ID (10자리)
 # APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID 형식)
 # APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 파일 (base64 인코딩)
 #
-# 📝 환경 설정 (선택):
+# 환경 설정 (선택):
 # ENV_FILE (선택): .env 파일 내용
 # SECRETS_XCCONFIG (선택): ios/Flutter/Secrets.xcconfig 내용
-#
-# ===================================================================
 
 name: PROJECT-Flutter-iOS-Test-TestFlight
 
@@ -54,9 +48,7 @@ on:
   repository_dispatch:
     types: [build-ios-app]
 
-# ===================================================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ===================================================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   FLUTTER_VERSION: "3.35.5"
   XCODE_VERSION: "26.0"
@@ -69,9 +61,7 @@ env:
   ENV_FILE_PATH: ".env"
 
 jobs:
-  # ===================================================================
   # 즉시 댓글 생성 (ubuntu-latest로 빠르게 실행)
-  # ===================================================================
   notify-start:
     name: 진행 상황 알림
     runs-on: ubuntu-latest
@@ -183,9 +173,7 @@ jobs:
             core.setOutput('comment_id', comment.id);
             core.setOutput('start_time', startTime);
 
-  # ===================================================================
   # 테스트 빌드 준비 (macOS 환경 설정)
-  # ===================================================================
   prepare-test-build:
     name: 테스트 빌드 준비
     runs-on: macos-26
@@ -233,7 +221,6 @@ jobs:
             echo "ℹ️ Empty Secrets.xcconfig created (no secrets provided)"
           fi
 
-      # 테스트 빌드 버전 설정 (version.yml에서 동적 읽기)
       - name: 테스트 빌드 버전 설정
         id: test_version
         working-directory: ${{ github.workspace }}   # version_manager.py가 레포 루트 version.yml을 읽어야 함
@@ -260,7 +247,6 @@ jobs:
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "📋 테스트 빌드: 버전=$VERSION, 빌드번호=$BUILD_NUMBER"
 
-      # 브랜치명에서 이슈 번호 추출 및 GitHub API로 이슈 정보 가져오기
       - name: 브랜치명에서 이슈 정보 추출
         id: issue_info
         run: |
@@ -306,7 +292,6 @@ jobs:
             fi
           fi
 
-      # 릴리즈 노트 생성
       - name: 릴리즈 노트 생성
         id: release_notes
         working-directory: ${{ github.workspace }}   # final_release_notes.txt(upload 짝)는 레포 루트 기준
@@ -365,7 +350,6 @@ jobs:
             ${{ env.FLUTTER_PROJECT_DIR }}/assets/
           retention-days: 1
 
-      # 진행 상황 업데이트 - 준비 실패
       - name: 진행 상황 업데이트 - 준비 실패
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
@@ -413,9 +397,7 @@ jobs:
 
             console.log(`❌ 진행 상황 업데이트 완료: 준비 실패`);
 
-  # ===================================================================
   # iOS 빌드 (xcodebuild 직접 사용)
-  # ===================================================================
   build-ios-test:
     name: iOS 테스트 빌드
     runs-on: macos-26
@@ -648,7 +630,6 @@ jobs:
             ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json
           retention-days: 1
 
-      # 진행 상황 업데이트 - IPA 빌드 완료
       - name: 진행 상황 업데이트 - IPA 빌드 완료
         id: progress_step2
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
@@ -704,7 +685,6 @@ jobs:
             core.setOutput('elapsed', elapsedStr);
             core.setOutput('end_time', now.toString());
 
-      # 빌드 실패 시 progress 댓글 업데이트
       - name: 빌드 실패 시 progress 댓글 업데이트
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
@@ -762,9 +742,7 @@ jobs:
 
             console.log(`❌ 진행 상황 업데이트 완료: IPA 빌드 실패`);
 
-  # ===================================================================
   # TestFlight 배포 (ios/fastlane/Fastfile 사용)
-  # ===================================================================
   deploy-testflight-test:
     name: TestFlight 테스트 배포
     runs-on: macos-26
@@ -884,7 +862,6 @@ jobs:
           echo "❌ TestFlight 테스트 빌드 업로드 실패!"
           echo "로그를 확인해주세요."
 
-      # 진행 상황 최종 업데이트 - 성공
       - name: 진행 상황 최종 업데이트 - 성공
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
@@ -947,7 +924,6 @@ jobs:
 
             console.log(`✅ 진행 상황 최종 업데이트 완료: 전체 성공 (${totalElapsed})`);
 
-      # 진행 상황 최종 업데이트 - 실패
       - name: 진행 상황 최종 업데이트 - 실패
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
