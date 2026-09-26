@@ -34,7 +34,7 @@ export async function confirmProjectMenu() {
   });
 }
 
-// 수정 메뉴 항목 — showOptional=full/workflows에서만 nexus/secret 노출,
+// 수정 메뉴 항목 — showOptional=full/workflows에서만 secret 노출,
 // showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출 (이슈 #131).
 // 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
 export function editMenuOptions({ showOptional = false, showFlutter = false } = {}) {
@@ -44,7 +44,6 @@ export function editMenuOptions({ showOptional = false, showFlutter = false } = 
     { value: "branch", label: "기본 브랜치" },
   ];
   if (showOptional) {
-    options.push({ value: "nexus", label: "Nexus publish 포함 여부" });
     options.push({ value: "secret", label: "Secret 백업 포함 여부" });
   }
   if (showFlutter) {

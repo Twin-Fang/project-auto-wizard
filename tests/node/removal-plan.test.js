@@ -100,27 +100,26 @@ test("planRemoval: a workflow file without the managed marker (user-authored) is
 test("planRemoval: recognizes .bak and .template.yaml variants created by a 'backup' decision", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-removal-plan-"));
   try {
-    // GITHUB-PACKAGES는 라이브러리 publish 계열이라 nexus/ opt-in에 속한다 (이슈 #80).
-    // .bak/.template.yaml 파일명 규칙 검증에 .yml 확장자 파일이 필요해 이 파일을 쓴다.
+    // .bak/.template.yaml 파일명 규칙 검증에 .yml 확장자 파일이 필요해 Spring CI를 쓴다.
     const ctx = createContext({
       mode: "full", force: true, types: ["spring"], version: "1.0.0", versionCode: 1,
       branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(), includeNexus: true,
+      paths: new Map(),
       now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
     });
-    runFull(ctx, resolvePayloadRoot(), target); // spring nexus 파일 설치
+    runFull(ctx, resolvePayloadRoot(), target); // spring 파일 설치
 
     const wfDir = join(target, ".github/workflows");
-    const targetFile = join(wfDir, "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");
+    const targetFile = join(wfDir, "PROJECT-SPRING-CI.yml");
     writeFileSync(targetFile, readFileSync(targetFile, "utf8") + "\n# edit\n");
-    forceUpstreamChange(target, "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");
+    forceUpstreamChange(target, "PROJECT-SPRING-CI.yml");
     runFull(ctx, resolvePayloadRoot(), target, {
-      decisions: new Map([["PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml", "backup"]]),
+      decisions: new Map([["PROJECT-SPRING-CI.yml", "backup"]]),
     });
 
     const plan = planRemoval(resolvePayloadRoot(), target);
-    assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml.bak"));
-    assert.ok(plan.workflows.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
+    assert.ok(plan.workflows.includes("PROJECT-SPRING-CI.yml.bak"));
+    assert.ok(plan.workflows.includes("PROJECT-SPRING-CI.yml"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

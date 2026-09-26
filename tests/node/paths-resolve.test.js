@@ -189,19 +189,6 @@ test("이슈 재현 ④(L6): --main-branch \"\"는 exit 1로 거부된다", asyn
   }
 });
 
-test("이슈 재현 ⑤(L7): --nexus --no-nexus 동시 지정은 exit 1로 거부된다", async () => {
-  const target = tmpRepo("paw-issue21-");
-  try {
-    const code = await run(
-      ["--mode", "full", "--force", "--type", "spring", "--nexus", "--no-nexus"],
-      { cwd: target, clock: { now: "2026-08-04 00:00:00", today: "2026-08-04" } },
-    );
-    assert.strictEqual(code, 1);
-  } finally {
-    rmSync(target, { recursive: true, force: true });
-  }
-});
-
 test("markerForType (paths-resolve): go는 go.mod를 반환한다 (KNOWN_MARKER_TYPES 회귀)", () => {
   assert.strictEqual(markerForType("go"), "go.mod");
 });

@@ -1,5 +1,5 @@
 // 선택(opt-in) 워크플로우 포함 여부 질문 (.sh ask_optional_workflow L2651~2702 /
-// ask_all_optional_workflows L2708~2732 등가). Nexus publish + Secret 서버 백업.
+// ask_all_optional_workflows L2708~2732 등가). Secret 서버 백업.
 //
 // io 주입 계약(readline-engine 시그니처):
 //   io.confirm({message, initialValue}) → bool | CANCEL(symbol)
@@ -49,14 +49,13 @@ async function askOptionalWorkflow({ dir, icon, short, desc, current, force, tty
 // 모든 opt-in 워크플로우를 순서대로 질문 (.sh ask_all_optional_workflows 등가).
 // payloadRoot: 패키지 payload/ 루트 — 타입 폴더는 {payloadRoot}/workflows/<type>
 //              (copyWorkflows와 동일 규약)
-// current: { nexus: bool|null, secretBackup: bool|null } — CLI(--nexus 등) 명시값
-// 반환: { nexus: bool, secretBackup: bool } (미결정 null은 false로 확정)
+// current: { secretBackup: bool|null } — CLI 명시값
+// 반환: { secretBackup: bool } (미결정 null은 false로 확정)
 export async function askAllOptionalWorkflows({
   payloadRoot, types = [], current = {}, targetRoot = ".",
   force = false, tty = true, io = {}, forceAsk = false,
 }) {
   const say = io.log || ((m) => process.stderr.write(`${m}\n`));
-  let nexus = current.nexus ?? null;
   let secretBackup = current.secretBackup ?? null;
 
   // ① --force-ask가 아니면 version.yml 저장값을 먼저 읽어 재질문을 건너뛴다 (.sh L2715~2717).
@@ -65,10 +64,6 @@ export async function askAllOptionalWorkflows({
     const vy = join(targetRoot, PATHS.versionFile);
     if (existsSync(vy)) {
       const saved = parseTemplateOptions(readFileSync(vy, "utf8"));
-      if (nexus === null && saved.nexus !== null) {
-        nexus = saved.nexus;
-        say(`Nexus 옵션: version.yml 저장값(${nexus}) 유지 — 재질문 생략`);
-      }
       if (secretBackup === null && saved.secretBackup !== null) {
         secretBackup = saved.secretBackup;
         say(`Secret 백업 옵션: version.yml 저장값(${secretBackup}) 유지 — 재질문 생략`);
@@ -79,24 +74,13 @@ export async function askAllOptionalWorkflows({
   // 타입 폴더 루트 — payload/workflows (copyWorkflows와 동일 규약)
   const ptDir = join(payloadRoot, PAYLOAD.workflowsDir);
 
-  // ② Nexus: 각 타입의 nexus/ 폴더 (현재 spring만 존재, .sh L2719~2725)
-  for (const t of types) {
-    nexus = await askOptionalWorkflow({
-      // GitHub Packages publish도 같은 '라이브러리 배포' 계열이라 이 질문이 함께 관장한다 (이슈 #80).
-      // 종전에는 Nexus만 묻고 GitHub Packages는 무조건 설치돼, "라이브러리 배포 필요 없다"고
-      // 답한 사용자에게 라이브러리 배포 워크플로우가 깔렸다.
-      dir: join(ptDir, t, "nexus"), icon: "📦", short: "라이브러리 publish (Nexus · GitHub Packages)",
-      desc: "라이브러리/모듈을 Maven 저장소(Nexus)나 GitHub Packages에 배포하는 워크플로우입니다. 일반 서버 배포가 아니라 라이브러리 프로젝트에만 필요합니다. 포함하면 서버 배포 워크플로우는 설치되지 않습니다.",
-      current: nexus, force, tty, io, forceAsk, say,
-    });
-  }
-  // ③ Secret 백업: 공통 폴더 (.sh L2726~2729)
+  // ② Secret 백업: 공통 폴더 (.sh L2726~2729)
   secretBackup = await askOptionalWorkflow({
     dir: join(ptDir, "common", "secret-backup"), icon: "🔐", short: "Secret 서버 백업",
     desc: "GitHub Secret에 저장한 설정 파일을 SSH로 서버에 업로드·이력관리하는 워크플로우입니다.",
     current: secretBackup, force, tty, io, forceAsk, say,
   });
 
-  // ④ 미결정(null)은 false로 확정 — .sh에서 빈 INCLUDE_* 가 이후 false 취급되는 것과 동일
-  return { nexus: nexus === true, secretBackup: secretBackup === true };
+  // ③ 미결정(null)은 false로 확정 — .sh에서 빈 INCLUDE_* 가 이후 false 취급되는 것과 동일
+  return { secretBackup: secretBackup === true };
 }

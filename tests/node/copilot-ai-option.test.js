@@ -18,7 +18,7 @@ const CLOCK = { now: "2026-07-28 00:00:00", today: "2026-07-28" };
 
 function optionsYml(extraLine) {
   return [
-    "metadata:", "  template:", "    options:", "      nexus: false",
+    "metadata:", "  template:", "    options:",
     ...(extraLine ? [extraLine] : []),
     "      secret_backup: false",
   ].join("\n");
@@ -134,9 +134,9 @@ function renderStatus(status) {
 
 test("printStatus: copilot_ai 값과 미설정 상태를 옵션 줄에 표시한다", () => {
   const base = { installed: true, version: "1.0.0", templateVersion: "0.1.0", types: ["basic"], branches: null, modifiedFiles: [] };
-  const on = renderStatus({ ...base, options: { nexus: false, secretBackup: false, semverAuto: true, copilotAi: true } });
+  const on = renderStatus({ ...base, options: { secretBackup: false, semverAuto: true, copilotAi: true } });
   assert.ok(on.includes("copilot_ai=true"));
-  const unset = renderStatus({ ...base, options: { nexus: false, secretBackup: false, semverAuto: true, copilotAi: null } });
+  const unset = renderStatus({ ...base, options: { secretBackup: false, semverAuto: true, copilotAi: null } });
   assert.ok(unset.includes("copilot_ai=미설정(기본 false)"));
 });
 

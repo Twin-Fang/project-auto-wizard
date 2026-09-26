@@ -20,13 +20,13 @@ import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deplo
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
 import { log, maskValue } from "../core/logger.js";
 
-// context: { version, types, paths:Map, branch, versionCode, includeNexus, includeSecretBackup,
+// context: { version, types, paths:Map, branch, versionCode, includeSecretBackup,
 //            force, repoName, resolvers, now, today }
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 통합 대상.
 export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     force = true, now, today, templateVersion = "unknown",
-    includeNexus = false, includeSecretBackup = false,
+    includeSecretBackup = false,
     includeSemverAuto } = context;
 
   // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).

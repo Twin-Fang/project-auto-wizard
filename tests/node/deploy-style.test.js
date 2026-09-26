@@ -21,6 +21,7 @@ const SIMPLE = "PROJECT-SPRING-SIMPLE-CICD.yaml";
 const NGINX = "PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml";
 const TRAEFIK = "PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml";
 const PREVIEW = "PROJECT-SPRING-PR-PREVIEW.yaml";
+const SPRING_CI = "PROJECT-SPRING-CI.yml"; // 배포 방식과 무관하게 항상 설치된다
 
 test("deployFilter: 고른 방식의 CD만 통과시키고 PR 프리뷰는 항상 통과한다", () => {
   const keep = deployFilter("nginx");
@@ -103,7 +104,7 @@ test("runFull: nginx를 고르면 그 CD만 설치되고 push 트리거가 켜�
   try {
     install(target, "nginx");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files.sort(), [NGINX, PREVIEW].sort());
+    assert.deepStrictEqual(files.sort(), [NGINX, PREVIEW, SPRING_CI].sort());
 
     const wf = readFileSync(join(target, ".github/workflows", NGINX), "utf8");
     assert.match(wf, /^on:\n  push:\n    branches:\n      - main/m,
@@ -116,7 +117,7 @@ test("runFull: 방식을 지정하지 않으면 기본값(단일 서버)만 설�
   try {
     install(target, "");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files.sort(), [PREVIEW, SIMPLE].sort(),
+    assert.deepStrictEqual(files.sort(), [PREVIEW, SIMPLE, SPRING_CI].sort(),
       "CD는 하나만 — 넷을 다 깔면 안 쓸 워크플로우가 쌓이고 질문만 늘어난다");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
@@ -226,7 +227,7 @@ test("runFull: 'none'을 고르면 CD는 물론 PR 프리뷰까지 설치되지 
   try {
     install(target, "none");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files, [], "server-deploy 폴더 전체(PR 프리뷰 포함)가 제외돼야 한다");
+    assert.deepStrictEqual(files, [SPRING_CI], "server-deploy 폴더 전체(PR 프리뷰 포함)가 제외되고 CI만 남아야 한다");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
@@ -239,7 +240,7 @@ test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD는 정�
     const r = install(target, "none");
     assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files, [PREVIEW],
+    assert.deepStrictEqual(files.sort(), [PREVIEW, SPRING_CI].sort(),
       "PR 프리뷰는 CD가 아니라 cleanup 대상이 아니다 — 폴더 제외는 신규 설치 범위에만 적용되는 기존 제약");
     assert.strictEqual(readFileSync(previewPath, "utf8"), previewBefore,
       "server-deploy 폴더째 제외되므로 이미 깔린 PR 프리뷰는 재복사/재치환되지 않아 내용이 바이트 단위로 동일해야 한다");

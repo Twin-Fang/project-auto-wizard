@@ -47,25 +47,24 @@ test("copyWorkflows: 재실행 시 unchanged(skip)된 파일은 copiedFiles에 �
 test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .template.yaml 파일명을 copiedFiles에 담는다", () => {
   const target = freshTarget("paw-copied-files-decision-");
   try {
-    // GITHUB-PACKAGES는 라이브러리 publish 계열이라 nexus/ opt-in에 속한다 (이슈 #80).
-    // 여기서는 ".yaml만 strip" 규칙을 검증하려 .yml 확장자 파일이 필요해 이 파일을 쓴다.
-    const ctx = ctxFor(["spring"], { includeNexus: true });
-    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치 (nexus 포함 spring 전용 파일 생성)
+    // ".yaml만 strip" 규칙을 검증하려 .yml 확장자 파일이 필요해 Spring CI를 쓴다.
+    const ctx = ctxFor(["spring"]);
+    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치 (spring 전용 파일 생성)
 
-    const targetFile = join(target, ".github", "workflows", "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml");
+    const targetFile = join(target, ".github", "workflows", "PROJECT-SPRING-CI.yml");
     writeFileSync(targetFile, "changed-content-that-differs-from-template\n");
     const backupResult = copyWorkflows(ctx, PAYLOAD, target, {
-      decisions: new Map([["PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml", "backup"]]),
+      decisions: new Map([["PROJECT-SPRING-CI.yml", "backup"]]),
     });
-    assert.ok(backupResult.copiedFiles.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
+    assert.ok(backupResult.copiedFiles.includes("PROJECT-SPRING-CI.yml"));
 
     writeFileSync(targetFile, "changed-again\n");
     const templateResult = copyWorkflows(ctx, PAYLOAD, target, {
-      decisions: new Map([["PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml", "template"]]),
+      decisions: new Map([["PROJECT-SPRING-CI.yml", "template"]]),
     });
     // applyDecision()의 template 파일명 규칙: .yaml만 strip, .yml은 그대로 뒤에 .template.yaml이 붙는다(레거시 .sh 동일 동작).
-    assert.ok(templateResult.copiedFiles.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml.template.yaml"));
-    assert.ok(!templateResult.copiedFiles.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
+    assert.ok(templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml.template.yaml"));
+    assert.ok(!templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml"));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 

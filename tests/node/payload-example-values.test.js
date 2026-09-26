@@ -90,7 +90,7 @@ test("spring DockerHub 자격증명 secret 이름이 워크플로우마다 갈�
 });
 
 test("spring 워크플로우는 java-version을 리터럴로 하드코딩하지 않는다", () => {
-  // NEXUS-CI/NEXUS-PUBLISH가 @wizard 마커 자체를 빠뜨린 채 java-version: '17'을 박아
+  // Spring 워크플로우가 @wizard 마커 자체를 빠뜨린 채 java-version: '17'을 박아
   // 넣고 있었다(이슈 #82). 마커가 있는 줄만 보는 위 JAVA_VERSION 테스트는 마커가
   // 아예 없는 이 케이스를 걸러내지 못했으므로, java-version 줄 자체를 스캔한다.
   const bad = [];

@@ -153,7 +153,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 }
 
 // copy_workflows 본체 (동기 — 기존 호출부 무변경).
-// context: { types:[], paths:Map, includeNexus, includeSecretBackup, force, repoName, resolvers,
+// context: { types:[], paths:Map, includeSecretBackup, force, repoName, resolvers,
 //            envValues?:Map<key,value>, envUseDefaults?:boolean }  ← env 계획(promptEnvPlan) 결과 주입점
 //            flutterStore?:string[]|null }  ← Flutter 스토어 대상 (null=필터 없음, 배열=선택된 플랫폼만)
 // hooks: { decisions?: Map<filename, 'skip'|'backup'|'template'>,   — 진짜 충돌(changed) 결정
@@ -161,7 +161,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 //        미지정 파일은 'skip'(현행 force 동작 100% 유지). 대화형 수집은 copyWorkflowsInteractive 참조.
 // 반환: {copied, skipped, templateAdded, optionalCopied, backupAdded, autoUpdated, keptLocal, removedKept, restoredFiles}
 export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}) {
-  const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
+  const { types = [], paths = new Map(), includeSecretBackup = false, repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
   const decisions = hooks.decisions instanceof Map ? hooks.decisions : new Map();
   const restoreRemoved = hooks.restoreRemoved instanceof Set ? hooks.restoreRemoved : new Set();
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
@@ -208,7 +208,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // (2~4) 타입별
   for (const type of types) {
     const asks = new Map();
-    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { includeNexus, ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
+    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
     if (asks.size) deployValues.set(type, asks);
   }
 
@@ -283,7 +283,7 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
 //   conflicts — 양쪽이 다 바뀐 진짜 충돌. upstreamOnly/localOnly는 자동 처리되므로 여기 없다.
 //   removed   — 우리가 깔았는데 사용자가 지운 파일. 되살리기 전에 물어봐야 한다.
 export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), includeNexus = false, repoName = "", resolvers = {}, flutterStore = null } = context;
+  const { types = [], paths = new Map(), repoName = "", resolvers = {}, flutterStore = null } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
@@ -313,7 +313,7 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
       collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore));
     }
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
+    if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
       collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
     }
   }
@@ -341,7 +341,7 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 }
 
 function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
-  const { includeNexus, deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
+  const { deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
   const keepDeploy = deployFilter(deployStyle);
   const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore);
   const { srcText, baselineTargets } = dirCtx;
@@ -361,29 +361,16 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
 
   // server-deploy
   const serverDeployDir = join(typeDir, "server-deploy");
-  if (exists(serverDeployDir)) {
-    if (includeNexus || deployStyle === NO_DEPLOY_STYLE) {
-      // Nexus 프로젝트 또는 "배포 안 함" → 폴더째 제외 (복사 안 함)
-    } else {
-      const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
-      untouched.push(...c.unchanged, ...c.localOnly);
-    }
-  }
-
-  // nexus (opt-in) — 라이브러리 publish 계열(Nexus + GitHub Packages).
-  // 다른 폴더와 같은 processDir을 쓴다. 종전에는 이 경로만 별도 로직으로 "존재하면 무조건
-  // .bak 후 교체"였는데, 그러면 사용자가 손댄 publish 워크플로우가 재실행마다 묻지도 않고
-  // 밀린다. baseline 3-way·충돌 3지선을 다른 워크플로우와 동일하게 적용한다.
-  const nexusDir = join(typeDir, "nexus");
-  if (exists(nexusDir) && includeNexus) {
-    const c = processDir(nexusDir, workflowsDir, envOpts, dirCtx, counters);
+  // "배포 안 함"이면 폴더째 제외 (복사 안 함)
+  if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
+    const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
     untouched.push(...c.unchanged, ...c.localOnly);
   }
 
   // env 치환 — 이 타입의 원본 디렉토리들에서 복사돼 존재하고, 손대지 않기로 한 것이 아닌 파일만
-  for (const srcDir of [typeDir, serverDeployDir, nexusDir]) {
+  for (const srcDir of [typeDir, serverDeployDir]) {
     if (!exists(srcDir)) continue;
-    if (srcDir === serverDeployDir && (includeNexus || deployStyle === NO_DEPLOY_STYLE)) continue; // 폴더째 제외
+    if (srcDir === serverDeployDir && deployStyle === NO_DEPLOY_STYLE) continue; // 폴더째 제외
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
       if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
@@ -395,11 +382,11 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   }
 }
 
-// 전체 워크플로우 분류(common + 타입별 + server-deploy + nexus opt-in) — status/dry-run 공용.
+// 전체 워크플로우 분류(common + 타입별 + server-deploy) — status/dry-run 공용.
 // changed뿐 아니라 newFiles/unchanged까지 전부 반환한다는 점이 listWorkflowConflicts(changed만
 // 반환)와 다르다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
 export function planWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), includeNexus = false, includeSecretBackup = false, repoName = "", resolvers = {}, flutterStore = null } = context;
+  const { types = [], paths = new Map(), includeSecretBackup = false, repoName = "", resolvers = {}, flutterStore = null } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
@@ -444,13 +431,8 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
     }
 
     const serverDeployDir = join(typeDir, "server-deploy");
-    if (exists(serverDeployDir) && !includeNexus && deployStyle !== NO_DEPLOY_STYLE) {
+    if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
       merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle)), type);
-    }
-
-    const nexusDir = join(typeDir, "nexus");
-    if (exists(nexusDir) && includeNexus) {
-      merge(classify(nexusDir, workflowsDir, envOpts, srcText, baseline), type);
     }
   }
 

@@ -272,3 +272,21 @@ test("integration: runFull이 Flutter 옵션을 version.yml에 쓰고 재실행�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("parseTemplateOptions: 기존 version.yml에 남은 nexus 키는 무시하고, 다시 렌더하면 사라진다", () => {
+  const text = [
+    "metadata:", "  template:", "    options:",
+    "      nexus: true", "      semver_auto: true",
+  ].join("\n");
+  const parsed = parseTemplateOptions(text);
+  assert.strictEqual("nexus" in parsed, false);
+  assert.strictEqual(parsed.semverAuto, true);
+});
+
+test("buildVersionYml: 새로 렌더한 version.yml에는 nexus 키가 없다", () => {
+  const rendered = buildVersionYml({
+    templateText: readVersionYmlTemplate(PAYLOAD), version: "1.0.0", types: ["basic"],
+    now: "2026-09-26 00:00:00", today: "2026-09-26", templateOptions: { templateVersion: "0.12.0" },
+  });
+  assert.ok(!/^\s+nexus:/m.test(rendered), "재작성된 version.yml에는 nexus 키가 없어야 한다");
+});

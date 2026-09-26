@@ -47,7 +47,6 @@ test("기존 설치(version.yml 있음, env_mode 저장값 없음): dotenv를 �
       "metadata:",
       "  template:",
       "    options:",
-      "      nexus: false",
       "",
     ].join("\n"));
     assert.strictEqual(await install(target), 0);

@@ -9,7 +9,7 @@ import { resolvePayloadRoot } from "../../src/core/assets.js";
 
 function baseContext(overrides = {}) {
   return {
-    types: ["basic"], paths: new Map(), includeNexus: false, repoName: "test-repo",
+    types: ["basic"], paths: new Map(), repoName: "test-repo",
     resolvers: {}, branches: { main: "main", develop: "develop", mode: "pr-flow" },
     ...overrides,
   };

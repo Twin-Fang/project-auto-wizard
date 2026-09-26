@@ -12,7 +12,6 @@ export function parseArgs(argv) {
     version: "",             // 통합 대상 프로젝트의 초기 버전 (--project-version)
     types: [],
     primaryType: "",
-    includeNexus: null,      // null=미설정
     includeSecretBackup: null,
     includeSemverAuto: null,  // --semver-auto / --no-semver-auto (기본 true — 미지정 시 다운스트림에서 해석)
     includeCopilotAi: null,   // --copilot / --no-copilot (기본 false — AI Credits를 소비하는 opt-in)
@@ -42,7 +41,7 @@ export function parseArgs(argv) {
     keepScripts: false,
   };
   const args = [...argv];
-  const seenFlags = new Set(); // L7: --nexus류 상호 모순 플래그 검증용
+  const seenFlags = new Set(); // L7: --semver-auto/--copilot류 상호 모순 플래그 검증용
   while (args.length > 0) {
     const a = args.shift();
     switch (a) {
@@ -122,12 +121,6 @@ export function parseArgs(argv) {
         }
         result.iosDeployMode = v; break;
       }
-      case "--nexus":
-        if (seenFlags.has("--no-nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
-        seenFlags.add("--nexus"); result.includeNexus = true; break;
-      case "--no-nexus":
-        if (seenFlags.has("--nexus")) throw new CliError("--nexus와 --no-nexus는 동시에 지정할 수 없습니다");
-        seenFlags.add("--no-nexus"); result.includeNexus = false; break;
       case "--secret-backup":
         if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
         seenFlags.add("--secret-backup"); result.includeSecretBackup = true; break;

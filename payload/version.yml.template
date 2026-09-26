@@ -47,7 +47,6 @@ metadata:
       develop: "{{DEVELOP_BRANCH}}"
       mode: "{{BRANCH_MODE}}" # pr-flow | trunk-based
     options:
-      nexus: {{OPT_NEXUS}}
       secret_backup: {{OPT_SECRET_BACKUP}}
       semver_auto: {{OPT_SEMVER_AUTO}}
       copilot_ai: {{OPT_COPILOT_AI}}

@@ -308,7 +308,7 @@ function writeFlutterProject(dir, { storeLine = 'flutter_store: "android,ios"', 
   const optionsLine = storeLine ? `      ${storeLine}\n` : "";
   writeFileSync(join(dir, "version.yml"),
     'version: "1.0.0"\nproject_types: ["flutter"]\nproject_paths:\n  flutter: "app"\n' +
-    `metadata:\n  template:\n    options:\n      nexus: false\n${optionsLine}`);
+    `metadata:\n  template:\n    options:\n${optionsLine}`);
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
     writeFileSync(join(dir, rel), body);
