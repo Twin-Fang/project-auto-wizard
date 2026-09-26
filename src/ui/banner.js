@@ -1,4 +1,4 @@
-// 첫 화면 배너 (#446 층1) — 클래식 박스형 (사용자 확정 시안 A)
+// 첫 화면 배너 — 클래식 박스형
 // .ps1 Print-Banner 계승 + 브랜딩을 project-auto-wizard로 갱신.
 import { A, paint, visualWidth } from "./ansi.js";
 
@@ -9,7 +9,7 @@ function boxLine(out, content = "") {
   out(paint("║", A.cyan) + content + " ".repeat(pad) + paint("║", A.cyan) + "\n");
 }
 
-// 대화형 첫 화면 배너 — 박스 타이틀 + 메타 4줄 (.ps1 Print-Banner 등가, #446 확정 시안 A)
+// 대화형 첫 화면 배너 — 박스 타이틀 + 메타 4줄 (.ps1 Print-Banner 등가)
 export function printBanner({ version, modeLabel }, out = (s) => process.stderr.write(s)) {
   out("\n");
   out(paint(`╔${"═".repeat(INNER)}╗`, A.cyan) + "\n");

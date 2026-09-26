@@ -1,5 +1,5 @@
 // tests/node/verify.test.js
-// 설치 후 검증(이슈 #81)·필요 Secret 안내(이슈 #80) 회귀.
+// 설치 후 검증·필요 Secret 안내 회귀.
 // 실행 로그 관련 회귀는 logger*.test.js로 분리됐다.
 import { test } from "node:test";
 import assert from "node:assert";
@@ -20,7 +20,7 @@ function wfDirWith(files) {
   return root;
 }
 
-// ── 미치환 플레이스홀더 스캔 (#81) ──────────────────────────────────
+// ── 미치환 플레이스홀더 스캔 ──────────────────────────────────
 test("scanUnsubstituted: 남아 있는 __TOKEN__을 파일·줄과 함께 보고한다", () => {
   const dir = wfDirWith({ "A.yaml": 'env:\n  DIR: "__APPLICATION_YML_DIR__"\n' });
   try {
@@ -45,7 +45,7 @@ test("scanUnsubstituted: 주석 처리된 줄은 실행되지 않으므로 세�
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// ── 필요 Secret 수집 (#80) ──────────────────────────────────────────
+// ── 필요 Secret 수집 ──────────────────────────────────────────
 test("collectRequiredSecrets: 사용하는 워크플로우까지 함께 모은다", () => {
   const dir = wfDirWith({
     "A.yaml": "x: ${{ secrets.SERVER_HOST }}\n",
@@ -81,7 +81,7 @@ test("narrowSecretsBySshAuth: 고른 인증 방식에 안 쓰이는 쪽을 목�
   assert.strictEqual(narrowSecretsBySshAuth(base, "").size, 2, "미지정이면 좁히지 않는다");
 });
 
-// ── 홑따옴표 치환 (#81) ─────────────────────────────────────────────
+// ── 홑따옴표 치환 ─────────────────────────────────────────────
 test("setEnvLine: 홑따옴표 값도 치환하고 결과는 겹따옴표로 통일한다", () => {
   const out = setEnvLine("  SSH_PORT: '2022'  # @wizard ask:2022", "SSH_PORT", "22");
   assert.strictEqual(out, '  SSH_PORT: "22"');

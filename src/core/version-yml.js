@@ -4,12 +4,12 @@ import {
   ENV_MODES, DEPLOY_MODES, DEFAULT_ENV_MODE, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS, formatStoreList,
 } from "./flutter-options.js";
 
-// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략 D4).
+// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
 // version.yml.template이 아는 최상위 키 — 이 밖의 최상위 키는 사용자가 직접 추가한 것으로 간주한다.
-// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다 (issue #62):
+// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다:
 // 빼면 기존 파일의 단수 줄이 "사용자가 추가한 필드"로 오인돼 재생성 때 되살아난다. 아는 키로
 // 둬야 재통합 시 흡수되어 사라진다.
 const KNOWN_TOP_LEVEL_KEYS = new Set([
@@ -17,14 +17,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 
 // 최상위 레벨의 알려지지 않은 필드(사용자가 직접 추가한 임의 필드)를 원본 그대로 보존한다
-// (issue #20 M8). 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
+//. 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
 // 캡처한다(중첩 구조가 있어도 유효한 YAML로 남기기 위함). metadata/project_paths/deploy처럼
-// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖 — issue #20 결정).
+// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖).
 export function parseExtraTopLevel(content) {
   const blocks = [];
   let current = null;
   for (const line of String(content || "").split("\n")) {
-    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례) — issue #20 M8 리뷰에서 지적된 놓침 방지.
+    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례).
     const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):/);
     if (m) {
       if (current) blocks.push(current.join("\n"));
@@ -37,20 +37,19 @@ export function parseExtraTopLevel(content) {
   return blocks;
 }
 
-// Flutter 옵션 키(이슈 #131) → 반환 필드. 값은 원문 문자열로 돌려주고, 유효성 판정은 resolveFlutterOptions 몫이다.
+// Flutter 옵션 키 → 반환 필드. 값은 원문 문자열로 돌려주고, 유효성 판정은 resolveFlutterOptions 몫이다.
 const FLUTTER_OPTION_KEYS = {
   env_mode: "envMode", flutter_store: "flutterStore",
   android_deploy_mode: "androidDeployMode", ios_deploy_mode: "iosDeployMode",
 };
 
 // metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
-// 반환: { nexus: bool|null, secretBackup: bool|null, semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
+// 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
 //         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
-// (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
   const out = {
-    nexus: null, secretBackup: null, semverAuto: null, copilotAi: null, deployStyle: null,
+    semverAuto: null, copilotAi: null, deployStyle: null,
     envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
   };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
@@ -63,21 +62,7 @@ export function parseTemplateOptions(content) {
     if (/^\s*template:/.test(line)) { inTemplate = true; continue; }
     if (inTemplate && /^\s+options:/.test(line)) { inOptions = true; continue; }
     if (inTemplate && inOptions) {
-      let m = line.match(/^\s+nexus:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.nexus = true;
-        if (v === "false") out.nexus = false;
-        continue;
-      }
-      m = line.match(/^\s+secret_backup:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.secretBackup = true;
-        if (v === "false") out.secretBackup = false;
-        continue;
-      }
-      m = line.match(/^\s+deploy_style:\s*(.+)/);
+      let m = line.match(/^\s+deploy_style:\s*(.+)/);
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(/^\s+(env_mode|flutter_store|android_deploy_mode|ios_deploy_mode):\s*(.+)/);
       if (m) { const v = strip(m[2]); if (v) out[FLUTTER_OPTION_KEYS[m[1]]] = v; continue; }
@@ -146,7 +131,7 @@ export function parseExisting(content) {
       if (/^\S/.test(l)) break;
     }
   }
-  // 선택 워크플로우 옵션 (metadata.template.options — nexus/secret_backup)
+  // 선택 워크플로우 옵션 (metadata.template.options)
   const options = parseTemplateOptions(text);
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
@@ -194,13 +179,13 @@ function buildFlutterOptionsBlock({ envMode, stores, androidDeployMode, iosDeplo
 // version.yml 전체 생성 — payload/version.yml.template 렌더링.
 // opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
-//         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존 (issue #20 M8)
-//         flutterOptions?:{ envMode, stores, androidDeployMode, iosDeployMode } }  ← Flutter 타입일 때만 렌더 (이슈 #131)
+//         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존
+//         flutterOptions?:{ envMode, stores, androidDeployMode, iosDeployMode } }  ← Flutter 타입일 때만 렌더
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
 //   pathMarkers = Map<type, markerFilename> (project_paths 주석용)
-//   templateOptions = { templateVersion, includeNexus, includeSecretBackup, optionsDate }
+//   templateOptions = { templateVersion, optionsDate }
 export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
@@ -210,7 +195,7 @@ export function buildVersionYml({
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
-    templateVersion = "unknown", includeNexus = false, includeSecretBackup = false,
+    templateVersion = "unknown",
     includeSemverAuto = true, includeCopilotAi = false, deployStyle = "", optionsDate = today,
   } = templateOptions || {};
 
@@ -234,7 +219,7 @@ export function buildVersionYml({
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
       // 동일한 이스케이프를 재사용 — deploy 값도 @wizard ask 값과 같은 경로로 들어오므로
-      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (issue #20 L9, 두 번째 지점).
+      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (두 번째 지점).
       for (const [k, v] of deployValues.get(t)) rows.push(`    ${k}: "${escapeYamlDoubleQuoted(v)}"`);
     }
     deployBlock = rows.join("\n");
@@ -249,7 +234,6 @@ export function buildVersionYml({
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
-    OPT_NEXUS: String(includeNexus), OPT_SECRET_BACKUP: String(includeSecretBackup),
     OPT_SEMVER_AUTO: String(includeSemverAuto),
     OPT_COPILOT_AI: String(includeCopilotAi),
     OPT_DEPLOY_STYLE: String(deployStyle || ""),
@@ -281,14 +265,14 @@ export function buildVersionYml({
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null,
-    includeNexus = false, includeSecretBackup = false, includeSemverAuto, includeCopilotAi, deployStyle,
+    includeSemverAuto, includeCopilotAi, deployStyle,
     envMode, flutterStore, androidDeployMode, iosDeployMode } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
     deployValues, extraTopLevel,
     flutterOptions: { envMode, stores: flutterStore, androidDeployMode, iosDeployMode },
     templateOptions: {
-      templateVersion, includeNexus, includeSecretBackup,
+      templateVersion,
       includeSemverAuto: includeSemverAuto !== false,
       includeCopilotAi: includeCopilotAi === true,
       deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,

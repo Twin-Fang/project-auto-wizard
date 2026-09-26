@@ -1,4 +1,4 @@
-// Flutter 옵션 결정 우선순위 (이슈 #131): CLI > version.yml 저장값 > 기본값.
+// Flutter 옵션 결정 우선순위: CLI > version.yml 저장값 > 기본값.
 // 기본값은 신규 설치=dart-define, 기존 설치(version.yml 있음, 저장값 없음)=dotenv 보존.
 import { test } from "node:test";
 import assert from "node:assert";

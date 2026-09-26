@@ -23,7 +23,7 @@ function installFixture() {
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
-  // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다(issue #7) — 이 픽스처는
+  // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다 — 이 픽스처는
   // uninstall의 gitignore 정리 동작 자체를 검증하는 것이 목적이므로 직접 만들어 둔다.
   ensureGitignore(target);
   return target;

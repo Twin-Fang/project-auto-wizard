@@ -1,29 +1,14 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
-# React CI (코드 분석 및 빌드 검증)
-# ===================================================================
+# React CI (빌드 검증)
+# {{MAIN_BRANCH}} 브랜치 푸시 시 npm ci와 npm run build로 빌드를 검증합니다. node_modules와 빌드 결과를 캐싱합니다.
 #
-# {{MAIN_BRANCH}} 브랜치 푸시 시 React 애플리케이션의 빌드를 검증합니다.
+# GitHub Secrets
+#   ENV_FILE (선택): .env 파일 내용. CI는 빌드 검증 목적이므로 배포 관련 Secrets는 불필요
 #
-# 주요 특징:
-# - npm ci로 의존성 설치
-# - npm run build로 빌드 검증
-# - node_modules 및 빌드 캐싱 지원
-#
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
-# ENV_FILE (선택): .env 파일 내용
-#
-# ※ CI는 빌드 검증 목적이므로 배포 관련 Secrets 불필요
-# ===================================================================
-#
-# 🔧 프로젝트별 설정 (env 섹션)
-# ===================================================================
-# PROJECT_NAME : 프로젝트 이름
-# NODE_VERSION : Node.js 버전 (기본: 20.15.0)
-# ENV_FILE     : 환경변수 파일명 (기본: .env)
-# ===================================================================
+# 프로젝트별 설정 (env 섹션)
+#   PROJECT_NAME : 프로젝트 이름
+#   NODE_VERSION : Node.js 버전 (기본: 20.15.0)
+#   ENV_FILE     : 환경변수 파일명 (기본: .env)
 
 name: PROJECT-REACT-CI
 
@@ -45,9 +30,7 @@ permissions:
   issues: write
 
 jobs:
-  # ===================================================================
-  # 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
-  # ===================================================================
+  # Job: 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
   changes:
     name: 변경 감지
     runs-on: ubuntu-latest
@@ -76,24 +59,20 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
 
     steps:
-      # 1. 소스코드 체크아웃
       - name: 코드 체크아웃
         uses: actions/checkout@v7
 
-      # 2. 환경변수 파일 생성
       - name: 환경변수 파일 생성 (${{ env.ENV_FILE }})
         run: |
           echo -e "${{ secrets.ENV_FILE || secrets.ENV }}" > ${{ env.ENV_FILE }}
           echo "✅ ${{ env.ENV_FILE }} 파일 생성 완료"
 
-      # 3. Node.js 설정
       - name: Node.js 설정
         uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
 
-      # 4. npm 의존성 캐싱
       - name: npm 의존성 캐싱
         uses: actions/cache@v6
         with:
@@ -102,7 +81,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      # 5. node_modules 캐싱
       # package-lock.json이 변경되지 않으면 npm ci 건너뛰기
       - name: node_modules 캐싱
         id: node-modules-cache
@@ -113,7 +91,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-modules-
 
-      # 6. 의존성 설치
       # 캐시가 없을 때만 실행 (npm ci는 package-lock.json 기준 정확한 버전 설치)
       - name: 의존성 설치
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -122,7 +99,7 @@ jobs:
           npm ci
           echo "✅ 의존성 설치 완료"
 
-      # 7. Next.js 빌드 캐싱 (Next.js 프로젝트인 경우)
+      # Next.js 빌드 캐싱 (Next.js 프로젝트인 경우)
       # .next/cache 폴더를 캐싱하여 증분 빌드 속도 향상
       - name: Next.js 빌드 캐싱
         uses: actions/cache@v6
@@ -133,7 +110,6 @@ jobs:
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
             ${{ runner.os }}-nextjs-
 
-      # 8. 프로젝트 빌드
       # 빌드 실패 시에도 워크플로우를 중단하지 않고 에러 로그 수집
       - name: 프로젝트 빌드
         id: build
@@ -157,7 +133,6 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
           echo "✅ 빌드 완료"
 
-      # 9. 빌드 실패 시 에러 로그 출력
       # 빌드가 실패한 경우에만 실행
       - name: 빌드 에러 로그 출력
         if: steps.build.outputs.build_failed == 'true'
@@ -180,7 +155,6 @@ jobs:
           # 빌드 실패로 워크플로우 종료
           exit 1
 
-      # 10. 빌드 로그 아티팩트 업로드
       # 빌드 성공/실패 여부와 관계없이 로그 저장
       - name: 빌드 로그 업로드
         if: always()
@@ -190,7 +164,6 @@ jobs:
           path: build_log.txt
           retention-days: 7  # 7일간 보관
 
-      # 11. 빌드 결과 요약
       # 워크플로우 실행 결과를 보기 쉽게 요약
       - name: 빌드 결과 요약
         if: always()
@@ -222,9 +195,7 @@ jobs:
             echo "💡 Actions 탭에서 'build-log' 아티팩트를 다운로드하여 전체 로그를 확인하세요."
           fi
 
-  # ===================================================================
-  # CI Gate (required check로 등록할 단일 job)
-  # ===================================================================
+  # Job: CI Gate (required check로 등록할 단일 job)
   ci-gate:
     name: CI Gate
     if: ${{ always() }}

@@ -1,7 +1,7 @@
 // doctor 명령 — 로컬 환경 진단(읽기 전용, 규칙 기반). gh CLI에 위임해 원격 상태를 점검한다.
 // AI 진단은 포함하지 않는다(스펙 §4에서 검토 후 기각 — 복잡도 대비 이득 낮음).
 //
-// 출력 설계(이슈 #29) — `flutter doctor` 패턴을 차용한다.
+// 출력 설계 — `flutter doctor` 패턴을 차용한다.
 //   ① 항목 라벨에 purpose("무엇을 위한 설정인지")를 병기한다. `WORKFLOW_PAT`만 보고는 그게
 //      자기 릴리스 흐름의 무엇을 담당하는지 알 수 없다 — flutter의
 //      `Android toolchain - develop for Android devices`와 같은 이유다.
@@ -44,7 +44,7 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
       note: ["이 폴더엔 아직 설치되지 않았습니다 — 지금 설치하면 됩니다."],
     });
 
-  // Flutter 스토어 배포 파일 점검 (이슈 #131) — 로컬 파일만 보므로 gh 조회 결과와 무관하게 수행한다.
+  // Flutter 스토어 배포 파일 점검 — 로컬 파일만 보므로 gh 조회 결과와 무관하게 수행한다.
   if (installed) for (const item of flutterStoreChecks(cwd)) add(item);
 
   const ghVersion = exec("gh", ["--version"]);
@@ -91,7 +91,7 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
 
   const perm = exec("gh", ["api", `repos/${owner}/${repo}/actions/permissions/workflow`, "--jq", ".default_workflow_permissions"]);
   const permValue = (perm.stdout || "").trim();
-  // 이 값은 "워크플로우가 permissions를 생략했을 때 적용되는 기본값"이지 상한이 아니다(#34).
+  // 이 값은 "워크플로우가 permissions를 생략했을 때 적용되는 기본값"이지 상한이 아니다.
   // 마법사가 설치하는 워크플로우는 전부 자체 permissions를 선언하므로(회귀 가드:
   // tests/node/payload-workflow-permissions.test.js) read여도 정상 동작한다 — 이 레포 자체가
   // read인데 VERSION-CONTROL이 버전 커밋 push에 성공하는 것이 그 증거다.
@@ -126,7 +126,7 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
     : {
       // 조치가 필요 없으므로 WARN이 아니라 INFO다 — 위 Workflow permissions 항목과 동일 이유:
       // 폴백(wait-for-merge-and-trigger-release / Trigger NPM-PUBLISH)이 GITHUB_TOKEN만으로
-      // 파이프라인을 끝까지 이어가므로, 없는 장애를 경고로 띄우지 않는다(이슈 #105).
+      // 파이프라인을 끝까지 이어가므로, 없는 장애를 경고로 띄우지 않는다.
       name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "INFO",
       note: [
         "secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
@@ -176,7 +176,7 @@ const PLATFORM_ROW_NAME = { android: "Flutter Android 배포 파일", ios: "Flut
 const PLACEHOLDER_RE = /__[A-Z][A-Z0-9_]*__/g; // 감지 규칙은 ExportOptions.plist 템플릿·IOS-TESTFLIGHT 검증과 동일
 const EXPORT_OPTIONS_REL = STORE_APP_FILES.ios.find((rel) => rel.endsWith("ExportOptions.plist"));
 
-// Flutter 스토어 배포 진단 — 선택한 플랫폼의 필수 파일과 ExportOptions.plist 플레이스홀더 (이슈 #131).
+// Flutter 스토어 배포 진단 — 선택한 플랫폼의 필수 파일과 ExportOptions.plist 플레이스홀더.
 // 스토어 시크릿 등록 여부는 이번 범위 밖이다. 반환: doctor 결과 행 배열.
 function flutterStoreChecks(cwd) {
   const existing = parseExisting(readFileSync(join(cwd, PATHS.versionFile), "utf8"));

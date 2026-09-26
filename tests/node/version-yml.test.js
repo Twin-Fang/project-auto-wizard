@@ -1,5 +1,5 @@
 // tests/node/version-yml.test.js
-// issue #20 M8 — version.yml 재생성 시 사용자가 추가한 알려지지 않은 최상위 필드가 보존되는지 검증.
+// version.yml 재생성 시 사용자가 추가한 알려지지 않은 최상위 필드가 보존되는지 검증.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -27,7 +27,7 @@ test("parseExtraTopLevel: captures an unknown top-level key containing a hyphen 
   assert.deepStrictEqual(parseExtraTopLevel(content), ["deploy-notes: keep this"]);
 });
 
-// issue #62 — 레거시 단수 키는 렌더되지 않지만 KNOWN_TOP_LEVEL_KEYS에는 남아 있어야 한다.
+// 레거시 단수 키는 렌더되지 않지만 KNOWN_TOP_LEVEL_KEYS에는 남아 있어야 한다.
 // 빼면 기존 파일의 단수 줄이 "사용자 필드"로 오인돼 재생성 때 되살아난다.
 test("parseExtraTopLevel: the legacy singular project_type is absorbed, not preserved (issue #62)", () => {
   const content = ['version: "1.0.0"', 'project_types: ["node"]', 'project_type: "node"'].join("\n");
@@ -130,7 +130,7 @@ test("buildVersionYml: escapes double quotes in deploy block values (issue #20 L
   assert.ok(text.includes('HOST: "a \\"quoted\\" host"'));
 });
 
-// ── Flutter 옵션 4개 키 (이슈 #131) ──────────────────────────────
+// ── Flutter 옵션 4개 키 ──────────────────────────────
 const FLUTTER_KEYS_RE = /env_mode|flutter_store|android_deploy_mode|ios_deploy_mode/;
 const BASE_BUILD = {
   version: "1.0.0", versionCode: 1, branch: "main",
@@ -271,4 +271,22 @@ test("integration: runFull이 Flutter 옵션을 version.yml에 쓰고 재실행�
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
+});
+
+test("parseTemplateOptions: 기존 version.yml에 남은 nexus 키는 무시하고, 다시 렌더하면 사라진다", () => {
+  const text = [
+    "metadata:", "  template:", "    options:",
+    "      nexus: true", "      semver_auto: true",
+  ].join("\n");
+  const parsed = parseTemplateOptions(text);
+  assert.strictEqual("nexus" in parsed, false);
+  assert.strictEqual(parsed.semverAuto, true);
+});
+
+test("buildVersionYml: 새로 렌더한 version.yml에는 nexus 키가 없다", () => {
+  const rendered = buildVersionYml({
+    templateText: readVersionYmlTemplate(PAYLOAD), version: "1.0.0", types: ["basic"],
+    now: "2026-09-26 00:00:00", today: "2026-09-26", templateOptions: { templateVersion: "0.12.0" },
+  });
+  assert.ok(!/^\s+nexus:/m.test(rendered), "재작성된 version.yml에는 nexus 키가 없어야 한다");
 });

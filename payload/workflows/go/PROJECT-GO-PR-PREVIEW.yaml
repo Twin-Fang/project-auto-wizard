@@ -1,42 +1,30 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Go PR Preview (SSH + Docker + Traefik)
-# ===================================================================
+# PR 또는 Issue 코멘트 명령어를 통해 Preview 환경을 자동으로 관리합니다. Traefik 리버스 프록시로 동적 라우팅됩니다.
 #
-# PR 또는 Issue 코멘트 명령어를 통해 Preview 환경을 자동으로 관리합니다.
-# Traefik 리버스 프록시를 통해 동적 라우팅됩니다.
-#
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 # ENV_FILE: .env 파일 전체 내용
-# DOCKERHUB_USERNAME: Docker Hub 사용자명
-# DOCKERHUB_TOKEN: Docker Hub 액세스 토큰
-# SERVER_HOST: 서버 호스트(SSH 접속 주소)
-# SERVER_USER: SSH 사용자명
+# DOCKERHUB_USERNAME / DOCKERHUB_TOKEN: Docker Hub 사용자명 / 액세스 토큰
+# SERVER_HOST / SERVER_USER: 서버 호스트(SSH 접속 주소) / SSH 사용자명
 # SERVER_PASSWORD: SSH 비밀번호 (SSH_AUTH_METHOD=password일 때)
 # SSH_KEY: SSH 개인키 .pem 내용 (SSH_AUTH_METHOD=key일 때, AWS EC2 등)
-# ===================================================================
 #
-# 🚀 사용법:
+# 사용법
 # /wizard server build    - Preview 빌드 및 배포
 # /wizard server destroy  - Preview 환경 삭제
 # /wizard server status   - 현재 상태 확인
 #
-# 📊 리소스 네이밍:
+# 리소스 네이밍
 # - 컨테이너: {PROJECT_NAME}-pr-{번호}
 # - 도메인: {PROJECT_NAME}-pr-{번호}.pr.example.com
 #
-# 📋 사전 요구사항:
+# 사전 요구사항
 # - Traefik 컨테이너 실행 중 (traefik-network)
 # - 와일드카드 DNS 설정: *.pr.example.com → 서버
-# ===================================================================
 
 name: PROJECT-GO-PR-PREVIEW
 
-# ===================================================================
-# ⚠️ [영역 1] 프로젝트별 설정 - 다른 프로젝트에서 사용 시 이 섹션만 수정하세요
-# ===================================================================
+# [영역 1] 프로젝트별 설정 - 다른 프로젝트에서 사용 시 이 섹션만 수정하세요
 env:
   # 프로젝트 고유 식별자 (컨테이너명, 이미지명, 도메인에 사용)
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
@@ -45,7 +33,7 @@ env:
   DOCKERFILE_PATH: './Dockerfile'
   INTERNAL_PORT: '8080'
 
-  # 🗂️ 볼륨 마운트 설정 (프로젝트별 수정 필요, 빈값이면 마운트 안함)
+  # 볼륨 마운트 설정 (프로젝트별 수정 필요, 빈값이면 마운트 안함)
   PROJECT_TARGET_DIR: "__PROJECT_TARGET_DIR__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
   PROJECT_MNT_DIR: "__PROJECT_MNT_DIR__"  # @wizard ask:/mnt/__PROJECT_NAME__
 
@@ -54,7 +42,7 @@ env:
   PREVIEW_DOMAIN_SUFFIX: "__PREVIEW_DOMAIN_SUFFIX__"  # @wizard ask:pr.example.com
   PREVIEW_PORT: '8079'
 
-  # 🔐 SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
+  # SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
   #   password → SERVER_PASSWORD secret 사용
   #   key      → SSH_KEY secret 사용 (.pem 파일 전체 내용을 secret 값으로)
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
@@ -80,9 +68,6 @@ env:
   HEALTH_CHECK_LOG_PATTERN: 'listening on'
   API_DOCS_PATH: ''
 
-# ===================================================================
-# 트리거 설정
-# ===================================================================
 on:
   issue_comment:
     types: [created]      # PR 댓글 + Issue 댓글
@@ -96,13 +81,8 @@ permissions:
   pull-requests: write
   issues: write
 
-# ===================================================================
-# Jobs
-# ===================================================================
 jobs:
-  # -----------------------------------------------------------------
   # Job 1: 명령어 파싱 (PR 댓글 + Issue 댓글 모두 지원)
-  # -----------------------------------------------------------------
   check-command:
     name: 명령어 확인
     if: github.event_name == 'issue_comment'
@@ -182,9 +162,7 @@ jobs:
             echo "ℹ️ /wizard server 명령어가 아님"
           fi
 
-  # -----------------------------------------------------------------
   # Job 2-1: 빌드 & 배포 (PR 댓글에서 실행)
-  # -----------------------------------------------------------------
   build-preview-pr:
     name: Preview 빌드 & 배포 (PR)
     needs: check-command
@@ -209,9 +187,7 @@ jobs:
             core.setOutput('sha', pr.data.head.sha.substring(0, 7));
             return pr.data.number;
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       # 진행 상황 댓글 시스템
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - name: 진행 상황 댓글 생성
         id: progress
         uses: actions/github-script@v9
@@ -251,17 +227,13 @@ jobs:
         with:
           ref: ${{ steps.pr.outputs.ref }}
 
-      # =================================================================
-      # ⚠️ [영역 2] 환경변수 파일 생성
-      # =================================================================
+      # [영역 2] 환경변수 파일 생성
       - name: "[필수] .env 파일 생성"
         run: |
           cat << 'EOF' > .env
           ${{ secrets.ENV_FILE }}
           EOF
-      # =================================================================
-      # ⚠️ [영역 2 끝] 환경변수 파일 생성 끝
-      # =================================================================
+      # [영역 2 끝] 환경변수 파일 생성 끝
 
       - name: Docker 로그인
         uses: docker/login-action@v3
@@ -334,11 +306,10 @@ jobs:
           script: |
             set -e
 
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
             export PW="${{ secrets.SERVER_PASSWORD }}"
 
-            # 🔐 SSH 인증 방식에 따른 sudo 추상화
+            # SSH 인증 방식에 따른 sudo 추상화
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
@@ -347,7 +318,6 @@ jobs:
             fi
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
-            # 변수 설정
             PR_NUMBER=${{ github.event.issue.number }}
             PROJECT_NAME="${{ env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
@@ -365,21 +335,17 @@ jobs:
             echo "🌐 도메인: ${DOMAIN}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # 이미지 Pull
             echo "📥 Docker 이미지 Pull 중..."
             SUDO docker pull "${IMAGE}"
 
-            # 기존 컨테이너 삭제
             echo "🗑️ 기존 컨테이너 정리 중..."
             SUDO docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-            # 볼륨 마운트 옵션 구성
             VOLUME_OPTS="-v /etc/localtime:/etc/localtime:ro"
             if [ -n "${{ env.PROJECT_TARGET_DIR }}" ] && [ -n "${{ env.PROJECT_MNT_DIR }}" ]; then
               VOLUME_OPTS="$VOLUME_OPTS -v ${{ env.PROJECT_TARGET_DIR }}:${{ env.PROJECT_MNT_DIR }}"
             fi
 
-            # 새 컨테이너 실행
             echo "🐳 새 컨테이너 실행 중..."
             SUDO docker run -d \
               --name "${CONTAINER_NAME}" \
@@ -393,11 +359,9 @@ jobs:
               $VOLUME_OPTS \
               "${IMAGE}"
 
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             # Health Check (최대 120초 대기) - 하이브리드 방식
             # 1. HEALTH_CHECK_PATH가 설정되어 있으면 HTTP 체크 시도
             # 2. 폴백: 로그 패턴 매칭 (HEALTH_CHECK_LOG_PATTERN)
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             echo ""
             echo "⏳ Health Check 시작 (최대 120초 대기)..."
             HEALTH_PATH="${{ env.HEALTH_CHECK_PATH }}"
@@ -617,9 +581,7 @@ jobs:
               });
             }
 
-  # -----------------------------------------------------------------
   # Job 2-2: Issue에서 브랜치명 추출
-  # -----------------------------------------------------------------
   get-branch-from-issue:
     name: Issue에서 브랜치 추출
     needs: check-command
@@ -707,9 +669,7 @@ jobs:
               body: body
             });
 
-  # -----------------------------------------------------------------
   # Job 2-3: 빌드 & 배포 (Issue 댓글에서 실행)
-  # -----------------------------------------------------------------
   build-preview-issue:
     name: Preview 빌드 & 배포 (Issue)
     needs: [check-command, get-branch-from-issue]
@@ -788,9 +748,7 @@ jobs:
           # 브랜치의 최신 커밋 SHA 가져오기
           echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git refs/heads/${{ needs.get-branch-from-issue.outputs.branch_name }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       # 진행 상황 댓글 시스템
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - name: 진행 상황 댓글 생성
         if: steps.check_branch.outputs.exists == 'true'
         id: progress
@@ -835,18 +793,14 @@ jobs:
         with:
           ref: ${{ needs.get-branch-from-issue.outputs.branch_name }}
 
-      # =================================================================
-      # ⚠️ [영역 2] 환경변수 파일 생성
-      # =================================================================
+      # [영역 2] 환경변수 파일 생성
       - name: "[필수] .env 파일 생성"
         if: steps.check_branch.outputs.exists == 'true'
         run: |
           cat << 'EOF' > .env
           ${{ secrets.ENV_FILE }}
           EOF
-      # =================================================================
-      # ⚠️ [영역 2 끝] 환경변수 파일 생성 끝
-      # =================================================================
+      # [영역 2 끝] 환경변수 파일 생성 끝
 
       - name: Docker 로그인
         if: steps.check_branch.outputs.exists == 'true'
@@ -927,11 +881,10 @@ jobs:
           script: |
             set -e
 
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
             export PW="${{ secrets.SERVER_PASSWORD }}"
 
-            # 🔐 SSH 인증 방식에 따른 sudo 추상화
+            # SSH 인증 방식에 따른 sudo 추상화
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
@@ -940,7 +893,6 @@ jobs:
             fi
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
-            # 변수 설정
             ISSUE_NUMBER=${{ needs.get-branch-from-issue.outputs.issue_number }}
             PROJECT_NAME="${{ env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${ISSUE_NUMBER}"
@@ -958,21 +910,17 @@ jobs:
             echo "🌐 도메인: ${DOMAIN}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # 이미지 Pull
             echo "📥 Docker 이미지 Pull 중..."
             SUDO docker pull "${IMAGE}"
 
-            # 기존 컨테이너 삭제
             echo "🗑️ 기존 컨테이너 정리 중..."
             SUDO docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-            # 볼륨 마운트 옵션 구성
             VOLUME_OPTS="-v /etc/localtime:/etc/localtime:ro"
             if [ -n "${{ env.PROJECT_TARGET_DIR }}" ] && [ -n "${{ env.PROJECT_MNT_DIR }}" ]; then
               VOLUME_OPTS="$VOLUME_OPTS -v ${{ env.PROJECT_TARGET_DIR }}:${{ env.PROJECT_MNT_DIR }}"
             fi
 
-            # 새 컨테이너 실행
             echo "🐳 새 컨테이너 실행 중..."
             SUDO docker run -d \
               --name "${CONTAINER_NAME}" \
@@ -986,11 +934,9 @@ jobs:
               $VOLUME_OPTS \
               "${IMAGE}"
 
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             # Health Check (최대 120초 대기) - 하이브리드 방식
             # 1. HEALTH_CHECK_PATH가 설정되어 있으면 HTTP 체크 시도
             # 2. 폴백: 로그 패턴 매칭 (HEALTH_CHECK_LOG_PATTERN)
-            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             echo ""
             echo "⏳ Health Check 시작 (최대 120초 대기)..."
             HEALTH_PATH="${{ env.HEALTH_CHECK_PATH }}"
@@ -1210,9 +1156,7 @@ jobs:
               });
             }
 
-  # -----------------------------------------------------------------
   # Job 3: Preview 삭제 (PR/Issue 닫힘 또는 destroy 명령)
-  # -----------------------------------------------------------------
   destroy-preview:
     name: Preview 삭제
     # needs 의존성 제거: PR/Issue 닫힘 이벤트에서도 독립적으로 실행되도록 함
@@ -1248,11 +1192,10 @@ jobs:
           port: ${{ env.SSH_PORT }}
           envs: SSH_AUTH_METHOD
           script: |
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
             export PW="${{ secrets.SERVER_PASSWORD }}"
 
-            # 🔐 SSH 인증 방식에 따른 sudo 추상화
+            # SSH 인증 방식에 따른 sudo 추상화
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
@@ -1273,11 +1216,9 @@ jobs:
             echo "🔢 PR 번호: #${PR_NUMBER}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # 컨테이너 삭제
             echo "🐳 컨테이너 삭제 중..."
             SUDO docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-            # 이미지 삭제
             echo "🖼️ 이미지 삭제 중..."
             SUDO docker rmi "${IMAGE}" 2>/dev/null || true
 
@@ -1315,9 +1256,7 @@ jobs:
               body: body
             });
 
-  # -----------------------------------------------------------------
   # Job 4: 상태 확인 (PR/Issue 모두 지원)
-  # -----------------------------------------------------------------
   check-status:
     name: Preview 상태 확인
     needs: check-command
@@ -1334,7 +1273,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ env.SSH_PORT }}
           script: |
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
@@ -1365,7 +1303,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ env.SSH_PORT }}
           script: |
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
@@ -1430,9 +1367,7 @@ jobs:
               body: body
             });
 
-  # -----------------------------------------------------------------
   # Job 5: 커스텀 브랜치 빌드 & 배포
-  # -----------------------------------------------------------------
   build-preview-custom-branch:
     name: Preview 빌드 & 배포 (Custom Branch)
     needs: check-command
@@ -1526,7 +1461,6 @@ jobs:
           SHA=$(git ls-remote https://github.com/${{ github.repository }}.git refs/heads/${{ needs.check-command.outputs.custom_branch }} | cut -c1-7)
           echo "sha=$SHA" >> $GITHUB_OUTPUT
 
-      # 진행 상황 댓글 생성
       - name: 진행 상황 댓글 생성
         if: steps.branch_info.outputs.branch_exists == 'true'
         id: progress
@@ -1571,7 +1505,6 @@ jobs:
         with:
           ref: ${{ needs.check-command.outputs.custom_branch }}
 
-      # 환경변수 파일 생성
       - name: "[필수] .env 파일 생성"
         if: steps.branch_info.outputs.branch_exists == 'true'
         run: |
@@ -1670,11 +1603,10 @@ jobs:
           script: |
             set -e
 
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
             export PW="${{ secrets.SERVER_PASSWORD }}"
 
-            # 🔐 SSH 인증 방식에 따른 sudo 추상화
+            # SSH 인증 방식에 따른 sudo 추상화
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
@@ -1683,7 +1615,6 @@ jobs:
             fi
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
-            # 변수 설정
             PROJECT_NAME="${{ env.PROJECT_NAME }}"
             CONTAINER_NAME="${{ steps.container.outputs.name }}"
             CONTAINER_SUFFIX="${{ steps.container.outputs.suffix }}"
@@ -1700,21 +1631,17 @@ jobs:
             echo "🌐 도메인: ${DOMAIN}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # 이미지 Pull
             echo "📥 Docker 이미지 Pull 중..."
             SUDO docker pull "${IMAGE}"
 
-            # 기존 컨테이너 삭제
             echo "🗑️ 기존 컨테이너 정리 중..."
             SUDO docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-            # 볼륨 마운트 옵션 구성
             VOLUME_OPTS="-v /etc/localtime:/etc/localtime:ro"
             if [ -n "${{ env.PROJECT_TARGET_DIR }}" ] && [ -n "${{ env.PROJECT_MNT_DIR }}" ]; then
               VOLUME_OPTS="$VOLUME_OPTS -v ${{ env.PROJECT_TARGET_DIR }}:${{ env.PROJECT_MNT_DIR }}"
             fi
 
-            # 새 컨테이너 실행
             echo "🐳 새 컨테이너 실행 중..."
             SUDO docker run -d \
               --name "${CONTAINER_NAME}" \
@@ -1943,9 +1870,7 @@ jobs:
               });
             }
 
-  # -----------------------------------------------------------------
   # Job 6: 커스텀 브랜치 Preview 삭제
-  # -----------------------------------------------------------------
   destroy-preview-custom-branch:
     name: Preview 삭제 (Custom Branch)
     needs: check-command
@@ -1998,11 +1923,10 @@ jobs:
           port: ${{ env.SSH_PORT }}
           envs: SSH_AUTH_METHOD
           script: |
-            # 환경 변수 설정 (배포 서버용)
             export PATH=$PATH:/usr/local/bin
             export PW="${{ secrets.SERVER_PASSWORD }}"
 
-            # 🔐 SSH 인증 방식에 따른 sudo 추상화
+            # SSH 인증 방식에 따른 sudo 추상화
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
@@ -2025,11 +1949,9 @@ jobs:
             echo "📛 컨테이너: ${CONTAINER_NAME}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # 컨테이너 삭제
             echo "🐳 컨테이너 삭제 중..."
             SUDO docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
-            # 이미지 삭제
             echo "🖼️ 이미지 삭제 중..."
             SUDO docker rmi "${IMAGE}" 2>/dev/null || true
 
@@ -2064,9 +1986,7 @@ jobs:
               body: body
             });
 
-  # -----------------------------------------------------------------
   # Job 7: 커스텀 브랜치 Preview 상태 확인
-  # -----------------------------------------------------------------
   check-status-custom-branch:
     name: Preview 상태 확인 (Custom Branch)
     needs: check-command

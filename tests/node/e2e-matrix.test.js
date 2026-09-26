@@ -31,7 +31,7 @@ function assertBaseline(target, label) {
   // version.yml + branches/options 메타
   const vy = readFileSync(join(target, "version.yml"), "utf8");
   assert.ok(/main: "main"/.test(vy) && /develop: "develop"/.test(vy) && /mode: "pr-flow"/.test(vy), `${label}: branches metadata`);
-  assert.ok(/nexus: (true|false)/.test(vy) && /semver_auto: (true|false)/.test(vy), `${label}: options metadata`);
+  assert.ok(/semver_auto: (true|false)/.test(vy), `${label}: options metadata`);
   // 공통 워크플로우 4종 (pr-flow)
   for (const wf of [
     "PROJECT-COMMON-VERSION-CONTROL.yaml", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
@@ -48,7 +48,7 @@ function assertBaseline(target, label) {
 }
 
 const MATRIX = [
-  { name: "spring", args: ["--type", "spring"], expect: ["PROJECT-SPRING-SIMPLE-CICD.yaml"], absent: ["PROJECT-SPRING-NEXUS-PUBLISH.yml"] },
+  { name: "spring", args: ["--type", "spring"], expect: ["PROJECT-SPRING-SIMPLE-CICD.yaml", "PROJECT-SPRING-CI.yml"], absent: ["PROJECT-SPRING-NEXUS-PUBLISH.yml"] },
   { name: "flutter", args: ["--type", "flutter"], expect: ["PROJECT-FLUTTER-CI.yaml", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"] },
   { name: "react", args: ["--type", "react"], expect: ["PROJECT-REACT-CI.yaml", "PROJECT-REACT-CICD.yaml"] },
   { name: "next", args: ["--type", "next"], expect: ["PROJECT-NEXT-CI.yaml", "PROJECT-NEXT-CICD.yaml"] },
@@ -78,15 +78,6 @@ test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 versi
   try {
     const vy = readFileSync(join(t, "version.yml"), "utf8");
     assert.ok(/version_code:\s*71\b/.test(vy), `version_code가 71이어야 함:\n${vy}`);
-  } finally { rmSync(t, { recursive: true, force: true }); }
-});
-
-test("e2e spring --nexus: server-deploy excluded, nexus included, option recorded", () => {
-  const t = installFixture("spring", ["--type", "spring", "--nexus"]);
-  try {
-    assert.ok(!existsSync(join(t, ".github", "workflows", "PROJECT-SPRING-SIMPLE-CICD.yaml")));
-    assert.ok(existsSync(join(t, ".github", "workflows", "PROJECT-SPRING-NEXUS-PUBLISH.yml")));
-    assert.ok(/nexus: true/.test(readFileSync(join(t, "version.yml"), "utf8")));
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 

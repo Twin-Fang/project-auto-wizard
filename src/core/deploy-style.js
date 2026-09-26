@@ -1,4 +1,4 @@
-// 배포 방식 (이슈 #80) — 서버 배포 CD 워크플로우는 서로 대체재다.
+// 배포 방식 — 서버 배포 CD 워크플로우는 서로 대체재다.
 // Nginx 무중단과 Traefik 무중단을 동시에 쓰는 경우는 없으므로 하나만 설치한다.
 // 고른 것은 push 트리거까지 켜서 설치한다 — 설치했는데 안 도는 상태를 만들지 않는다.
 import { join } from "node:path";
@@ -17,7 +17,7 @@ export const DEFAULT_DEPLOY_STYLE = "simple";
 // 서버 배포 자체를 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 값.
 // DEPLOY_STYLES에는 넣지 않는다 — isDeployWorkflow/suffixOf가 이 배열을 순회하는데, 빈 접미사를
 // 돌려주면 endsWith("")가 항상 참이라 모든 파일이 CD로 오판되어 cleanupOtherDeployWorkflows가
-// 설치된 워크플로우 전체를 지우는 회귀가 생긴다 (이슈 #126).
+// 설치된 워크플로우 전체를 지우는 회귀가 생긴다.
 export const NO_DEPLOY_STYLE = "none";
 
 export const isDeployStyle = (v) => v === NO_DEPLOY_STYLE || DEPLOY_STYLES.some((s) => s.value === v);

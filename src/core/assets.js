@@ -24,7 +24,7 @@ export function readTemplateVersion() {
   }
 }
 
-// payload/workflows/common 직하위 yaml 목록 (secret-backup 하위 폴더 제외 — 복사 엔진과 동일 규약).
+// payload/workflows/common 직하위 yaml 목록.
 export function listCommonWorkflows(payloadRoot = resolvePayloadRoot()) {
   return listYamlFiles(join(payloadRoot, "workflows", "common"));
 }
@@ -40,7 +40,7 @@ export function assertPayload(payloadRoot = resolvePayloadRoot()) {
   return payloadRoot;
 }
 
-// payload/version.yml.template 원문 (Task 14 치환 파이프라인 소비).
+// payload/version.yml.template 원문.
 export function readVersionYmlTemplate(payloadRoot = resolvePayloadRoot()) {
   const p = join(payloadRoot, "version.yml.template");
   return exists(p) ? readText(p) : null;
