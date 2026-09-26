@@ -159,7 +159,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 // hooks: { decisions?: Map<filename, 'skip'|'backup'|'template'>,   — 진짜 충돌(changed) 결정
 //          restoreRemoved?: Set<filename> }                          — 사용자가 지운 파일 중 복원할 것
 //        미지정 파일은 'skip'(현행 force 동작 100% 유지). 대화형 수집은 copyWorkflowsInteractive 참조.
-// 반환: {copied, skipped, templateAdded, optionalCopied, backupAdded, autoUpdated, keptLocal, removedKept, restoredFiles}
+// 반환: {copied, skipped, templateAdded, backupAdded, autoUpdated, keptLocal, removedKept, restoredFiles}
 export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { types = [], paths = new Map(), repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
   const decisions = hooks.decisions instanceof Map ? hooks.decisions : new Map();
@@ -168,7 +168,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   if (!exists(projectTypesDir)) throw new Error("패키지 구조 오류 — payload/workflows 폴더를 찾지 못했습니다.");
 
-  const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0, backupAdded: 0 };
+  const counters = { copied: 0, skipped: 0, templateAdded: 0, backupAdded: 0 };
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
   counters.copiedFiles = []; // 이번 실행에서 실제로 새로 쓰여진 파일명 (printSummary 정확성용)
