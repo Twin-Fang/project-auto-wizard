@@ -34,7 +34,7 @@
 #   main-push workflows (e.g. RELEASE-PUBLISH) for that merge.
 # - secrets.AI_API_KEY (+ vars.AI_API_BASE_URL / vars.AI_MODEL, all three
 #   required together): preferred summary engine. Falls back to Copilot CLI
-#   (only when version.yml copilot_ai is true; optional vars.COPILOT_MODEL),
+#   (only when version.yml copilot_ai is true; always uses auto model selection),
 #   then to rule-based.
 #
 # Without WORKFLOW_PAT, a wait-for-merge-and-trigger-release job
@@ -163,7 +163,6 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
-          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           # Idempotency: if the PR head is already this workflow's own
           # version-confirm commit (re-run / synchronize retrigger), do not
@@ -200,7 +199,6 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
-          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
 
