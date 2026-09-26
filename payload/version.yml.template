@@ -47,7 +47,6 @@ metadata:
       develop: "{{DEVELOP_BRANCH}}"
       mode: "{{BRANCH_MODE}}" # pr-flow | trunk-based
     options:
-      secret_backup: {{OPT_SECRET_BACKUP}}
       semver_auto: {{OPT_SEMVER_AUTO}}
       copilot_ai: {{OPT_COPILOT_AI}}
       deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik | none (서버 배포 워크플로우)

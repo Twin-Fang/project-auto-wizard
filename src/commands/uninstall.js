@@ -54,8 +54,7 @@ const ITEM_DEFS = [
   { key: "versionYml", label: "version.yml (버전/브랜치 설정 전체)" },
 ];
 
-// 기본 체크 상태 — 설치 시 옵션(secret-backup)이 opt-in인 것과 대칭으로,
-// 여기서는 "안전 삭제" 2종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
+// 기본 체크 상태 — "안전 삭제" 2종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
 export const SAFE_ITEMS = ["workflows", "scripts"];
 
 function detectAvailableItems(payloadRoot, targetRoot) {

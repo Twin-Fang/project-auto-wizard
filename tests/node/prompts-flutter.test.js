@@ -40,15 +40,13 @@ test("deployModeWarning: store_submit만 'main push마다 심사가 자동 제�
 });
 
 test("editMenuOptions: showFlutter가 꺼져 있으면 Flutter 항목이 없다 (기존 동작 그대로)", () => {
-  const values = (opts) => editMenuOptions(opts).map((o) => o.value);
-  assert.deepStrictEqual(values({}), ["type", "version", "branch", "done"]);
-  assert.deepStrictEqual(values({ showOptional: true }), ["type", "version", "branch", "secret", "done"]);
+  assert.deepStrictEqual(editMenuOptions().map((o) => o.value), ["type", "version", "branch", "done"]);
 });
 
 test("editMenuOptions: showFlutter면 '모두 맞음' 바로 앞에 환경변수 방식·스토어 배포 대상·배포 모드가 붙는다", () => {
-  const options = editMenuOptions({ showOptional: true, showFlutter: true });
+  const options = editMenuOptions({ showFlutter: true });
   assert.deepStrictEqual(options.map((o) => o.value),
-    ["type", "version", "branch", "secret", "envMode", "flutterStore", "deployMode", "done"]);
+    ["type", "version", "branch", "envMode", "flutterStore", "deployMode", "done"]);
   assert.deepStrictEqual(
     options.filter((o) => ["envMode", "flutterStore", "deployMode"].includes(o.value)).map((o) => o.label),
     ["환경변수 방식", "스토어 배포 대상", "배포 모드"]);

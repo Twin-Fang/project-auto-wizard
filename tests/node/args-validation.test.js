@@ -41,10 +41,7 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.developBranch, "dev");
 });
 
-// ── L7: --secret-backup/--semver-auto 상호 모순 플래그 거부 ──
-test("parseArgs: --secret-backup --no-secret-backup 동시 지정은 CliError를 던진다", () => {
-  assert.throws(() => parseArgs(["--secret-backup", "--no-secret-backup"]), CliError);
-});
+// ── L7: --semver-auto 상호 모순 플래그 거부 ──
 
 test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--semver-auto", "--no-semver-auto"]), CliError);
@@ -56,9 +53,10 @@ test("parseArgs: 제거된 --nexus / --no-nexus 플래그는 알 수 없는 옵�
   }
 });
 
-test("parseArgs: --no-secret-backup 단독 지정은 정상 통과한다", () => {
-  const opts = parseArgs(["--no-secret-backup"]);
-  assert.strictEqual(opts.includeSecretBackup, false);
+test("parseArgs: 제거된 --secret-backup / --no-secret-backup 플래그는 알 수 없는 옵션으로 거부된다", () => {
+  for (const flag of ["--secret-backup", "--no-secret-backup"]) {
+    assert.throws(() => parseArgs([flag]), (e) => e instanceof CliError && e.message.includes(`알 수 없는 옵션: ${flag}`));
+  }
 });
 
 test("parseArgs: --type go는 지원 타입으로 통과한다", () => {

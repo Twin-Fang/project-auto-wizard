@@ -67,16 +67,3 @@ test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .t
     assert.ok(!templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml"));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
-
-test("copyWorkflows: secret-backup opt-in 파일도 copiedFiles에 담긴다", () => {
-  const target = freshTarget("paw-copied-files-secret-");
-  try {
-    const ctx = createContext({
-      mode: "full", force: true, types: ["node"], version: "1.0.0",
-      branches: { main: "main", develop: "develop", mode: "pr-flow" },
-      paths: new Map(), includeSecretBackup: true,
-    });
-    const result = copyWorkflows(ctx, PAYLOAD, target);
-    assert.ok(result.copiedFiles.includes("PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml"));
-  } finally { rmSync(target, { recursive: true, force: true }); }
-});

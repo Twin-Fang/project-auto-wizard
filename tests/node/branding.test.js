@@ -34,7 +34,7 @@ const BASE = {
   pathMarkers: new Map([["spring", "build.gradle"], ["react", "package.json"]]),
   branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
   now: "2026-07-09 00:00:00", today: "2026-07-09",
-  templateOptions: { templateVersion: "0.1.0", includeSecretBackup: false, optionsDate: "2026-07-09" },
+  templateOptions: { templateVersion: "0.1.0", optionsDate: "2026-07-09" },
 };
 
 test("buildVersionYml renders the payload template with branches metadata", () => {
@@ -48,7 +48,6 @@ test("buildVersionYml renders the payload template with branches metadata", () =
   assert.ok(out.includes('main: "main"'));
   assert.ok(out.includes('develop: "develop"'));
   assert.ok(out.includes('mode: "pr-flow"'));
-  assert.ok(out.includes("secret_backup: false"));
   assert.ok(out.includes("semver_auto: true"));
   assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
 });

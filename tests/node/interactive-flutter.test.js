@@ -166,7 +166,7 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
     });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
-    assert.deepStrictEqual(calls.editMenu[0], { showOptional: true, showFlutter: true });
+    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: true });
     assert.deepStrictEqual(calls.envMode[1], { initialValue: "dart-define" }, "수정 시 초기값은 현재값");
     assert.deepStrictEqual(calls.deployMode[1], { platform: "android", initialValue: "store_only" });
     const vy = versionYml(target);
@@ -232,7 +232,7 @@ test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않�
     let menuRound = 0;
     io.confirmProjectMenu = async () => (++menuRound === 1 ? "edit" : "continue");
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
-    assert.deepStrictEqual(calls.editMenu[0], { showOptional: true, showFlutter: false });
+    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: false });
     assert.deepStrictEqual([calls.envMode, calls.stores, calls.deployMode], [[], [], []]);
     assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
     assert.ok(!calls.cards[0].includes("환경변수"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");

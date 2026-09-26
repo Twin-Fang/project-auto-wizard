@@ -153,7 +153,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 }
 
 // copy_workflows 본체 (동기 — 기존 호출부 무변경).
-// context: { types:[], paths:Map, includeSecretBackup, force, repoName, resolvers,
+// context: { types:[], paths:Map, force, repoName, resolvers,
 //            envValues?:Map<key,value>, envUseDefaults?:boolean }  ← env 계획(promptEnvPlan) 결과 주입점
 //            flutterStore?:string[]|null }  ← Flutter 스토어 대상 (null=필터 없음, 배열=선택된 플랫폼만)
 // hooks: { decisions?: Map<filename, 'skip'|'backup'|'template'>,   — 진짜 충돌(changed) 결정
@@ -161,7 +161,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
 //        미지정 파일은 'skip'(현행 force 동작 100% 유지). 대화형 수집은 copyWorkflowsInteractive 참조.
 // 반환: {copied, skipped, templateAdded, optionalCopied, backupAdded, autoUpdated, keptLocal, removedKept, restoredFiles}
 export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}) {
-  const { types = [], paths = new Map(), includeSecretBackup = false, repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
+  const { types = [], paths = new Map(), repoName = "", resolvers = {}, envValues = new Map(), envUseDefaults = true } = context;
   const decisions = hooks.decisions instanceof Map ? hooks.decisions : new Map();
   const restoreRemoved = hooks.restoreRemoved instanceof Set ? hooks.restoreRemoved : new Set();
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
@@ -210,23 +210,6 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
     const asks = new Map();
     copyWorkflowsForType(type, projectTypesDir, workflowsDir, { ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
     if (asks.size) deployValues.set(type, asks);
-  }
-
-  // (5) common/secret-backup — 있으면 무조건 스킵/신규만 복사
-  const secretDir = join(commonDir, "secret-backup");
-  if (exists(secretDir) && includeSecretBackup) {
-    for (const filename of listYamlFiles(secretDir)) {
-      const dst = join(workflowsDir, filename);
-      if (existsSync(dst)) continue; // 이미 존재하면 스킵
-      writeText(dst, srcText(join(secretDir, filename)));
-      // 이 경로는 타입별 복사 루프 밖이라 env 치환 루프가 닿지 않는다. 여기서 직접 걸어주지
-      // 않으면 이 파일의 @wizard 마커가 통째로 무시돼 __PROJECT_NAME__ 같은 값이 그대로 설치된다.
-      configureEnv(dst, envOptsFor("common"));
-      counters.optionalCopied++;
-      counters.copied++;
-      counters.copiedFiles.push(filename);
-      baselineTargets.set(filename, { srcPath: join(secretDir, filename), envOpts: envOptsFor("common"), wrote: true });
-    }
   }
 
   counters.baselineTargets = baselineTargets; // 호출부(runFull)가 env 치환 완료 후 baseline을 기록한다
@@ -386,7 +369,7 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
 // changed뿐 아니라 newFiles/unchanged까지 전부 반환한다는 점이 listWorkflowConflicts(changed만
 // 반환)와 다르다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
 export function planWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), includeSecretBackup = false, repoName = "", resolvers = {}, flutterStore = null } = context;
+  const { types = [], paths = new Map(), repoName = "", resolvers = {}, flutterStore = null } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
@@ -411,16 +394,6 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
     const envOpts = { type: "common", projectPath: ".", repoName, resolvers };
     merge(classify(commonDir, workflowsDir, envOpts, srcText, baseline), "common",
       branchMode === "trunk-based" ? TRUNK_BASED_EXCLUDED : null);
-  }
-
-  // secret-backup은 copyWorkflows처럼 신규 파일만 대상(기존 파일은 절대 덮어쓰지 않는 규약) —
-  // classify()의 changed 판정과 무관하게, 여기서도 존재 여부만으로 new/unchanged를 가른다.
-  const secretDir = join(commonDir, "secret-backup");
-  if (exists(secretDir) && includeSecretBackup) {
-    for (const filename of listYamlFiles(secretDir)) {
-      const dst = join(workflowsDir, filename);
-      plan[existsSync(dst) ? "unchanged" : "newFiles"].push({ filename, type: "common" });
-    }
   }
 
   for (const type of types) {

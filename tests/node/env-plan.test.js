@@ -21,12 +21,6 @@ function makeFixturePayload() {
       "",
     ].join("\n"),
   );
-  const secretDir = join(commonDir, "secret-backup");
-  mkdirSync(secretDir, { recursive: true });
-  writeFileSync(
-    join(secretDir, "PROJECT-COMMON-SECRET.yaml"),
-    ["name: SECRET", "env:", '  SECRET_ONLY: "x" # @wizard ask:x', ""].join("\n"),
-  );
   return root;
 }
 
@@ -44,28 +38,8 @@ test("collectAsks: common/ 최상위는 types가 비어 있어도 무조건 스�
   }
 });
 
-test("collectAsks: common/secret-backup/은 includeSecretBackup=false면 여전히 제외된다", () => {
-  const root = makeFixturePayload();
-  try {
-    const asks = collectAsks(root, [], { includeSecretBackup: false });
-    assert.ok(!asks.keys.includes("SECRET_ONLY"));
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("collectAsks: common/secret-backup/은 includeSecretBackup=true면 포함된다", () => {
-  const root = makeFixturePayload();
-  try {
-    const asks = collectAsks(root, [], { includeSecretBackup: true });
-    assert.ok(asks.keys.includes("SECRET_ONLY"));
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("collectAsks: 실제 payload의 secret-backup 전용 키(SERVER_BASE_PATH)는 기본적으로 제외된다 (회귀)", () => {
-  const asks = collectAsks(resolvePayloadRoot(), [], { includeSecretBackup: false });
+test("collectAsks: 모든 common ask 키에 SERVER_BASE_PATH가 없다 (회귀)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), []);
   assert.ok(!asks.keys.includes("SERVER_BASE_PATH"));
 });
 

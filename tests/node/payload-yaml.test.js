@@ -7,7 +7,7 @@ const files = readdirSync("payload/workflows", { recursive: true })
   .filter((f) => /\.ya?ml$/.test(String(f)))
   .map((f) => join("payload/workflows", String(f)));
 
-// Task 10에서 타입별 워크플로우 이식 완료 — common 4 + secret-backup 1 + 타입별 22
+// Task 10에서 타입별 워크플로우 이식 완료 — common 6 + 타입별 23
 test("payload workflows exist", () => assert.ok(files.length >= 20, `expected >= 20, got ${files.length}`));
 
 test("no hardcoded branch literals outside placeholders", () => {

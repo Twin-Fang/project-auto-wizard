@@ -24,7 +24,7 @@ export function readTemplateVersion() {
   }
 }
 
-// payload/workflows/common 직하위 yaml 목록 (secret-backup 하위 폴더 제외 — 복사 엔진과 동일 규약).
+// payload/workflows/common 직하위 yaml 목록.
 export function listCommonWorkflows(payloadRoot = resolvePayloadRoot()) {
   return listYamlFiles(join(payloadRoot, "workflows", "common"));
 }

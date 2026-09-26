@@ -24,7 +24,6 @@ export function createContext(overrides = {}) {
     branch: "",
     branches: null,          // { main, develop, mode: "pr-flow"|"trunk-based" } — resolveBranchConfig 결과
     paths: new Map(),        // type -> path
-    includeSecretBackup: null,
     includeSemverAuto: null, // null=미설정(다운스트림에서 true로 해석), true/false=명시
     includeCopilotAi: null,  // null=미설정(다운스트림에서 false로 해석), true/false=명시 — Copilot AI 요약 opt-in
     // Flutter 옵션 (이슈 #131) — Flutter 타입이 없는 프로젝트에서는 전부 무시된다.

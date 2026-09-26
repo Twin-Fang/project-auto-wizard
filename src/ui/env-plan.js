@@ -40,7 +40,7 @@ export function scopeString(usages = []) {
 // 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
-  const { resolvers = {}, includeSecretBackup = false, deployStyle = "", flutterStore = null, prompts = null } = opts;
+  const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null } = opts;
   // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
   const keepDeploy = deployFilter(deployStyle);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
@@ -50,9 +50,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const usages = new Map();
 
   // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
-  // 동일 규칙 — issue #94) 무조건 스캔한다. secret-backup은 common 최상위가 아니라 그 하위
-  // 폴더고, 파일 전체가 조건부로 설치되므로 포함하기로 한 경우에만 별도로 스캔한다 (이슈 #82) —
-  // 종전에는 스캔 대상이 아니어서 my-project 같은 예시값이 질문 없이 그대로 설치됐다.
+  // 동일 규칙 — issue #94) 무조건 스캔한다.
   const units = [];
   const commonDir = join(baseDir, "common");
   if (exists(commonDir)) units.push(["common", commonDir, null]);
@@ -72,7 +70,6 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
       units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
     }
   }
-  if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 
   for (const [type, dir, fileFilter] of units) {
     if (!exists(dir)) continue;
@@ -190,10 +187,10 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
 //   log        — 카드·안내 출력 함수 주입 (기본 stderr)
 export async function promptEnvPlan({
   payloadRoot, types = [], io = null, force = false, resolvers = {},
-  includeSecretBackup = false, deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
+  deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
 } = {}) {
   const prompts = loadWizardPrompts(targetRoot, payloadRoot);
-  const asks = collectAsks(payloadRoot, types, { resolvers, includeSecretBackup, deployStyle, flutterStore, prompts });
+  const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts });
   const defaults = asks.defaults;
 
   // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)

@@ -34,18 +34,14 @@ export async function confirmProjectMenu() {
   });
 }
 
-// 수정 메뉴 항목 — showOptional=full/workflows에서만 secret 노출,
-// showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출 (이슈 #131).
+// 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출 (이슈 #131).
 // 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
-export function editMenuOptions({ showOptional = false, showFlutter = false } = {}) {
+export function editMenuOptions({ showFlutter = false } = {}) {
   const options = [
     { value: "type", label: "프로젝트 타입" },
     { value: "version", label: "버전" },
     { value: "branch", label: "기본 브랜치" },
   ];
-  if (showOptional) {
-    options.push({ value: "secret", label: "Secret 백업 포함 여부" });
-  }
   if (showFlutter) {
     options.push({ value: "envMode", label: "환경변수 방식" });
     options.push({ value: "flutterStore", label: "스토어 배포 대상" });
@@ -56,8 +52,8 @@ export function editMenuOptions({ showOptional = false, showFlutter = false } = 
 }
 
 // 수정 메뉴 — 어떤 항목을 고칠지.
-export async function editMenu({ showOptional = false, showFlutter = false } = {}) {
-  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showOptional, showFlutter }) });
+export async function editMenu({ showFlutter = false } = {}) {
+  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter }) });
 }
 
 const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];

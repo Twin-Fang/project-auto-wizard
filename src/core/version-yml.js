@@ -44,13 +44,12 @@ const FLUTTER_OPTION_KEYS = {
 };
 
 // metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
-// 반환: { secretBackup: bool|null, semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
+// 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
 //         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
-// (options-ask.js가 이 함수를 import한다 — 순환 방지 위해 여기(version-yml)에 정의.)
 export function parseTemplateOptions(content) {
   const out = {
-    secretBackup: null, semverAuto: null, copilotAi: null, deployStyle: null,
+    semverAuto: null, copilotAi: null, deployStyle: null,
     envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
   };
   // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
@@ -63,14 +62,7 @@ export function parseTemplateOptions(content) {
     if (/^\s*template:/.test(line)) { inTemplate = true; continue; }
     if (inTemplate && /^\s+options:/.test(line)) { inOptions = true; continue; }
     if (inTemplate && inOptions) {
-      let m = line.match(/^\s+secret_backup:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.secretBackup = true;
-        if (v === "false") out.secretBackup = false;
-        continue;
-      }
-      m = line.match(/^\s+deploy_style:\s*(.+)/);
+      let m = line.match(/^\s+deploy_style:\s*(.+)/);
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(/^\s+(env_mode|flutter_store|android_deploy_mode|ios_deploy_mode):\s*(.+)/);
       if (m) { const v = strip(m[2]); if (v) out[FLUTTER_OPTION_KEYS[m[1]]] = v; continue; }
@@ -139,7 +131,7 @@ export function parseExisting(content) {
       if (/^\S/.test(l)) break;
     }
   }
-  // 선택 워크플로우 옵션 (metadata.template.options — secret_backup)
+  // 선택 워크플로우 옵션 (metadata.template.options)
   const options = parseTemplateOptions(text);
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
@@ -193,7 +185,7 @@ function buildFlutterOptionsBlock({ envMode, stores, androidDeployMode, iosDeplo
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
 //   pathMarkers = Map<type, markerFilename> (project_paths 주석용)
-//   templateOptions = { templateVersion, includeSecretBackup, optionsDate }
+//   templateOptions = { templateVersion, optionsDate }
 export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
@@ -203,7 +195,7 @@ export function buildVersionYml({
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
-    templateVersion = "unknown", includeSecretBackup = false,
+    templateVersion = "unknown",
     includeSemverAuto = true, includeCopilotAi = false, deployStyle = "", optionsDate = today,
   } = templateOptions || {};
 
@@ -242,7 +234,6 @@ export function buildVersionYml({
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
-    OPT_SECRET_BACKUP: String(includeSecretBackup),
     OPT_SEMVER_AUTO: String(includeSemverAuto),
     OPT_COPILOT_AI: String(includeCopilotAi),
     OPT_DEPLOY_STYLE: String(deployStyle || ""),
@@ -274,14 +265,14 @@ export function buildVersionYml({
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null,
-    includeSecretBackup = false, includeSemverAuto, includeCopilotAi, deployStyle,
+    includeSemverAuto, includeCopilotAi, deployStyle,
     envMode, flutterStore, androidDeployMode, iosDeployMode } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
     deployValues, extraTopLevel,
     flutterOptions: { envMode, stores: flutterStore, androidDeployMode, iosDeployMode },
     templateOptions: {
-      templateVersion, includeSecretBackup,
+      templateVersion,
       includeSemverAuto: includeSemverAuto !== false,
       includeCopilotAi: includeCopilotAi === true,
       deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,

@@ -30,7 +30,7 @@ export function printDetectionLog({ types = [], version = "", branch = "", marke
 
 // 층3 — 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
-  includeSecretBackup = null, paths = new Map(), showOptional = false,
+  paths = new Map(), showOptional = false,
   flutter = null, envModeDefault = "" },
   out = (s) => process.stderr.write(s)) {
   out(`${HEAD}  ${paint("프로젝트 분석 결과", A.bold)}\n`);
@@ -40,7 +40,6 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
   row("🌿", "브랜치", branch);
   if (modeLabel || mode) row("💫", "통합 모드", modeLabel || mode);
   if (showOptional) {
-    row("🔐", "Secret백업", includeSecretBackup === true ? paint("포함", A.green) : paint("제외", A.dim));
     // Flutter 옵션 (이슈 #131 fable5.1 리뷰 Important #1) — 확정 직전 화면에서도 선택값을 보여준다.
     if (flutter && types.includes("flutter")) {
       const stores = flutter.stores ?? [];

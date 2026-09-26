@@ -10,7 +10,6 @@ import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
 import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection } from "../core/branches.js";
-import { askAllOptionalWorkflows } from "../core/options-ask.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
@@ -85,10 +84,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
-  let includeSecretBackup = existing?.options?.secretBackup ?? false;
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
   let includeCopilotAi = existing?.options?.copilotAi ?? null;
-  // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (secret_backup과 같은 규약).
+  // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
   let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
@@ -127,16 +125,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  // 선택 워크플로우(Secret) 질문 (.sh ask_all_optional_workflows L2707 — full/workflows만)
+  // 선택 워크플로우 질문 — full/workflows만
   if (showOptional) {
-    const r = await askAllOptionalWorkflows({
-      payloadRoot: payload, types, targetRoot: cwd,
-      current: { secretBackup: existing?.options?.secretBackup ?? null },
-      force: false, tty: realTty,
-      io: { confirm: ({ message, initialValue }) => io.askYesNo(message, initialValue) },
-    });
-    includeSecretBackup = r.secretBackup;
-
     // 서버 배포 방식 (이슈 #80).
     if (!isDeployStyle(deployStyle)) {
       const picked = await io.selectDeployStyle();
@@ -171,9 +161,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   while (!confirmed) {
     // 층3 — 프로젝트 분석 개요 카드 (#446). 스텁엔 없음 → note 폴백.
     if (io.analysisCard) {
-      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, includeSecretBackup, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault });
+      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault });
     } else {
-      io.note?.(summarize({ mode, types, version, branch, includeSecretBackup, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
+      io.note?.(summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
     }
     const choice = await io.confirmProjectMenu();
     if (choice === "cancel") { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
@@ -182,7 +172,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // edit 루프
     let editing = true;
     while (editing) {
-      const what = await io.editMenu({ showOptional, showFlutter: showOptional && types.includes("flutter") });
+      const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter") });
       if (isCancel(what) || what === "done") { editing = false; break; }
       if (what === "type") {
         const t = await io.selectTypes(types);
@@ -202,9 +192,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       } else if (what === "branch") {
         const b = await io.askText("기본 브랜치", branch);
         if (!isCancel(b) && b) branch = b;
-      } else if (what === "secret") {
-        const y = await io.askYesNo("Secret 백업 워크플로우를 포함할까요?", includeSecretBackup);
-        if (!isCancel(y)) includeSecretBackup = y === true;
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
@@ -268,7 +255,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (showOptional) {
     const plan = await promptEnvPlan({
       payloadRoot: payload, types, io: io.engineIo ?? null, force: false,
-      resolvers, includeSecretBackup, deployStyle, targetRoot: cwd, repoName,
+      resolvers, deployStyle, targetRoot: cwd, repoName,
       flutterStore: flutterOptions.stores, // 선택 해제된 스토어 워크플로우의 ask 질문은 묻지 않는다 (D2 env-plan)
     });
     envValues = plan.values;
@@ -279,7 +266,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const { now, today } = clock || utcNow();
   const ctx = createContext({
     mode, force: true, types, version, versionCode, branch, branches, paths,
-    includeSecretBackup,
     includeSemverAuto,
     includeCopilotAi,
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
@@ -378,7 +364,7 @@ export async function pickBranch(io, message, def, remoteBranches, isCancel) {
   return isCancel(v) || !v ? def : v;
 }
 
-function summarize({ mode, types, version, branch, includeSecretBackup, showOptional, flutter, envModeDefault }) {
+function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault }) {
   const lines = [
     `통합 모드 : ${modeLabel(mode)}`,
     `프로젝트 타입 : ${types.join(", ")}${types.length > 1 ? " (멀티)" : ""}`,
@@ -386,7 +372,6 @@ function summarize({ mode, types, version, branch, includeSecretBackup, showOpti
     `기본 브랜치 : ${branch}`,
   ];
   if (showOptional) {
-    lines.push(`Secret 백업 : ${includeSecretBackup ? "포함" : "제외"}`);
     if (types.includes("flutter")) {
       const stores = flutter.stores ?? [];
       const modeParts = stores.map((p) => `${p}=${(p === "android" ? flutter.androidDeployMode : flutter.iosDeployMode) || DEFAULT_DEPLOY_MODE}`);

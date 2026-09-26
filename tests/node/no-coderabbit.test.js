@@ -84,7 +84,7 @@ test("구 version.yml에 남은 coderabbit 키는 파싱 에러 없이 무시된
 
   const parsed = parseTemplateOptions(legacy);
   assert.strictEqual("nexus" in parsed, false);
-  assert.strictEqual(parsed.secretBackup, false);
+  assert.strictEqual("secretBackup" in parsed, false);
   assert.strictEqual(parsed.semverAuto, true, "coderabbit 키 뒤의 semver_auto도 정상 파싱되어야 한다");
   assert.ok(!("coderabbit" in parsed), "coderabbit은 파싱 결과에 남으면 안 된다");
 });

@@ -1,6 +1,6 @@
 // Flutter 앱 소유 파일(fastlane·ExportOptions.plist) 설치 (이슈 #131).
 // 워크플로우와 달리 사용자가 값을 채워 넣는 파일이라 "없을 때만 생성"한다 — 덮어쓰지 않고 baseline
-// 3-way도 적용하지 않는다(copyWorkflows의 secret-backup 경로와 같은 선례). 원본 갱신을 기존 사용자에게
+// 3-way도 적용하지 않는다(기존 사용자 파일을 덮어쓰지 않는 규약). 원본 갱신을 기존 사용자에게
 // 전파하는 것은 범위 밖이다.
 import { join, posix } from "node:path";
 import { existsSync } from "node:fs";

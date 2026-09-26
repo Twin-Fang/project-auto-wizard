@@ -12,7 +12,6 @@ export function parseArgs(argv) {
     version: "",             // 통합 대상 프로젝트의 초기 버전 (--project-version)
     types: [],
     primaryType: "",
-    includeSecretBackup: null,
     includeSemverAuto: null,  // --semver-auto / --no-semver-auto (기본 true — 미지정 시 다운스트림에서 해석)
     includeCopilotAi: null,   // --copilot / --no-copilot (기본 false — AI Credits를 소비하는 opt-in)
     pathsCsv: "",            // "flutter=app,react=client" 원문 (정규화는 resolve 단계)
@@ -121,12 +120,6 @@ export function parseArgs(argv) {
         }
         result.iosDeployMode = v; break;
       }
-      case "--secret-backup":
-        if (seenFlags.has("--no-secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
-        seenFlags.add("--secret-backup"); result.includeSecretBackup = true; break;
-      case "--no-secret-backup":
-        if (seenFlags.has("--secret-backup")) throw new CliError("--secret-backup과 --no-secret-backup은 동시에 지정할 수 없습니다");
-        seenFlags.add("--no-secret-backup"); result.includeSecretBackup = false; break;
       case "--semver-auto":
         if (seenFlags.has("--no-semver-auto")) throw new CliError("--semver-auto와 --no-semver-auto는 동시에 지정할 수 없습니다");
         seenFlags.add("--semver-auto"); result.includeSemverAuto = true; break;

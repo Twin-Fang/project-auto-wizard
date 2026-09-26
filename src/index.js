@@ -284,7 +284,6 @@ async function runInner(argv, {
     branches,
     paths,
     // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
-    includeSecretBackup: opts.includeSecretBackup ?? existing?.options?.secretBackup ?? false,
     // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
     // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
     // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
