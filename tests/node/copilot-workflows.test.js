@@ -33,10 +33,11 @@ for (const name of NAMES) {
     assert.match(install.slice(0, 500), /npm install -g @github\/copilot@\d+\.\d+\.\d+/);
   });
 
-  test(`${name}: AI 스텝이 COPILOT_AI와 COPILOT_MODEL을 전달한다`, () => {
-    const body = read(payloadPath(name));
-    assert.ok(body.includes("COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}"));
-    assert.ok(body.includes("COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}"));
+  test(`${name}: AI 스텝이 COPILOT_AI를 전달하고 모델은 지정하지 않는다`, () => {
+    assert.ok(read(payloadPath(name)).includes("COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}"));
+    for (const path of [payloadPath(name), dogfoodPath(name)]) {
+      assert.ok(!read(path).includes("COPILOT_MODEL"), `${path}: 모델 오버라이드 전달이 남아 있다 (Free/Student는 auto만 허용)`);
+    }
   });
 
   test(`${name}: 도그푸딩 사본의 Copilot 관련 줄이 payload와 같다`, () => {

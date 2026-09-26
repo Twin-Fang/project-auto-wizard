@@ -694,7 +694,8 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
 
 # ------------------------ ai-summary 엔진 체인 ------------------------
 
-_COPILOT_DEFAULT_MODEL = "claude-haiku-4.5"
+# Copilot Free/Student 계정은 모델명 지정이 거부되고 auto 모델 선택만 허용된다 (#153).
+_COPILOT_MODEL = "auto"
 _COPILOT_TIMEOUT_SECONDS = 90
 
 
@@ -729,14 +730,13 @@ def call_copilot_cli(prompt: str) -> str:
     빈 임시 디렉터리에서 실행하고, shell/write/url 도구를 거부하며, 내장 MCP와
     커스텀 지침 로딩을 끈다.
     실패(비정상 종료·타임아웃·CLI 없음)는 예외로 올려 호출부가 fallback한다."""
-    model = os.environ.get('COPILOT_MODEL') or _COPILOT_DEFAULT_MODEL
     with tempfile.TemporaryDirectory() as workdir:
         result = subprocess.run(
             [
                 'copilot', '-p', prompt, '-s',
                 '--no-ask-user', '--no-color', '--no-custom-instructions', '--disable-builtin-mcps',
                 '--deny-tool=shell', '--deny-tool=write', '--deny-tool=url',
-                '--model', model,
+                '--model', _COPILOT_MODEL,
             ],
             cwd=workdir, stdin=subprocess.DEVNULL,
             capture_output=True, text=True, timeout=_COPILOT_TIMEOUT_SECONDS,

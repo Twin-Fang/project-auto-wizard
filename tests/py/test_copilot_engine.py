@@ -70,14 +70,15 @@ class TestCallCopilotCli(unittest.TestCase):
             self.assertIn(flag, args)
         for forbidden in ("--allow-all-tools", "--allow-all", "--yolo", "--allow-all-paths", "--allow-all-urls"):
             self.assertNotIn(forbidden, args)
-        self.assertEqual(args[args.index("--model") + 1], changelog_manager._COPILOT_DEFAULT_MODEL)
+        self.assertEqual(args[args.index("--model") + 1], "auto")
 
-    def test_model_can_be_overridden_by_env(self):
+    def test_model_is_always_auto_even_if_copilot_model_env_is_set(self):
+        # Copilot Free/Student는 auto만 허용하므로 모델명 오버라이드를 지원하지 않는다.
         changelog_manager.os.environ["COPILOT_MODEL"] = "my-model"
         with patch.object(changelog_manager.subprocess, "run", return_value=_completed("ok")) as mock_run:
             changelog_manager.call_copilot_cli("PROMPT")
         args = mock_run.call_args.args[0]
-        self.assertEqual(args[args.index("--model") + 1], "my-model")
+        self.assertEqual(args[args.index("--model") + 1], "auto")
 
     def test_runs_in_empty_temp_dir_with_timeout_and_no_stdin(self):
         seen = {}

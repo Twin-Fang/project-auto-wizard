@@ -193,7 +193,6 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
-          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           # Idempotency: on a re-run of a failed job the checked-out HEAD may
           # already be this workflow's own docs commit — never bump twice.
