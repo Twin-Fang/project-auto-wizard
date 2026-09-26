@@ -1,15 +1,46 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-09-26T09:42:31Z",
-    "currentVersion": "0.12.1",
+    "lastUpdated": "2026-09-26T17:25:10Z",
+    "currentVersion": "0.12.2",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 24
+    "totalReleases": 25
   },
   "releases": [
+    {
+      "version": "0.12.2",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-09-26",
+      "pr_number": 244,
+      "raw_summary": "## [0.12.2]\n\n### 🐛 수정\n- Copilot_기본_모델_claude_haiku_4_5_이_Actions에서_거부되어_기본_상태로는_AI_요약과_SemVer_보조_판정이_동작하지_않음 — Copilot 호출을 auto 모델로 고정하고 COPILOT_MODEL 오버라이드 제거\n\n### 📝 문서\n- Copilot auto 모델 고정 구현 계획 작성 (#153)\n\n### 🔧 변경사항\n- develop 브랜치 병합 (#153)\n- Playwright MCP 산출물 디렉터리를 gitignore에 추가 (#153)",
+      "parsed_changes": {
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "Copilot_기본_모델_claude_haiku_4_5_이_Actions에서_거부되어_기본_상태로는_AI_요약과_SemVer_보조_판정이_동작하지_않음 — Copilot 호출을 auto 모델로 고정하고 COPILOT_MODEL 오버라이드 제거"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "Copilot auto 모델 고정 구현 계획 작성 (#153)"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "develop 브랜치 병합 (#153)",
+            "Playwright MCP 산출물 디렉터리를 gitignore에 추가 (#153)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.12.1",
       "project_types": [
