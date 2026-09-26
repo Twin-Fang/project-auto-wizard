@@ -1,4 +1,4 @@
-// #131: Flutter 워크플로우 7종(CI·FIREBASE·SELFHOSTED·TEST-APK·PLAYSTORE·IOS-TESTFLIGHT·IOS-TEST-TESTFLIGHT)의
+// Flutter 워크플로우 7종(CI·FIREBASE·SELFHOSTED·TEST-APK·PLAYSTORE·IOS-TESTFLIGHT·IOS-TEST-TESTFLIGHT)의
 // FLUTTER_PROJECT_DIR 정비, 환경변수 모드(dart-define|dotenv), fastlane 정리, main push paths 앵커를 고정한다.
 // 파일별 Task가 이 파일에 케이스를 이어서 추가한다 — 아래 헬퍼를 재사용한다.
 import { test } from "node:test";

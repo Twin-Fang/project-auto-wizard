@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";
 import { HELP_TEXT } from "../../src/cli/help.js";
 
-// ── L5: --type/--paths 타입명 내부 공백 처리 통일 ──────────────────
+// ── --type/--paths 타입명 내부 공백 처리 통일 ──────────────────
 test("parsePathsCsv: 타입명 내부 공백은 --type과 동일하게 전부 제거되어 정규화된다", () => {
   const map = parsePathsCsv("re act=.");
   assert.strictEqual(map.get("react"), ".");
@@ -16,7 +16,7 @@ test("parsePathsCsv: 여러 항목 중 하나에만 내부 공백이 있어도 �
   assert.strictEqual(map.get("react"), "client");
 });
 
-// ── L6: --main-branch/--develop-branch 빈 문자열 명시 거부 ──────────
+// ── --main-branch/--develop-branch 빈 문자열 명시 거부 ──────────
 test("parseArgs: --main-branch \"\"(빈 값 명시)는 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--main-branch", ""]), CliError);
 });
@@ -41,31 +41,22 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.developBranch, "dev");
 });
 
-// ── L7: --nexus/--secret-backup/--semver-auto 상호 모순 플래그 거부 ──
-test("parseArgs: --nexus --no-nexus 동시 지정은 CliError를 던진다", () => {
-  assert.throws(() => parseArgs(["--nexus", "--no-nexus"]), CliError);
-});
-
-test("parseArgs: --no-nexus --nexus (순서 반대)도 CliError를 던진다", () => {
-  assert.throws(() => parseArgs(["--no-nexus", "--nexus"]), CliError);
-});
-
-test("parseArgs: --secret-backup --no-secret-backup 동시 지정은 CliError를 던진다", () => {
-  assert.throws(() => parseArgs(["--secret-backup", "--no-secret-backup"]), CliError);
-});
+// ── --semver-auto 상호 모순 플래그 거부 ──
 
 test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--semver-auto", "--no-semver-auto"]), CliError);
 });
 
-test("parseArgs: --nexus 단독 지정은 정상 통과한다", () => {
-  const opts = parseArgs(["--nexus"]);
-  assert.strictEqual(opts.includeNexus, true);
+test("parseArgs: 제거된 --nexus / --no-nexus 플래그는 알 수 없는 옵션으로 거부된다", () => {
+  for (const flag of ["--nexus", "--no-nexus"]) {
+    assert.throws(() => parseArgs([flag]), (e) => e instanceof CliError && e.message.includes(`알 수 없는 옵션: ${flag}`));
+  }
 });
 
-test("parseArgs: --no-secret-backup 단독 지정은 정상 통과한다", () => {
-  const opts = parseArgs(["--no-secret-backup"]);
-  assert.strictEqual(opts.includeSecretBackup, false);
+test("parseArgs: 제거된 --secret-backup / --no-secret-backup 플래그는 알 수 없는 옵션으로 거부된다", () => {
+  for (const flag of ["--secret-backup", "--no-secret-backup"]) {
+    assert.throws(() => parseArgs([flag]), (e) => e instanceof CliError && e.message.includes(`알 수 없는 옵션: ${flag}`));
+  }
 });
 
 test("parseArgs: --type go는 지원 타입으로 통과한다", () => {
@@ -74,7 +65,7 @@ test("parseArgs: --type go는 지원 타입으로 통과한다", () => {
   assert.strictEqual(opts.primaryType, "go");
 });
 
-// ── Flutter 옵션 플래그 (이슈 #131) ─────────────────────────────
+// ── Flutter 옵션 플래그 ─────────────────────────────
 const cliErrorMatching = (re) => (e) => e instanceof CliError && re.test(e.message);
 
 test("parseArgs: Flutter 옵션 플래그를 지정하지 않으면 '미지정' 값이다", () => {

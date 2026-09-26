@@ -1,5 +1,5 @@
 // tests/node/interactive-branch-strategy.test.js
-// 이슈 #93 — 브랜치 전략(pr-flow/trunk-based)을 먼저 명시적으로 선택한 뒤,
+// 브랜치 전략(pr-flow/trunk-based)을 먼저 명시적으로 선택한 뒤,
 // trunk-based면 개발 브랜치 질문을 생략하는지 검증한다.
 import { test } from "node:test";
 import assert from "node:assert";

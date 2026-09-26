@@ -35,8 +35,6 @@ test("listCommonWorkflows returns the 6 common workflows incl. RELEASE-PUBLISH a
     "PROJECT-COMMON-RELEASE-PUBLISH.yaml",
     "PROJECT-COMMON-VERSION-CONTROL.yaml",
   ]) assert.ok(names.includes(wf), `${wf} missing`);
-  // secret-backup은 하위 폴더 — 직하위 목록엔 포함되지 않는다 (opt-in 별도 복사 규약)
-  assert.ok(!names.includes("PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml"));
 });
 
 test("no residual imports of excluded modules in src/", () => {

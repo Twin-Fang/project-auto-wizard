@@ -7,9 +7,9 @@ const SEPARATOR = "────────────────────�
 
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
-    // 설치 후 검증·기록 (#79, #80, #81)
+    // 설치 후 검증·기록
     answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
-    // Flutter 스토어 배포 (이슈 #131) — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
+    // Flutter 스토어 배포 — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
     flutterApp = null, storeCleanup = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
@@ -69,7 +69,7 @@ export function printSummary(ctx) {
   err("추가된 워크플로우:");
 
   // 실제로 이번 실행에서 복사된 파일만 분류한다 (copyWorkflows()가 반환한 copiedFiles —
-  // 디렉터리 재스캔은 재실행 시 skip된 파일까지 "새로 설치됨"으로 보여주는 결함이 있었다, issue #19).
+  // 디렉터리 재스캔은 재실행 시 skip된 파일까지 "새로 설치됨"으로 보여주는 결함이 있었다).
   const commonWorkflows = [];
   const typeWorkflows = [];
   const typePrefixes = types.map((t) => `${WORKFLOW_PREFIX}-${t.toUpperCase()}-`);
@@ -96,7 +96,7 @@ export function printSummary(ctx) {
   err("     └─ issue_helper.py");
   err("");
 
-  // 입력한 환경설정 값 (#80) — 마지막으로 눈으로 검산할 기회. 종전에는 답변이 워크플로우
+  // 입력한 환경설정 값 — 마지막으로 눈으로 검산할 기회. 종전에는 답변이 워크플로우
   // YAML 안으로만 사라져, 오타를 내도 배포가 실패한 뒤에야 알 수 있었다.
   if (answers.length) {
     err("  ⚙️  적용된 환경설정:");
@@ -106,11 +106,11 @@ export function printSummary(ctx) {
     }
     err("");
   }
-  // 배포 방식을 바꿔 재설치한 경우, 이전 CD를 어떻게 처리했는지 알린다 (#80).
+  // 배포 방식을 바꿔 재설치한 경우, 이전 CD를 어떻게 처리했는지 알린다.
   printCleanup(err, enabled, "이전 배포 방식 정리", cleanup);
-  // 스토어 배포 대상을 해제한 경우도 같은 규칙으로 정리한 결과를 알린다 (#131).
+  // 스토어 배포 대상을 해제한 경우도 같은 규칙으로 정리한 결과를 알린다.
   printCleanup(err, enabled, "선택 해제한 스토어 배포 정리", storeCleanup);
-  // Fastfile·ExportOptions.plist는 사용자 소유라 없을 때만 만든다 — 만든 것과 그대로 둔 것을 나눠 보여준다 (#131).
+  // Fastfile·ExportOptions.plist는 사용자 소유라 없을 때만 만든다 — 만든 것과 그대로 둔 것을 나눠 보여준다.
   const { created: appCreated = [], kept: appKept = [] } = flutterApp || {};
   if (appCreated.length || appKept.length) {
     err("  📱 Flutter 스토어 배포 파일:");
@@ -151,7 +151,7 @@ export function printSummary(ctx) {
   let step = 0;
   const num = () => ["1️⃣ ", "2️⃣ ", "3️⃣ ", "4️⃣ ", "5️⃣ "][step++] || " •";
 
-  // 미치환 플레이스홀더 (#81) — 이 상태로는 해당 워크플로우가 동작하지 않으므로 제일 먼저 알린다.
+  // 미치환 플레이스홀더 — 이 상태로는 해당 워크플로우가 동작하지 않으므로 제일 먼저 알린다.
   if (unresolved.length) {
     err(`  ${num()} ${paint("값이 채워지지 않은 항목이 있습니다 — 직접 채워야 동작합니다", A.red, enabled)}`);
     for (const u of unresolved) {
@@ -160,7 +160,7 @@ export function printSummary(ctx) {
     err("");
   }
 
-  // 설치된 워크플로우가 실제로 요구하는 Secret (#80) — 종전에는 하나도 안내되지 않아
+  // 설치된 워크플로우가 실제로 요구하는 Secret — 종전에는 하나도 안내되지 않아
   // "설치 성공"인데 배포는 돌지 않는 상태로 끝났다.
   if (secrets.size) {
     err(`  ${num()} 아래 GitHub Secret을 등록해야 배포 워크플로우가 동작합니다 (${secrets.size}개)`);

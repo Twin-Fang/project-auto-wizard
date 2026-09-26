@@ -1,4 +1,4 @@
-// issue #8 회귀 게이트 — 상용 SaaS(CodeRabbit) 연동이 되살아나지 않는지 감시한다.
+// 회귀 게이트 — 상용 SaaS(CodeRabbit) 연동이 되살아나지 않는지 감시한다.
 // 오픈소스 대회 제출 조건상 설치 산출물·마법사 코드 어디에도 상용 서비스 연동이 있으면 안 된다.
 import { test } from "node:test";
 import assert from "node:assert";
@@ -83,8 +83,8 @@ test("구 version.yml에 남은 coderabbit 키는 파싱 에러 없이 무시된
   ].join("\n");
 
   const parsed = parseTemplateOptions(legacy);
-  assert.strictEqual(parsed.nexus, true);
-  assert.strictEqual(parsed.secretBackup, false);
+  assert.strictEqual("nexus" in parsed, false);
+  assert.strictEqual("secretBackup" in parsed, false);
   assert.strictEqual(parsed.semverAuto, true, "coderabbit 키 뒤의 semver_auto도 정상 파싱되어야 한다");
   assert.ok(!("coderabbit" in parsed), "coderabbit은 파싱 결과에 남으면 안 된다");
 });

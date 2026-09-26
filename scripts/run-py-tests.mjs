@@ -1,4 +1,4 @@
-// 파이썬 테스트 크로스플랫폼 런처 (issue #15).
+// 파이썬 테스트 크로스플랫폼 런처.
 //
 // `python3`는 Windows에 존재하지 않는다 — 있어도 Microsoft Store 스텁이라
 // 실행 시 exit 49로 죽는다. 반대로 일부 Linux 배포판에는 `python`이 없다.

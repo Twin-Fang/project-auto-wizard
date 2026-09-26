@@ -71,7 +71,7 @@ test("run(): 잘못된 --mode 값은 exit 1이며 원격 develop 브랜치를 �
   }
 });
 
-// issue #70 — 제거된 모드는 조용히 통과하면 안 된다 (#19와 같은 부류의 결함).
+// 제거된 모드는 조용히 통과하면 안 된다.
 test("parseArgs: 제거된 모드(version/workflows/revert)는 CliError로 거부된다", () => {
   for (const m of ["version", "workflows", "revert"]) {
     assert.throws(() => parseArgs(["--mode", m]), CliError, `'${m}' 모드가 여전히 통과합니다`);

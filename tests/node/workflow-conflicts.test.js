@@ -1,5 +1,5 @@
 // tests/node/workflow-conflicts.test.js
-// issue #20 H3 — common 워크플로우도 타입별과 동일한 3지선이 적용되는지 검증.
+// common 워크플로우도 타입별과 동일한 3지선이 적용되는지 검증.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";

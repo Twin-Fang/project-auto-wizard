@@ -1,5 +1,5 @@
 // --dry-run 미리보기 — 실제 파일을 쓰지 않고 무엇이 바뀔지 계산한다.
-// full/uninstall 두 모드 지원 (issue #70 — 부분 설치·되돌리기 모드 제거).
+// full/uninstall 두 모드 지원 (부분 설치·되돌리기 모드 제거).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS } from "../core/paths.js";

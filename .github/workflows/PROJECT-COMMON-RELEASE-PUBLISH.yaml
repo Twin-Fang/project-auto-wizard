@@ -1,8 +1,6 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # PROJECT-COMMON-RELEASE-PUBLISH.yaml
 # Tag + GitHub Release publisher (dual-mode)
-# ===================================================================
 #
 # Publishes a git tag (vX.Y.Z) and a GitHub Release for every release
 # that lands on main. Two branch modes, read from version.yml
@@ -38,12 +36,11 @@
 # previous run failed after the version was confirmed but before the
 # release was created). The idempotency guard keeps it safe to re-run.
 #
-# Issue #90: right after the GitHub Release is created, this self-copy
+# Right after the GitHub Release is created, this self-copy
 # (unlike the payload template) also triggers NPM-PUBLISH via
 # workflow_dispatch, since NPM-PUBLISH.yaml is a repo-only workflow that
 # doesn't exist in payload — see PROJECT-COMMON-RELEASE-PUBLISH.yaml in
 # payload/workflows/common for why that file intentionally omits this step.
-# ===================================================================
 
 name: PROJECT-RELEASE-PUBLISH
 
@@ -117,7 +114,7 @@ jobs:
 
           echo "not a release-confirm push in pr-flow mode — skipping"
 
-          # Drift guard (issue #61): skipping is normal, but a version.yml that
+          # Drift guard: skipping is normal, but a version.yml that
           # has run ahead of the newest tag is not — it means the version was
           # bumped without a release, so npm silently stays behind. Six versions
           # (0.1.26~0.1.31) went missing this way with every workflow green.

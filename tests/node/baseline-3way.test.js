@@ -1,5 +1,5 @@
 // tests/node/baseline-3way.test.js
-// issue #69 — 설치 시점 baseline 기반 3-way 분류. 목적은 자동 병합이 아니라 분류다:
+// 설치 시점 baseline 기반 3-way 분류. 목적은 자동 병합이 아니라 분류다:
 // "자동으로 안전한 경우"와 "사람이 봐야 하는 경우"를 갈라내 질문 수를 실제 충돌만큼으로 줄인다.
 import { test } from "node:test";
 import assert from "node:assert";

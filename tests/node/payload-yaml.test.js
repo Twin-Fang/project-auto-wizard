@@ -7,7 +7,7 @@ const files = readdirSync("payload/workflows", { recursive: true })
   .filter((f) => /\.ya?ml$/.test(String(f)))
   .map((f) => join("payload/workflows", String(f)));
 
-// Task 10에서 타입별 워크플로우 이식 완료 — common 4 + secret-backup 1 + 타입별 22
+// 타입별 워크플로우 이식 완료 — common 6 + 타입별 23
 test("payload workflows exist", () => assert.ok(files.length >= 20, `expected >= 20, got ${files.length}`));
 
 test("no hardcoded branch literals outside placeholders", () => {
@@ -45,7 +45,7 @@ test("no .sh script references in payload", () => {
 });
 
 // ---------------------------------------------------------------
-// #40: heredoc이 블록 스칼라(`run: |`)를 이탈해 YAML 파싱이 깨지는
+// heredoc이 블록 스칼라(`run: |`)를 이탈해 YAML 파싱이 깨지는
 // 회귀를 막는 가드. 완전한 YAML 파서가 아니라, "블록 스칼라 본문이
 // 컬럼 0 등으로 갑자기 얕아지는" 이번 버그 클래스에 특화된 검사다.
 // ---------------------------------------------------------------
@@ -135,7 +135,7 @@ test("payload 워크플로우 전체에 블록 스칼라 이탈(#40) 회귀가 �
 });
 
 // ---------------------------------------------------------------
-// AUTO-CHANGELOG-CONTROL: summary engine chain rewrite (Task 8)
+// AUTO-CHANGELOG-CONTROL: summary engine chain rewrite
 // ---------------------------------------------------------------
 const changelogPath = join(
   "payload/workflows/common",
@@ -195,7 +195,7 @@ test("AUTO-CHANGELOG-CONTROL 릴리스 문서 커밋 전에 이슈 취합 임시
 });
 
 // ---------------------------------------------------------------
-// RELEASE-PUBLISH: tag + GitHub Release, dual-mode (Task 9)
+// RELEASE-PUBLISH: tag + GitHub Release, dual-mode
 // ---------------------------------------------------------------
 const releasePath = join(
   "payload/workflows/common",
@@ -226,7 +226,7 @@ test("RELEASE-PUBLISH merges GitHub generate-notes into the release notes", () =
   assert.ok(body.includes("generate-notes"));
 });
 
-// issue #61 — 게이트가 닫혀 릴리스가 스킵되는 것 자체는 정상이지만, version.yml이
+// 게이트가 닫혀 릴리스가 스킵되는 것 자체는 정상이지만, version.yml이
 // 최신 태그보다 앞선 채 스킵되면 그 버전은 npm에 영영 닿지 않는다. 0.1.26~0.1.31
 // 여섯 버전이 모든 워크플로우가 초록불인 채로 이렇게 사라졌다.
 test("RELEASE-PUBLISH fails loudly when version.yml has drifted ahead of the newest tag (issue #61)", () => {
@@ -269,7 +269,7 @@ test("RELEASE-PUBLISH passes --diff-stat-file to ai-summary", () => {
   assert.ok(body.includes("--diff-stat-file diff_stat.txt"));
 });
 
-// #35: Release는 WORKFLOW_PAT으로 발행해야 후속 워크플로우(npm 배포)가 트리거된다.
+// Release는 WORKFLOW_PAT으로 발행해야 후속 워크플로우(npm 배포)가 트리거된다.
 // GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 깨우지 못한다.
 // PAT이 없는 사용자 레포에서도 릴리스 자체는 동작해야 하므로 폴백이 필수다.
 test("RELEASE-PUBLISH의 Release 생성은 WORKFLOW_PAT 폴백을 쓴다", () => {
@@ -296,7 +296,7 @@ test("RELEASE-PUBLISH의 도그푸딩 사본도 같은 토큰 폴백을 쓴다",
 
 // ---------------------------------------------------------------
 // PROJECT-FLUTTER-CI: Android 빌드는 서명 불필요한 debug APK를 사용해야
-// 한다 (issue #38 — keystore 없이 --release 실행 시 release 서명이
+// 한다 (keystore 없이 --release 실행 시 release 서명이
 // 구성된 프로젝트에서 항상 빌드 실패)
 // ---------------------------------------------------------------
 const flutterCiPath = join(
@@ -322,7 +322,7 @@ test("PROJECT-FLUTTER-CI의 Android 빌드는 --debug를 사용한다", () => {
 });
 
 // ---------------------------------------------------------------
-// #39: build-ios 잡에 iOS 플랫폼 SDK 설치 스텝이 없어 "Platform Not
+// build-ios 잡에 iOS 플랫폼 SDK 설치 스텝이 없어 "Platform Not
 // Installed"로 빌드 실패 — Select Xcode version 직후 설치 스텝 필요.
 // ---------------------------------------------------------------
 test("FLUTTER-CI의 build-ios 잡은 Select Xcode version 직후 iOS 플랫폼을 설치한다", () => {
@@ -343,7 +343,7 @@ test("FLUTTER-CI의 iOS 플랫폼 설치 스텝은 xcodebuild -downloadPlatform 
 });
 
 // ---------------------------------------------------------------
-// #42: build_runner를 쓰는 프로젝트(freezed/riverpod_generator/drift/
+// build_runner를 쓰는 프로젝트(freezed/riverpod_generator/drift/
 // json_serializable)가 CI에서 생성 파일(*.g.dart/*.freezed.dart) 부재로
 // 실패하지 않도록, flutter pub get 직후 조건부 코드 생성이 있어야 한다.
 // ---------------------------------------------------------------
@@ -420,7 +420,7 @@ test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner �
 
 // ---------------------------------------------------------------
 // ISSUE-HELPER: 외부 Chuseok22/github-issue-helper 액션 의존 제거,
-// 로컬 payload 기능으로 흡수 (issue #68)
+// 로컬 payload 기능으로 흡수
 // ---------------------------------------------------------------
 const issueHelperPath = join("payload/workflows/common", "PROJECT-COMMON-ISSUE-HELPER.yaml");
 
@@ -464,7 +464,7 @@ test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER도 permissions.contents가
 });
 
 // ---------------------------------------------------------------
-// #50: FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
+// FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
 // 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
 // 비어 배포 잡이 실패한다. FLUTTER_PROJECT_DIR로 개명하고, 경로가
 // 비었을 때 즉시 실패하도록 모든 upload-artifact 스텝에
@@ -539,7 +539,7 @@ test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", ()
 });
 
 // ---------------------------------------------------------------
-// #90: WORKFLOW_PAT 없이도 릴리스 파이프라인 후속 트리거가 끊기지 않도록,
+// WORKFLOW_PAT 없이도 릴리스 파이프라인 후속 트리거가 끊기지 않도록,
 // GITHUB_TOKEN으로도 항상 새 실행을 만드는 workflow_dispatch 신호를 세 지점에
 // 추가했다. 아래 테스트는 그 신호 발행 로직이 실제로 존재하는지,
 // WORKFLOW_PAT 폴백이 아닌 기본 토큰을 쓰는지, payload와 self-copy가
@@ -614,7 +614,7 @@ test("도그푸딩 사본 VERSION-CONTROL에도 동일한 조건부 트리거가
 
 // NPM-PUBLISH.yaml은 payload에 없는 이 저장소 전용 워크플로우다 — payload
 // 템플릿에 그 호출이 섞여 들어가면 마법사로 설치된 모든 레포가 존재하지
-// 않는 워크플로우를 매 릴리스마다 호출 시도하게 된다 (fable5 독립 검토, #90).
+// 않는 워크플로우를 매 릴리스마다 호출 시도하게 된다.
 test("RELEASE-PUBLISH payload 템플릿에는 NPM-PUBLISH 호출이 없다 (#90) — 사용자 레포에는 그 워크플로우가 없다", () => {
   const body = readFileSync(releasePath, "utf8");
   // 의도된 비대칭을 설명하는 헤더 주석은 "NPM-PUBLISH"를 언급해도 된다 —

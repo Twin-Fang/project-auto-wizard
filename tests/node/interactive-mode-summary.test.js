@@ -39,7 +39,7 @@ test("runInteractive: workflows 모드 완료 시 io.summary가 copiedFiles(새 
   }
 });
 
-// 이슈 #41 회귀 방지 — 대화형 마법사 경로에서도 감지된 빌드 번호가 ctx.versionCode에 반영돼야 한다.
+// 회귀 방지 — 대화형 마법사 경로에서도 감지된 빌드 번호가 ctx.versionCode에 반영돼야 한다.
 test("runInteractive: pubspec.yaml의 빌드 번호가 편집 없이도 ctx.versionCode에 반영된다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-buildnumber-"));
   try {
@@ -55,7 +55,7 @@ test("runInteractive: pubspec.yaml의 빌드 번호가 편집 없이도 ctx.vers
   }
 });
 
-// 이슈 #41 파이널 리뷰 Finding 1 회귀 방지 — 마법사 편집 루프에서 프로젝트 타입을 뒤늦게
+// 회귀 방지 — 마법사 편집 루프에서 프로젝트 타입을 뒤늦게
 // flutter로 바꾼 경우에도, 빌드 번호 감지가 (수정 전 stale이 아닌) 최종 확정된 types를 써야 한다.
 // 편집 루프 종료 전에 감지가 실행되면 여기서 versionCode가 42가 아닌 1로 떨어진다.
 test("runInteractive: 편집 루프에서 type을 flutter로 바꾸면 확정된 types로 빌드 번호를 감지한다", async () => {

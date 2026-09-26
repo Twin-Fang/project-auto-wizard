@@ -85,12 +85,12 @@ test("printSummary: copiedFiles를 common/타입별로 분류해서 목록과 �
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["spring"], version: "1.0.0",
-      copiedFiles: ["PROJECT-COMMON-RELEASE-PUBLISH.yaml", "PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"],
+      copiedFiles: ["PROJECT-COMMON-RELEASE-PUBLISH.yaml", "PROJECT-SPRING-CI.yml"],
     });
   });
   assert.ok(output.includes("📦 새로 설치됨 (2개):"));
   assert.ok(output.includes("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
-  assert.ok(output.includes("PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml"));
+  assert.ok(output.includes("PROJECT-SPRING-CI.yml"));
 });
 
 test("printSummary: copiedFiles가 비어 있으면(전부 skip) '새로 설치됨' 줄 자체를 출력하지 않는다", () => {

@@ -53,7 +53,7 @@ test("paint: enabled=true면 색상 코드로 감싼다", () => {
   assert.strictEqual(paint("hello", A.green, true), `${A.green}hello${A.reset}`);
 });
 
-// 이슈 #22 L2의 실제 재현 케이스(NO_COLOR=1 + `printBannerCompact` 출력에 ESC 바이트 혼입)를
+// 실제 재현 케이스(NO_COLOR=1 + `printBannerCompact` 출력에 ESC 바이트 혼입)를
 // 그대로 회귀 테스트로 고정한다. banner.js 자체는 이 계획에서 수정하지 않지만, ansi.js의 paint()가
 // 고쳐지면 banner.js도 무수정으로 함께 고쳐져야 한다.
 test("printBannerCompact: NO_COLOR=1이면 TTY여도 ESC 바이트가 출력에 섞이지 않는다", async () => {

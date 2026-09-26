@@ -1,7 +1,5 @@
 # project-auto-wizard:managed-workflow
-# ==========================================================================================
 # Flutter CI (코드 분석 및 빌드 검증) 워크플로우
-# ==========================================================================================
 #
 # 이 워크플로우는 PR 생성 또는 {{MAIN_BRANCH}} 브랜치 푸시 시
 # 코드 정적 분석(flutter analyze)과 Android/iOS 앱 빌드를 검증합니다.
@@ -22,9 +20,7 @@
 # 3. ENABLE_ANDROID, ENABLE_IOS로 빌드 대상 플랫폼 선택
 # 4. ENV_FILE_PATH로 환경변수 파일 경로 커스터마이징
 #
-# ==========================================================================================
-# 🔧 프로젝트별 설정
-# ==========================================================================================
+# 프로젝트별 설정
 #
 # ANALYZE_ONLY    : true면 analyze만 실행, 빌드 스킵 (기본: false)
 # ENABLE_ANDROID  : Android 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
@@ -37,15 +33,12 @@
 # FLUTTER_PROJECT_DIR : Flutter 루트 경로 (설치 시 자동 설정, 모노레포는 app 등)
 # PROJECT_PATH    : 변경 감지 기준 경로 (설치 시 자동 설정, "."이면 항상 실행)
 #
-# ==========================================================================================
-# 🔑 필수 GitHub Secrets
-# ==========================================================================================
+# 필수 GitHub Secrets
 # ENV_FILE (선택): .env 파일 내용
 #
 # ※ CI는 빌드 검증 목적이므로 서명/배포 관련 Secrets 불필요
 # ※ 모노레포에서 이 CI를 required check로 쓰려면 개별 job이 아니라 `ci-gate` 하나만 등록하세요.
 #    (경로가 바뀌지 않아 건너뛴 job은 Success로 집계되고, ci-gate가 최종 결과를 판정합니다)
-# ==========================================================================================
 
 name: PROJECT-Flutter-CI
 
@@ -74,25 +67,23 @@ permissions:
   contents: read
   pull-requests: write
 
-# ==========================================================================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ==========================================================================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
-  # 🎯 모노레포 변경 감지 경로 (설치 시 자동 설정, 단일 레포는 ".")
+  # 모노레포 변경 감지 경로 (설치 시 자동 설정, 단일 레포는 ".")
   PROJECT_PATH: "."  # @wizard auto:project-path
   # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
   # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
 
-  # 🎯 CI 모드 설정
+  # CI 모드 설정
   ANALYZE_ONLY: "false"     # true: analyze만 실행 (빌드 스킵), false: analyze + 빌드
 
-  # 🎯 빌드 대상 플랫폼 설정 (ANALYZE_ONLY=false일 때만 적용)
+  # 빌드 대상 플랫폼 설정 (ANALYZE_ONLY=false일 때만 적용)
   ENABLE_ANDROID: "true"    # Android 빌드 활성화 (true/false)
   ENABLE_IOS: "true"        # iOS 빌드 활성화 (true/false)
 
-  # 🔧 프로젝트별 설정
+  # 프로젝트별 설정
   FLUTTER_VERSION: "3.35.5"
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
@@ -103,9 +94,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ===================================================================
   # Job 0: 변경 감지 (PROJECT_PATH 아래가 바뀌었을 때만 이후 job 실행)
-  # ===================================================================
   changes:
     name: 변경 감지
     runs-on: ubuntu-latest
@@ -127,9 +116,7 @@ jobs:
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
 
-  # ===================================================================
   # Job 1: 준비 단계
-  # ===================================================================
   prepare:
     name: CI 준비
     needs: changes
@@ -147,7 +134,6 @@ jobs:
 
     steps:
       # 설정 값 outputs으로 전달
-      # workflow_dispatch 입력값이 있으면 우선 사용, 없으면 env 값 사용
       - name: 설정 값 전달
         id: config
         run: |
@@ -171,7 +157,6 @@ jobs:
           echo "  iOS: $ENABLE_IOS"
           echo "  트리거: ${{ github.event_name }}"
 
-      # 빌드 정보 수집
       - name: 빌드 정보 수집
         id: info
         run: |
@@ -189,7 +174,6 @@ jobs:
           echo "  브랜치: $BRANCH_NAME"
           echo "  커밋: $COMMIT_HASH"
 
-      # PR인 경우 진행 상황 댓글 생성
       - name: 진행 상황 댓글 생성
         id: comment
         if: github.event_name == 'pull_request'
@@ -261,9 +245,7 @@ jobs:
             core.setOutput('comment_id', comment.id);
             core.setOutput('start_time', startTime);
 
-  # ===================================================================
   # Job 2: 코드 분석 (병렬)
-  # ===================================================================
   analyze:
     name: 코드 분석
     runs-on: ubuntu-latest
@@ -303,7 +285,6 @@ jobs:
             echo "dart-define file prepared"
           fi
 
-      # Flutter 설정
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -315,7 +296,6 @@ jobs:
           echo "✅ Flutter setup completed"
           flutter --version
 
-      # Flutter 캐시
       - name: Cache Flutter dependencies
         uses: actions/cache@v6
         with:
@@ -323,7 +303,6 @@ jobs:
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
-      # 프로젝트 의존성 설치
       - name: Install dependencies
         run: |
           flutter pub get
@@ -332,7 +311,6 @@ jobs:
           fi
           echo "✅ Dependencies installed"
 
-      # Flutter Analyze 실행
       - name: Run Flutter Analyze
         id: analyze
         run: |
@@ -340,7 +318,6 @@ jobs:
           flutter analyze --no-fatal-infos
           echo "✅ 코드 분석 완료"
 
-      # 분석 결과 기록
       - name: 분석 결과 기록
         id: result
         if: always()
@@ -360,9 +337,7 @@ jobs:
             core.setOutput('duration', duration);
             console.log(`📋 코드 분석 결과: ${status} (${duration})`);
 
-  # ===================================================================
   # Job 3: Android 빌드 (조건부, 병렬)
-  # ===================================================================
   build-android:
     name: Android 빌드
     if: |
@@ -405,7 +380,6 @@ jobs:
             echo "dart-define file prepared"
           fi
 
-      # Flutter 설정
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -417,7 +391,6 @@ jobs:
           echo "✅ Flutter setup completed"
           flutter --version
 
-      # Flutter 캐시
       - name: Cache Flutter dependencies
         uses: actions/cache@v6
         with:
@@ -425,7 +398,6 @@ jobs:
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
-      # Gradle 캐시
       - name: Cache Gradle dependencies
         uses: actions/cache@v6
         with:
@@ -436,7 +408,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 프로젝트 의존성 설치
       - name: Install dependencies
         run: |
           flutter pub get
@@ -445,7 +416,6 @@ jobs:
           fi
           echo "✅ Dependencies installed"
 
-      # Java 설정
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -457,7 +427,6 @@ jobs:
           echo "✅ Java setup completed"
           java -version
 
-      # Gradle 셋업
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
@@ -473,7 +442,6 @@ jobs:
           echo "✅ APK 빌드 완료"
           ls -la ./build/app/outputs/flutter-apk/ || true
 
-      # 빌드 결과 기록
       - name: 빌드 결과 기록
         id: result
         if: always()
@@ -493,9 +461,7 @@ jobs:
             core.setOutput('duration', duration);
             console.log(`📋 Android 빌드 결과: ${status} (${duration})`);
 
-  # ===================================================================
   # Job 4: iOS 빌드 (조건부, 병렬)
-  # ===================================================================
   build-ios:
     name: iOS 빌드
     if: |
@@ -558,7 +524,6 @@ jobs:
             echo "dart-define file prepared"
           fi
 
-      # Flutter 설정
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -570,7 +535,6 @@ jobs:
           echo "✅ Flutter setup completed"
           flutter --version
 
-      # Flutter 캐시
       - name: Cache Flutter dependencies
         uses: actions/cache@v6
         with:
@@ -578,7 +542,6 @@ jobs:
           key: ${{ runner.os }}-flutter-pub-${{ hashFiles(format('{0}/**/pubspec.lock', env.FLUTTER_PROJECT_DIR)) }}
           restore-keys: ${{ runner.os }}-flutter-pub-
 
-      # 프로젝트 의존성 설치
       - name: Install dependencies
         run: |
           flutter pub get
@@ -587,7 +550,6 @@ jobs:
           fi
           echo "✅ Dependencies installed"
 
-      # Ruby 및 CocoaPods 설정
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -600,7 +562,6 @@ jobs:
           cd ios && pod install --repo-update || pod install
           echo "✅ CocoaPods installed"
 
-      # iOS 빌드 (서명 없이)
       - name: Build iOS
         id: build
         run: |
@@ -608,7 +569,6 @@ jobs:
           flutter build ios --release --no-codesign ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           echo "✅ iOS 빌드 완료"
 
-      # 빌드 결과 기록
       - name: 빌드 결과 기록
         id: result
         if: always()
@@ -628,9 +588,7 @@ jobs:
             core.setOutput('duration', duration);
             console.log(`📋 iOS 빌드 결과: ${status} (${duration})`);
 
-  # ===================================================================
   # Job 5: 결과 보고
-  # ===================================================================
   report:
     name: 결과 보고
     if: always() && github.event_name == 'pull_request' && needs.changes.outputs.project == 'true'
@@ -786,9 +744,7 @@ jobs:
               console.log('⚠️ 댓글 ID가 없어 업데이트를 건너뜁니다.');
             }
 
-  # ===================================================================
   # Job 6: CI Gate (required check로 등록할 단일 진입점)
-  # ===================================================================
   # 건너뛴(skipped) job은 통과로 보고 failure/cancelled가 하나라도 있으면 실패한다.
   ci-gate:
     name: CI Gate

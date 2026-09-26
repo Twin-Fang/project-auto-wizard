@@ -1,8 +1,6 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml
 # Release PR pipeline: version confirm + AI changelog + automerge
-# ===================================================================
 #
 # Runs on release PRs ({{DEVELOP_BRANCH}} -> {{MAIN_BRANCH}}) and:
 # 1. Confirms the release version and syncs every version file:
@@ -39,11 +37,10 @@
 #   (only when version.yml copilot_ai is true; optional vars.COPILOT_MODEL),
 #   then to rule-based.
 #
-# Issue #90: without WORKFLOW_PAT, a wait-for-merge-and-trigger-release job
+# Without WORKFLOW_PAT, a wait-for-merge-and-trigger-release job
 # polls until the automerge actually lands, then wakes RELEASE-PUBLISH via
 # workflow_dispatch — GITHUB_TOKEN can always trigger that event, unlike
 # the push/release events blocked by GitHub's anti-recursion policy.
-# ===================================================================
 
 name: PROJECT-AUTO-CHANGELOG-CONTROL
 

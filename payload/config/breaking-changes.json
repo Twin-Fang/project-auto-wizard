@@ -18,7 +18,7 @@
     {
       "severity": "warning",
       "title": "모노레포 CI required check는 ci-gate 하나만 등록",
-      "message": "CI 워크플로우(Flutter·Go·Next·Python·React·Spring NEXUS-CI)는 항상 실행되고 변경이 없으면 job을 건너뜁니다. required check로 쓰려면 개별 job이 아닌 CI Gate(ci-gate) 하나만 등록하세요."
+      "message": "CI 워크플로우(Flutter·Go·Next·Python·React·Spring CI)는 항상 실행되고 변경이 없으면 job을 건너뜁니다. required check로 쓰려면 개별 job이 아닌 CI Gate(ci-gate) 하나만 등록하세요."
     }
   ]
 }

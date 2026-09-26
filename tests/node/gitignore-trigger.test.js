@@ -18,7 +18,7 @@ function baseContext(overrides = {}) {
   });
 }
 
-// issue #69 — baseline 3-way 도입 이후 "사용자만 수정"은 질문 없이 유지되므로(localOnly)
+// baseline 3-way 도입 이후 "사용자만 수정"은 질문 없이 유지되므로(localOnly)
 // 충돌 결정(backup/template) 경로를 검증하려면 진짜 충돌을 만들어야 한다.
 // baseline의 rendered 해시를 어긋나게 해 "업스트림도 바뀐 것"으로 만든다.
 function forceUpstreamChange(target, filename) {
@@ -40,7 +40,7 @@ test("runFull: 충돌 없는 최초 설치는 .gitignore를 전혀 만들지 않
 });
 
 // NOTE: 아래 두 테스트는 PROJECT-PYTHON-CI.yaml(타입별 워크플로우)을 예시로 쓴다 — 특정 파일로
-// 고정해 테스트를 안정적으로 만든 것일 뿐, issue #20 H3 수정 이후로는 PROJECT-COMMON-*.yaml도
+// 고정해 테스트를 안정적으로 만든 것일 뿐, 수정 이후로는 PROJECT-COMMON-*.yaml도
 // 동일한 3지선(backup/template 결정)을 거치므로 common 파일로도 이 테스트가 성립한다.
 // (payload/workflows/python/에 파일이 존재하는지는 확인됨.)
 test("runFull: 타입별 워크플로우 충돌을 'backup'으로 처리하면 .gitignore에 *.bak이 추가된다", () => {

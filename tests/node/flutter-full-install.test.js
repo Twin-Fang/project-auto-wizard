@@ -1,5 +1,5 @@
 // tests/node/flutter-full-install.test.js
-// runFull 통합 (이슈 #131) — 실제 payload로 Flutter 앱 파일 생성과 선택 해제된 스토어 워크플로우 정리를 검증한다.
+// runFull 통합 — 실제 payload로 Flutter 앱 파일 생성과 선택 해제된 스토어 워크플로우 정리를 검증한다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";

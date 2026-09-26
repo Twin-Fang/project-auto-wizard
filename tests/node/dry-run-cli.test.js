@@ -19,7 +19,7 @@ test("parseArgs: omitting --dry-run defaults to false", () => {
 
 test("run(): --dry-run --mode full writes nothing to an empty target", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
   try {
     const code = await run(
       ["--mode", "full", "--force", "--type", "node", "--dry-run"],
@@ -55,7 +55,7 @@ test("run(): --dry-run with no --mode (interactive) errors instead of running th
 
 test("run(): --dry-run without --force bypasses the non-interactive --force gate", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
   try {
     const code = await run(
       ["--mode", "full", "--type", "node", "--dry-run"],

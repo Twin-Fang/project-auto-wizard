@@ -45,6 +45,4 @@ metadata:
       develop: "develop"
       mode: "pr-flow" # pr-flow | trunk-based
     options:
-      nexus: false
-      secret_backup: false
       semver_auto: true

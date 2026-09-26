@@ -1,8 +1,6 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # PROJECT-COMMON-VERSION-CONTROL.yaml
 # Safety-net automatic version bump
-# ===================================================================
 #
 # [Safety net] Only when a direct push (one that did not go through a
 # release PR) lands on {{MAIN_BRANCH}} (production), this workflow bumps
@@ -20,11 +18,9 @@
 # Release-confirm pattern: "chore(release):" — keep in sync with
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-RELEASE-PUBLISH.
 #
-# Issue #90 / #61: after pushing the safety-net bump, this workflow also
-# triggers RELEASE-PUBLISH via workflow_dispatch so the drift it used to
-# only detect (issue #61) is now auto-recovered instead of requiring a
-# manual re-run.
-# ===================================================================
+# After pushing the safety-net bump, this workflow also triggers
+# RELEASE-PUBLISH via workflow_dispatch so a version drift is
+# auto-recovered instead of requiring a manual re-run.
 
 name: PROJECT-VERSION-CONTROL
 

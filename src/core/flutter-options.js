@@ -1,4 +1,4 @@
-// Flutter 옵션 (이슈 #131) — 환경변수 방식·스토어 배포 대상·배포 모드의 단일 진실.
+// Flutter 옵션 — 환경변수 방식·스토어 배포 대상·배포 모드의 단일 진실.
 // 스토어 배포 대상은 deploy-style.js(배포 방식)와 같은 구조 — 값 목록, 파일 필터, 선택 해제 정리 — 를 따른다.
 import { join } from "node:path";
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";

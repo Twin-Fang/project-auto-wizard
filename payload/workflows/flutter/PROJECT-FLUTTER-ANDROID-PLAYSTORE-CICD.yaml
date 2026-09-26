@@ -1,14 +1,10 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter Android Play Store 내부 테스트 배포 워크플로우
-# ===================================================================
 #
 # {{MAIN_BRANCH}} 브랜치 푸시 시 Android AAB를 빌드하고
 # Play Store 내부 테스트에 자동 배포합니다.
 #
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 # ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
 # RELEASE_KEYSTORE_BASE64: 서명용 keystore (base64)
 # RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
@@ -17,7 +13,6 @@
 # GOOGLE_SERVICES_JSON: Firebase google-services.json
 # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Play Console 서비스 계정 (base64)
 # ANDROID_PACKAGE_NAME: 앱 패키지명 (Secret 우선, 없으면 Variable) — fastlane에 PACKAGE_NAME으로 전달
-# ===================================================================
 
 name: PROJECT-FLUTTER-ANDROID-PLAYSTORE-INTERNAL-CICD
 
@@ -37,9 +32,7 @@ on:
           - store_prepare
           - store_submit
 
-# ============================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ============================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   # 프로젝트 이름
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
@@ -114,7 +107,6 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-      # version_manager.py를 사용하여 현재 버전 정보 가져오기
       - name: 현재 버전 정보 가져오기
         id: current_version
         working-directory: ${{ github.workspace }}   # version_manager.py가 레포 루트 version.yml을 읽어야 함
@@ -142,7 +134,6 @@ jobs:
           echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
           echo "PROJECT_TYPE=${{ env.PROJECT_TYPE }}" >> $GITHUB_ENV
 
-      # CHANGELOG.json에서 릴리즈 노트 추출 - changelog_manager.py 사용
       - name: 릴리즈 노트 생성
         id: release_notes
         working-directory: ${{ github.workspace }}   # CHANGELOG.json·changelog_manager.py·final_release_notes.txt(upload 짝)는 레포 루트 기준
@@ -175,7 +166,6 @@ jobs:
             echo "v$VERSION 업데이트" > final_release_notes.txt
           fi
 
-      # 릴리즈 노트를 아티팩트로 업로드
       - name: Upload release notes
         uses: actions/upload-artifact@v7
         with:
@@ -215,7 +205,6 @@ jobs:
       - name: Pull latest changes
         run: git pull origin main
 
-      # 프로젝트 파일들 다운로드
       - name: Download project files
         uses: actions/download-artifact@v8
         with:
@@ -237,7 +226,6 @@ jobs:
             echo "dart-define file prepared"
           fi
 
-      # Release Keystore 설정
       - name: Setup Release Keystore
         run: |
           mkdir -p android/app/keystore
@@ -245,7 +233,6 @@ jobs:
           echo "✅ Release Keystore 생성 완료"
           ls -la android/app/keystore/
 
-      # key.properties 생성 (Release 서명 정보)
       - name: Create key.properties
         run: |
           cat > android/key.properties << EOF
@@ -257,7 +244,6 @@ jobs:
           echo "✅ key.properties 생성 완료"
           cat android/key.properties
 
-      # Google-services.json 생성
       - name: Create Google-services.json
         run: |
           cat << 'EOF' > android/app/google-services.json
@@ -301,7 +287,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Android build.gradle.kts 수정 (release 서명 설정)
       - name: Configure Android build for release
         run: |
           # build.gradle.kts에 release 서명 설정이 없으면 추가
@@ -314,7 +299,6 @@ jobs:
       # pubspec.yaml은 x.y.z 형식 그대로 유지
       # Flutter build 명령어의 --build-name, --build-number 플래그가 pubspec.yaml을 오버라이드함
 
-      # Flutter build appbundle (AAB 생성)
       - name: Build Android App Bundle (AAB)
         run: |
           VERSION_NAME="${{ needs.prepare-build.outputs.version }}"
@@ -530,7 +514,6 @@ jobs:
           echo "📱 파일 크기: $(du -h "$AAB_FILE" | cut -f1)"
           echo "=========================================="
 
-      # AAB 파일을 아티팩트로 업로드
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
         with:
@@ -554,28 +537,24 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # Service Account JSON 설정
       - name: Setup Google Play Service Account
         run: |
           mkdir -p ~/.config/gcloud
           echo "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > ~/.config/gcloud/service-account.json
           echo "✅ Service Account JSON 설정 완료"
 
-      # AAB 파일 다운로드
       - name: Download AAB artifact
         uses: actions/download-artifact@v8
         with:
           name: android-aab
           path: ${{ env.FLUTTER_PROJECT_DIR }}/build/app/outputs/bundle/release/
 
-      # 릴리즈 노트 다운로드
       - name: Download release notes
         uses: actions/download-artifact@v8
         with:
           name: release-notes
           path: .
 
-      # Ruby 및 Fastlane 설치
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -605,7 +584,6 @@ jobs:
           echo "📋 Fastfile 내용:"
           cat android/fastlane/Fastfile
 
-      # Play Store에 업로드
       - name: Upload to Play Store Internal Testing
         env:
           DEPLOY_MODE: ${{ env.DEPLOY_MODE }}
@@ -720,7 +698,6 @@ jobs:
           cd android
           bundle exec fastlane deploy_internal
 
-      # 성공 알림
       - name: Notify Play Store Upload Success
         if: success()
         run: |
