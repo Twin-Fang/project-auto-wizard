@@ -160,7 +160,7 @@ def get_project_types_csv():
     # Inline array form: project_types: ["a", "b"]  # trailing comment allowed
     # The template always appends "# first entry is primary", so anchoring at
     # end-of-line made this branch never match — every install silently fell
-    # through to the singular key instead (issue #62).
+    # through to the singular key instead.
     m = re.search(r'^project_types:[ \t]*\[(.*?)\][ \t]*(?:#.*)?$', text, re.MULTILINE)
     if m:
         inner = m.group(1)
@@ -435,7 +435,7 @@ def sync_all_project_files(new_version):
     types = get_project_types_csv()
     if not types:
         # No silent fallback: an unreadable project_types used to degrade to
-        # "basic" and skip every sync without a word (issue #62).
+        # "basic" and skip every sync without a word.
         raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
     for t in types:
         sync_for_type(t, new_version, get_version_code)

@@ -4,7 +4,7 @@ import {
   ENV_MODES, DEPLOY_MODES, DEFAULT_ENV_MODE, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS, formatStoreList,
 } from "./flutter-options.js";
 
-// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략 D4).
+// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
