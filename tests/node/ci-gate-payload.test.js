@@ -1,5 +1,5 @@
 // tests/node/ci-gate-payload.test.js
-// 이슈 #131 (A) — CI 워크플로우는 항상 실행하되 첫 job `changes`가 이 프로젝트 경로의 변경 여부를 판별하고,
+// CI 워크플로우는 항상 실행하되 첫 job `changes`가 이 프로젝트 경로의 변경 여부를 판별하고,
 // 나머지 job은 그 결과로 건너뛴다(건너뛴 job은 Success). 항상 실행되는 `ci-gate` 하나만 required check로
 // 등록하면 되도록 job 결과를 집계한다. 이 파일은 그 골격이 payload에서 깨지지 않게 고정한다.
 //

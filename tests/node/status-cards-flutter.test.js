@@ -1,5 +1,5 @@
 // tests/node/status-cards-flutter.test.js
-// 이슈 #131 fable5.1 리뷰 Important #1(fix round 2) 회귀 방지 — 실제 화면에 출력되는
+// 회귀 방지 — 실제 화면에 출력되는
 // printAnalysisCard(src/ui/status-cards.js)가 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포
 // 모드)을 직접 렌더링하는지 단위로 검증한다. interactive.js의 summarize() fallback이 아니라
 // io.analysisCard가 항상 쓰는 이 함수 자체를 대상으로 한다.

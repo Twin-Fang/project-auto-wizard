@@ -4,9 +4,9 @@ export const VALID_TYPES = [
   "react-native", "react-native-expo", "node", "python", "basic", "go",
 ];
 
-// --mode 화이트리스트 (issue #19) — 알 수 없는 값은 부수효과(브랜치 조회 등) 이전에 즉시 거부해야 한다.
-// purge는 --help/대화형 메뉴에 노출하지 않는 숨김 모드(issue #6)이지만 검증 대상에는 포함한다.
-// version/workflows(부분 설치)와 revert는 제거됐다 (issue #70) — 부분 설치는 설치 시점 baseline을
+// --mode 화이트리스트 — 알 수 없는 값은 부수효과(브랜치 조회 등) 이전에 즉시 거부해야 한다.
+// purge는 --help/대화형 메뉴에 노출하지 않는 숨김 모드이지만 검증 대상에는 포함한다.
+// version/workflows(부분 설치)와 revert는 제거됐다 — 부분 설치는 설치 시점 baseline을
 // 반쪽만 갱신해 업데이트 판정을 흐리고, revert는 uninstall의 부분집합이었다.
 export const VALID_MODES = [
   "interactive", "full",
@@ -26,7 +26,7 @@ export function createContext(overrides = {}) {
     paths: new Map(),        // type -> path
     includeSemverAuto: null, // null=미설정(다운스트림에서 true로 해석), true/false=명시
     includeCopilotAi: null,  // null=미설정(다운스트림에서 false로 해석), true/false=명시 — Copilot AI 요약 opt-in
-    // Flutter 옵션 (이슈 #131) — Flutter 타입이 없는 프로젝트에서는 전부 무시된다.
+    // Flutter 옵션 — Flutter 타입이 없는 프로젝트에서는 전부 무시된다.
     // 결정은 src/core/flutter-options.js의 resolveFlutterOptions가 한다.
     envMode: "",             // "dart-define" | "dotenv". ""=미결정 → 템플릿 기본값(dart-define)
     flutterStore: null,      // 스토어 배포 대상 string[] (예: ["android","ios"]). null=미결정 → 둘 다(현행 동작)

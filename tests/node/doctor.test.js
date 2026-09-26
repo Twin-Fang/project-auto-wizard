@@ -99,9 +99,9 @@ test("runDoctor: missing WORKFLOW_PAT -> INFO (폴백이 자동 복구), non-wri
       [".allow_merge_commit", { status: 0, stdout: "false", stderr: "" }],
     ]);
     const results = runDoctor(dir, { exec });
-    // Workflow permissions는 read여도 조치가 불필요하므로 INFO다 (#34).
+    // Workflow permissions는 read여도 조치가 불필요하므로 INFO다.
     assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "INFO");
-    // WORKFLOW_PAT 미등록도 폴백이 자동 복구하므로 조치가 필요 없다 — INFO다 (#105).
+    // WORKFLOW_PAT 미등록도 폴백이 자동 복구하므로 조치가 필요 없다 — INFO다.
     const pat = results.find((r) => r.name === "WORKFLOW_PAT secret");
     assert.strictEqual(pat.status, "INFO");
     assert.ok(pat.note?.some((l) => l.includes("bot") || l.includes("machine")), "bot/machine 계정 권장 문구가 없습니다");
@@ -128,7 +128,7 @@ test("runDoctor: no git remote -> WARN and stops before repo-scoped checks", () 
   }
 });
 
-// --- 이슈 #29: 출력 재설계 회귀 가드 --------------------------------------------------
+// --- 출력 재설계 회귀 가드 --------------------------------------------------
 
 // doctor는 설치 "전에" 돌려보는 것이 정상 사용 경로다 — 미설치를 경고로 띄우면 안 된다.
 test("runDoctor: 미설치는 경고가 아니라 INFO다", () => {
@@ -141,7 +141,7 @@ test("runDoctor: 미설치는 경고가 아니라 INFO다", () => {
   }
 });
 
-// 항목 이름만으로는 그게 무엇을 위한 설정인지 알 수 없다는 것이 이슈 #29의 핵심 불만이었다.
+// 항목 이름만으로는 그게 무엇을 위한 설정인지 알 수 없다는 것이 핵심 불만이었다.
 test("runDoctor: 모든 항목이 용도(purpose)를 가진다", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
@@ -240,7 +240,7 @@ test("printDoctorReport: color=false면 ESC 바이트가 섞이지 않는다", (
   }
 });
 
-// --- 이슈 #34: Workflow permissions 오진 수정 -----------------------------------------
+// --- Workflow permissions 오진 수정 -----------------------------------------
 
 // 마법사 워크플로우는 자체 permissions 선언으로 동작하므로 레포 기본값이 read여도 문제가 아니다.
 // 조치가 필요 없는 항목에 WARN을 붙이면 없는 장애를 알리고 불필요한 권한 상향을 유도한다.
@@ -294,7 +294,7 @@ test("runDoctor: Workflow permissions 조회 실패는 WARN을 유지한다", ()
   }
 });
 
-// ── Flutter 스토어 배포 진단 (이슈 #131) ──────────────────────────────
+// ── Flutter 스토어 배포 진단 ──────────────────────────────
 const ANDROID_FASTFILE = "app/android/fastlane/Fastfile.playstore";
 const IOS_FASTFILE = "app/ios/fastlane/Fastfile";
 const EXPORT_OPTIONS = "app/ios/ExportOptions.plist";

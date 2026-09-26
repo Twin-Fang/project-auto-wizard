@@ -67,7 +67,7 @@ test("ensureDevelopBranch: push failure is reported, not thrown", async () => {
   assert.strictEqual(r.pushed, false);
 });
 
-// ── sortBranchesForSelection (순수 함수, 이슈 #85) ──────────────────
+// ── sortBranchesForSelection (순수 함수) ──────────────────
 test("sortBranchesForSelection: def가 목록 중간에 있으면 맨 앞으로 온다", () => {
   const remote = ["20260810_feature", "develop", "main", "zzz-old"];
   const sorted = sortBranchesForSelection(remote, "main");

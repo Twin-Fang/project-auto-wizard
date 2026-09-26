@@ -34,7 +34,7 @@ export async function confirmProjectMenu() {
   });
 }
 
-// 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출 (이슈 #131).
+// 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출.
 // 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
 export function editMenuOptions({ showFlutter = false } = {}) {
   const options = [
@@ -68,7 +68,7 @@ export async function selectTypes(current = []) {
   });
 }
 
-// 감지 직후 타입 확정 (이슈 #78). selectTypes와 달리 감지 근거 파일을 라벨에 붙여
+// 감지 직후 타입 확정. selectTypes와 달리 감지 근거 파일을 라벨에 붙여
 // "왜 이렇게 판단했는지"를 보여준다 — 근거가 보여야 맞는지 틀린지 판단할 수 있다.
 // 감지 결과가 맞으면 Enter 한 번으로 끝난다.
 export async function confirmTypes({ types = [], markers = null } = {}) {
@@ -90,7 +90,7 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
   });
 }
 
-// 배포 방식 선택 (이슈 #80, #126). 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
+// 배포 방식 선택. 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
 // 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
 // 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
 // "서버 배포 안 함"은 server-deploy 폴더 자체(PR 프리뷰 포함)를 제외한다 — 서버 배포를
@@ -111,7 +111,7 @@ export async function selectDeployStyle() {
   });
 }
 
-// ── Flutter 옵션 (이슈 #131) ─────────────────────────────────────────
+// ── Flutter 옵션 ─────────────────────────────────────────
 // 프로젝트 타입에 flutter가 포함된 경우에만 interactive.js가 묻는다. 세 함수 모두 취소(ESC) 시 CANCEL을
 // 그대로 돌려주고, "ESC = 기본값" 처리는 호출부가 한다 (selectDeployStyle과 같은 규약).
 const ENV_MODE_LABELS = {
@@ -183,7 +183,7 @@ export function deployModeWarning(mode) {
   return mode === "store_submit" ? "store_submit을 고르면 main push마다 심사가 자동 제출됩니다." : "";
 }
 
-// 브랜치 전략 선택 (이슈 #93). 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에
+// 브랜치 전략 선택. 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에
 // 같은 이름을 입력해야만 trunk-based가 됐는데, 그 규칙이 사전에 안내되지 않아
 // 의도치 않게 pr-flow로 흘러갔다. 전략을 먼저 명시적으로 고르게 해 이를 없앤다.
 // 옵션 순서(pr-flow 먼저)는 비-TTY 환경의 기본값과 직결되므로 바꾸지 않는다.
@@ -220,7 +220,7 @@ export function outro(text) { engine.outro(text); }
 export function note(text, title) { engine.note(text, title); }
 export function cancelMessage(text = "취소했습니다.") { engine.cancelMessage(text); }
 
-// ── #446 첫 화면 UI 5층 + SP2-C 대화형 계층 실물 io ─────────────────
+// ── 첫 화면 UI 5층 + 대화형 계층 실물 io ─────────────────
 // runInteractive는 io.<method>?.() 옵셔널 호출 — 테스트 스텁은 이 메서드들을 생략해
 // 시각 층·env 질문을 건너뛴다 (실행 계약은 그대로).
 import { printBanner as _printBanner } from "./banner.js";

@@ -50,7 +50,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const usages = new Map();
 
   // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
-  // 동일 규칙 — issue #94) 무조건 스캔한다.
+  // 동일 규칙) 무조건 스캔한다.
   const units = [];
   const commonDir = join(baseDir, "common");
   if (exists(commonDir)) units.push(["common", commonDir, null]);
@@ -85,7 +85,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
         const rawDefault = p.arg.startsWith("@")
           ? resolveToken(p.arg.slice(1), type, resolvers)
           : p.arg;
-        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면(issue #110) 실제 repoName으로
+        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면실제 repoName으로
         // 풀어준다 — substituteEnv()가 설치 파일에 적용하는 것과 동일한 치환이라야 마법사
         // 화면 표시와 실제 설치 결과가 어긋나지 않는다.
         const typeDefault = replaceProjectTokens(rawDefault, resolveToken("repo", type, resolvers));
@@ -105,7 +105,7 @@ function firstTypeFor(usages, key) {
   return usages.get(key)?.[0]?.type ?? "";
 }
 
-// 최종 답변 목록 (이슈 #79, #80) — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
+// 최종 답변 목록 — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
 // isDefault는 "기본값 그대로인가"다. 나중에 배포가 안 될 때 제일 먼저 확인하게 되는 정보라
 // 값만 남기면 부족하다.
 function buildAnswers(prompts, asks, values, useDefaults) {
@@ -140,7 +140,7 @@ export function printFieldCard(prompts, key, info, idx = null, tot = null, log =
   log("");
 }
 
-// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다 (이슈 #94).
+// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다.
 // 마커 문법(@wizard ask:...)을 바꾸지 않고 리터럴 값 형태만으로 판단 — 별도 타입 표기가 필요 없다.
 function isBooleanDefault(value) {
   return value === "true" || value === "false";

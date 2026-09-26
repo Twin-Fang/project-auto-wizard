@@ -24,7 +24,7 @@ export async function loadBreakingJson(payloadRoot) {
 // opts:
 //   cwd             - 통합 대상 루트 (기존 version.yml에서 현재 템플릿 버전 읽음)
 //   payloadRoot     - 패키지 payload/ 루트 (번들 폴백용)
-//   templateVersion - 설치하려는 템플릿 버전 (.sh의 DEFAULT_VERSION 고정 버그를 실버전으로 교정 — 설계 D2)
+//   templateVersion - 설치하려는 템플릿 버전 (.sh의 DEFAULT_VERSION 고정 버그를 실버전으로 교정)
 //   askYesNo        - async(message, defaultYes)→bool. null이면 비대화형: 경고만 출력 후 진행
 //   loader          - 테스트 주입용 (기본 loadBreakingJson)
 export async function runBreakingCheck({ cwd, payloadRoot, templateVersion, askYesNo = null, loader = loadBreakingJson }) {

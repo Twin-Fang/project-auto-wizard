@@ -1,4 +1,4 @@
-// 대화형 마법사의 Flutter 옵션 질문 (이슈 #131) — 환경변수 방식 · 스토어 배포 대상 · 배포 모드.
+// 대화형 마법사의 Flutter 옵션 질문 — 환경변수 방식 · 스토어 배포 대상 · 배포 모드.
 // 상태는 { envMode, stores, androidDeployMode, iosDeployMode } 불변 객체로 주고받는다.
 //   envMode·*DeployMode의 ""와 stores의 null = 미결정 (stores의 빈 배열 = "스토어 배포 안 함"으로 이미 결정됨).
 // 이미 결정된 값은 다시 묻지 않는다 (version.yml 저장값 재질문 생략 규약). ESC(취소)는 항상 기본값:

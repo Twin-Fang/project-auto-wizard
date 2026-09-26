@@ -15,7 +15,7 @@ function captureStderr(fn) {
 
 test("run(): full 모드 완료 요약의 '새로 설치됨' 목록이 실제 생성된 워크플로우 파일과 정확히 일치한다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-summary-accuracy-"));
-  writeFileSync(join(target, "build.gradle"), ""); // M4: 경로 후보 0개 방지용 루트 마커 (spring)
+  writeFileSync(join(target, "build.gradle"), ""); // 경로 후보 0개 방지용 루트 마커 (spring)
   try {
     let code;
     const output = await captureStderr(async () => {
@@ -35,7 +35,7 @@ test("run(): full 모드 완료 요약의 '새로 설치됨' 목록이 실제 �
 
 test("run(): 동일 옵션으로 재실행하면(전부 unchanged) '새로 설치됨' 목록이 아예 뜨지 않는다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-summary-rerun-"));
-  writeFileSync(join(target, "build.gradle"), ""); // M4: 경로 후보 0개 방지용 루트 마커 (spring)
+  writeFileSync(join(target, "build.gradle"), ""); // 경로 후보 0개 방지용 루트 마커 (spring)
   try {
     await run(["--mode", "full", "--force", "--type", "spring"], { cwd: target }); // 최초 설치
     const output = await captureStderr(async () => {

@@ -1,5 +1,5 @@
 // tests/node/flutter-app-templates.test.js
-// payload/flutter-app/ 아래 스토어 배포 템플릿(Fastfile·ExportOptions.plist)의 계약 검증 (이슈 #131).
+// payload/flutter-app/ 아래 스토어 배포 템플릿(Fastfile·ExportOptions.plist)의 계약 검증.
 //
 // 이 파일들은 설치 후 사용자가 직접 편집한다. 그래서 Ruby 문법, 워크플로우가 넘기는 환경변수와의
 // 정합성, 배포 모드 분기, 자리표시자 규약이 깨지면 사용자 레포에서 CI가 처음 돌 때서야 드러난다 —
@@ -118,7 +118,7 @@ test("Fastfile.playstore의 metadata_path가 PLAYSTORE 워크플로우가 만드
 });
 
 test("PLAYSTORE 워크플로우는 Fastfile이 읽는 환경변수를 내보낸다", () => {
-  // PACKAGE_NAME은 워크플로우 쪽(D5)에서 이번 이슈로 추가하는 값이라 이 파일의 현재 상태로는
+  // PACKAGE_NAME은 워크플로우 쪽에서 이번 이슈로 추가하는 값이라 이 파일의 현재 상태로는
   // 검증하지 않는다 — 위의 계약 §8 상수(ANDROID_ENV)로만 고정한다.
   const provided = envNamesProvided(readWorkflow("ANDROID-PLAYSTORE-CICD"));
   const required = ANDROID_ENV.filter((name) => name !== "PACKAGE_NAME");

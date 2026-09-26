@@ -1,5 +1,5 @@
 // tests/node/flutter-app-copy.test.js
-// Flutter 앱 파일(fastlane·ExportOptions) 복사 (이슈 #131) — 없을 때만 생성, 절대 덮어쓰지 않는다.
+// Flutter 앱 파일(fastlane·ExportOptions) 복사 — 없을 때만 생성, 절대 덮어쓰지 않는다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";

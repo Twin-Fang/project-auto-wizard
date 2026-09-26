@@ -22,7 +22,7 @@ function installFixture() {
   return target;
 }
 
-// issue #69 — baseline 3-way 도입 이후 "사용자만 수정"은 질문 없이 유지되므로(localOnly)
+// baseline 3-way 도입 이후 "사용자만 수정"은 질문 없이 유지되므로(localOnly)
 // 충돌 결정(backup/template) 경로를 검증하려면 진짜 충돌을 만들어야 한다.
 // baseline의 rendered 해시를 어긋나게 해 "업스트림도 바뀐 것"으로 만든다.
 function forceUpstreamChange(target, filename) {

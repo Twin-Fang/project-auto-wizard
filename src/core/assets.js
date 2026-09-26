@@ -40,7 +40,7 @@ export function assertPayload(payloadRoot = resolvePayloadRoot()) {
   return payloadRoot;
 }
 
-// payload/version.yml.template 원문 (Task 14 치환 파이프라인 소비).
+// payload/version.yml.template 원문.
 export function readVersionYmlTemplate(payloadRoot = resolvePayloadRoot()) {
   const p = join(payloadRoot, "version.yml.template");
   return exists(p) ? readText(p) : null;

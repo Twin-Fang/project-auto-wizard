@@ -13,7 +13,7 @@ function tmpRepo(prefix) {
   return dir;
 }
 
-// ── Task 4: resolveProjectPaths() 호출부 CliError 캐치 ──────────────
+// ── resolveProjectPaths() 호출부 CliError 캐치 ──────────────
 test("run(): --paths에 지원하지 않는 타입을 지정하면 스택트레이스 없이 exit 1로 깔끔하게 거부된다", async () => {
   const target = tmpRepo("paw-paths-resolve-");
   try {
@@ -27,7 +27,7 @@ test("run(): --paths에 지원하지 않는 타입을 지정하면 스택트레�
   }
 });
 
-// ── M3: --paths로 지정한 경로의 존재 여부 검증 ──────────────────────
+// ── --paths로 지정한 경로의 존재 여부 검증 ──────────────────────
 test("resolveProjectPaths: --paths로 지정한 경로가 존재하지 않으면 CliError로 거부한다", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
@@ -59,7 +59,7 @@ test("resolveProjectPaths: --paths로 지정한 경로가 실제로 존재하면
   }
 });
 
-// ── M4: 모노레포 경로 후보 0개/2개 이상 구분 거부 ────────────────────
+// ── 모노레포 경로 후보 0개/2개 이상 구분 거부 ────────────────────
 test("resolveProjectPaths: 경로 후보가 0개(감지 실패)면 CliError로 거부한다", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
@@ -116,7 +116,7 @@ test("resolveProjectPaths: 경로 후보가 정확히 1개면 정상적으로 �
   }
 });
 
-// ── 이슈 #21 재현 커맨드 5개 최종 회귀 확인 ──────────────────────────
+// ── 재현 커맨드 5개 최종 회귀 확인 ──────────────────────────
 test("이슈 재현 ①(M3): --paths react=does-not-exist는 exit 1로 거부된다", async () => {
   const target = tmpRepo("paw-issue21-");
   try {

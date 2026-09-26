@@ -1,4 +1,4 @@
-// issue #8 회귀 게이트 — 상용 SaaS(CodeRabbit) 연동이 되살아나지 않는지 감시한다.
+// 회귀 게이트 — 상용 SaaS(CodeRabbit) 연동이 되살아나지 않는지 감시한다.
 // 오픈소스 대회 제출 조건상 설치 산출물·마법사 코드 어디에도 상용 서비스 연동이 있으면 안 된다.
 import { test } from "node:test";
 import assert from "node:assert";

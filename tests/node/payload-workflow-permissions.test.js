@@ -1,5 +1,5 @@
 // tests/node/payload-workflow-permissions.test.js
-// doctor(#34)가 Workflow permissions를 INFO로 낮출 수 있는 근거를 고정한다.
+// doctor가 Workflow permissions를 INFO로 낮출 수 있는 근거를 고정한다.
 // 레포의 default_workflow_permissions가 read여도 마법사 워크플로우가 정상 동작하는 이유는
 // 각 워크플로우가 자체 permissions를 선언하기 때문이다 — 이 전제가 깨지면 doctor 문구도 거짓이 된다.
 import { test } from "node:test";

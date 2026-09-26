@@ -4,7 +4,7 @@
 // 쓰는 구조는 예외가 나면 아무것도 남기지 못한다(구 install-log.js가 그랬다).
 //
 // 왜 로컬 전용인가: 상세도를 제약하지 않기 위해서다. 로그 디렉토리에 .gitignore를 직접
-// 두어 그 폴더만 추적에서 뺀다 — 루트 .gitignore는 건드리지 않는다(이슈 #7 원칙).
+// 두어 그 폴더만 추적에서 뺀다 — 루트 .gitignore는 건드리지 않는다.
 import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 

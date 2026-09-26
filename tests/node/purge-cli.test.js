@@ -43,7 +43,7 @@ test("parseArgs: all purge-only flags parse", () => {
 async function installedTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
   await run(["--mode", "full", "--force", "--type", "node"], {
     cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
   });
@@ -236,7 +236,7 @@ test("run(): without --delete-develop-branch, no branch command is issued", asyn
   }
 });
 
-// H1 (Fable 검토, 2026-08-01) → issue #7 갱신: .gitignore는 이제 충돌 백업 부산물이 실제로 생겼을
+// .gitignore는 이제 충돌 백업 부산물이 실제로 생겼을
 // 때만 만들어지고, purge는 어떤 경우든 절대 건드리지 않으므로(스펙 §2 비목표) 라운드트립 비교에서
 // .git과 함께 안전하게 제외한다 — 자세한 이유는 purge-plan.test.js의 동일 헬퍼 참고.
 function listAllFilesCli(dir, base = dir) {
@@ -254,7 +254,7 @@ test("run(): full round-trip — install then purge returns the target to its pr
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
   writeFileSync(join(target, "README.md"), "# Test\n");
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 루트 마커 — before 스냅샷에 포함시켜야 라운드트립이 성립
+  writeFileSync(join(target, "package.json"), "{}\n"); // 루트 마커 — before 스냅샷에 포함시켜야 라운드트립이 성립
   try {
     const before = listAllFilesCli(target);
     await run(["--mode", "full", "--force", "--type", "node"], {
@@ -283,7 +283,7 @@ test("run(): --keep-version-yml via CLI preserves only version.yml", async () =>
 async function installedTrunkBasedTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-cli-"));
   mkdirSync(join(target, ".git"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
   await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main"], {
     cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" },
   });

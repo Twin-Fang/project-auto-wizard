@@ -1,4 +1,4 @@
-// 설치 후 검증 (이슈 #81, #80) — 설치된 워크플로우를 다시 읽어 "이대로 돌아가는가"를 본다.
+// 설치 후 검증 — 설치된 워크플로우를 다시 읽어 "이대로 돌아가는가"를 본다.
 //
 // 왜 설치 전이 아니라 후인가: 치환은 파일 단위로 흩어져 일어나고 auto 토큰은 resolver 결과에
 // 의존한다. 최종 디스크 내용을 보는 것이 실제로 배포될 것과 같은 것을 보는 유일한 방법이다.
@@ -15,7 +15,7 @@ const PLACEHOLDER_RE = /__[A-Z][A-Z0-9_]*__/g;
 // 쓰지도 않는 Secret을 "등록하세요"라고 안내하게 된다.
 const isCommented = (line) => /^\s*#/.test(line);
 
-// 미치환 플레이스홀더 스캔 (이슈 #81).
+// 미치환 플레이스홀더 스캔.
 // 종전에는 auto 토큰 계산이 실패해도(예: application.yaml을 못 찾아 경로가 빈 문자열) 그 줄을
 // 건드리지 않고 넘어가, __APPLICATION_YML_DIR__ 이 그대로 남은 워크플로우가 "설치 성공"으로
 // 끝났다. 배포 시점에야 그 이름의 디렉토리가 만들어지며 문제가 드러난다.
@@ -48,7 +48,7 @@ const AUTO_SECRETS = new Set(["GITHUB_TOKEN"]);
 export const OPTIONAL_SECRETS = new Set(["AI_API_KEY", "WORKFLOW_PAT"]);
 const SECRET_RE = /secrets\.([A-Z][A-Z0-9_]*)/g;
 
-// 설치된 워크플로우가 요구하는 GitHub Secret 목록 (이슈 #80).
+// 설치된 워크플로우가 요구하는 GitHub Secret 목록.
 // 완료 화면이 WORKFLOW_PAT와 권한만 안내하는 바람에, 배포 워크플로우가 실제로 필요로 하는
 // SERVER_HOST·SSH_KEY 같은 값이 하나도 안내되지 않았다. 설치 직후 상태로는 배포가 돌지 않는데
 // 그 사실이 어디에도 드러나지 않는다.

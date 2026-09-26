@@ -17,7 +17,7 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
     workflows: selection.workflows ? removalPlan.workflows : [],
-    // baseline은 워크플로우 해시 기록 — 워크플로우를 지우면 함께 사라져야 한다 (issue #69)
+    // baseline은 워크플로우 해시 기록 — 워크플로우를 지우면 함께 사라져야 한다
     baseline: selection.workflows ? removalPlan.baseline : [],
     scripts: selection.scripts ? removalPlan.scripts : [],
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
@@ -46,7 +46,7 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
 // ── 대화형 체크리스트 흐름 ────────────────────────────────────────────
 const ITEM_DEFS = [
   // .github/.wizard 에는 baseline.json과 설치 로그(.wizard/logs)가 함께 들어 있다 —
-  // 워크플로우를 지우면 함께 사라지므로 라벨에 명시한다 (이슈 #79).
+  // 워크플로우를 지우면 함께 사라지므로 라벨에 명시한다.
   { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml) + 설치 기록 (.github/.wizard)" },
   { key: "scripts", label: "스크립트 (.github/scripts/*.py)" },
   { key: "readme", label: "README.md 버전 섹션 (AUTO-VERSION-SECTION)" },

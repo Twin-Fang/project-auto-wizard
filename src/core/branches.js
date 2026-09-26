@@ -1,7 +1,7 @@
 // 브랜치 구성 (DESIGN-SPEC §4 신규 질문 ①).
 // on: push: branches: 는 YAML 정적 값 — 마법사가 릴리스/개발 브랜치를 물어(또는 플래그로 받아)
-// {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 플레이스홀더를 치환한다 (치환 자체는 branding.js — Task 14).
-// main === develop 이면 trunk-based 모드 → RELEASE-PUBLISH 단독 설치 (설치 매트릭스는 Task 16).
+// {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 플레이스홀더를 치환한다 (치환 자체는 branding.js).
+// main === develop 이면 trunk-based 모드 → RELEASE-PUBLISH 단독 설치.
 import { execFile } from "node:child_process";
 
 // 기본 exec — git 명령 실행. 반환 {code, stdout, stderr}. 테스트는 mock 주입.
@@ -34,7 +34,7 @@ export function resolveBranchConfig({ mainBranch = "", developBranch = "", defau
   return { main, develop, mode: main === develop ? "trunk-based" : "pr-flow" };
 }
 
-// 브랜치 선택 프롬프트용 정렬 (이슈 #85). def를 최우선으로, 그다음 priority(main/develop)
+// 브랜치 선택 프롬프트용 정렬. def를 최우선으로, 그다음 priority(main/develop)
 // 순서로 목록 앞에 배치한다. 나머지는 remoteBranches의 원래 순서(git이 준 알파벳순)를 유지한다.
 // 순수 함수 — remoteBranches 원본은 변경하지 않는다.
 export function sortBranchesForSelection(remoteBranches, def, priority = ["main", "develop"]) {

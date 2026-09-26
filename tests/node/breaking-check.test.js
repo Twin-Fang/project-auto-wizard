@@ -108,7 +108,7 @@ test("critical entry + interactive confirm=true -> proceeds", async () => {
   }
 });
 
-// ── 이슈 #131 고지 4건 ───────────────────────────────────────────────
+// ── 고지 4건 ───────────────────────────────────────────────
 const BUNDLED = JSON.parse(readFileSync(new URL("../../payload/config/breaking-changes.json", import.meta.url), "utf8"));
 
 test("collectBreaking: 같은 버전 키의 값이 배열이면 항목마다 별도 레코드로 펼친다", () => {

@@ -1,6 +1,6 @@
 // full 모드 오케스트레이터 (.sh execute_integration full case 등가).
 // 복사 순서: workflows(+env 치환) → flutter 앱 파일 → version.yml → readme → scripts → gitignore(조건부)
-// gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다 — issue #7.
+// gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다.
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -30,7 +30,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).
   // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
-  // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다 (이슈 #77).
+  // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다.
   const pathMarkers = new Map();
   for (const [t, p] of paths) {
     const marker = existingMarkerInDir(t, join(targetRoot, p || "."));
@@ -54,11 +54,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of flutterApp.created) log.info("flutter-app", "create", f);
   for (const f of flutterApp.kept) log.info("flutter-app", "keep", `${f} (기존 파일 유지)`);
 
-  // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다 (issue #20 M8).
+  // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다.
   const vyPath = join(targetRoot, PATHS.versionFile);
   const extraTopLevel = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")).extraTopLevel : [];
 
-  // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성 전략 D4)
+  // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성)
   writeText(join(targetRoot, PATHS.versionFile),
     renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel }));
 
@@ -71,10 +71,10 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   copyScripts(payloadRoot, targetRoot);
 
   // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
-  //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다 — issue #7.
+  //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다.
   const gitignoreUpdated0 = wfCounters.backupAdded > 0 || wfCounters.templateAdded > 0;
 
-  // 6. 이전 배포 방식 정리 (이슈 #80) — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
+  // 6. 이전 배포 방식 정리 — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
   //    옛 baseline이 살아 있는 지금이 "사용자가 손댔는가"를 판정할 수 있는 유일한 시점이다.
   const previousBaseline = readBaseline(targetRoot);
   const cleanup = cleanupOtherDeployWorkflows(
@@ -107,7 +107,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
   if (gitignoreUpdated) ensureGitignore(targetRoot);
 
-  // 7. baseline 기록 (issue #69) — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
+  // 7. baseline 기록 — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
   //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
   //    아니라 여기서 기록한다.
   //    기존 baseline은 병합 대상 — 이번에 건드리지 않은 파일의 기준점을 잃지 않는다.
@@ -121,7 +121,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     previous: previousBaseline,
   });
 
-  // 8. 설치 후 검증 (이슈 #81, #80) — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
+  // 8. 설치 후 검증 — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
   //    미치환 플레이스홀더가 남았는지, 어떤 Secret이 있어야 워크플로우가 도는지.
   //    설치를 실패시키지는 않는다 — 사실을 알려주는 것이 목적이고, 판단은 사용자 몫이다.
   const wfDir = join(targetRoot, PATHS.workflowsDir);

@@ -1,4 +1,4 @@
-// 비대화형 경로의 Flutter 옵션 결정 (이슈 #131) — CLI > 저장값 > 기본값, 신규 dart-define / 기존 dotenv 보존.
+// 비대화형 경로의 Flutter 옵션 결정 — CLI > 저장값 > 기본값, 신규 dart-define / 기존 dotenv 보존.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -39,7 +39,7 @@ test("신규 설치: env_mode는 dart-define, 스토어는 미결정(둘 다), �
 test("기존 설치(version.yml 있음, env_mode 저장값 없음): dotenv를 보존한다", async () => {
   const target = flutterTarget();
   try {
-    // #131 이전에 만들어진 version.yml — Flutter 옵션 4개 키가 없다.
+    // 이전에 만들어진 version.yml — Flutter 옵션 4개 키가 없다.
     writeFileSync(join(target, "version.yml"), [
       'version: "1.0.0"',
       "version_code: 1",
@@ -89,7 +89,7 @@ test("CLI 플래그는 저장되고, 플래그 없이 재실행해도 유지되�
   }
 });
 
-// fable5.1 리뷰 Important #2 회귀 방지 — store_submit 경고는 Flutter 타입이고 해당 스토어를
+// 회귀 방지 — store_submit 경고는 Flutter 타입이고 해당 스토어를
 // 선택했을 때만 떠야 한다. android_deploy_mode만 보고 판단하면 Flutter 타입이 아니거나 android
 // 스토어를 선택하지 않은 프로젝트에서도 잘못 떠버린다.
 test("store_submit 경고: Flutter 타입이 아닌 프로젝트에는 --android-deploy-mode를 줘도 뜨지 않는다", async () => {

@@ -1,5 +1,5 @@
 // 실 파일시스템 프로젝트 감지 (.sh detect_* 실행부 등가).
-// SP2-A detect.js 순수 함수를 fs/git으로 구동한다.
+// detect.js 순수 함수를 fs/git으로 구동한다.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -27,8 +27,8 @@ export function detectTypes(root) {
   return detectTypesFromMarkers({ has: hasFile(root), read: readFile(root) });
 }
 
-// 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다(이슈 #22 L4).
-// hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다 — 이슈 #80).
+// 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.
+// hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
 export function detectVersion(root, { warn = (m) => console.error(m), hint } = {}) {
   const read = readFile(root);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
@@ -36,12 +36,12 @@ export function detectVersion(root, { warn = (m) => console.error(m), hint } = {
   return detectVersionFromFiles({ read, readJson, gitTag, warn, hint });
 }
 
-// 타입별 실제 마커 파일 (이슈 #77) — 감지 로그·설치 로그가 같은 근거 파일을 인용하도록.
+// 타입별 실제 마커 파일 — 감지 로그·설치 로그가 같은 근거 파일을 인용하도록.
 export function detectMarkers(root, types = []) {
   return resolveMarkers(types, hasFile(root));
 }
 
-// 빌드 JDK 감지 (이슈 #82) — 배포 워크플로우 JAVA_VERSION 기본값에 실측값을 쓰기 위해.
+// 빌드 JDK 감지 — 배포 워크플로우 JAVA_VERSION 기본값에 실측값을 쓰기 위해.
 // base: 모노레포에서 spring 프로젝트 루트 (레포 루트 기준 상대경로).
 export function detectJdk(root, base = ".") {
   const rel = base && base !== "." ? (r) => `${base}/${r}` : (r) => r;
@@ -49,7 +49,7 @@ export function detectJdk(root, base = ".") {
   return detectJdkFromFiles({ read: (r) => read(rel(r)) });
 }
 
-// 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다 (이슈 #41).
+// 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다.
 export function detectBuildNumber(root, { types = [], warn = (m) => console.error(m) } = {}) {
   const read = readFile(root);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
@@ -80,7 +80,7 @@ export function detectRepoName(root) {
 // find {base} -path "*/src/main/resources/application*.yml" | head -1 의 fs 재귀 구현.
 // 반환: root 기준 상대경로 (예: "server/src/main/resources/application.yml") 또는 "".
 //
-// .yaml도 인정한다 (이슈 #81). Spring은 .yml/.yaml을 모두 공식 지원하는데 종전 정규식이
+// .yaml도 인정한다. Spring은 .yml/.yaml을 모두 공식 지원하는데 종전 정규식이
 // .yml만 봐서, application.yaml을 쓰는 프로젝트는 이 값이 빈 문자열이 되고 그 결과
 // __APPLICATION_YML_DIR__ 가 치환되지 않은 채 설치됐다.
 //
@@ -116,15 +116,15 @@ export function findSpringAppYml(root, base = ".") {
 
 // 실 resolver 세트 생성 (.sh resolve_token 4종 등가) — index/interactive 공용.
 // paths: Map<type, path> (모노레포 경로).
-// flutterOptions: resolveFlutterOptions 결과 또는 같은 필드를 가진 context (이슈 #131). null이면 Flutter 토큰이
+// flutterOptions: resolveFlutterOptions 결과 또는 같은 필드를 가진 context. null이면 Flutter 토큰이
 //   빈 값이라 템플릿 기본값(dart-define, store_only)이 그대로 남는다.
 export function makeResolvers(root, repoName, paths, flutterOptions = null) {
   const springBase = (t) => paths.get(t || "spring") || paths.get("spring") || ".";
   return {
     repo: () => repoName,
-    // 빌드 JDK (이슈 #82) — 배포 워크플로우 JAVA_VERSION의 기본값. 프로젝트 툴체인을 실측한다.
+    // 빌드 JDK — 배포 워크플로우 JAVA_VERSION의 기본값. 프로젝트 툴체인을 실측한다.
     // ⚠️ 빈 문자열을 돌려주면 setEnvLine이 그 줄을 건너뛰어 __JAVA_VERSION__이 그대로 남는다
-    //    (이슈 #81과 같은 실패 형태). 감지 실패 시 반드시 종전 기본값 21로 폴백한다.
+    //    (같은 실패 형태). 감지 실패 시 반드시 종전 기본값 21로 폴백한다.
     jdk: (t) => detectJdk(root, springBase(t)) || "21",
     "spring-app-yml-dir": (t) => {
       const f = findSpringAppYml(root, springBase(t));
@@ -132,7 +132,7 @@ export function makeResolvers(root, repoName, paths, flutterOptions = null) {
     },
     "spring-app-yml-path": (t) => findSpringAppYml(root, springBase(t)) || "",
     "flutter-root": () => paths.get("flutter") || ".",
-    // CI changes job의 경로 필터(이슈 #131) — 타입별 프로젝트 루트. 단일 레포·common은 "."(항상 변경됨으로 판정).
+    // CI changes job의 경로 필터 — 타입별 프로젝트 루트. 단일 레포·common은 "."(항상 변경됨으로 판정).
     "project-path": (t) => paths.get(t) || ".",
     // 빈 문자열이면 setEnvLine/setFallbackLine이 줄을 건너뛰어 템플릿 기본값이 남는다.
     "flutter-env-mode": () => flutterOptions?.envMode || "",

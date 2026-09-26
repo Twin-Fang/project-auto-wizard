@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";
 import { HELP_TEXT } from "../../src/cli/help.js";
 
-// ── L5: --type/--paths 타입명 내부 공백 처리 통일 ──────────────────
+// ── --type/--paths 타입명 내부 공백 처리 통일 ──────────────────
 test("parsePathsCsv: 타입명 내부 공백은 --type과 동일하게 전부 제거되어 정규화된다", () => {
   const map = parsePathsCsv("re act=.");
   assert.strictEqual(map.get("react"), ".");
@@ -16,7 +16,7 @@ test("parsePathsCsv: 여러 항목 중 하나에만 내부 공백이 있어도 �
   assert.strictEqual(map.get("react"), "client");
 });
 
-// ── L6: --main-branch/--develop-branch 빈 문자열 명시 거부 ──────────
+// ── --main-branch/--develop-branch 빈 문자열 명시 거부 ──────────
 test("parseArgs: --main-branch \"\"(빈 값 명시)는 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--main-branch", ""]), CliError);
 });
@@ -41,7 +41,7 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.developBranch, "dev");
 });
 
-// ── L7: --semver-auto 상호 모순 플래그 거부 ──
+// ── --semver-auto 상호 모순 플래그 거부 ──
 
 test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--semver-auto", "--no-semver-auto"]), CliError);
@@ -65,7 +65,7 @@ test("parseArgs: --type go는 지원 타입으로 통과한다", () => {
   assert.strictEqual(opts.primaryType, "go");
 });
 
-// ── Flutter 옵션 플래그 (이슈 #131) ─────────────────────────────
+// ── Flutter 옵션 플래그 ─────────────────────────────
 const cliErrorMatching = (re) => (e) => e instanceof CliError && re.test(e.message);
 
 test("parseArgs: Flutter 옵션 플래그를 지정하지 않으면 '미지정' 값이다", () => {

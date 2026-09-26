@@ -78,7 +78,7 @@ test("planDryRun('full', ...) with semver_auto:false preserved -> versionYml unc
   }
 });
 
-// ── Flutter 스토어 배포 파일 (이슈 #131) ──────────────────────────────
+// ── Flutter 스토어 배포 파일 ──────────────────────────────
 const FLUTTER_APP_TEMPLATES = ["android/fastlane/Fastfile.playstore", "ios/fastlane/Fastfile", "ios/ExportOptions.plist"];
 
 // payload/flutter-app은 다른 작업에서 채워지므로, 임시 payload 사본에 최소 템플릿을 심어 독립적으로 검증한다.

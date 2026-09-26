@@ -9,7 +9,7 @@ import {
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
 // version.yml.template이 아는 최상위 키 — 이 밖의 최상위 키는 사용자가 직접 추가한 것으로 간주한다.
-// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다 (issue #62):
+// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다:
 // 빼면 기존 파일의 단수 줄이 "사용자가 추가한 필드"로 오인돼 재생성 때 되살아난다. 아는 키로
 // 둬야 재통합 시 흡수되어 사라진다.
 const KNOWN_TOP_LEVEL_KEYS = new Set([
@@ -17,14 +17,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 
 // 최상위 레벨의 알려지지 않은 필드(사용자가 직접 추가한 임의 필드)를 원본 그대로 보존한다
-// (issue #20 M8). 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
+//. 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
 // 캡처한다(중첩 구조가 있어도 유효한 YAML로 남기기 위함). metadata/project_paths/deploy처럼
-// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖 — issue #20 결정).
+// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖).
 export function parseExtraTopLevel(content) {
   const blocks = [];
   let current = null;
   for (const line of String(content || "").split("\n")) {
-    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례) — issue #20 M8 리뷰에서 지적된 놓침 방지.
+    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례).
     const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):/);
     if (m) {
       if (current) blocks.push(current.join("\n"));
@@ -37,7 +37,7 @@ export function parseExtraTopLevel(content) {
   return blocks;
 }
 
-// Flutter 옵션 키(이슈 #131) → 반환 필드. 값은 원문 문자열로 돌려주고, 유효성 판정은 resolveFlutterOptions 몫이다.
+// Flutter 옵션 키 → 반환 필드. 값은 원문 문자열로 돌려주고, 유효성 판정은 resolveFlutterOptions 몫이다.
 const FLUTTER_OPTION_KEYS = {
   env_mode: "envMode", flutter_store: "flutterStore",
   android_deploy_mode: "androidDeployMode", ios_deploy_mode: "iosDeployMode",
@@ -179,8 +179,8 @@ function buildFlutterOptionsBlock({ envMode, stores, androidDeployMode, iosDeplo
 // version.yml 전체 생성 — payload/version.yml.template 렌더링.
 // opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
-//         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존 (issue #20 M8)
-//         flutterOptions?:{ envMode, stores, androidDeployMode, iosDeployMode } }  ← Flutter 타입일 때만 렌더 (이슈 #131)
+//         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존
+//         flutterOptions?:{ envMode, stores, androidDeployMode, iosDeployMode } }  ← Flutter 타입일 때만 렌더
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
@@ -219,7 +219,7 @@ export function buildVersionYml({
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
       // 동일한 이스케이프를 재사용 — deploy 값도 @wizard ask 값과 같은 경로로 들어오므로
-      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (issue #20 L9, 두 번째 지점).
+      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (두 번째 지점).
       for (const [k, v] of deployValues.get(t)) rows.push(`    ${k}: "${escapeYamlDoubleQuoted(v)}"`);
     }
     deployBlock = rows.join("\n");

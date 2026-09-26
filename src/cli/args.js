@@ -40,7 +40,7 @@ export function parseArgs(argv) {
     keepScripts: false,
   };
   const args = [...argv];
-  const seenFlags = new Set(); // L7: --semver-auto/--copilot류 상호 모순 플래그 검증용
+  const seenFlags = new Set(); // --semver-auto/--copilot류 상호 모순 플래그 검증용
   while (args.length > 0) {
     const a = args.shift();
     switch (a) {

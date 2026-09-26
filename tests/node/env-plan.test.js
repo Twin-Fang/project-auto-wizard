@@ -197,7 +197,7 @@ test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는
   }
 });
 
-// Flutter 스토어 워크플로우 선택 (이슈 #131) — 설치하지 않을 워크플로우의 질문은 묻지 않는다.
+// Flutter 스토어 워크플로우 선택 — 설치하지 않을 워크플로우의 질문은 묻지 않는다.
 function makeFlutterFixturePayload() {
   const root = mkdtempSync(join(tmpdir(), "paw-env-plan-flutter-"));
   const dir = join(root, "workflows", "flutter");

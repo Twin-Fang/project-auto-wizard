@@ -1,5 +1,5 @@
 // tests/node/detect-accuracy.test.js
-// 감지 정확도 회귀 (이슈 #77, #81, #82).
+// 감지 정확도 회귀.
 // 공통 실패 형태: "감지가 조용히 실패하고 설치는 성공으로 끝난다".
 import { test } from "node:test";
 import assert from "node:assert";
@@ -24,7 +24,7 @@ function fixture(files) {
   return root;
 }
 
-// ── 버전 감지 (#77) ──────────────────────────────────────────────────
+// ── 버전 감지 ──────────────────────────────────────────────────
 test("detectVersionFromFiles: build.gradle.kts만 있어도 버전을 읽는다 (Kotlin DSL)", () => {
   const warned = [];
   const v = detectVersionFromFiles({
@@ -64,7 +64,7 @@ test("detectVersionFromFiles: 폴백 경고 문구는 호출부가 준 hint를 �
   assert.doesNotMatch(warned[0], /--project-version/, "대화형에 CLI 플래그를 안내하면 안 된다");
 });
 
-// ── 마커 (#77) ───────────────────────────────────────────────────────
+// ── 마커 ───────────────────────────────────────────────────────
 test("resolveMarker: 실제로 존재하는 파일을 돌려준다 (build.gradle.kts)", () => {
   const has = (n) => n === "build.gradle.kts";
   assert.strictEqual(resolveMarker("spring", has), "build.gradle.kts");
@@ -99,7 +99,7 @@ test("markerForType: go는 go.mod를 반환한다 (package.json 폴백 금지)",
   assert.strictEqual(markerForType("go"), "go.mod");
 });
 
-// ── 빌드 JDK (#82) ───────────────────────────────────────────────────
+// ── 빌드 JDK ───────────────────────────────────────────────────
 test("detectJdkFromFiles: Kotlin DSL toolchain에서 JDK를 읽는다", () => {
   const kts = "java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }";
   assert.strictEqual(detectJdkFromFiles({ read: readFrom({ "build.gradle.kts": kts }) }), "25");
@@ -124,7 +124,7 @@ test("detectJdkFromFiles: 근거가 없으면 null (호출부가 종전 기본�
   assert.strictEqual(detectJdkFromFiles({ read: () => null }), null);
 });
 
-// ── application.yml/.yaml 탐색 (#81) ─────────────────────────────────
+// ── application.yml/.yaml 탐색 ─────────────────────────────────
 test("findSpringAppYml: .yaml 확장자도 찾는다 (Spring 공식 지원)", () => {
   const root = fixture({ "app/src/main/resources/application.yaml": "" });
   try {

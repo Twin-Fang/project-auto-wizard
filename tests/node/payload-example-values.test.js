@@ -1,5 +1,5 @@
 // tests/node/payload-example-values.test.js
-// payload 템플릿에 예시값이 그대로 남아 설치되는 것을 막는다 (이슈 #82).
+// payload 템플릿에 예시값이 그대로 남아 설치되는 것을 막는다.
 //
 // 이 문제는 "코드는 멀쩡한데 설치 결과만 틀린" 형태라 다른 테스트에 걸리지 않는다.
 // 템플릿을 새로 추가하거나 복사해 쓸 때 같은 실수가 반복되므로 payload 자체를 검사한다.
@@ -91,7 +91,7 @@ test("spring DockerHub 자격증명 secret 이름이 워크플로우마다 갈�
 
 test("spring 워크플로우는 java-version을 리터럴로 하드코딩하지 않는다", () => {
   // Spring 워크플로우가 @wizard 마커 자체를 빠뜨린 채 java-version: '17'을 박아
-  // 넣고 있었다(이슈 #82). 마커가 있는 줄만 보는 위 JAVA_VERSION 테스트는 마커가
+  // 넣고 있었다. 마커가 있는 줄만 보는 위 JAVA_VERSION 테스트는 마커가
   // 아예 없는 이 케이스를 걸러내지 못했으므로, java-version 줄 자체를 스캔한다.
   const bad = [];
   for (const file of allWorkflowFiles()) {

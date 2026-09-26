@@ -105,7 +105,7 @@ async function runInner(argv, {
   }
 
   // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
-  // 개발·테스트 전용 숨김 모드 — --help/대화형 메뉴에 노출하지 않는다 (issue #6).
+  // 개발·테스트 전용 숨김 모드 — --help/대화형 메뉴에 노출하지 않는다.
   if (opts.mode === "purge") {
     if (!existsSync(join(cwd, ".git"))) {
       console.error("git 레포가 아닙니다(.git 없음) — purge는 git 레포 안에서만 실행할 수 있습니다.");
@@ -122,7 +122,7 @@ async function runInner(argv, {
     const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     if (opts.dryRun) {
       printPurgePlan(planPurge(payload, cwd, keepFlags), { dryRun: true });
-      // M4 (Fable 검토): develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
+      // develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
       // 판단 가능) 별도로 예고하지 않으면 dry-run 미리보기가 유일한 파괴적 동작을 사용자에게 숨기게 된다.
       if (opts.deleteDevelopBranch) {
         const developBranch = existing?.branches?.develop || "develop";
@@ -218,25 +218,25 @@ async function runInner(argv, {
     return 0;
   }
   // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
-  // (issue #19 — TTY에서 확인 없이 즉시 설치되던 결함 수정).
+  // (TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
   if (!opts.force && !opts.dryRun) {
     console.error("--force 없이는 이 모드를 실행할 수 없습니다 (확인 절차가 없습니다).");
     return 1;
   }
 
-  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실 (.sh L2208~2239 SSoT)
+  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실 (.sh SSoT)
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
   // 감지 (CLI 인자 우선, 없으면 자동 감지 — version.yml 우선 규칙은 detectTypes/detectVersion 내부)
   const types = opts.types.length ? opts.types : detectTypes(cwd);
   // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
-  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다 (이슈 #80).
+  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   const detectWarnings = [];
   const version = (existing?.version) || opts.version
     || detectVersion(cwd, { warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221, 이슈 #41)
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);
   // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
@@ -283,7 +283,7 @@ async function runInner(argv, {
     mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
     paths,
-    // 옵션 워크플로우: CLI 플래그 최우선 → version.yml 저장 옵션(.sh read_template_options 등가) → false
+    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값
     // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
     // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
     // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
@@ -294,7 +294,7 @@ async function runInner(argv, {
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
     now, today,
-    // 설치 로그(#79)용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
+    // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
     deployStyle: opts.deployStyle
       || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
@@ -307,7 +307,7 @@ async function runInner(argv, {
 
   context.templateVersion = readTemplateVersion();
 
-  // 비대화형 축약 배너 (#446 확정 — 1줄, 로그 오염 최소)
+  // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });
 
   // Breaking Changes 게이트 (.sh execute_integration L4415~4420 등가 — 비대화형은 경고 후 진행)
@@ -320,8 +320,8 @@ async function runInner(argv, {
   }
 
   // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/purge/uninstall/status/doctor는
-  // 전부 위에서 조기 반환했으므로 이 시점엔 full 하나로 보장된다 (issue #19 — default 분기 제거,
-  // issue #70 — 부분 설치 모드 제거로 분기 자체가 사라졌다).
+  // 전부 위에서 조기 반환했으므로 이 시점엔 full 하나로 보장된다 (default 분기 제거,
+  // 부분 설치 모드 제거로 분기 자체가 사라졌다).
   const result = runFull(context, payload, cwd);
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
@@ -339,7 +339,7 @@ async function runInner(argv, {
   });
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
   // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
-  // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다 (fable5.1 Important #2).
+  // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다.
   const { stores } = flutterOptions;
   const warnings = [];
   if (types.includes("flutter") && (stores === null || stores.includes("android"))) {

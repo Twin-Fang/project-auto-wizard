@@ -1,6 +1,6 @@
-// 첫 화면 상태 표시 층 (#446 층2·3·5) — 감지 로그 · 분석 카드 · 신규/업데이트 판별
-// (층5의 Breaking Changes 박스는 core/breaking-check.js가 담당.
-//  원본의 층4 IDE Skills 상태는 project-auto-wizard 스코프 제외 — Agent Skills 미포함)
+// 첫 화면 상태 표시 층 — 감지 로그 · 분석 카드 · 신규/업데이트 판별
+// (Breaking Changes 박스는 core/breaking-check.js가 담당.
+//  원본의 IDE Skills 상태는 project-auto-wizard 스코프 제외 — Agent Skills 미포함)
 import { A, paint } from "./ansi.js";
 import { DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
@@ -8,10 +8,10 @@ const GUT = paint("│", A.gray);
 const HEAD = paint("◆", A.cyan);
 const OK = paint("✓", A.green);
 
-// 층2 — 감지 로그 (.ps1 감지 진행 표시 등가)
-// markers: Map<type, 실제 발견 파일> (이슈 #77).
+// 감지 로그 (.ps1 감지 진행 표시 등가)
+// markers: Map<type, 실제 발견 파일>.
 // warnings: 감지 도중 나온 경고. 감지 함수를 먼저 호출한 뒤 박스를 그리는 구조라 경고가
-//           박스 위로 새어나가 앞선 질문에 대한 경고처럼 보였다 — 박스 안에서 출력한다 (이슈 #80).
+//           박스 위로 새어나가 앞선 질문에 대한 경고처럼 보였다 — 박스 안에서 출력한다.
 export function printDetectionLog({ types = [], version = "", branch = "", markers = new Map(), warnings = [] },
   out = (s) => process.stderr.write(s)) {
   out(`${paint("┌", A.gray)}  🔍 프로젝트를 살펴보는 중...\n`);
@@ -28,7 +28,7 @@ export function printDetectionLog({ types = [], version = "", branch = "", marke
   out(`${GUT}\n`);
 }
 
-// 층3 — 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
+// 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
   paths = new Map(), showOptional = false,
   flutter = null, envModeDefault = "" },
@@ -40,7 +40,7 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
   row("🌿", "브랜치", branch);
   if (modeLabel || mode) row("💫", "통합 모드", modeLabel || mode);
   if (showOptional) {
-    // Flutter 옵션 (이슈 #131 fable5.1 리뷰 Important #1) — 확정 직전 화면에서도 선택값을 보여준다.
+    // Flutter 옵션 — 확정 직전 화면에서도 선택값을 보여준다.
     if (flutter && types.includes("flutter")) {
       const stores = flutter.stores ?? [];
       const modeParts = stores.map(
@@ -59,7 +59,7 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
   out(`${GUT}\n`);
 }
 
-// 층5 — 신규 통합 vs 업데이트 판별 라인 (Breaking 박스는 breaking-check.js)
+// 신규 통합 vs 업데이트 판별 라인 (Breaking 박스는 breaking-check.js)
 export function printInstallKind({ currentTemplateVersion = "", templateVersion = "" }, out = (s) => process.stderr.write(s)) {
   if (currentTemplateVersion) {
     out(`${GUT}  ♻️  ${paint("업데이트", A.bold)} — 템플릿 ${paint(`v${currentTemplateVersion}`, A.dim)} → ${paint(`v${templateVersion}`, A.green)}\n`);

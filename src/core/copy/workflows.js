@@ -59,7 +59,7 @@ function renderVirtual(templateContent, envOpts) {
 
 // 분류 — 대상 워크플로우 디렉토리 기준. srcText: 브랜치 치환이 적용된 원본 로더 (makeSrcText).
 //
-// baseline이 있으면 3-way로 가른다 (issue #69). base가 없던 시절에는 업스트림이 한 글자만 고쳐도
+// baseline이 있으면 3-way로 가른다. base가 없던 시절에는 업스트림이 한 글자만 고쳐도
 // 사용자가 손대지 않은 파일이 changed로 떨어져, "전부 skip" 아니면 "전부 backup" 둘 중 하나만
 // 고를 수 있었다.
 //
@@ -101,7 +101,7 @@ function classify(srcDir, workflowsDir, envOpts, srcText, baseline = null, filte
 // 한 원본 디렉토리를 분류 결과대로 처리한다. common·타입별·server-deploy가 같은 규칙을 쓴다.
 // filter: trunk-based 제외 같은 파일 단위 필터.
 //
-// 자동 처리되는 두 버킷이 이 함수의 핵심이다 (issue #69):
+// 자동 처리되는 두 버킷이 이 함수의 핵심이다:
 //   upstreamOnly — 사용자가 손대지 않았으니 그냥 최신으로 교체한다. 물어볼 이유가 없다.
 //   localOnly    — 업스트림이 그대로니 사용자 수정본을 그대로 둔다. 역시 물어볼 이유가 없다.
 function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () => true) {
@@ -171,7 +171,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const counters = { copied: 0, skipped: 0, templateAdded: 0, optionalCopied: 0, backupAdded: 0 };
   const deployValues = new Map(); // Map<type, Map<key,value>> — deploy 블록용 ask 값
   counters.deployValues = deployValues;
-  counters.copiedFiles = []; // 이번 실행에서 실제로 새로 쓰여진 파일명 (issue #19 — printSummary 정확성용)
+  counters.copiedFiles = []; // 이번 실행에서 실제로 새로 쓰여진 파일명 (printSummary 정확성용)
   counters.unchangedFiles = []; // skip(unchanged) 대상 — 로그에서 "왜 안 바뀌었나"의 근거
   counters.autoUpdated = [];    // 질문 없이 최신으로 교체된 파일 (사용자 미수정)
   counters.keptLocal = [];      // 질문 없이 사용자 수정본을 유지한 파일 (업스트림 무변경)
@@ -185,7 +185,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   const envOptsFor = (type) => ({ type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults });
   const dirCtx = { srcText, baseline, decisions, restoreRemoved, baselineTargets };
 
-  // (1) common — 타입별과 동일 규칙 (README 계약, issue #20 H3).
+  // (1) common — 타입별과 동일 규칙 (README 계약).
   //     trunk-based 모드는 VERSION-CONTROL·AUTO-CHANGELOG 미설치 (RELEASE-PUBLISH 단독).
   const branchMode = context.branches?.mode || "pr-flow";
   const commonDir = join(projectTypesDir, "common");
@@ -194,7 +194,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
     const c = processDir(commonDir, workflowsDir, envOptsFor("common"), dirCtx, counters, notExcluded);
     // env 치환 — 타입별 폴더(copyWorkflowsForType)와 동일하게, 손대지 않기로 한 파일(unchanged/localOnly)은
     // 건너뛴다. common 최상위는 지금까지 @wizard 마커가 없어 이 루프가 없어도 드러나지 않았지만,
-    // ISSUE_HELPER_CREATE_BRANCH(issue #94)부터는 실제로 값이 반영돼야 한다.
+    // ISSUE_HELPER_CREATE_BRANCH부터는 실제로 값이 반영돼야 한다.
     const untouched = [...c.unchanged, ...c.localOnly];
     for (const filename of listYamlFiles(commonDir)) {
       if (!notExcluded(filename)) continue;
@@ -259,9 +259,9 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
   log.info("copy", "skip", `${filename} (사용자 결정: 기존 유지)`);
 }
 
-// 대화형 사전 조사 — 사람이 답해야 하는 것만 뽑는다 (issue #69).
+// 대화형 사전 조사 — 사람이 답해야 하는 것만 뽑는다.
 // copyWorkflows 본체와 동일한 classify 기준을 써야 결정 Map이 실제 처리 대상과 1:1로 맞는다.
-// common도 타입별과 동일하게 스캔한다 (issue #20 H3 — 이전에는 common 충돌이 질문조차 되지 않았다).
+// common도 타입별과 동일하게 스캔한다 (이전에는 common 충돌이 질문조차 되지 않았다).
 // 반환: { conflicts: [{filename,type}], removed: [{filename,type}] }
 //   conflicts — 양쪽이 다 바뀐 진짜 충돌. upstreamOnly/localOnly는 자동 처리되므로 여기 없다.
 //   removed   — 우리가 깔았는데 사용자가 지운 파일. 되살리기 전에 물어봐야 한다.
@@ -376,7 +376,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const branchMode = context.branches?.mode || "pr-flow";
-  // upstreamOnly/localOnly/removed는 baseline이 있을 때만 채워진다 (issue #69).
+  // upstreamOnly/localOnly/removed는 baseline이 있을 때만 채워진다.
   const plan = { newFiles: [], unchanged: [], changed: [], upstreamOnly: [], localOnly: [], removed: [] };
   const BUCKETS = ["newFiles", "unchanged", "changed", "upstreamOnly", "localOnly", "removed"];
 

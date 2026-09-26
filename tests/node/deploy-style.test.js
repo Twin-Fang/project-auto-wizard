@@ -1,5 +1,5 @@
 // tests/node/deploy-style.test.js
-// 배포 방식 선택 (이슈 #80) — CD 워크플로우는 서로 대체재라 하나만 설치하고 트리거를 켠다.
+// 배포 방식 선택 — CD 워크플로우는 서로 대체재라 하나만 설치하고 트리거를 켠다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";

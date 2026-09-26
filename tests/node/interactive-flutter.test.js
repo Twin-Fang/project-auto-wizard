@@ -1,5 +1,5 @@
 // tests/node/interactive-flutter.test.js
-// 이슈 #131 — 프로젝트 타입에 flutter가 있을 때만 환경변수 방식·스토어 배포 대상·배포 모드를 묻고,
+// 프로젝트 타입에 flutter가 있을 때만 환경변수 방식·스토어 배포 대상·배포 모드를 묻고,
 // 저장값이 있으면 재질문하지 않으며, 기존 설치는 설치된 스토어 워크플로우로 초기 선택을 추론한다.
 // 스텁 io 방식은 interactive-branch-strategy.test.js와 같다. 답변은 version.yml(저장)과
 // 설치된 워크플로우 파일(스토어 필터)로 검증한다.
@@ -35,7 +35,7 @@ function stubIo({ envMode = initialOf, stores = initialsOf, deployMode = initial
     summary: () => {},
     outro: () => {},
     // 실제 화면에 쓰이는 printAnalysisCard를 그대로 통과시킨다 — io.analysisCard를 빼먹으면
-    // interactive.js가 summarize() fallback으로 새어나가 실사용 경로를 검증하지 못한다(fable5.1 fix round 2).
+    // interactive.js가 summarize() fallback으로 새어나가 실사용 경로를 검증하지 못한다.
     analysisCard: (info) => {
       let text = "";
       printAnalysisCard(info, (s) => { text += s; });
@@ -177,7 +177,7 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
   }
 });
 
-// fable5.1 리뷰 Important #1 회귀 방지 — 확인 카드에 Flutter 선택값(환경변수 방식·스토어 배포
+// 회귀 방지 — 확인 카드에 Flutter 선택값(환경변수 방식·스토어 배포
 // 대상·배포 모드)이 보여야 한다. 수정 메뉴에서만 보이고 확정 직전 화면에 없으면 재확인이 안 된다.
 test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포 모드)이 표시된다", async () => {
   const target = flutterProject();
@@ -198,7 +198,7 @@ test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대�
   }
 });
 
-// fable5.1 리뷰 Important #2 회귀 방지 — flutterStore 수정에서 플랫폼을 해제했다가 다시 선택하면
+// 회귀 방지 — flutterStore 수정에서 플랫폼을 해제했다가 다시 선택하면
 // 배포 모드를 다시 물어야 한다(옛 값이 남아있으면 안 된다).
 test("수정하기: 스토어 해제 후 재선택하면 배포 모드를 다시 묻는다", async () => {
   const target = flutterProject();
