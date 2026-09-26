@@ -166,7 +166,7 @@ export async function resolveProjectPaths({
     const candidates = findTypePathCandidates(root, t);
     let chosen = "";
 
-    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489 — M4: root 폴백 의도적 불포함) ──
+    // ── ⑤-a 비대화형 (--force 또는 TTY 없음, .sh L1476~1489 — root 폴백 의도적 불포함) ──
     if (force || !tty) {
       if (existing) {
         chosen = existing;

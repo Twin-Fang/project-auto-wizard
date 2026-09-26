@@ -1,4 +1,4 @@
-// 설치 시점 baseline (issue #69) — 업데이트에서 "누가 바꿨는지"를 가르는 기준점.
+// 설치 시점 baseline — 업데이트에서 "누가 바꿨는지"를 가르는 기준점.
 //
 // 왜 필요한가: isUnchanged()는 payload(theirs)와 설치본(ours)을 2-way로 비교한다.
 // base가 없으니 업스트림이 한 글자만 고쳐도 사용자가 손대지 않은 파일이 changed로 떨어지고,

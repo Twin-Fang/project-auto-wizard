@@ -26,8 +26,6 @@ export function runStatus(payloadRoot, targetRoot = ".") {
   const branchesForCompare = existing.branches || { main: detectDefaultBranch(targetRoot) || "main", develop: "develop", mode: "pr-flow" };
   const context = {
     types: existing.types, paths: existing.paths,
-    includeNexus: existing.options.nexus === true,
-    includeSecretBackup: existing.options.secretBackup === true,
     repoName, resolvers, branches: branchesForCompare,
     flutterStore: flutterOptions.stores,
   };
@@ -41,7 +39,7 @@ export function runStatus(payloadRoot, targetRoot = ".") {
     branches: existing.branches,
     options: existing.options,
     // 사용자가 손댄 파일 = 진짜 충돌(changed) + 업스트림은 그대로인데 내가 고친 것(localOnly).
-    // baseline이 없으면 localOnly는 항상 비어 있어 종전과 동일하게 동작한다 (issue #69).
+    // baseline이 없으면 localOnly는 항상 비어 있어 종전과 동일하게 동작한다.
     modifiedFiles: [...plan.changed, ...plan.localOnly].map((f) => f.filename),
     // 업데이트 시 무슨 일이 일어날지 미리 보여주는 버킷들 — 판단 재료가 없어 사용자가
     // 직접 git diff를 떠야 했던 문제를 없앤다.
@@ -71,7 +69,7 @@ export function printStatus(status) {
   const semverAutoLabel = status.options.semverAuto === null ? "미설정(기본 false)" : status.options.semverAuto;
   const copilotAiLabel = boolLabel(status.options.copilotAi ?? null);
   const flutterLabels = status.types.includes("flutter") ? flutterOptionLabels(status.options) : "";
-  lines.push(`옵션            : nexus=${boolLabel(status.options.nexus)} secret_backup=${boolLabel(status.options.secretBackup)} semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${flutterLabels}`);
+  lines.push(`옵션            : semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${flutterLabels}`);
   if (status.modifiedFiles.length) {
     lines.push("", `사용자가 수정한 워크플로우 파일 (${status.modifiedFiles.length}개):`);
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);
@@ -79,7 +77,7 @@ export function printStatus(status) {
     lines.push("", "모든 워크플로우 파일이 설치 시점 기본값과 동일합니다 (수정 없음).");
   }
 
-  // 업데이트하면 무슨 일이 일어나는지 (issue #69). baseline이 없는 설치는 전부 0이라 출력하지 않는다.
+  // 업데이트하면 무슨 일이 일어나는지. baseline이 없는 설치는 전부 0이라 출력하지 않는다.
   const b = status.buckets || { autoUpdatable: [], localKept: [], conflicts: [], removed: [] };
   if (b.autoUpdatable.length || b.localKept.length || b.conflicts.length || b.removed.length) {
     lines.push("", "지금 업데이트하면:");
@@ -92,7 +90,7 @@ export function printStatus(status) {
   console.log(lines.join("\n"));
 }
 
-// Flutter 타입일 때만 붙는 옵션 (이슈 #131). 저장값이 없으면 그 상태에서 실제로 적용되는 동작을 함께 알린다.
+// Flutter 타입일 때만 붙는 옵션. 저장값이 없으면 그 상태에서 실제로 적용되는 동작을 함께 알린다.
 function flutterOptionLabels(options) {
   return [
     ` env_mode=${options.envMode ?? "미설정(dotenv 유지)"}`,

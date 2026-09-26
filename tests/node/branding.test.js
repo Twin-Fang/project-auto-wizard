@@ -34,7 +34,7 @@ const BASE = {
   pathMarkers: new Map([["spring", "build.gradle"], ["react", "package.json"]]),
   branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
   now: "2026-07-09 00:00:00", today: "2026-07-09",
-  templateOptions: { templateVersion: "0.1.0", includeNexus: true, includeSecretBackup: false, optionsDate: "2026-07-09" },
+  templateOptions: { templateVersion: "0.1.0", optionsDate: "2026-07-09" },
 };
 
 test("buildVersionYml renders the payload template with branches metadata", () => {
@@ -42,14 +42,12 @@ test("buildVersionYml renders the payload template with branches metadata", () =
   assert.ok(out.includes('version: "1.2.3"'));
   assert.ok(out.includes("version_code: 7"));
   assert.ok(out.includes('project_types: ["spring", "react"]'));
-  // 레거시 단수 키는 더 이상 렌더되지 않는다 (issue #62)
+  // 레거시 단수 키는 더 이상 렌더되지 않는다
   assert.ok(!/^project_type:/m.test(out), `legacy singular project_type must not be rendered:\n${out}`);
   assert.ok(out.includes('spring: "api"'));
   assert.ok(out.includes('main: "main"'));
   assert.ok(out.includes('develop: "develop"'));
   assert.ok(out.includes('mode: "pr-flow"'));
-  assert.ok(out.includes("nexus: true"));
-  assert.ok(out.includes("secret_backup: false"));
   assert.ok(out.includes("semver_auto: true"));
   assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
 });
@@ -76,7 +74,6 @@ test("parseExisting round-trips branches metadata", () => {
   assert.deepStrictEqual(parsed.branches, { main: "master", develop: "dev", mode: "pr-flow" });
   assert.strictEqual(parsed.version, "1.2.3");
   assert.strictEqual(parsed.versionCode, 7);
-  assert.strictEqual(parsed.options.nexus, true);
 });
 
 test("parseExisting returns null branches when metadata absent", () => {

@@ -1,14 +1,10 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter Android 자체 서버(SMB) 배포 워크플로우
-# ===================================================================
 #
 # {{MAIN_BRANCH}} 브랜치 푸시 시 Android APK를 빌드하고
 # 자체 서버(예: Synology NAS·NAS·Linux)의 SMB 공유에 APK를 배포합니다.
 #
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 # ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
 # RELEASE_KEYSTORE_BASE64: 서명용 keystore (base64)
 # RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
@@ -18,7 +14,6 @@
 # SERVER_HOST: 서버 호스트(SMB 접속 주소)
 # SERVER_USER: SMB 사용자명
 # SERVER_PASSWORD: SMB 비밀번호
-# ===================================================================
 
 name: PROJECT-Android-SelfHosted-CICD
 
@@ -28,9 +23,7 @@ on:
     # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
   workflow_dispatch: # 수동 실행 옵션 추가
 
-# ============================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ============================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   # 프로젝트 이름 (APK 파일명, 아티팩트명, 히스토리 파일명에 사용)
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
@@ -55,7 +48,6 @@ jobs:
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     steps:
-      # Repository 체크아웃 및 목록 출력
       - name: Check out repository
         uses: actions/checkout@v7
         with:
@@ -90,7 +82,6 @@ jobs:
             echo "dart-define file prepared"
           fi
 
-      # Keystore와 key.properties 설정
       - name: Setup Keystore and key.properties
         run: |
           mkdir -p android/app/keystore
@@ -104,7 +95,6 @@ jobs:
           echo "key.properties created"
           ls -la android/
 
-      # Google-services.json 생성
       - name: Create Google-services.json
         run: |
           cat << 'EOF' > android/app/google-services.json
@@ -113,7 +103,6 @@ jobs:
           echo "✅ Google-services.json 생성 완료"
           ls -la android/app/
 
-      # Flutter 설정 및 버전 확인
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -126,7 +115,6 @@ jobs:
           echo "Flutter setup completed"
           flutter --version
 
-      # Flutter 및 Gradle 캐시
       - name: Cache Flutter dependencies
         uses: actions/cache@v6
         with:
@@ -144,7 +132,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 프로젝트 의존성 설치
       - name: Install dependencies
         run: |
           flutter pub get
@@ -154,14 +141,12 @@ jobs:
           echo "Dependencies installed"
           ls -la
 
-      # Gradle 셋업
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           echo "Gradle wrapper permissions set"
 
-      # Java 설정 및 버전 확인
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -173,7 +158,6 @@ jobs:
           echo "Java setup completed"
           java -version
 
-      # 현재 버전 정보 및 짧은 커밋 해시 계산
       - name: Get version info and calculate short commit hash
         id: version_info
         run: |
@@ -197,7 +181,6 @@ jobs:
           ls -la build/app/outputs/flutter-apk/ || true
           echo "APK built"
 
-      # APK 파일 이름 변경 및 준비
       - name: Rename and Prepare APK
         run: |
           mkdir -p ./android/app/build/outputs/apk/release/
@@ -205,7 +188,6 @@ jobs:
           echo "APK renamed to ${{ env.APP_ARTIFACT_NAME }}-v${{ env.VERSION }}-${{ env.SHORT_COMMIT_HASH }}.apk"
           ls -la ./android/app/build/outputs/apk/release/
 
-      # APK를 아티팩트로 업로드
       - name: Upload APK as Artifact
         uses: actions/upload-artifact@v7
         with:

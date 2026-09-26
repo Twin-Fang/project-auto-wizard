@@ -1,5 +1,5 @@
 // tests/node/flutter-store-filter.test.js
-// Flutter 스토어 워크플로우 선택 필터 (이슈 #131) — 설치·충돌 조사·계획(status/dry-run)이 같은 파일 집합을 본다.
+// Flutter 스토어 워크플로우 선택 필터 — 설치·충돌 조사·계획(status/dry-run)이 같은 파일 집합을 본다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync } from "node:fs";

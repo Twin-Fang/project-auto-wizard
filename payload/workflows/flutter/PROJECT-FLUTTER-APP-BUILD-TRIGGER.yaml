@@ -1,7 +1,5 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter 테스트 앱 빌드 트리거 워크플로우
-# ===================================================================
 #
 # 이 워크플로우는 PR 또는 이슈에 댓글로 빌드 명령어를 작성하면
 # Android와 iOS 테스트 앱 빌드를 자동으로 트리거합니다.
@@ -26,8 +24,6 @@
 # 트리거되는 워크플로우:
 # - PROJECT-FLUTTER-ANDROID-TEST-APK.yaml (event_type: build-android-app)
 # - PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml (event_type: build-ios-app)
-#
-# ===================================================================
 
 name: PROJECT-Flutter-App-Build-Trigger
 

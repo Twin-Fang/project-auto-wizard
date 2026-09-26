@@ -1,7 +1,5 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter iOS TestFlight 자동 배포 워크플로우
-# ===================================================================
 #
 # 이 워크플로우는 Flutter iOS 앱을 빌드하여 TestFlight에 자동 배포합니다.
 #
@@ -14,30 +12,26 @@
 #   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
 #   4. fastlane deploy (ios/fastlane/Fastfile 사용, DEPLOY_MODE에 따라 TestFlight/심사 제출)
 #
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 #
-# 🔐 Apple 인증서 & 프로비저닝 프로파일:
+# Apple 인증서 & 프로비저닝 프로파일:
 # APPLE_CERTIFICATE_BASE64: .p12 인증서 (base64 인코딩)
 # APPLE_CERTIFICATE_PASSWORD: .p12 인증서 비밀번호
 # APPLE_PROVISIONING_PROFILE_BASE64: .mobileprovision 파일 (base64 인코딩)
 # IOS_PROVISIONING_PROFILE_NAME: 프로비저닝 프로파일 이름
 #
-# 🔑 App Store Connect API:
+# App Store Connect API:
 # APP_STORE_CONNECT_API_KEY_ID: API Key ID (10자리)
 # APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID 형식)
 # APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 파일 (base64 인코딩)
 # IOS_BUNDLE_ID (Secret 우선, 없으면 Variable): 앱 번들 ID —
 #   store_prepare/store_submit을 쓰면 필수(비어 있으면 Fastfile이 명확한 오류로 중단)
 #
-# 📝 환경 설정 (선택):
+# 환경 설정 (선택):
 # ENV_FILE (선택): .env 파일 내용
 # SECRETS_XCCONFIG (선택): ios/Flutter/Secrets.xcconfig 내용
 #
-# ===================================================================
-# 🛠️ 초기 설정 방법
-# ===================================================================
+# 초기 설정 방법
 #
 # 1. GitHub Secrets 설정 (위 목록 참고)
 #
@@ -46,8 +40,6 @@
 #    git commit -m "chore: iOS TestFlight 배포 설정"
 #
 # 3. {{MAIN_BRANCH}} 브랜치로 푸시하여 배포 시작
-#
-# ===================================================================
 
 name: PROJECT-iOS-TestFlight-Deploy
 
@@ -67,9 +59,7 @@ on:
           - store_prepare
           - store_submit
 
-# ============================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ============================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
   # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
@@ -78,20 +68,14 @@ env:
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
 
-  # ============================================
-  # 📝 환경 파일 설정
-  # ============================================
+  # 환경 파일 설정
   # dotenv 모드에서 .env 파일을 만들 경로 (Flutter 루트 기준)
   ENV_FILE_PATH: ".env"
 
-  # ============================================
-  # 📝 TestFlight Changelog 설정
-  # ============================================
+  # TestFlight Changelog 설정
   SKIP_WAITING_FOR_BUILD_PROCESSING: "false"
 
-  # ============================================
-  # 📝 배포 모드 (store_only | store_prepare | store_submit)
-  # ============================================
+  # 배포 모드 (store_only | store_prepare | store_submit)
   DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.IOS_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:ios-deploy-mode
 
 jobs:
@@ -230,9 +214,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # ============================================
   # iOS 빌드 (xcodebuild 직접 사용)
-  # ============================================
   build-ios:
     name: iOS 앱 빌드
     runs-on: macos-26
@@ -392,9 +374,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # ============================================
   # TestFlight 배포 (ios/fastlane/Fastfile 사용)
-  # ============================================
   deploy-testflight:
     name: TestFlight 배포
     runs-on: macos-26

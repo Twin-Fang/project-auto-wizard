@@ -1,5 +1,5 @@
 // tests/node/interactive-branch-picker.test.js
-// 이슈 #85 — pickBranch()가 select()에 정렬된 options와 initialIndex를 넘기는지 검증.
+// pickBranch()가 select()에 정렬된 options와 initialIndex를 넘기는지 검증.
 import { test } from "node:test";
 import assert from "node:assert";
 import { pickBranch } from "../../src/commands/interactive.js";

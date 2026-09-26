@@ -1,5 +1,5 @@
 // tests/node/confirm-types.test.js
-// 타입 확정 단계 (이슈 #78) — 감지는 추정이므로 다른 질문보다 먼저 확인받아야 한다.
+// 타입 확정 단계 — 감지는 추정이므로 다른 질문보다 먼저 확인받아야 한다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

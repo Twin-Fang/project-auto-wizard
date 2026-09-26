@@ -11,7 +11,7 @@ export function compareVersions(a, b) {
 }
 
 // breaking-changes.json에서 current < ver <= target 범위 항목 수집.
-// ⚠️ .sh 버그 수정: target은 하드코딩 1.3.14가 아니라 실제 templateVersion을 넘긴다 (D2).
+// ⚠️ .sh 버그 수정: target은 하드코딩 1.3.14가 아니라 실제 templateVersion을 넘긴다.
 // _ 로 시작하는 키(메타) 제외. severity critical / 그 외(warning).
 // 버전 키의 값은 항목 객체 또는 항목 객체의 배열(같은 릴리스에 고지가 여러 건일 때).
 export function collectBreaking(json, current, target) {

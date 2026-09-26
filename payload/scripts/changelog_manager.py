@@ -464,7 +464,7 @@ def cmd_classify_bump(commits_file: str) -> int:
 def cmd_update_from_summary() -> int:
     """pr_body.md에서 Markdown을 파싱하여 CHANGELOG.json 갱신."""
     version = os.environ.get('VERSION')
-    # PROJECT_TYPES(csv)가 유일한 입력 — 단수 PROJECT_TYPE 폴백은 제거됐다 (issue #62)
+    # PROJECT_TYPES(csv)가 유일한 입력 — 단수 PROJECT_TYPE 폴백은 제거됐다
     project_types_csv = os.environ.get('PROJECT_TYPES', '')
     project_types = [t.strip() for t in project_types_csv.split(',') if t.strip()]
     today = os.environ.get('TODAY')

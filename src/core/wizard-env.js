@@ -3,7 +3,7 @@
 // 실측 기준: template_integrator.sh 3282~3360, 3003~3012.
 
 // KEY 정규식: .sh는 [A-Z_]+ (대문자+언더스코어만). ask/auto/fallback 마커가 있는 라인만 대상.
-// fallback(이슈 #131)은 `KEY: ${{ 런타임값 || 'literal' }}` 표현식 안의 기본 리터럴을 교체하는 마커다.
+// fallback은 `KEY: ${{ 런타임값 || 'literal' }}` 표현식 안의 기본 리터럴을 교체하는 마커다.
 const MARKER_RE = /#\s*@wizard\s+(ask|auto|fallback):(.*)$/;
 const KEY_RE = /^(\s*)([A-Z_]+):/;
 const PATHS_ANCHOR_RE = /#\s*@wizard\s+paths-anchor/;
@@ -19,7 +19,7 @@ export function parseWizardLine(line) {
 
 // YAML 큰따옴표 문자열 안에 안전하게 넣기 위한 이스케이프(백슬래시 우선 — 그래야 그 다음에 붙이는
 // 큰따옴표 이스케이프가 깨지지 않는다). @wizard 치환(setEnvLine)과 version.yml의 deploy 블록
-// (buildVersionYml, src/core/version-yml.js) 양쪽에서 재사용한다 — issue #20 L9는 두 지점 모두에서
+// (buildVersionYml, src/core/version-yml.js) 양쪽에서 재사용한다 — 두 지점 모두에서
 // 발생하는 동일한 버그다.
 export function escapeYamlDoubleQuoted(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -34,7 +34,7 @@ export function setEnvLine(line, key, value) {
   const body = cr ? line.slice(0, -1) : line;
   // 값 치환: KEY: "기존값" → KEY: "value"
   // 홑따옴표(KEY: '기존값')도 받는다 — 템플릿에 두 표기가 섞여 있는데 겹따옴표만 보면
-  // 홑따옴표 줄의 @wizard 마커가 아무 경고 없이 무시된다(이슈 #81과 같은 실패 형태).
+  // 홑따옴표 줄의 @wizard 마커가 아무 경고 없이 무시된다(같은 실패 형태).
   // 치환 결과는 겹따옴표로 통일하고, 값은 그에 맞게 이스케이프한다.
   const escaped = escapeYamlDoubleQuoted(value);
   let out = body.replace(
@@ -71,7 +71,7 @@ export function resolveToken(name, type, resolvers = {}) {
 
 // __PROJECT_NAME__/__APP_ARTIFACT_NAME__ 전역 토큰을 repoName으로 치환.
 // substituteEnv()(설치 파일 본문)와 collectAsks()(마법사 화면 표시용 기본값) 양쪽에서
-// 재사용한다 — 두 곳이 서로 다른 로직으로 갈라지면 issue #110과 같은 표시 불일치가 재발한다.
+// 재사용한다 — 두 곳이 서로 다른 로직으로 갈라지면 표시 불일치가 재발한다.
 export function replaceProjectTokens(text, repoName) {
   if (!text.includes("__PROJECT_NAME__") && !text.includes("__APP_ARTIFACT_NAME__")) return text;
   return text.replaceAll("__PROJECT_NAME__", repoName).replaceAll("__APP_ARTIFACT_NAME__", repoName);

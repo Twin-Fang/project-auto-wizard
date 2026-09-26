@@ -1,5 +1,5 @@
 // tests/node/installed-stores.test.js
-// 이슈 #131 — flutter_store 저장값이 없는 기존 설치는 설치된 스토어 워크플로우로 플랫폼을 추론한다.
+// flutter_store 저장값이 없는 기존 설치는 설치된 스토어 워크플로우로 플랫폼을 추론한다.
 // (선택 해제로 오인해 잘 쓰던 스토어 워크플로우가 정리되는 사고를 막는다.)
 import { test } from "node:test";
 import assert from "node:assert";

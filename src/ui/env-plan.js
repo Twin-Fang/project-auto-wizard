@@ -35,13 +35,12 @@ export function scopeString(usages = []) {
 // payloadRoot: 패키지 payload/ 루트. types: 설치 대상 타입 목록.
 // opts:
 //   resolvers    - @접두 기본값(@repo 등) 해석용 (.sh는 수집 시점에 resolve_token — 동일)
-//   includeNexus - true면 server-deploy 제외 + nexus/ 포함 (복사 엔진과 스캔 범위 일치)
 //   flutterStore - Flutter 스토어 대상(string[]|null). 배열이면 선택 해제된 스토어 워크플로우는 스캔에서 제외 (null=현행)
 //   prompts      - wizard-labels 파싱 객체 (워크플로우 표시명용, null이면 확장자 제거 폴백)
 // 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
-  const { resolvers = {}, includeNexus = false, includeSecretBackup = false, deployStyle = "", flutterStore = null, prompts = null } = opts;
+  const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null } = opts;
   // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
   const keepDeploy = deployFilter(deployStyle);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
@@ -51,16 +50,14 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const usages = new Map();
 
   // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
-  // 동일 규칙 — issue #94) 무조건 스캔한다. secret-backup은 common 최상위가 아니라 그 하위
-  // 폴더고, 파일 전체가 조건부로 설치되므로 포함하기로 한 경우에만 별도로 스캔한다 (이슈 #82) —
-  // 종전에는 스캔 대상이 아니어서 my-project 같은 예시값이 질문 없이 그대로 설치됐다.
+  // 동일 규칙) 무조건 스캔한다.
   const units = [];
   const commonDir = join(baseDir, "common");
   if (exists(commonDir)) units.push(["common", commonDir, null]);
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
-    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + (nexus면) nexus + (그 외엔, "배포 안 함"이
+    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + ("배포 안 함"이
     // 아닐 때만) server-deploy. server-deploy가 있는 타입은 "none"일 때 그 폴더(PR 프리뷰
     // 포함) 자체를 스캔에서 뺀다.
     // go/python처럼 CD가 server-deploy 없이 타입 루트에 바로 있는 타입은, "배포 안 함"일 때
@@ -69,13 +66,10 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
     // 배포 방식과 무관하게 항상 설치되는 별도 축이라 의도된 잔여 범위다.
     // Flutter는 선택 해제된 스토어 워크플로우(PLAYSTORE·TESTFLIGHT)도 같은 필터로 걸러 질문 범위가 설치 범위와 같다.
     units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore)]);
-    if (includeNexus) {
-      units.push([type, join(typeDir, "nexus"), null]);
-    } else if (deployStyle !== NO_DEPLOY_STYLE) {
+    if (deployStyle !== NO_DEPLOY_STYLE) {
       units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
     }
   }
-  if (includeSecretBackup) units.push(["common", join(baseDir, "common", "secret-backup"), null]);
 
   for (const [type, dir, fileFilter] of units) {
     if (!exists(dir)) continue;
@@ -91,7 +85,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
         const rawDefault = p.arg.startsWith("@")
           ? resolveToken(p.arg.slice(1), type, resolvers)
           : p.arg;
-        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면(issue #110) 실제 repoName으로
+        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면실제 repoName으로
         // 풀어준다 — substituteEnv()가 설치 파일에 적용하는 것과 동일한 치환이라야 마법사
         // 화면 표시와 실제 설치 결과가 어긋나지 않는다.
         const typeDefault = replaceProjectTokens(rawDefault, resolveToken("repo", type, resolvers));
@@ -111,7 +105,7 @@ function firstTypeFor(usages, key) {
   return usages.get(key)?.[0]?.type ?? "";
 }
 
-// 최종 답변 목록 (이슈 #79, #80) — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
+// 최종 답변 목록 — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
 // isDefault는 "기본값 그대로인가"다. 나중에 배포가 안 될 때 제일 먼저 확인하게 되는 정보라
 // 값만 남기면 부족하다.
 function buildAnswers(prompts, asks, values, useDefaults) {
@@ -146,7 +140,7 @@ export function printFieldCard(prompts, key, info, idx = null, tot = null, log =
   log("");
 }
 
-// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다 (이슈 #94).
+// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다.
 // 마커 문법(@wizard ask:...)을 바꾸지 않고 리터럴 값 형태만으로 판단 — 별도 타입 표기가 필요 없다.
 function isBooleanDefault(value) {
   return value === "true" || value === "false";
@@ -186,17 +180,17 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
 //  - useDefaults=false → values에 담긴 키만 사용자 확정값으로 치환, 나머지는 기본값
 //    (⚠️ substituteEnv는 useDefaults=false일 때만 values를 참조하므로 이 플래그를 반드시 함께 전달)
 // 인자:
-//   payloadRoot/types/resolvers/includeNexus/flutterStore — collectAsks와 동일 의미
+//   payloadRoot/types/resolvers/flutterStore — collectAsks와 동일 의미
 //   targetRoot — wizard-prompts.yml 1차 탐색 위치(기본 ".")
 //   force      — true면 질문 없이 전부 기본값 (.sh FORCE_MODE 등가)
 //   io         — {select, multiselect, text} 주입 (기본 readline-engine). 테스트 스텁 지점.
 //   log        — 카드·안내 출력 함수 주입 (기본 stderr)
 export async function promptEnvPlan({
   payloadRoot, types = [], io = null, force = false, resolvers = {},
-  includeNexus = false, includeSecretBackup = false, deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
+  deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
 } = {}) {
   const prompts = loadWizardPrompts(targetRoot, payloadRoot);
-  const asks = collectAsks(payloadRoot, types, { resolvers, includeNexus, includeSecretBackup, deployStyle, flutterStore, prompts });
+  const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts });
   const defaults = asks.defaults;
 
   // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)

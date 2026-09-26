@@ -1,5 +1,5 @@
 // tests/node/status-cards-flutter.test.js
-// 이슈 #131 fable5.1 리뷰 Important #1(fix round 2) 회귀 방지 — 실제 화면에 출력되는
+// 회귀 방지 — 실제 화면에 출력되는
 // printAnalysisCard(src/ui/status-cards.js)가 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포
 // 모드)을 직접 렌더링하는지 단위로 검증한다. interactive.js의 summarize() fallback이 아니라
 // io.analysisCard가 항상 쓰는 이 함수 자체를 대상으로 한다.
@@ -16,7 +16,7 @@ function render(info) {
 test("printAnalysisCard: showOptional && flutter 타입이면 환경변수·스토어·배포 모드 3줄을 출력한다", () => {
   const text = render({
     mode: "full", modeLabel: "전체 설치", types: ["flutter"], version: "1.0.0", branch: "main",
-    includeNexus: false, includeSecretBackup: false, showOptional: true,
+    showOptional: true,
     flutter: { envMode: "dotenv", stores: ["android", "ios"], androidDeployMode: "store_only", iosDeployMode: "store_submit" },
     envModeDefault: "dart-define",
   });
@@ -42,7 +42,7 @@ test("printAnalysisCard: showOptional이 false면 Flutter 옵션 줄이 없다",
     flutter: { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_only", iosDeployMode: "store_only" },
     envModeDefault: "dart-define",
   });
-  assert.ok(!text.includes("환경변수"), "showOptional=false면 Nexus/Secret과 같이 Flutter 줄도 숨겨야 한다");
+  assert.ok(!text.includes("환경변수"), "showOptional=false면 Flutter 줄도 숨겨야 한다");
 });
 
 test("printAnalysisCard: flutter 타입이 아니면 flutter 상태를 넘겨도 옵션 줄이 없다", () => {

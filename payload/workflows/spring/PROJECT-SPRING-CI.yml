@@ -1,14 +1,7 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
-# Spring Nexus CI 워크플로우
-# ===================================================================
-#
-# 🔑 필수 GitHub Secrets
-# ===================================================================
-# GRADLE_PROPERTIES: gradle.properties 파일 내용 (Nexus 인증 정보 포함)
-# ===================================================================
+# Spring CI 워크플로우
 
-name: PROJECT-SPRING-NEXUS-CI
+name: PROJECT-SPRING-CI
 
 on:
   pull_request:
@@ -30,9 +23,7 @@ env:
   PROJECT_PATH: "."  # @wizard auto:project-path
 
 jobs:
-  # ===================================================================
   # 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
-  # ===================================================================
   changes:
     name: 변경 감지
     runs-on: ubuntu-latest
@@ -76,10 +67,6 @@ jobs:
       uses: gradle/wrapper-validation-action@v2
       continue-on-error: true
 
-    - name: Create gradle.properties from secret
-      run: |
-        echo -e "${{ secrets.GRADLE_PROPERTIES }}" > gradle.properties
-
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
@@ -119,30 +106,25 @@ jobs:
       id: report
       if: always()
       run: |
-        # 빌드 상태 확인 (exit code 기반)
         COMPILE_STATUS="✅ 성공"
         TEST_STATUS="✅ 성공"
         BUILD_STATUS="✅ 성공"
         
-        # 컴파일 상태 확인
         COMPILE_EXIT_CODE="${{ steps.compile.outputs.compile_exit_code }}"
         if [ "$COMPILE_EXIT_CODE" != "0" ] && [ "$COMPILE_EXIT_CODE" != "" ]; then
           COMPILE_STATUS="❌ 실패"
         fi
         
-        # 테스트 상태 확인  
         TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
         if [ "$TEST_EXIT_CODE" != "0" ] && [ "$TEST_EXIT_CODE" != "" ]; then
           TEST_STATUS="❌ 실패"
         fi
         
-        # 빌드 상태 확인
         BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
         if [ "$BUILD_EXIT_CODE" != "0" ] && [ "$BUILD_EXIT_CODE" != "" ]; then
           BUILD_STATUS="❌ 실패"
         fi
         
-        # 전체 빌드 상태
         OVERALL_STATUS="✅ 성공"
         if [ "$COMPILE_EXIT_CODE" != "0" ] || [ "$TEST_EXIT_CODE" != "0" ] || [ "$BUILD_EXIT_CODE" != "0" ]; then
           OVERALL_STATUS="❌ 실패"
@@ -157,7 +139,6 @@ jobs:
       id: errors
       if: always()
       run: |
-        # 컴파일 에러 추출
         if [ -f compile_output.txt ] && [ "${{ steps.compile.outputs.compile_exit_code }}" != "0" ]; then
           echo "compile_errors<<EOF" >> $GITHUB_OUTPUT
           echo "## 🚨 컴파일 에러" >> $GITHUB_OUTPUT
@@ -168,7 +149,6 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        # 테스트 에러 추출
         if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ]; then
           echo "test_errors<<EOF" >> $GITHUB_OUTPUT
           echo "## 🧪 테스트 실패" >> $GITHUB_OUTPUT
@@ -179,7 +159,6 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        # 빌드 에러 추출
         if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ]; then
           echo "build_errors<<EOF" >> $GITHUB_OUTPUT
           echo "## 📦 빌드 에러" >> $GITHUB_OUTPUT
@@ -347,9 +326,7 @@ jobs:
         echo "❌ 빌드가 실패했습니다. 위의 에러 메시지를 확인해주세요."
         exit 1
 
-  # ===================================================================
   # CI Gate (required check로 등록할 단일 job)
-  # ===================================================================
   ci-gate:
     name: CI Gate
     if: ${{ always() }}

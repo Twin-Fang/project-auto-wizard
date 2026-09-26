@@ -1,5 +1,5 @@
 // tests/node/copilot-workflows.test.js
-// 이슈 #134 — GitHub Models(models: read) 대신 opt-in Copilot CLI, 엔진 표기, 중립 라벨.
+// GitHub Models(models: read) 대신 opt-in Copilot CLI, 엔진 표기, 중립 라벨.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";

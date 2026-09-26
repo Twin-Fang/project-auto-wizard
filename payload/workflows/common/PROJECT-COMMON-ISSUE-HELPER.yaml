@@ -1,18 +1,15 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # PROJECT-COMMON-ISSUE-HELPER.yaml
 # 이슈 생성/제목 수정 시 브랜치명·커밋 메시지를 댓글로 안내
-# ===================================================================
 #
 # 이슈가 열리거나(opened) 제목이 수정되면(edited + 제목 변경),
 # 정규화된 브랜치명과 커밋 메시지를 이슈 댓글로 생성/갱신한다.
 # ISSUE_HELPER_CREATE_BRANCH=true로 바꾸면 브랜치도 함께 생성한다
 # (기본값은 false — 이슈를 열 때마다 브랜치가 자동 생성되는 것을
-# 막기 위해 옵트인으로 전환됨, project-auto-wizard#68).
+# 막기 위해 옵트인으로 전환됨).
 #
 # 로직 본체는 .github/scripts/issue_helper.py (Chuseok22/github-issue-helper의
-# Python 재작성, 동일 작성자 — project-auto-wizard#68).
-# ===================================================================
+# Python 재작성, 동일 작성자).
 
 name: PROJECT-ISSUE-HELPER
 
@@ -23,7 +20,7 @@ on:
 # contents는 항상 write로 고정한다. ISSUE_HELPER_CREATE_BRANCH="true"일 때
 # git/refs API로 브랜치를 생성하려면 write가 필요한데, 이 값은 @wizard ask로
 # 설치 후에도 사용자가 직접 켤 수 있어(마법사 재실행 없이) 그 시점에 맞춰
-# permissions를 조건부로 올릴 방법이 없다 — project-auto-wizard#118.
+# permissions를 조건부로 올릴 방법이 없다.
 permissions:
   issues: write
   contents: write

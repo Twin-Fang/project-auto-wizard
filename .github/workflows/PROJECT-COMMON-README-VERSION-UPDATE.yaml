@@ -1,13 +1,10 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # PROJECT-COMMON-README-VERSION-UPDATE.yaml
 # Automatic README version update workflow
-# ===================================================================
 #
 # On every push to main this workflow reads the latest version
 # via version_manager.py and rewrites the version section of README.md.
 #
-# ===================================================================
 # How it works:
 # 1. Triggered by a push to main
 # 2. Reads the latest version via version_manager.py
@@ -41,7 +38,6 @@
 # afterwards with a [skip ci] commit that does not re-trigger this
 # workflow, so the README stays one version behind until the next
 # release/push. Run this workflow manually (workflow_dispatch) to catch up.
-# ===================================================================
 
 name: README VERSION UPDATE
 
@@ -112,9 +108,7 @@ jobs:
           RELEASE_DATE="${{ steps.version_info.outputs.release_date }}"
           SHOW_DATE="${{ env.SHOW_DATE }}"
 
-          # ---------------------------------------------------------
           # Error message helper
-          # ---------------------------------------------------------
           print_error_message() {
             local error_type="$1"
             local version_line="$2"
@@ -184,9 +178,7 @@ jobs:
           else
             # Update the existing version line
 
-            # ---------------------------------------------------------
             # Validate the line format
-            # ---------------------------------------------------------
             if [[ "$VERSION_LINE" =~ \*\* ]]; then
               echo ""
               echo "warning: the version line contains markdown bold (**) characters"
@@ -212,9 +204,7 @@ jobs:
               LINE_NUMBER=$((LINE_NUMBER + 1))
             fi
 
-            # ---------------------------------------------------------
             # Extract the header part (up to the colon)
-            # ---------------------------------------------------------
             HEADER_PART=$(printf '%s\n' "$VERSION_LINE" | sed 's/\(.*:\).*/\1 /')
 
             if [ -z "$HEADER_PART" ] || [[ "$HEADER_PART" == "$VERSION_LINE" ]]; then
@@ -222,9 +212,7 @@ jobs:
               exit 1
             fi
 
-            # ---------------------------------------------------------
             # Replace by line number (avoids regex special-char issues)
-            # ---------------------------------------------------------
             NEW_LINE="${HEADER_PART}${VERSION_TEXT}"
 
             # Escape sed replacement metacharacters (backslash, & and the

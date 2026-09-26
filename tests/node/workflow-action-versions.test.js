@@ -1,5 +1,5 @@
 // tests/node/workflow-action-versions.test.js
-// #47: 설치되는 워크플로우가 구버전 GitHub Actions를 쓰면 사용자 레포마다 deprecation 경고가
+// 설치되는 워크플로우가 구버전 GitHub Actions를 쓰면 사용자 레포마다 deprecation 경고가
 // 뜬다. 한 번 올려도 시간이 지나면 다시 뒤처지므로, 최소한 다음 둘은 테스트가 잡는다.
 //   ① 알려진 하한보다 낮은 메이저를 쓰지 않는다
 //   ② 같은 액션이 서로 다른 메이저로 섞이지 않는다 (setup-java가 v3·v4 혼재였다)

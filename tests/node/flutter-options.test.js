@@ -1,4 +1,4 @@
-// Flutter 옵션 (이슈 #131) — 스토어 배포 대상 선택·정리. deploy-style.test.js와 같은 구조의 검증.
+// Flutter 옵션 — 스토어 배포 대상 선택·정리. deploy-style.test.js와 같은 구조의 검증.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync, readdirSync } from "node:fs";

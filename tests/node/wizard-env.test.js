@@ -140,7 +140,7 @@ test("substituteEnv: an ask value containing double quotes produces valid quoted
   assert.strictEqual(out, `NAME: "a \\"quoted\\" value"`);
 });
 
-// ── @wizard fallback (이슈 #131) ─────────────────────────────────
+// ── @wizard fallback ─────────────────────────────────
 // 값이 `${{ 런타임값 || 'literal' }}` 표현식인 줄은 setEnvLine의 따옴표 값 치환으로는 다룰 수 없다.
 // 마지막 홑따옴표 리터럴(= 런타임 값이 모두 비었을 때의 기본값)만 바꾼다.
 const FALLBACK_LINE = `  DEPLOY_MODE: \${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode`;

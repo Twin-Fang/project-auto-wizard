@@ -26,7 +26,7 @@ test("run(): TTY 환경에서 --force 없이 full 모드를 실행하면 즉시 
 
 test("run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진행된다", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-tty-full-force-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // M4: 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
   try {
     const code = await withStubbedTTY(true, () => run(["--mode", "full", "--force", "--type", "node"], { cwd: target }));
     assert.strictEqual(code, 0);

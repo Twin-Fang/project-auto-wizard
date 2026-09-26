@@ -1,7 +1,5 @@
 # project-auto-wizard:managed-workflow
-# ===================================================================
 # Flutter Android 테스트용 APK 빌드 워크플로우
-# ===================================================================
 #
 # 이 워크플로우는 기능 브랜치에서 수동으로 실행하여
 # 테스트용 Android APK를 빌드합니다.
@@ -22,27 +20,23 @@
 # 3. "Run workflow" 버튼 클릭
 # 4. 빌드 완료 후 아티팩트에서 APK 다운로드
 #
-# ===================================================================
-# 🔑 필수 GitHub Secrets
-# ===================================================================
+# 필수 GitHub Secrets
 #
-# 🔐 Release Keystore (Play Store 배포와 동일):
+# Release Keystore (Play Store 배포와 동일):
 # RELEASE_KEYSTORE_BASE64: 릴리즈 키스토어 파일 (base64)
 # RELEASE_KEYSTORE_PASSWORD: 키스토어 비밀번호
 # RELEASE_KEY_ALIAS: 키 별칭
 # RELEASE_KEY_PASSWORD: 키 비밀번호
 #
-# 📝 환경 설정 (선택):
+# 환경 설정 (선택):
 # ENV_FILE (선택): .env 파일 내용
 # GOOGLE_SERVICES_JSON (선택): google-services.json 내용 (Firebase 사용 시)
 #
-# 🔥 Firebase App Distribution (선택):
+# Firebase App Distribution (선택):
 # FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: Firebase 서비스 계정 JSON (base64)
 #
 # ※ 위 Secrets는 저장소 Settings → Secrets and variables → Actions에 등록하세요.
 #    Firebase 업로드를 쓰려면 아래 env의 FIREBASE_APP_ID·FIREBASE_TESTER_GROUP도 수정합니다.
-#
-# ===================================================================
 
 name: PROJECT-Flutter-Android-Test-APK
 
@@ -55,9 +49,7 @@ on:
   repository_dispatch:
     types: [build-android-app]
 
-# ===================================================================
-# 🔧 프로젝트별 설정 (아래 값들을 수정하세요)
-# ===================================================================
+# 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   FLUTTER_VERSION: "3.35.5"
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
@@ -157,9 +149,6 @@ jobs:
             echo "⚠️ Firebase 서비스 계정 없음 - App Distribution 업로드 건너뜀"
           fi
 
-      # ===================================================================
-      # 진행 상황 댓글 시스템
-      # ===================================================================
       - name: 진행 상황 댓글 생성
         id: progress_comment
         if: github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != ''
@@ -215,7 +204,6 @@ jobs:
           echo "🌿 브랜치: $BRANCH_NAME"
           git pull origin "$BRANCH_NAME" || echo "⚠️ Pull 실패 (이미 최신 상태일 수 있음)"
 
-      # 브랜치명에서 이슈 번호 추출 및 GitHub API로 이슈 정보 가져오기
       - name: 브랜치명에서 이슈 정보 추출
         id: issue_info
         run: |
@@ -261,7 +249,6 @@ jobs:
             fi
           fi
 
-      # 빌드 정보 생성
       - name: 빌드 정보 생성
         id: build_info
         run: |
@@ -370,7 +357,6 @@ jobs:
             echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
           fi
 
-      # Flutter 설정
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -382,7 +368,6 @@ jobs:
           echo "✅ Flutter setup completed"
           flutter --version
 
-      # Flutter 및 Gradle 캐시
       - name: Cache Flutter dependencies
         uses: actions/cache@v6
         with:
@@ -400,7 +385,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 프로젝트 의존성 설치
       - name: Install dependencies
         run: |
           flutter pub get
@@ -409,14 +393,12 @@ jobs:
           fi
           echo "✅ Dependencies installed"
 
-      # Gradle 셋업
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           echo "✅ Gradle wrapper permissions set"
 
-      # Java 설정
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -428,7 +410,6 @@ jobs:
           echo "✅ Java setup completed"
           java -version
 
-      # 진행상황 - 준비 완료
       - name: 진행상황 - 준비 완료
         id: progress_step1
         if: github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
@@ -541,7 +522,6 @@ jobs:
           ls -la ./build/app/outputs/flutter-apk/ || true
           echo "✅ APK built"
 
-      # APK 파일 이름 변경 및 준비
       - name: Rename and Prepare APK
         run: |
           mkdir -p ./android/app/build/outputs/apk/release/
@@ -562,7 +542,6 @@ jobs:
             echo "✅ APK 파일 크기가 아티팩트 제한 내입니다 (${APK_SIZE_MB}MB / 500MB)"
           fi
 
-      # 진행상황 - APK 빌드 완료
       - name: 진행상황 - APK 빌드 완료
         id: progress_step2
         if: github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
@@ -613,7 +592,6 @@ jobs:
             core.setOutput('elapsed', elapsedStr);
             core.setOutput('end_time', now.toString());
 
-      # 빌드 정보 파일 생성
       - name: Create build info file
         run: |
           BUILD_NUMBER="${{ needs.prepare-test-build.outputs.build_number }}"
@@ -756,7 +734,6 @@ jobs:
             const elapsedStr = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
             core.setOutput('elapsed', elapsedStr);
 
-      # 진행 상황 최종 업데이트 - 성공
       - name: 진행 상황 최종 업데이트 - 성공
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
@@ -869,7 +846,6 @@ jobs:
               console.log(`✅ 이슈 #${issueNumber}에도 빌드 성공 댓글 작성 완료`);
             }
 
-      # 진행 상황 최종 업데이트 - 실패
       - name: 진행 상황 최종 업데이트 - 실패
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
@@ -959,7 +935,6 @@ jobs:
               console.log(`❌ 이슈 #${issueNumber}에도 빌드 실패 댓글 작성 완료`);
             }
 
-      # 콘솔 알림
       - name: Notify Build Success
         if: success()
         run: |

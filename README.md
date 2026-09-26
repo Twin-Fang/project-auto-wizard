@@ -8,8 +8,6 @@
 npx project-auto-wizard
 ```
 
-<!-- TODO: 30초 데모 GIF (docs/assets/demo.gif) -->
-<!-- TODO: 3분 데모 YouTube 링크 -->
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -67,7 +65,7 @@ flutter.APP_ARTIFACT_NAME:
 `spring`/`flutter`는 아래처럼 단일 CI 이상으로 깊게 구성되어 있습니다:
 
 - **flutter**: Android(Firebase/Playstore/Selfhosted/TestAPK 배포), iOS(TestFlight/Test-TestFlight), CI, Lab 트리거까지 8종 — 스토어 배포(Play Store·TestFlight)는 고른 플랫폼만 설치되고 fastlane 파일도 함께 생성됩니다. 환경변수 방식·배포 모드 등 자세한 내용은 아래 "Flutter 워크플로우 상세"를 참고하세요.
-- **spring**: 서버 배포 1종(단일 서버 / 무중단 Nginx / 무중단 Traefik / 배포 안 함 중 택1) + PR 프리뷰 + 라이브러리 publish 2종(Nexus·GitHub Packages, `--nexus` opt-in)
+- **spring**: 서버 배포 1종(단일 서버 / 무중단 Nginx / 무중단 Traefik / 배포 안 함 중 택1) + PR 프리뷰 + CI
   - 서버 배포 워크플로우는 **서로 대체재**라 하나만 설치합니다. 대화형에서 고르면 그것만 깔리고 **`push` 트리거까지 켜진 채로** 설치됩니다. 비대화형은 `--deploy-style simple|nginx|traefik|none` (기본: `simple`).
   - 고른 방식은 `version.yml`에 기록되므로 다시 실행해도 묻지 않습니다. 방식을 바꾸면 **이전 워크플로우를 마법사가 정리합니다** — 손대지 않은 파일은 삭제하고, 수정한 파일은 `.bak`으로 옮겨 내용을 보존합니다. 남겨두면 배포가 두 번 돕니다.
   - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다 (단, `none`을 고르면 PR 프리뷰도 함께 제외됩니다 — 서버 배포 자체를 하지 않는 프로젝트를 위한 선택지입니다).
@@ -144,7 +142,7 @@ flutter.APP_ARTIFACT_NAME:
 **모노레포와 `ci-gate`**
 
 - `--paths flutter=app`처럼 Flutter 하위 폴더를 지정하면 모든 Flutter 워크플로우가 그 폴더(`FLUTTER_PROJECT_DIR`)를 기준으로 동작하고, main push로 도는 배포 워크플로우(`PLAYSTORE`·`IOS-TESTFLIGHT`·`SELFHOSTED`·`FIREBASE`)는 `app/**`가 바뀔 때만 실행됩니다(Spring 등 다른 타입과 같은 `paths` 필터).
-- CI 워크플로우(Flutter·Go·Next·Python·React·Spring NEXUS-CI)는 `push`·`pull_request`에서 항상 실행되고, 첫 job `changes`가 변경 파일을 판별해 나머지 job을 건너뜁니다(건너뛴 job은 Success). 마지막 job `ci-gate`는 항상 실행되어 필수 job이 모두 success 또는 skipped이면 통과하고 failure·cancelled가 하나라도 있으면 실패합니다.
+- CI 워크플로우(Flutter·Go·Next·Python·React·Spring CI)는 `push`·`pull_request`에서 항상 실행되고, 첫 job `changes`가 변경 파일을 판별해 나머지 job을 건너뜁니다(건너뛴 job은 Success). 마지막 job `ci-gate`는 항상 실행되어 필수 job이 모두 success 또는 skipped이면 통과하고 failure·cancelled가 하나라도 있으면 실패합니다.
 - 브랜치 보호 규칙의 required status check에는 개별 job이 아니라 **`CI Gate`(`ci-gate`) 하나만** 등록하세요. 경로 필터로 워크플로우 자체를 건너뛰면 required check가 Pending에 머물러 머지가 막히지만, job을 건너뛰는 방식은 그렇지 않기 때문입니다.
 - 워크플로우 `paths` 필터는 태그 push에 적용되지 않습니다(GitHub 문서).
 
@@ -238,8 +236,6 @@ npx project-auto-wizard [옵션]
       --flutter-store CSV      Flutter 스토어 배포 대상: android,ios,none (미지정 시 둘 다 설치)
       --android-deploy-mode M  Play Store 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --ios-deploy-mode M      iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
-      --nexus              라이브러리 publish 워크플로우 포함 (Nexus + GitHub Packages)
-      --secret-backup      Secret 서버 백업 워크플로우 포함
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
       --copilot            Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비, --no-copilot으로 끔)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌

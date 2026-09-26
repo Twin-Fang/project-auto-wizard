@@ -1,5 +1,5 @@
 // tests/node/prompts-branch-strategy.test.js
-// 이슈 #93 — 브랜치 전략을 먼저 명시적으로 선택하게 하는 프롬프트.
+// 브랜치 전략을 먼저 명시적으로 선택하게 하는 프롬프트.
 import { test } from "node:test";
 import assert from "node:assert";
 import { selectBranchStrategy } from "../../src/ui/prompts.js";
