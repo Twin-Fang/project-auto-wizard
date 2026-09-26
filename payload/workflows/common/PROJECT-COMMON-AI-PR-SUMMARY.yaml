@@ -69,7 +69,6 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
-          COPILOT_MODEL: ${{ vars.COPILOT_MODEL }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
