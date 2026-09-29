@@ -324,10 +324,26 @@ jobs:
 
       - name: Setup Release Keystore
         env:
-          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          # 빈 Secret으로 빈 keystore를 만들면 어떤 키로 서명됐는지 알 수 없거나 뒤 단계에서 엉뚱한 오류로 끝난다
+          MISSING=""
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || MISSING="$MISSING $name"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::서명 Secret이 비어 있습니다:$MISSING (워크플로우 상단 주석 참고)"
+            exit 1
+          fi
           mkdir -p android/keystore
-          echo "$KEYSTORE_BASE64" | base64 -d > android/keystore/key.jks
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/keystore/key.jks
+          if [ ! -s android/keystore/key.jks ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64를 디코딩한 keystore가 비어 있습니다"
+            exit 1
+          fi
           echo "✅ Release Keystore 생성 완료"
           ls -la android/keystore/
 

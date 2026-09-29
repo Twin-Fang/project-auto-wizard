@@ -76,3 +76,24 @@ test("iOS TestFlight 2종은 준비 job 초반에 Secret·ExportOptions 플레�
     assert.ok(step.includes("exit 1"), `${f}: 누락 시 중단하지 않습니다`);
   }
 });
+
+test("빈 서명·자격증명 Secret을 성공처럼 넘기지 않는다", () => {
+  for (const f of FILES) {
+    const text = read(f);
+    // 실패를 삼키는 `|| echo "... failed"` 패턴이 없어야 한다
+    assert.ok(!/\|\| echo "[^"]*failed"/i.test(text), `${f}: 실패를 echo로 삼키는 코드가 남아 있습니다`);
+    // Secret을 run 본문에 직접 펼쳐 base64로 풀면 빈 값이 조용히 빈 파일이 된다
+    assert.ok(!/echo "\$\{\{ secrets\.[A-Z_]+ \}\}" \| base64/.test(text), `${f}: Secret을 검사 없이 디코딩합니다`);
+    assert.ok(!text.includes("${{ secrets.GOOGLE_SERVICES_JSON }}\n          EOF"), `${f}: 빈 google-services.json을 만들 수 있습니다`);
+  }
+  for (const f of ["PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml", "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml", "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"]) {
+    const text = read(f);
+    const start = text.indexOf("- name: Setup Release Keystore");
+    const step = text.slice(start, text.indexOf("\n      - name: ", start));
+    assert.ok(step.includes("for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do"), `${f}: 서명 Secret 검사 누락`);
+    assert.ok(step.indexOf("exit 1") < step.indexOf("✅ Release Keystore 생성 완료"), `${f}: 검사 전에 성공 메시지를 냅니다`);
+  }
+  const selfhosted = read("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml");
+  assert.ok(selfhosted.includes('if [ -z "$DEBUG_KEYSTORE" ]; then'), "SELFHOSTED: DEBUG_KEYSTORE 검사 누락");
+  assert.ok(selfhosted.includes("# DEBUG_KEYSTORE:"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
+});

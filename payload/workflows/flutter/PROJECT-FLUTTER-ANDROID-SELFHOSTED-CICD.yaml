@@ -6,10 +6,7 @@
 #
 # 필수 GitHub Secrets
 # ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
-# RELEASE_KEYSTORE_BASE64: 서명용 keystore (base64)
-# RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
-# RELEASE_KEY_ALIAS: key alias
-# RELEASE_KEY_PASSWORD: key 비밀번호
+# DEBUG_KEYSTORE: 서명용 keystore (base64, 비밀번호 android · alias androiddebugkey)
 # GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
 # SERVER_HOST: 서버 호스트(SMB 접속 주소)
 # SERVER_USER: SMB 사용자명
@@ -60,14 +57,20 @@ jobs:
           echo "Repository checked out"
           ls -la
 
-      # Debug Keystore 설정 (디버깅 용도 유지)
+      # Debug Keystore 설정 — 이 워크플로우는 DEBUG_KEYSTORE(비밀번호 android, alias androiddebugkey)로 서명한다
       - name: Setup Debug Keystore
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
+          # 빈 Secret·깨진 keystore를 성공처럼 넘기면 어떤 키로 서명됐는지 로그로 알 수 없다
+          if [ -z "$DEBUG_KEYSTORE" ]; then
+            echo "::error::DEBUG_KEYSTORE Secret이 비어 있습니다 — 서명용 debug keystore를 base64로 등록하세요"
+            exit 1
+          fi
           mkdir -p ~/.android
-          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ~/.android/debug.keystore || echo "Base64 decoding failed"
-          echo "Debug Keystore created (for debugging)"
-          ls -la ~/.android/
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || echo "Keytool failed"
+          printf '%s' "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore
+          keytool -list -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+          echo "Debug Keystore created"
 
       # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
       - name: Prepare env file
@@ -87,7 +90,8 @@ jobs:
       - name: Setup Keystore and key.properties
         run: |
           mkdir -p android/app/keystore
-          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > android/app/keystore/key.jks || echo "Base64 decoding failed"
+          # 앞 단계에서 검증한 keystore를 그대로 쓴다
+          cp ~/.android/debug.keystore android/app/keystore/key.jks
           echo "Keystore created from DEBUG_KEYSTORE"
           ls -la android/app/keystore
           echo "storeFile=app/keystore/key.jks" > android/key.properties
@@ -97,13 +101,18 @@ jobs:
           echo "key.properties created"
           ls -la android/
 
-      - name: Create Google-services.json
+      # google-services.json 생성 (선택) — 비어 있으면 빈 파일을 만들지 않는다
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          cat << 'EOF' > android/app/google-services.json
-          ${{ secrets.GOOGLE_SERVICES_JSON }}
-          EOF
-          echo "✅ Google-services.json 생성 완료"
-          ls -la android/app/
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            mkdir -p android/app
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "✅ google-services.json created"
+          else
+            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
