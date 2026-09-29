@@ -1,20 +1,20 @@
+import {
+  typeInfo, FALLBACK_TYPE, MARKER_DETECTED_TYPES, PACKAGE_DETECTED_TYPES, PACKAGE_FALLBACK_TYPE,
+} from "./types.js";
+
 // package.json 분류 — 의존성 "키"를 정확히 비교한다. 원문 부분문자열로 보면 export 스크립트나
 // exponential-backoff가 expo로, react-native-web을 쓰는 웹앱이 react-native로, keywords의 "next"가
-// next로 오감지된다. 입력은 package.json 원문 문자열(raw). 순서 중요.
+// next로 오감지된다. 입력은 package.json 원문 문자열(raw). 판정 순서는 레지스트리의 detectOrder.
 export function classifyPackageText(raw) {
   let pkg;
-  try { pkg = JSON.parse(String(raw || "")); } catch { return "node"; }
-  if (!pkg || typeof pkg !== "object") return "node";
+  try { pkg = JSON.parse(String(raw || "")); } catch { return PACKAGE_FALLBACK_TYPE; }
+  if (!pkg || typeof pkg !== "object") return PACKAGE_FALLBACK_TYPE;
   const deps = new Set();
   for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
     const d = pkg[field];
     if (d && typeof d === "object") for (const k of Object.keys(d)) deps.add(k);
   }
-  if (deps.has("expo")) return "react-native-expo";
-  if (deps.has("react-native")) return "react-native";
-  if (deps.has("next")) return "next";
-  if (deps.has("react")) return "react";
-  return "node";
+  return PACKAGE_DETECTED_TYPES.find((t) => deps.has(t.packageDep))?.id ?? PACKAGE_FALLBACK_TYPE;
 }
 
 // 편의: 파싱된 객체를 받는 경우 원문으로 재직렬화해 위 규칙 적용
@@ -27,16 +27,13 @@ export function classifyPackageJson(pkgOrRaw) {
 // read(relpath)=>string|null 로 package.json 원문을 받아 classifyPackageText에 넘긴다.
 export function detectTypesFromMarkers({ has, read }) {
   const types = [];
-  if (has("pubspec.yaml")) types.push("flutter");
-  if (has("build.gradle") || has("build.gradle.kts") || has("pom.xml")) types.push("spring");
-  if (has("pyproject.toml") || has("setup.py") || has("requirements.txt")) types.push("python");
-  if (has("go.mod")) types.push("go");
+  for (const t of MARKER_DETECTED_TYPES) if (t.markers.some(has)) types.push(t.id);
   if (has("package.json")) {
     const cls = classifyPackageText(read ? read("package.json") : "");
-    if (cls === "node") { if (types.length === 0) types.push("node"); }
+    if (cls === PACKAGE_FALLBACK_TYPE) { if (types.length === 0) types.push(cls); }
     else types.push(cls);
   }
-  return types.length ? [...new Set(types)] : ["basic"];
+  return types.length ? [...new Set(types)] : [FALLBACK_TYPE];
 }
 
 // 1.2.3-rc.1·1.2.3+7 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
@@ -81,15 +78,8 @@ export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint, typ
     pyproject: () => versionFromPyproject(read("pyproject.toml")),
     setupPy: () => versionFromSetupPy(read("setup.py")),
   };
-  const byType = {
-    spring: ["gradle", "gradleKts", "pom"],
-    flutter: ["pubspec"],
-    python: ["pyproject", "setupPy"],
-    "react-native-expo": ["appJson", "packageJson"],
-    react: ["packageJson"], next: ["packageJson"], node: ["packageJson"], "react-native": ["packageJson"],
-  };
   const order = [
-    ...(byType[types[0]] || []),
+    ...(typeInfo(types[0])?.versionSources || []),
     "packageJson", "gradle", "gradleKts", "pom", "pubspec", "pyproject", "setupPy",
   ];
   for (const key of new Set(order)) {
@@ -144,17 +134,14 @@ export function versionFromPom(content) {
   return null;
 }
 
+// 타입의 대표 마커 파일. 마커가 없는 타입(basic)·미지 타입은 package.json을 돌려준다.
 export function markerForType(type) {
-  return { flutter: "pubspec.yaml", "react-native-expo": "app.json", python: "pyproject.toml", spring: "build.gradle", go: "go.mod" }[type] || "package.json";
+  return typeInfo(type)?.markers[0] || "package.json";
 }
 
-// Expo는 최신 create-expo-app 템플릿처럼 app.json 없이 app.config.ts/js만 쓸 수 있다.
-// 구성 파일이 아예 없어도 expo 의존성이 있는 package.json이 곧 근거다.
+// 대표 파일 외의 보조 마커 (예: Spring의 build.gradle.kts·pom.xml).
 export function extraMarkers(type) {
-  return {
-    python: ["setup.py", "requirements.txt"], spring: ["build.gradle.kts", "pom.xml"],
-    "react-native-expo": ["app.config.ts", "app.config.js", "package.json"],
-  }[type] || [];
+  return typeInfo(type)?.markers.slice(1) || [];
 }
 
 // 그 타입을 감지하는 데 실제로 쓰인 파일. markerForType은 타입당 대표 파일 하나를
@@ -239,10 +226,10 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
     warn?.("⚠️  app.json의 expo.android.versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
     return null;
   };
+  const readers = { pubspec: tryFlutter, androidGradle: tryReactNative, expoAppJson: tryExpo };
   for (const t of types) {
-    if (t === "flutter") return tryFlutter();
-    if (t === "react-native") return tryReactNative();
-    if (t === "react-native-expo") return tryExpo();
+    const source = typeInfo(t)?.buildNumberSource;
+    if (source) return readers[source]();
   }
   return null;
 }

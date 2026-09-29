@@ -10,6 +10,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
+import { TYPES, typeInfo } from "./types.js";
 import { normalizePath, isRepoRelativePath, CliError } from "../cli/args.js";
 
 // 취소(ESC)는 CANCEL 심볼(Ctrl+C는 엔진이 예외로 중단시킨다) — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
@@ -17,9 +18,7 @@ const isCancel = (v) => typeof v === "symbol";
 
 // 타입의 대표 마커 파일명 (.sh marker_for_type L1220~1229 등가).
 // detect.js는 미지 타입에 package.json을 기본 반환하지만 .sh는 빈 문자열 — 등가를 위해 래핑.
-const KNOWN_MARKER_TYPES = new Set([
-  "flutter", "react", "next", "node", "react-native", "react-native-expo", "python", "spring", "go",
-]);
+const KNOWN_MARKER_TYPES = new Set(TYPES.filter((t) => t.markers.length).map((t) => t.id));
 export function markerForType(type) {
   return KNOWN_MARKER_TYPES.has(type) ? baseMarkerForType(type) : "";
 }
@@ -72,17 +71,9 @@ export function findTypePathCandidates(root, type) {
     // settings.gradle 없음 → 단일 모듈, 아래 build.gradle 폴백
   }
 
-  const namesByType = {
-    flutter: ["pubspec.yaml"],
-    react: ["package.json"], next: ["package.json"], node: ["package.json"],
-    "react-native": ["package.json"],
-    "react-native-expo": ["app.json", "app.config.ts", "app.config.js", "package.json"],
-    python: ["pyproject.toml", "setup.py", "requirements.txt"],
-    spring: ["build.gradle", "build.gradle.kts", "pom.xml"],
-    go: ["go.mod"],
-  };
-  const names = namesByType[type];
-  if (!names) return [];
+  // 레지스트리의 마커 순서가 곧 우선순위다 (대표 파일 먼저).
+  const names = typeInfo(type)?.markers;
+  if (!names?.length) return [];
 
   const prune = new Set([
     "node_modules", ".git", "build", "dist", ".dart_tool", "android", "ios",

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { sha256 } from "./baseline.js";
 import { PAYLOAD } from "./paths.js";
+import { SINGLE_SERVER_CD_FILES } from "./types.js";
 
 // 파일명 접미사로 식별한다 — 타입 접두사(PROJECT-SPRING- 등)는 타입마다 다르기 때문.
 export const DEPLOY_STYLES = [
@@ -26,14 +27,12 @@ export const isDeployStyle = (v) => v === NO_DEPLOY_STYLE || DEPLOY_STYLES.some(
 // 이 파일이 CD 본체인가 (= 택1 대상인가). PR 프리뷰는 배포 방식과 직교하는 축이라 제외한다.
 export const isDeployWorkflow = (filename) => DEPLOY_STYLES.some((s) => filename.endsWith(s.suffix));
 
-// 배포 방식 변형 없이 서버 배포 CD가 하나뿐인 타입(react·next). 단일 서버 배포와 같은 축이다.
-const SINGLE_SERVER_CD = new Set(["PROJECT-REACT-CICD.yaml", "PROJECT-NEXT-CICD.yaml"]);
 const PREVIEW_SUFFIX = "-PR-PREVIEW.yaml";
 
 // 서버에 배포하는 워크플로우 전부 — CD 본체, 단일 CD(react·next), PR 프리뷰.
 // "배포 안 함"은 이 전부를 모든 타입에서 똑같이 뺀다. 일부만 빼면 서버 Secret 요구가 남는다.
 export const isServerDeployWorkflow = (filename) =>
-  isDeployWorkflow(filename) || SINGLE_SERVER_CD.has(filename) || filename.endsWith(PREVIEW_SUFFIX);
+  isDeployWorkflow(filename) || SINGLE_SERVER_CD_FILES.has(filename) || filename.endsWith(PREVIEW_SUFFIX);
 
 // 선택한 타입 중 서버 배포 워크플로우를 가진 타입이 있는가 — payload 파일로 판정한다.
 // 없으면(node·flutter 등) 배포 방식은 설치 결과에 아무 영향이 없으므로 묻지도 기록하지도 않는다.
