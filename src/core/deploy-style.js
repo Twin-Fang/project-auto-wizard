@@ -98,6 +98,17 @@ export function fallbackStyleTypes(payloadRoot, types = [], style) {
   });
 }
 
+// 실제로 설치되는 배포 방식 — 고른 무중단 방식의 워크플로우가 선택한 타입 어디에도 없으면 전부 단일 서버
+// 배포로 대신 설치되므로 simple이다. 고른 값을 그대로 기록하면 version.yml·status가 설치 상태와 어긋나고,
+// 다음 실행도 그 값을 기본값으로 이어받는다. 한 타입이라도 그 방식이 있으면 고른 값을 유지한다.
+export function effectiveDeployStyle(payloadRoot, types = [], style) {
+  if (!style || style === NO_DEPLOY_STYLE || suffixOf(style) === SIMPLE_SUFFIX) return style;
+  const base = join(payloadRoot, PAYLOAD.workflowsDir);
+  const installed = types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+    .some((dir) => existsSync(dir) && readdirSync(dir).some((f) => f.endsWith(suffixOf(style)))));
+  return installed ? style : DEFAULT_DEPLOY_STYLE;
+}
+
 // 무중단 템플릿은 push 트리거가 주석 처리된 채 들어 있다(기본 배포가 단일 서버라서).
 // 사용자가 그 방식을 고른 이상 트리거는 켜져 있어야 한다 — 안 그러면 설치해도 아무 일이
 // 일어나지 않고 사용자가 YAML을 직접 고쳐야 한다.

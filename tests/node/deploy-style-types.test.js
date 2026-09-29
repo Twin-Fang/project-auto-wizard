@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSy
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
-import { cleanupOtherDeployWorkflows, fallbackStyleTypes, payloadWorkflowNames } from "../../src/core/deploy-style.js";
+import { cleanupOtherDeployWorkflows, fallbackStyleTypes, payloadWorkflowNames, effectiveDeployStyle } from "../../src/core/deploy-style.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 
 const payload = resolvePayloadRoot();
@@ -87,6 +87,8 @@ for (const [type, files, simple] of [
       assert.ok(!wf.some((f) => f.endsWith(".bak")), "첫 설치에서 .bak이 생기면 안 된다");
       assert.ok(!existsSync(join(dir, ".gitignore")));
       assert.match(err, new RegExp(`${type}에는 nginx 무중단 배포 워크플로우가 없어 단일 서버 배포`));
+      // 기록은 실제로 설치된 방식이어야 status와 다음 실행 기본값이 설치 상태와 맞는다.
+      assert.match(readFileSync(join(dir, "version.yml"), "utf8"), /deploy_style: "?simple"?/);
       // 재실행해도 흔들리지 않는다
       await install(dir, ["--type", type, "--deploy-style", "nginx"]);
       assert.ok(workflows(dir).includes(simple));
@@ -105,6 +107,14 @@ test("spring,go에 traefik: spring은 TRAEFIK, go는 SIMPLE을 설치한다", as
     assert.ok(wf.includes("PROJECT-GO-SIMPLE-CICD.yaml"));
     assert.ok(!wf.some((f) => f.endsWith(".bak")));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("effectiveDeployStyle: 고른 무중단 방식이 어느 타입에도 없을 때만 simple로 바꾼다", () => {
+  assert.strictEqual(effectiveDeployStyle(payload, ["python"], "nginx"), "simple");
+  assert.strictEqual(effectiveDeployStyle(payload, ["go", "react"], "traefik"), "simple");
+  assert.strictEqual(effectiveDeployStyle(payload, ["spring", "go"], "traefik"), "traefik");
+  assert.strictEqual(effectiveDeployStyle(payload, ["python"], "none"), "none");
+  assert.strictEqual(effectiveDeployStyle(payload, ["python"], null), null);
 });
 
 test("fallbackStyleTypes: 무중단 워크플로우가 없는 서버 배포 타입만 돌려준다", () => {

@@ -15,7 +15,7 @@ import {
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows } from "../core/deploy-style.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows, effectiveDeployStyle } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
@@ -319,7 +319,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
-    deployStyle: hasServerDeploy() ? (deployStyle || DEFAULT_DEPLOY_STYLE) : null,
+    // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    deployStyle: hasServerDeploy() ? effectiveDeployStyle(payload, types, deployStyle || DEFAULT_DEPLOY_STYLE) : null,
     envMode: flutterOptions.envMode, flutterStore: flutterOptions.stores,
     androidDeployMode: flutterOptions.androidDeployMode, iosDeployMode: flutterOptions.iosDeployMode,
     previousTemplateVersion: existing?.templateVersion || "",
