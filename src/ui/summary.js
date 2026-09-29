@@ -203,7 +203,7 @@ export function printSummary(ctx) {
   err("     → Repository Settings > Secrets > Actions");
   err("     → Secret Name: WORKFLOW_PAT (Scopes: repo, workflow)");
   err("     → 등록 시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요");
-  err("     → 없어도 자동 복구되며, 있으면 병합~Release 반영이 조금 더 빠릅니다");
+  err("     → 없어도 태그·Release 발행과 배포 워크플로우 실행까지 자동으로 이어지며, 있으면 조금 더 빠릅니다");
   err("");
   err(`  ${num()} GitHub Actions 권한 확인`);
   err("     → Settings > Actions > Workflow permissions: Read and write");

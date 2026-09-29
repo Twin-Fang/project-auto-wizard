@@ -46,6 +46,8 @@
 # polls until the automerge actually lands, then wakes RELEASE-PUBLISH via
 # workflow_dispatch — GITHUB_TOKEN can always trigger that event, unlike
 # the push/release events blocked by GitHub's anti-recursion policy.
+# RELEASE-PUBLISH then dispatches the {{MAIN_BRANCH}} deploy workflows the
+# same way, so a PAT-less install still deploys every release.
 
 name: PROJECT-AUTO-CHANGELOG-CONTROL
 
