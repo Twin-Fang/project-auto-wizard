@@ -15,5 +15,10 @@
 
 ## 설계상 보안 원칙
 
-- project-auto-wizard는 외부 API 키가 없어도 동작합니다(GitHub Models + `GITHUB_TOKEN`). 시크릿은 `AI_API_KEY`/`WORKFLOW_PAT` 등 명시적으로 사용자가 등록한 것만 사용합니다.
-- 마법사는 npm 패키지에 동봉된 `payload/`만 읽고 쓰며, 설치 중 임의의 원격 코드를 내려받아 실행하지 않습니다.
+- 설치 자산(워크플로우·스크립트·설정)은 전부 npm 패키지에 동봉된 `payload/`에서 나옵니다. 설치 중 원격 코드나 데이터를 내려받지 않으므로, 같은 패키지 버전이면 설치 결과가 같습니다.
+- 마법사가 읽고 쓰는 곳은 `payload/`와 실행한 레포 폴더(`.github/`, `version.yml`, `README.md`, `.gitignore` 등)뿐입니다.
+- 마법사 자체는 네트워크 요청을 하지 않습니다. 네트워크가 쓰이는 경우는 아래 git/gh 명령뿐이며, 모두 사용자의 레포와 사용자의 인증 정보로 실행됩니다.
+  - 기본 브랜치 감지: `git remote show origin` (로컬에 `origin/HEAD`가 없을 때)
+  - 원격에 develop 브랜치가 없을 때 생성: `git push -u origin <develop>` (대화형은 확인 후, `--force`는 자동)
+  - `--mode doctor`: `gh auth status`, `gh api`, `gh secret list`로 저장소 설정을 조회 (읽기 전용)
+- 설치된 워크플로우는 기본적으로 `GITHUB_TOKEN`만으로 동작합니다. AI 요약은 기본으로 꺼져 있고, 켜면 GitHub Copilot CLI가 `GITHUB_TOKEN`(`copilot-requests: write`)으로 동작합니다. 그 밖의 시크릿(`AI_API_KEY`, `WORKFLOW_PAT`, 배포·서명 시크릿 등)은 사용자가 직접 등록한 것만 사용합니다.

@@ -318,7 +318,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 ## 설계 원칙
 
-- **payload 단일 진실**: 마법사가 설치하는 모든 자산은 npm 패키지 동봉 `payload/` 하나에서 나옵니다. 템플릿 레포 clone 없음, 네트워크 접근 0, 설치 재현성 100%
+- **payload 단일 진실**: 마법사가 설치하는 모든 자산은 npm 패키지 동봉 `payload/` 하나에서 나옵니다. 템플릿 레포 clone이나 원격 다운로드가 없어 같은 패키지 버전이면 설치 결과가 같습니다. 마법사 자체는 네트워크 요청을 하지 않으며, 기본 브랜치 감지(`git remote show origin`)·develop 브랜치 push·`--mode doctor`의 `gh` 조회처럼 사용자 레포를 대상으로 한 git/gh 명령만 원격에 접속합니다([SECURITY.md](SECURITY.md))
 - **크로스플랫폼 무결점**: 마법사는 Node, 설치되는 스크립트는 전부 Python. bash/PowerShell 이중 유지·macOS bash 3.2 함정을 **설계로 제거**
 - **graceful degradation**: AI 실패 → 다음 엔진 → 규칙 fallback. 릴리스가 도구 때문에 막히는 일은 없습니다
 - **표준 존중**: GitHub 기본 라벨·Releases·Conventional Commits — 커스텀 발명 대신 생태계 표준 위에 구축
