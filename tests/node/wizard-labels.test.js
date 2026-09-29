@@ -102,3 +102,20 @@ test("loadWizardPrompts: returns null when neither exists", () => {
   const fakeFs = { existsSync: () => false, readFileSync: () => "" };
   assert.strictEqual(loadWizardPrompts("target", "payload", fakeFs), null);
 });
+
+test("loadWizardPrompts: 사용자 파일은 번들을 대체하지 않고 적은 키·필드만 덮어쓴다", () => {
+  const files = {
+    target: `PROJECT_NAME:\n  label: "내 라벨"\n_workflow_names:\n  SIMPLE-CICD: "내 배포"\n`,
+    payload: `PROJECT_NAME:\n  label: "번들 라벨"\n  help: "번들 도움말"\nSSH_AUTH_METHOD:\n  label: "SSH 인증 방식"\n_workflow_names:\n  SIMPLE-CICD: "단일 서버 배포"\n  PR-PREVIEW: "PR 프리뷰"\n`,
+  };
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: (p) => (String(p).startsWith("target") ? files.target : files.payload),
+  };
+  const result = loadWizardPrompts("target", "payload", fakeFs);
+  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "label"), "내 라벨");
+  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "help"), "번들 도움말", "적지 않은 필드는 번들 유지");
+  assert.strictEqual(wfField(result, "", "SSH_AUTH_METHOD", "label"), "SSH 인증 방식", "적지 않은 키는 번들 유지");
+  assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-SIMPLE-CICD.yaml"), "내 배포");
+  assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-PR-PREVIEW.yaml"), "PR 프리뷰");
+});

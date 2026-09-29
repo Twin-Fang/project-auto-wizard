@@ -67,18 +67,29 @@ export function parseWizardPrompts(text) {
 }
 
 // wizard-prompts.yml을 찾아 읽고 파싱 (.sh _wf_labels_path 등가).
-// 우선순위: 대상 프로젝트(targetRoot — 사용자 커스텀) → 패키지 payload/config 번들본 → null.
-// WHY 폴백: 사용자 레포에는 이 파일을 설치하지 않는다(payload 단일 진실) —
-//          번들본 폴백이 없으면 label/help/example이 전부 빈값(KEY명만 출력)이 된다.
+// 번들본(payload/config)을 바탕으로 대상 프로젝트의 사용자 파일(커스텀 오버라이드)을 키 단위로 덮어쓴다.
+// WHY 병합: 사용자 파일에는 바꾸고 싶은 키만 적는 것이 자연스럽다 — 파일째 대체하면 적지 않은 나머지
+//          질문의 label/help/example과 워크플로우 표시명이 전부 사라져 KEY명만 보인다.
 // fs 주입 가능(테스트용) — 기본 node:fs.
 export function loadWizardPrompts(targetRoot = ".", payloadRoot = "", fs = nodeFs) {
-  // 우선순위: 대상 프로젝트(사용자 커스텀 오버라이드) → 패키지 payload/config 번들본 → null.
-  const candidates = [join(targetRoot, LABELS_FILE)];
-  if (payloadRoot) candidates.push(join(payloadRoot, PAYLOAD.configDir, "wizard-prompts.yml"));
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return parseWizardPrompts(fs.readFileSync(p, "utf8"));
+  const read = (p) => (fs.existsSync(p) ? parseWizardPrompts(fs.readFileSync(p, "utf8")) : null);
+  const bundled = payloadRoot ? read(join(payloadRoot, PAYLOAD.configDir, "wizard-prompts.yml")) : null;
+  const user = read(join(targetRoot, LABELS_FILE));
+  if (!bundled || !user) return user || bundled;
+  return mergeWizardPrompts(bundled, user);
+}
+
+// 번들 + 사용자 파싱 결과 병합. 같은 키는 사용자가 적은 필드만 덮어쓴다(label만 바꾸면 help/example은 번들 유지).
+export function mergeWizardPrompts(base, override) {
+  const fields = new Map([...base.fields].map(([k, v]) => [k, { ...v }]));
+  for (const [key, entry] of override.fields) {
+    const merged = { ...(fields.get(key) || {}) };
+    for (const [f, v] of Object.entries(entry)) if (v != null && v !== "") merged[f] = v;
+    fields.set(key, merged);
   }
-  return null;
+  const overridden = new Set(override.workflowNames.map((w) => w.key));
+  const workflowNames = [...base.workflowNames.filter((w) => !overridden.has(w.key)), ...override.workflowNames];
+  return { fields, workflowNames };
 }
 
 // 필드 조회 (.sh wf_field 등가). field: "label" | "help" | "example".
