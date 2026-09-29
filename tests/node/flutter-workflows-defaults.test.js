@@ -141,3 +141,29 @@ test("CI changes job은 push 때 이번 push의 커밋만 비교한다 (기본 �
     "push 이벤트 base가 github.event.before가 아닙니다",
   );
 });
+
+// Secret 없이 실행하면 빌드를 몇 분 진행한 뒤에야(또는 빈 SMB 주소로) 실패했다.
+// 첫 job의 체크아웃 직후에 필요한 Secret을 모두 점검하고, 선택 Secret은 점검하지 않는다.
+test("Android 배포 워크플로우는 체크아웃 직후 필수 Secret을 한꺼번에 점검한다", () => {
+  const STEP = "- name: 배포 사전 점검 (Secret)";
+  const SIGN = ["RELEASE_KEYSTORE_BASE64", "RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD"];
+  const cases = [
+    ["PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml", ["SERVER_HOST", "SERVER_USER", "SERVER_PASSWORD"], ["DEBUG_KEYSTORE", "GOOGLE_SERVICES_JSON"]],
+    ["PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml", [...SIGN, "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64", "ANDROID_PACKAGE_NAME"], ["GOOGLE_SERVICES_JSON", "ENV_FILE"]],
+    ["PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml", [...SIGN, "FIREBASE_SERVICE_ACCOUNT_JSON_BASE64"], ["GOOGLE_SERVICES_JSON", "ENV_FILE"]],
+  ];
+  for (const [f, required, optional] of cases) {
+    const lines = read(f).split("\n");
+    const at = lines.findIndex((l) => l.trim() === STEP);
+    assert.ok(at > 0, `${f}: 사전 점검 스텝 없음`);
+    // 파일에서 첫 번째 스텝이 체크아웃이고, 바로 다음 스텝이 사전 점검이어야 한다
+    const steps = lines.flatMap((l, i) => (/^      - name: /.test(l) ? [i] : []));
+    assert.match(lines[steps[0]], /Check ?out repository/, `${f}: 첫 스텝이 체크아웃이 아님`);
+    assert.strictEqual(steps[1], at, `${f}: 사전 점검이 체크아웃 바로 다음이 아님`);
+    const block = lines.slice(at, steps[2]).join("\n");
+    for (const name of required) assert.ok(block.includes(`${name}: \${{ secrets.${name}`), `${f}: ${name} 점검 누락`);
+    for (const name of optional) assert.ok(!block.includes(`secrets.${name} `), `${f}: 선택 Secret ${name}을 필수로 점검함`);
+    assert.match(block, /::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:\$MISSING/);
+    assert.match(block, /exit 1/);
+  }
+});
