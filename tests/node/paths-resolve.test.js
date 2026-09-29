@@ -217,3 +217,40 @@ test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ── 대화형 직접 입력 루프 탈출 ──────────────────────────────
+// 마커 파일이 아직 없는 타입을 추가해도 Enter만으로 진행할 수 있어야 한다 (무한 반복 금지).
+test("resolveProjectPaths(대화형): 마커가 없어도 Enter(기본값)만으로 루트 경로로 확정된다", async () => {
+  const target = tmpRepo("paw-paths-loop-");
+  try {
+    let asked = 0;
+    const io = {
+      log: () => {},
+      text: async ({ defaultValue }) => { asked++; return defaultValue; },
+      confirm: async ({ initialValue }) => initialValue,
+      select: async () => { throw new Error("후보가 없으면 select를 부르지 않는다"); },
+    };
+    const result = await resolveProjectPaths({ root: target, types: ["spring"], tty: true, io });
+    assert.strictEqual(result.get("spring"), ".");
+    assert.strictEqual(asked, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectPaths(대화형): '아니오'를 고르면 다시 묻고, ESC는 입력한 경로를 그대로 쓴다", async () => {
+  const target = tmpRepo("paw-paths-loop-");
+  try {
+    const inputs = ["server", "api"];
+    const confirms = [false, Symbol("cancel")];
+    const io = {
+      log: () => {},
+      text: async () => inputs.shift(),
+      confirm: async () => confirms.shift(),
+    };
+    const result = await resolveProjectPaths({ root: target, types: ["spring"], tty: true, io });
+    assert.strictEqual(result.get("spring"), "api");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

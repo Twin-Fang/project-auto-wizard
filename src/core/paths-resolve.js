@@ -231,8 +231,11 @@ export async function resolveProjectPaths({
         chosen = input;
       } else {
         say(`  ⚠️ ${input}/${m} 파일이 없습니다.`);
-        const forceOk = await io.confirm({ message: "  그래도 이 경로를 사용할까요?", initialValue: false });
-        if (forceOk === true) chosen = input;
+        // 기본(Enter)·ESC는 이 경로를 그대로 쓴다 — 기본을 '아니오'로 두면 마커가 아직 없는 타입
+        // (프로젝트 생성 전에 미리 추가한 타입 등)은 Enter만으로는 빠져나갈 수 없었다.
+        // 다시 입력하려면 '아니오'를 명시적으로 고른다. 경로는 version.yml project_paths에서 나중에 고칠 수 있다.
+        const forceOk = await io.confirm({ message: "  그래도 이 경로를 사용할까요? (아니오 = 다시 입력)", initialValue: true });
+        if (forceOk !== false) chosen = input;
       }
     }
 
