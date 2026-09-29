@@ -241,7 +241,7 @@ async function runInner(argv, {
     printDoctorReport(runDoctor(cwd));
     return 0;
   }
-  // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
+  // 명시 모드(full)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
   // (TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
   if (!opts.force && !opts.dryRun) {

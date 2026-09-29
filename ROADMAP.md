@@ -4,8 +4,8 @@ project-auto-wizard가 다음에 어디로 향하는지 공유합니다. 우선�
 
 ## 완료됨
 
-- npx 마법사(9타입 + 멀티타입 + 모노레포 자동 감지)
-- GitHub-native 릴리스 자동화(기본은 규칙 기반 요약, GitHub Copilot CLI 요약은 선택 — 기본 꺼짐)
+- npx 마법사(Go 포함 10타입 + 멀티타입 + 모노레포 자동 감지)
+- GitHub-native 릴리스 자동화(3단 요약 엔진 체인: 사용자 지정 AI → GitHub Copilot CLI → 규칙 기반. AI는 선택이며 기본 꺼짐)
 - `status` — 설치 상태·드리프트 확인 명령
 - `doctor` — 설치 환경 진단 명령
 - `--dry-run` — 실제 변경 없이 미리보기
@@ -14,7 +14,7 @@ project-auto-wizard가 다음에 어디로 향하는지 공유합니다. 우선�
 
 ## 검토 중
 
-- 프로젝트 타입 커버리지 확장 여부(Go, Rust, Django, Docker 등) — 현재는 깊이 우선 전략으로 보류 중
+- 프로젝트 타입 커버리지 확장 여부(Rust, Django, Docker 등) — 현재는 깊이 우선 전략으로 보류 중
 - CLI 다국어(i18n) 지원
 
 ## 기여를 환영합니다
