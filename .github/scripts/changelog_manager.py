@@ -786,10 +786,16 @@ def _user_api_settings() -> tuple[str, str, str] | None:
     키만 있고 URL·모델이 비어 있으면 그 키를 어디로도 보내지 않고 경고 후 건너뛴다
     (종료된 기본 엔드포인트으로 사용자 키가 흘러가던 문제 방지)."""
     api_key = os.environ.get('AI_API_KEY')
-    if not api_key:
-        return None
     base_url = os.environ.get('AI_API_BASE_URL')
     model = os.environ.get('AI_MODEL')
+    if not api_key:
+        # 변수만 등록하고 secret을 빠뜨리면 아무 표시 없이 규칙 요약으로 넘어가 설정이 먹은 줄 안다
+        if base_url or model:
+            print(
+                "::warning::AI_API_BASE_URL/AI_MODEL이 설정됐지만 AI_API_KEY secret이 없어 사용자 API 티어를 건너뜁니다",
+                file=sys.stderr,
+            )
+        return None
     if not base_url or not model:
         print(
             "::warning::AI_API_KEY가 설정됐지만 AI_API_BASE_URL/AI_MODEL이 없어 사용자 API 티어를 건너뜁니다",

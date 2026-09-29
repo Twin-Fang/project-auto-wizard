@@ -205,8 +205,10 @@ export function printSummary(ctx) {
   err("     → 등록 시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요");
   err("     → 없어도 태그·Release 발행과 배포 워크플로우 실행까지 자동으로 이어지며, 있으면 조금 더 빠릅니다");
   err("");
-  err(`  ${num()} GitHub Actions 권한 확인`);
-  err("     → Settings > Actions > Workflow permissions: Read and write");
+  // 설치 워크플로우는 필요한 권한을 각자 선언한다 — doctor 안내와 같은 기준으로 알린다.
+  err(`  ${num()} GitHub Actions 권한 (변경 불필요)`);
+  err("     → Workflow permissions가 기본값 Read여도 설치된 워크플로우는 그대로 동작합니다");
+  err("     → 직접 추가한 워크플로우가 permissions 선언 없이 쓰기 작업을 할 때만 Read and write로 올리세요");
   err("");
   err(SEPARATOR);
   err("");

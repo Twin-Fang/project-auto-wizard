@@ -123,6 +123,24 @@ test("classifySecrets: 실제 flutter·react 워크플로우에서 선택 항목
   }
 });
 
+// 비어 있어도 도는 secret을 필수로 표시하면 필요 없는 등록을 강요한다.
+test("classifySecrets: Python CI의 ENV_FILE, Flutter 테스트 APK의 서명·Firebase secret은 선택이다", () => {
+  const python = classifySecrets(join(resolvePayloadRoot(), "workflows", "python"), ["PROJECT-PYTHON-CI.yaml"]);
+  assert.deepStrictEqual([...python.required.keys()], []);
+  assert.ok(python.optional.has("ENV_FILE"));
+
+  const apk = classifySecrets(join(resolvePayloadRoot(), "workflows", "flutter"), ["PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"]);
+  assert.deepStrictEqual([...apk.required.keys()], [], "테스트 APK는 secret 없이도 debug 키로 빌드된다");
+  for (const name of ["RELEASE_KEYSTORE_BASE64", "RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD", "FIREBASE_SERVICE_ACCOUNT_JSON_BASE64"]) {
+    assert.ok(apk.optional.has(name), `${name}이 선택으로 분류되지 않았다`);
+  }
+
+  // 스토어 업로드는 release 키가 있어야 하므로 함께 설치되면 필수로 남는다
+  const store = classifySecrets(join(resolvePayloadRoot(), "workflows", "flutter"),
+    ["PROJECT-FLUTTER-ANDROID-TEST-APK.yaml", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"]);
+  assert.ok(store.required.has("RELEASE_KEYSTORE_BASE64"));
+});
+
 test("narrowSecretsBySshAuth: 고른 인증 방식에 안 쓰이는 쪽을 목록에서 뺀다", () => {
   const base = new Map([["SERVER_PASSWORD", ["A"]], ["SSH_KEY", ["A"]]]);
   assert.ok(!narrowSecretsBySshAuth(base, "key").has("SERVER_PASSWORD"));

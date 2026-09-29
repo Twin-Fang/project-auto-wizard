@@ -20,20 +20,20 @@
 # 3. "Run workflow" 버튼 클릭
 # 4. 빌드 완료 후 아티팩트에서 APK 다운로드
 #
-# 필수 GitHub Secrets
+# GitHub Secrets (모두 선택 — 하나도 없어도 테스트 APK는 빌드됩니다)
 #
 # Release Keystore (Play Store 배포와 동일, 없으면 경고 후 debug 키로 서명):
-# RELEASE_KEYSTORE_BASE64: 릴리즈 키스토어 파일 (base64)
-# RELEASE_KEYSTORE_PASSWORD: 키스토어 비밀번호
-# RELEASE_KEY_ALIAS: 키 별칭
-# RELEASE_KEY_PASSWORD: 키 비밀번호
+# RELEASE_KEYSTORE_BASE64 (선택): 릴리즈 키스토어 파일 (base64)
+# RELEASE_KEYSTORE_PASSWORD (선택): 키스토어 비밀번호
+# RELEASE_KEY_ALIAS (선택): 키 별칭
+# RELEASE_KEY_PASSWORD (선택): 키 비밀번호
 #
 # 환경 설정 (선택):
 # ENV_FILE (선택): .env 파일 내용
 # GOOGLE_SERVICES_JSON (선택): google-services.json 내용 (Firebase 사용 시)
 #
 # Firebase App Distribution (선택):
-# FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: Firebase 서비스 계정 JSON (base64)
+# FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 (선택): Firebase 서비스 계정 JSON (base64)
 #
 # ※ 위 Secrets는 저장소 Settings → Secrets and variables → Actions에 등록하세요.
 #    Firebase 업로드를 쓰려면 아래 env의 FIREBASE_APP_ID·FIREBASE_TESTER_GROUP도 수정합니다.
@@ -48,6 +48,12 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [build-android-app]
+
+# 레포 기본 권한이 read여도 빌드 진행 댓글을 달 수 있게 필요한 권한을 직접 선언한다
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 # 프로젝트별 설정 (아래 값들을 수정하세요)
 env:

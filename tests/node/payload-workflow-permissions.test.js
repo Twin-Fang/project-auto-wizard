@@ -33,3 +33,20 @@ test("커밋을 push하는 공통 워크플로우는 contents: write를 선언�
     assert.match(text, /^permissions:[\s\S]*?^\s+contents:\s*write/m, `${f}에 contents: write가 없습니다`);
   }
 });
+
+// 타입별 워크플로우도 같다 — GITHUB_TOKEN으로 댓글·push 같은 쓰기를 하는데 permissions가 없으면
+// 레포 기본 권한(read)에서 실패한다. 설치 요약·README의 "기본값 Read로 충분" 안내가 거짓이 된다.
+const WRITE_OPS = /github\.rest\.(issues|pulls|repos)\.(create|update|delete)\w*|git push|gh (pr|issue) (comment|merge|create)|gh release create|gh workflow run/;
+
+test("쓰기 작업을 하는 payload 워크플로우는 모두 permissions를 선언한다", () => {
+  const root = join(REPO_ROOT, "payload", "workflows");
+  const files = readdirSync(root, { recursive: true }).filter((n) => /\.ya?ml$/.test(n));
+  let checked = 0;
+  for (const f of files) {
+    const text = readFileSync(join(root, f), "utf8");
+    if (!WRITE_OPS.test(text)) continue;
+    checked++;
+    assert.match(text, /^\s*permissions:/m, `${f}는 쓰기 작업을 하지만 permissions 선언이 없습니다`);
+  }
+  assert.ok(checked > 0);
+});
