@@ -16,6 +16,13 @@ test("parsePathsCsv: 여러 항목 중 하나에만 내부 공백이 있어도 �
   assert.strictEqual(map.get("react"), "client");
 });
 
+test("parseArgs: --paths에 값이 없거나 비어 있으면 다른 값 옵션처럼 CliError를 던진다", () => {
+  assert.throws(() => parseArgs(["--mode", "full", "--force", "--paths"]), CliError);
+  assert.throws(() => parseArgs(["--paths", ""]), CliError);
+  assert.throws(() => parseArgs(["--paths", "  "]), CliError);
+  assert.strictEqual(parseArgs(["--paths", "react=web"]).pathsCsv, "react=web");
+});
+
 // ── --main-branch/--develop-branch 빈 문자열 명시 거부 ──────────
 test("parseArgs: --main-branch \"\"(빈 값 명시)는 CliError를 던진다", () => {
   assert.throws(() => parseArgs(["--main-branch", ""]), CliError);

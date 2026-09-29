@@ -82,7 +82,7 @@ for (const [label, argv, empty] of [
   ["status", ["--mode", "status"]],
   ["doctor", ["--mode", "doctor"]],
   ["--force 없는 full", ["--mode", "full", "--type", "spring"]],
-  // 마커가 없는 폴더라 경로를 확정하지 못해 거부된다
+  // 값 없는 --paths는 다른 값 옵션처럼 인자 단계에서 거부된다
   ["값 없는 --paths", ["--mode", "full", "--force", "--type", "spring", "--paths"], true],
   ["비대화형 uninstall (--force 없음)", ["--mode", "uninstall"]],
 ]) {
@@ -93,7 +93,7 @@ for (const [label, argv, empty] of [
     try {
       resetLogger();
       const code = await run(argv, { cwd: target });
-      if (empty) assert.strictEqual(code, 1, "경로를 확정하지 못하면 거부돼야 한다");
+      if (empty) assert.strictEqual(code, 1, "값 없는 --paths는 거부돼야 한다");
     } finally {
       Object.assign(console, quiet);
     }
