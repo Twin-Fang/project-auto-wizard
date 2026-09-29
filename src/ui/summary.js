@@ -3,6 +3,7 @@
 import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
 import { EITHER_SEP } from "../core/verify.js";
+import { BUILD_NUMBER_TYPES } from "../core/types.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
@@ -62,7 +63,6 @@ export function printSummary(ctx) {
   err("");
   err("추가된 파일:");
   err(`  📄 version.yml (버전: ${version}, 타입: ${types.join(",")})`);
-  const BUILD_NUMBER_TYPES = new Set(["flutter", "react-native", "react-native-expo"]);
   if (versionCode != null && types.some((t) => BUILD_NUMBER_TYPES.has(t))) {
     err(`     빌드 번호: ${versionCode}`);
   }

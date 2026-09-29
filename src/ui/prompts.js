@@ -4,6 +4,7 @@
 // Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { TYPE_IDS } from "../core/types.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
@@ -62,8 +63,8 @@ export async function editMenu({ showFlutter = false, showOptions = false } = {}
   return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter, showOptions }) });
 }
 
-// 대화형 타입 선택지 — CLI 검증 목록(VALID_TYPES)과 어긋나지 않는지 테스트가 대조한다.
-export const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
+// 대화형 타입 선택지 — CLI 검증 목록(VALID_TYPES)과 같은 레지스트리에서 만든다.
+export const ALL_TYPES = TYPE_IDS;
 
 // 타입 멀티선택.
 export async function selectTypes(current = []) {

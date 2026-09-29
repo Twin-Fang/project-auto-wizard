@@ -1,10 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { VALID_TYPES } from "../../src/context.js";
 import { ALL_TYPES } from "../../src/ui/prompts.js";
 import { markerForType } from "../../src/core/paths-resolve.js";
 import { HELP_TEXT } from "../../src/cli/help.js";
+import {
+  TYPES, TYPE_IDS, BUILD_NUMBER_TYPES, SINGLE_SERVER_CD_FILES,
+} from "../../src/core/types.js";
+import {
+  markerForType as detectMarkerForType, extraMarkers, detectTypesFromMarkers, classifyPackageText,
+  detectBuildNumberFromFiles,
+} from "../../src/core/detect.js";
+import { isServerDeployWorkflow } from "../../src/core/deploy-style.js";
 
 // 타입 목록이 여러 파일에 따로 적혀 있어, 새 타입 추가 시 한 곳만 빠져도 여기서 실패하게 한다.
 const sorted = (xs) => [...new Set(xs)].sort();
@@ -82,4 +91,64 @@ test("payload/workflows 하위 타입 폴더는 모두 유효한 타입이다", 
     .map((d) => d.name);
   assert.ok(dirs.length > 0);
   for (const d of dirs) assert.ok(VALID_TYPES.includes(d), `payload/workflows/${d}: 알 수 없는 타입 폴더`);
+});
+
+// ── 레지스트리(core/types.js)가 단일 출처인지 ──
+// 타입 지식을 다시 하드코딩하면 아래 대조가 어긋나 실패한다.
+
+test("VALID_TYPES·ALL_TYPES는 레지스트리 목록 그대로다 (같은 순서)", () => {
+  assert.deepStrictEqual([...VALID_TYPES], TYPES.map((t) => t.id));
+  assert.strictEqual(VALID_TYPES, TYPE_IDS);
+  assert.strictEqual(ALL_TYPES, TYPE_IDS);
+  assert.ok(Object.isFrozen(TYPE_IDS), "공유 배열이 한쪽에서 바뀌지 않도록 고정돼야 한다");
+});
+
+test("대표·보조 마커는 레지스트리 markers에서 나온다", () => {
+  for (const t of TYPES) {
+    if (t.markers.length === 0) continue;
+    assert.strictEqual(detectMarkerForType(t.id), t.markers[0], t.id);
+    assert.deepStrictEqual(extraMarkers(t.id), t.markers.slice(1), t.id);
+    assert.strictEqual(markerForType(t.id), t.markers[0], t.id);
+  }
+});
+
+test("detectBy·detectOrder 선언이 온전하다", () => {
+  for (const by of ["markers", "package"]) {
+    const orders = TYPES.filter((t) => t.detectBy === by).map((t) => t.detectOrder);
+    assert.ok(orders.every(Number.isInteger), `${by}: detectOrder는 정수여야 한다`);
+    assert.strictEqual(new Set(orders).size, orders.length, `${by}: detectOrder 중복`);
+  }
+  assert.strictEqual(TYPES.filter((t) => t.detectBy === "package-fallback").length, 1);
+  for (const t of TYPES.filter((x) => x.detectBy === "package")) assert.ok(t.packageDep, `${t.id}: packageDep 없음`);
+  // 감지 방식이 없는 타입은 마커도 없어야 한다 — 마커만 있고 감지가 안 되면 자동 감지에서 조용히 빠진다.
+  for (const t of TYPES.filter((x) => !x.detectBy)) assert.deepStrictEqual(t.markers, [], t.id);
+});
+
+test("각 타입이 레지스트리 선언대로 자동 감지된다", () => {
+  for (const t of TYPES.filter((x) => x.detectBy === "markers")) {
+    for (const m of t.markers) {
+      assert.ok(detectTypesFromMarkers({ has: (f) => f === m }).includes(t.id), `${t.id}: ${m}만 있어도 감지돼야 한다`);
+    }
+  }
+  for (const t of TYPES.filter((x) => x.detectBy === "package")) {
+    const raw = JSON.stringify({ dependencies: { [t.packageDep]: "1" } });
+    assert.strictEqual(classifyPackageText(raw), t.id);
+  }
+});
+
+test("빌드 번호 타입은 레지스트리 buildNumberSource에서 나온다", () => {
+  for (const t of TYPES) {
+    let reads = 0;
+    detectBuildNumberFromFiles({ types: [t.id], read: () => { reads++; return null; }, readJson: () => { reads++; return null; } });
+    assert.strictEqual(reads > 0, Boolean(t.buildNumberSource), `${t.id}: 빌드 번호 파일 조회 여부`);
+    assert.strictEqual(BUILD_NUMBER_TYPES.has(t.id), Boolean(t.buildNumberSource), t.id);
+  }
+});
+
+test("단일 서버 CD 파일은 해당 타입 payload에 실재하고 서버 배포로 분류된다", () => {
+  assert.ok(SINGLE_SERVER_CD_FILES.size > 0);
+  for (const t of TYPES.filter((x) => x.singleServerCd)) {
+    assert.ok(existsSync(join("payload/workflows", t.id, t.singleServerCd)), `${t.id}: ${t.singleServerCd} 없음`);
+    assert.ok(isServerDeployWorkflow(t.singleServerCd));
+  }
 });
