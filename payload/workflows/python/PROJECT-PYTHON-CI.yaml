@@ -5,6 +5,9 @@
 # - 테스트: tests/·test/ 폴더나 test_*.py·*_test.py가 있을 때만 pytest 실행 (없으면 건너뜀)
 # - Dockerfile이 없어도 실패하지 않는다 (Docker 빌드 검증만 건너뜀)
 # - 배포는 수행하지 않음 ({{MAIN_BRANCH}} 브랜치에서만 배포)
+#
+# GitHub Secrets
+# - ENV_FILE (선택): .env 파일 내용 — 없으면 빈 .env로 검증합니다
 
 name: PROJECT-PYTHON-CI
 

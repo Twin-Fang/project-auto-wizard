@@ -12,6 +12,9 @@ It is a Python rewrite of the battle-tested bash reference implementation
   comments and formatting (never rewritten wholesale, never parsed with a YAML lib).
 - Versions are synced out to type-specific project files (build.gradle,
   pubspec.yaml, package.json, pyproject.toml, Info.plist, app.json, ...).
+- increment/set also rewrite the README.md version line under the
+  AUTO-VERSION-SECTION marker, so the release commit (and its tag) already
+  shows the new version.
 
 Usage:
     version_manager.py get              # current version (synced)
@@ -604,9 +607,42 @@ def sync_all_project_files(new_version):
         raise VersionSyncError(f"project file sync failed for: {', '.join(errors)}")
 
 
+README_VERSION_LINE_RE = re.compile(
+    r"^(##[^:\n]*:[ \t]*)v?\d+\.\d+\.\d+([ \t]*\(\d{4}-\d{2}-\d{2}\))?[ \t]*$", re.MULTILINE)
+
+
+def update_readme_version(new_version, path="README.md"):
+    """AUTO-VERSION-SECTION 마커 바로 아래 버전 줄만 새 버전으로 바꾼다.
+
+    README 갱신 워크플로우는 태그를 만든 뒤에 돌기 때문에, 버전 확정 커밋에 README가 함께
+    들어가지 않으면 태그 시점 README가 한 버전 전을 가리킨다. 마커·줄 삽입 같은 나머지 일은
+    그 워크플로우에 맡기고, 여기서는 이미 있는 줄만 고친다(날짜 표기 여부도 그대로 둔다)."""
+    p = Path(path)
+    if not p.is_file():
+        return False
+    text = read_file(p)
+    lines = text.split("\n")
+    for i, line in enumerate(lines[:-1]):
+        if "AUTO-VERSION-SECTION" not in line:
+            continue
+        m = README_VERSION_LINE_RE.match(lines[i + 1])
+        if not m:
+            return False
+        date = f" ({datetime.date.today().isoformat()})" if m.group(2) else ""
+        new_line = f"{m.group(1)}v{new_version}{date}"
+        if new_line == lines[i + 1]:
+            return False
+        lines[i + 1] = new_line
+        write_file(p, "\n".join(lines))
+        log(f"README.md version line -> v{new_version}")
+        return True
+    return False
+
+
 def update_all_versions(new_version):
     update_version_yml(new_version)
     sync_all_project_files(new_version)
+    update_readme_version(new_version)
 
 
 # ===================================================================

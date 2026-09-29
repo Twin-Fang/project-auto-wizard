@@ -12,7 +12,7 @@ import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
-import { copyScripts } from "../core/copy/simple.js";
+import { copyScripts, removeScriptBytecode } from "../core/copy/simple.js";
 import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
@@ -91,6 +91,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const { name, action } of scripts) {
     log.info("script", action, `${PATHS.scriptsDir}/${name}${action === "overwrite" ? " (기존 내용과 달라 새 버전으로 덮어씀)" : ""}`);
   }
+  const bytecodeRemoved = removeScriptBytecode(targetRoot);
+  for (const rel of bytecodeRemoved) log.info("script", "remove", `${rel} (예전 버전이 커밋한 바이트코드 — 삭제를 함께 커밋하세요)`);
 
   // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
   //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다.
@@ -184,7 +186,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, optionalSecrets };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, bytecodeRemoved, optionalSecrets };
 }
 
 // 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도

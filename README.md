@@ -322,7 +322,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 | 항목 | 내용 |
 |---|---|
 | **`WORKFLOW_PAT` secret** (선택 — 속도 최적화용) | 없어도 `GITHUB_TOKEN` 폴백이 automerge부터 Release 발행까지 자동으로 이어갑니다(실제 병합 후 최대 ~20초 추가). 더 빠르게 하고 싶다면 Settings → Secrets → Actions에 `WORKFLOW_PAT` (scopes: `repo`, `workflow`) 등록 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 |
-| **Workflow permissions** | Settings → Actions → Workflow permissions: **Read and write** |
+| **Workflow permissions** (변경 불필요) | 기본값 Read로 충분합니다 — 설치된 워크플로우는 필요한 권한을 각자 선언합니다. 직접 추가한 워크플로우가 `permissions` 선언 없이 쓰기 작업을 할 때만 Settings → Actions → Workflow permissions를 **Read and write**로 올리세요 |
 | **Copilot AI 요약** (선택) | 기본 꺼짐. 켜려면 마법사에서 선택하거나 `version.yml`의 `copilot_ai`를 `true`로 — AI Credits가 소비되며 조직은 "Allow use of Copilot CLI billed to the organization" 정책이 필요합니다. 사용할 수 없으면 자동으로 규칙 fallback |
 
 > **PAT 없이도 배포까지 자동으로 이어집니다.** 봇 토큰(`GITHUB_TOKEN`)이 병합한 릴리스 PR은 `on: push` 워크플로우를 깨우지 못하므로, RELEASE-PUBLISH가 릴리스를 발행한 뒤 마법사가 설치한 릴리스 브랜치 배포 워크플로우(서버 배포·스토어 배포)를 `workflow_dispatch`로 대신 실행합니다. 스토어 배포는 설치 때 고른 배포 모드가 입력 기본값으로 쓰입니다. PAT이나 사람이 병합했다면 push 이벤트로 이미 실행되므로 다시 실행하지 않습니다.

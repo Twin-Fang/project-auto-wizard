@@ -48,6 +48,12 @@ on:
   repository_dispatch:
     types: [build-ios-app]
 
+# 레포 기본 권한이 read여도 빌드 진행 댓글을 달 수 있게 필요한 권한을 직접 선언한다
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 # 프로젝트별 설정 (아래 값들을 수정하세요)
 env:
   # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).

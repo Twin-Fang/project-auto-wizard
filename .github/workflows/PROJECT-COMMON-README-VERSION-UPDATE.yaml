@@ -39,6 +39,12 @@
 # therefore dispatches it right after publishing a release, so the
 # README always ends on the released version. Run it manually
 # (workflow_dispatch) to catch up at any other time.
+#
+# The version line under the AUTO-VERSION-SECTION marker is already
+# rewritten inside the release commit itself (version_manager.py
+# increment/set), so the release tag snapshot shows the released
+# version. This workflow still inserts a missing line/marker and
+# refreshes the date.
 
 name: README VERSION UPDATE
 
