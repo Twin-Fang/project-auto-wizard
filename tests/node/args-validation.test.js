@@ -139,3 +139,12 @@ test("parseArgs: --project-version은 x.y.z만 받고 v 접두사는 떼어낸�
   }
   assert.throws(() => parseArgs(["--project-version"]), CliError);
 });
+
+// ── --paths 레포 밖 경로 거부 ──
+test("parsePathsCsv: 레포 밖을 가리키는 경로('..', 절대경로)는 CliError를 던진다", () => {
+  for (const bad of ["flutter=../other-repo", "flutter=app/../../x", "flutter=/tmp/x", "flutter=C:\\\\work\\\\x"]) {
+    assert.throws(() => parsePathsCsv(bad), CliError, bad);
+  }
+  assert.strictEqual(parsePathsCsv("flutter=./apps/mobile/").get("flutter"), "apps/mobile");
+  assert.strictEqual(parsePathsCsv("flutter=apps/..hidden").get("flutter"), "apps/..hidden");
+});

@@ -173,6 +173,13 @@ export function normalizePath(p) {
   return s === "" ? "." : s;
 }
 
+// 정규화된 경로가 레포 안(상대경로, '..' 없음)인가. 레포 밖을 가리키면 설치 파일(fastlane 등)이
+// 옆 레포에 만들어지고 워크플로우 paths 필터도 동작하지 않는다.
+export function isRepoRelativePath(p) {
+  if (/^\//.test(p) || /^[A-Za-z]:/.test(p)) return false;
+  return !p.split("/").includes("..");
+}
+
 // "flutter=app,react=client" → Map<type, normalizedPath>. 타입 검증(무효 → throw).
 export function parsePathsCsv(csv) {
   const map = new Map();
@@ -185,7 +192,11 @@ export function parsePathsCsv(csv) {
     if (!VALID_TYPES.includes(type)) {
       throw new CliError(`--paths에 지원하지 않는 타입: '${type}'`);
     }
-    map.set(type, normalizePath(rawPath));
+    const path = normalizePath(rawPath);
+    if (!isRepoRelativePath(path)) {
+      throw new CliError(`--paths는 레포 안의 상대경로만 지정할 수 있습니다: '${type}=${rawPath.trim()}'`);
+    }
+    map.set(type, path);
   }
   return map;
 }

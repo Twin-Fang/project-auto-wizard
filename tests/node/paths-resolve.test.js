@@ -254,3 +254,15 @@ test("resolveProjectPaths(대화형): '아니오'를 고르면 다시 묻고, ES
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("resolveProjectPaths(대화형): 레포 밖 경로를 입력하면 쓰지 않고 다시 묻는다", async () => {
+  const target = tmpRepo("paw-paths-outside-");
+  try {
+    const inputs = ["../other-repo", "server"];
+    const io = { log: () => {}, text: async () => inputs.shift(), confirm: async () => true };
+    const result = await resolveProjectPaths({ root: target, types: ["spring"], tty: true, io });
+    assert.strictEqual(result.get("spring"), "server");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
