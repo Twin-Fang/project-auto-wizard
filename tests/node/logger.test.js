@@ -29,6 +29,7 @@ test("initLogger: 같은 시각(같은 밀리초)에 두 번 열어도 앞 로�
     log.info("copy", "write", "first run");
     resetLogger();
     const b = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 5 });
+    log.info("copy", "write", "second run");
     assert.notStrictEqual(a.path, b.path, "두 실행의 로그 경로가 달라야 한다");
     assert.match(readFileSync(join(target, a.path), "utf8"), /first run/, "앞 실행의 기록이 남아 있어야 한다");
     assert.strictEqual(readdirSync(join(target, LOG_DIR)).filter((f) => f.endsWith(".log")).length, 2);
@@ -41,9 +42,18 @@ test("maskValue: 비밀로 보이는 키는 가리되 인증 '방식'은 그대�
   assert.strictEqual(maskValue("SERVICE_DOMAIN", "api.example.com"), "api.example.com");
 });
 
-test("initLogger: 로그 파일과 .gitignore를 만든다", () => {
+test("initLogger: 기록 전에는 아무 파일도 만들지 않는다", () => {
+  withTarget((target) => {
+    const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0 });
+    assert.strictEqual(r.path, "", "아직 연 파일이 없다");
+    assert.strictEqual(existsSync(join(target, ".github")), false, "읽기 전용 실행이 흔적을 남기면 안 된다");
+  });
+});
+
+test("initLogger: 첫 기록 때 로그 파일과 .gitignore를 만든다", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0, argv: ["--mode", "full"], templateVersion: "0.8.2" });
+    log.info("detect", "type", "spring");
     assert.ok(r && r.path, "로그 경로를 돌려줘야 한다");
     const dir = join(target, LOG_DIR);
     assert.strictEqual(readFileSync(join(dir, ".gitignore"), "utf8"), "*\n!.gitignore\n");
@@ -54,6 +64,7 @@ test("initLogger: 로그 파일과 .gitignore를 만든다", () => {
 test("initLogger: 헤더에 실행 컨텍스트가 기록된다", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", argv: ["--mode", "full", "--type", "spring"], templateVersion: "0.8.2" });
+    log.info("detect", "type", "spring");
     const body = readFileSync(join(target, r.path), "utf8");
     assert.match(body, /=== project-auto-wizard v0\.8\.2 \| install \| 2026-08-26 12:03:41 UTC ===/);
     assert.match(body, /argv\s+: project-auto-wizard --mode full --type spring/);
@@ -65,6 +76,7 @@ test("initLogger: 헤더에 실행 컨텍스트가 기록된다", () => {
 test("initLogger: argv가 비어도 헤더가 깨지지 않는다", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    log.info("detect", "type", "spring");
     assert.match(readFileSync(join(target, r.path), "utf8"), /argv\s+: project-auto-wizard\n/);
   });
 });
@@ -75,6 +87,7 @@ test("initLogger: 기존 .gitignore는 덮어쓰지 않는다", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, ".gitignore"), "# 사용자가 직접 쓴 것\n");
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    log.info("detect", "type", "spring");
     assert.strictEqual(readFileSync(join(dir, ".gitignore"), "utf8"), "# 사용자가 직접 쓴 것\n");
   });
 });
@@ -88,6 +101,7 @@ test("initLogger: 로그 파일이 20개를 넘으면 오래된 것부터 지운
     }
     assert.strictEqual(readdirSync(dir).filter((f) => f.endsWith(".log")).length, 20);
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0 });
+    log.info("detect", "type", "spring");
     const logs = readdirSync(dir).filter((f) => f.endsWith(".log")).sort();
     assert.strictEqual(logs.length, 20, "회전 후에도 20개를 유지해야 한다");
     assert.ok(logs.includes("20260826-120341-000-install.log"), "새 로그는 남아 있어야 한다");
@@ -99,7 +113,9 @@ test("resetLogger: 초기화 전 상태로 되돌린다", () => {
   withTarget((target) => {
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
     resetLogger();
-    assert.strictEqual(initLogger(target, { action: "update", now: "2026-08-26 12:04:00" }).path.endsWith("-update.log"), true);
+    const r = initLogger(target, { action: "update", now: "2026-08-26 12:04:00" });
+    log.info("detect", "type", "spring");
+    assert.strictEqual(r.path.endsWith("-update.log"), true);
   });
 });
 
@@ -143,6 +159,7 @@ test("log.summary: 파일 끝에 요약 블록을 붙인다", () => {
 test("로그 파일을 쓸 수 없게 되면 no-op으로 전환하고 설치는 계속된다", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", clock: FIXED });
+    log.info("detect", "marker", "first");
     // 로그 디렉토리를 통째로 날려 append가 실패하는 상황을 만든다
     rmSync(join(target, LOG_DIR), { recursive: true, force: true });
     assert.doesNotThrow(() => log.info("detect", "marker", "x"), "쓰기 실패가 예외로 새어나가면 안 된다");

@@ -17,7 +17,7 @@ const GITIGNORE_BODY = "*\n!.gitignore\n";
 const SECRET_KEY_RE = /(PASSWORD|SECRET|TOKEN|KEY|CREDENTIAL)/i;
 const MASK = "***";
 
-let state = null; // { file, clock, startedAt, disabled }
+let state = null; // { targetRoot, name, header, file, rel, clock, startedAt, disabled }
 
 export function maskValue(key, value) {
   // SSH_AUTH_METHOD처럼 "방식"만 담는 키는 비밀이 아니다 — 이름에 KEY가 들어가도 마스킹하지 않는다.
@@ -63,32 +63,39 @@ function rotate(dir) {
   }
 }
 
+// 파일은 첫 기록 때 만든다 — 읽기 전용 모드(status/doctor)나 인자 검증에서 거부된 실행처럼
+// 아무것도 바꾸지 않은 실행이 대상 레포에 로그 폴더와 헤더만 있는 파일을 남기지 않도록.
 export function initLogger(targetRoot, opts = {}) {
   const { action = "install", now = "", argv = [], templateVersion = "unknown", clock = () => new Date(),
     ms = new Date().getUTCMilliseconds() } = opts;
+  // 시각은 UTC다 — 로컬 시간대로 읽으면 몇 시간 어긋나 보이므로 헤더에 밝혀 둔다.
+  const header =
+    `=== project-auto-wizard v${templateVersion} | ${action} | ${now} UTC ===\n` +
+    `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
+    `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
+    `target  : ${targetRoot}\n\n`;
+  const st = { targetRoot, name: logFilename(now, action, ms), header, file: "", rel: "", clock, startedAt: Date.now(), disabled: false };
+  state = st;
+  return { get path() { return st.rel; } };
+}
+
+// 첫 기록 직전에 로그 파일을 연다. 실패하면 이후 기록을 끈다.
+function open(st) {
   try {
-    const dir = join(targetRoot, LOG_DIR);
+    const dir = join(st.targetRoot, LOG_DIR);
     mkdirSync(dir, { recursive: true });
     // 사용자가 직접 둔 .gitignore가 있으면 존중한다.
     const gi = join(dir, ".gitignore");
     if (!existsSync(gi)) writeFileSync(gi, GITIGNORE_BODY);
     rotate(dir);
-
-    // 시각은 UTC다 — 로컬 시간대로 읽으면 몇 시간 어긋나 보이므로 헤더에 밝혀 둔다.
-    const header =
-      `=== project-auto-wizard v${templateVersion} | ${action} | ${now} UTC ===\n` +
-      `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
-      `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
-      `target  : ${targetRoot}\n\n`;
-    const rel = `${LOG_DIR}/${createUnique(dir, logFilename(now, action, ms), header)}`;
-    const file = join(targetRoot, rel);
-    state = { file, rel, clock, startedAt: Date.now(), disabled: false };
-    return { path: rel };
+    st.rel = `${LOG_DIR}/${createUnique(dir, st.name, st.header)}`;
+    st.file = join(st.targetRoot, st.rel);
+    return true;
   } catch (e) {
     // 로그를 못 남긴 것이 설치를 되돌릴 이유는 아니다 — 다만 조용히 삼키지는 않는다.
+    st.disabled = true;
     process.stderr.write(`[warn] 실행 로그를 시작하지 못했습니다: ${e.message}\n`);
-    state = null;
-    return null;
+    return false;
   }
 }
 
@@ -127,6 +134,7 @@ function hhmmss(date) {
 
 function write(level, scope, action, detail = "") {
   if (!state || state.disabled) return;
+  if (!state.file && !open(state)) return;
   try {
     const line = `${hhmmss(state.clock())} ${level}  ${String(scope).padEnd(SCOPE_W)}  ${String(action).padEnd(ACTION_W)}  ${detail}`.trimEnd();
     appendFileSync(state.file, line + "\n");
@@ -144,6 +152,7 @@ export const log = {
   // rows: Array<[label, value]> — 라벨 폭을 맞춰 정렬한다.
   summary(rows = []) {
     if (!state || state.disabled || !rows.length) return;
+    if (!state.file && !open(state)) return;
     // 한글은 터미널에서 2칸을 차지한다 — 문자 수로 맞추면 눈으로 볼 때 어긋난다.
     const w = Math.max(...rows.map(([k]) => dispWidth(k)));
     const body = rows.map(([k, v]) => `${k}${" ".repeat(w - dispWidth(k))} : ${v}`).join("\n");

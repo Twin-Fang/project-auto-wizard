@@ -76,3 +76,29 @@ test("같은 초에 두 번 설치해도 로그가 실행마다 하나씩 남는
     assert.strictEqual(logsIn(target).length, 2, "두 번째 실행이 첫 실행 로그를 덮어쓰면 안 된다");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
+
+// 읽기 전용 모드와 거부된 실행은 대상 레포에 아무 흔적도 남기지 않아야 한다.
+for (const [label, argv, empty] of [
+  ["status", ["--mode", "status"]],
+  ["doctor", ["--mode", "doctor"]],
+  ["--force 없는 full", ["--mode", "full", "--type", "spring"]],
+  // 마커가 없는 폴더라 경로를 확정하지 못해 거부된다
+  ["값 없는 --paths", ["--mode", "full", "--force", "--type", "spring", "--paths"], true],
+  ["비대화형 uninstall (--force 없음)", ["--mode", "uninstall"]],
+]) {
+  test(`${label}: 로그 폴더를 만들지 않는다`, async () => {
+    const target = empty ? mkdtempSync(join(tmpdir(), "paw-lifecycle-")) : springTarget();
+    const quiet = { log: console.log, error: console.error };
+    console.log = () => {}; console.error = () => {};
+    try {
+      resetLogger();
+      const code = await run(argv, { cwd: target });
+      if (empty) assert.strictEqual(code, 1, "경로를 확정하지 못하면 거부돼야 한다");
+    } finally {
+      Object.assign(console, quiet);
+    }
+    try {
+      assert.strictEqual(existsSync(join(target, ".github", ".wizard")), false, `${label} 실행이 .github/.wizard를 만들면 안 된다`);
+    } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+  });
+}
