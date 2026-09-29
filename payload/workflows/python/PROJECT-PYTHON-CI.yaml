@@ -38,6 +38,9 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
+          # push는 이번 push 범위(직전 커밋 before 대비)만 본다. 비워 두면 기본 브랜치 대비 누적 diff가 된다.
+          # 새 브랜치 첫 push(before가 0)와 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 대비)
+          base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
