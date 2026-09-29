@@ -457,7 +457,8 @@ jobs:
             MERGED_BY=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.merged_by.login // ""' 2>/dev/null || true)
           fi
           case "$MERGED_BY" in
-            github-actions*) echo "PR #${PR_NUMBER}을 봇 토큰이 병합했습니다 — push 이벤트가 배포를 깨우지 못했습니다" ;;
+            # GITHUB_TOKEN 병합자는 정확히 이 로그인이다 — 접두사만 같은 다른 계정은 사람 병합으로 본다
+            "github-actions[bot]") echo "PR #${PR_NUMBER}을 봇 토큰이 병합했습니다 — push 이벤트가 배포를 깨우지 못했습니다" ;;
             "")
               if [ "$HAS_WORKFLOW_PAT" = "true" ]; then
                 echo "병합 주체를 확인하지 못했고 WORKFLOW_PAT이 있습니다 — push 이벤트가 배포를 실행했다고 보고 건너뜁니다"

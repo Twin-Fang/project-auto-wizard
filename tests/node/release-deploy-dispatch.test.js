@@ -187,6 +187,16 @@ test("봇 토큰이 병합한 릴리스는 main 배포 워크플로우를 모두
   ], "develop CI·공통·사용자 워크플로우·push가 꺼진 무중단 CD·paths가 맞지 않는 CD는 빠져야 한다");
 });
 
+test("봇 병합 판정은 github-actions[bot]과 정확히 일치할 때만 한다", (t) => {
+  // 접두사만 같은 다른 계정(예: 머신 계정)은 사람 병합으로 보고 건너뛴다
+  const machine = runStep(t, { mergedBy: "github-actions-machine", hasPat: "true" });
+  if (!machine) return;
+  assert.deepStrictEqual(machine.runs, []);
+  // PAT이 없어도 건너뛰어야 한다 — 병합 주체가 확인된 사람 계정이기 때문
+  assert.deepStrictEqual(runStep(t, { mergedBy: "github-actions-machine", hasPat: "false" }).runs, []);
+  assert.ok(runStep(t, { mergedBy: "github-actions[bot]", hasPat: "true" }).runs.length > 0);
+});
+
 test("PAT·사람이 병합했으면 push 이벤트가 이미 배포했으므로 깨우지 않는다", (t) => {
   const r = runStep(t, { mergedBy: "my-bot-user", hasPat: "true" });
   if (!r) return;
