@@ -121,6 +121,16 @@ test("resolveMarker: 실재하는 후보가 없으면 대표 파일을 쓴다", 
   assert.strictEqual(resolveMarker("spring", () => false), "build.gradle");
 });
 
+test("resolveMarker: fallback:false면 실재하는 후보가 없을 때 빈 문자열", () => {
+  assert.strictEqual(resolveMarker("spring", () => false, { fallback: false }), "");
+});
+
+test("resolveMarkers: 파일이 없는(직접 고른) 타입은 근거 맵에 넣지 않는다", () => {
+  const m = resolveMarkers(["spring", "python"], (n) => n === "build.gradle");
+  assert.strictEqual(m.get("spring"), "build.gradle");
+  assert.ok(!m.has("python"), "없는 pyproject.toml을 근거로 붙이면 감지된 것처럼 보인다");
+});
+
 test("resolveMarkers: basic은 근거 파일이 없으므로 맵에서 제외된다", () => {
   const m = resolveMarkers(["spring", "basic"], (n) => n === "pom.xml");
   assert.strictEqual(m.get("spring"), "pom.xml");

@@ -96,3 +96,51 @@ test("runFull: README.md가 없으면 추가하지 않았다는 사실이 로그
     assert.match(readFileSync(join(target, r.path), "utf8"), /INFO {2}readme {4}skip {8}README\.md가 없어/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
+
+test("runFull: 마커 파일이 없는 타입은 '직접 선택'으로, 설치 선택값은 option 줄로 남는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-logchoice-"));
+  try {
+    writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
+    const paths = new Map([["spring", "."], ["python", "."]]);
+    const ctx = createContext({
+      mode: "full", force: true, types: ["spring", "python"], version: "0.0.1", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "main", mode: "trunk-based" },
+      paths, repoName: "my-service", resolvers: makeResolvers(target, "my-service", paths),
+      now: "2026-08-26 12:03:41", today: "2026-08-26", templateVersion: "0.8.2",
+      deployStyle: "nginx", includeSemverAuto: false, includeCopilotAi: true,
+    });
+    resetLogger();
+    const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    runFull(ctx, resolvePayloadRoot(), target);
+    closeLogger();
+    const body = readFileSync(join(target, r.path), "utf8");
+    assert.match(body, /detect {4}type {8}spring \(근거: build\.gradle\)/);
+    assert.match(body, /detect {4}type {8}python \(근거: 직접 선택\)/, "없는 pyproject.toml을 근거로 적으면 안 된다");
+    assert.match(body, /mode=trunk-based/, "브랜치 전략");
+    assert.match(body, /option {4}deploy {6}nginx/);
+    assert.match(body, /option {4}semver {6}off/);
+    assert.match(body, /option {4}copilot {5}on/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: Flutter 옵션 선택이 로그에 남는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-logflutter-"));
+  try {
+    writeFileSync(join(target, "pubspec.yaml"), "name: my_app\nversion: 1.0.0+1\n");
+    const paths = new Map([["flutter", "."]]);
+    const opts = { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_prepare", iosDeployMode: "" };
+    const ctx = createContext({
+      mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+      paths, repoName: "my-app", resolvers: makeResolvers(target, "my-app", paths, opts),
+      now: "2026-08-26 12:03:41", today: "2026-08-26", templateVersion: "0.8.2",
+      envMode: "dotenv", flutterStore: ["android"], androidDeployMode: "store_prepare", iosDeployMode: "store_only",
+    });
+    resetLogger();
+    const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    runFull(ctx, resolvePayloadRoot(), target);
+    closeLogger();
+    assert.match(readFileSync(join(target, r.path), "utf8"),
+      /option {4}flutter {5}env=dotenv stores=android android=store_prepare ios=store_only/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});

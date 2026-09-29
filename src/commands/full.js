@@ -44,10 +44,13 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const [t, p] of paths) {
     const marker = existingMarkerInDir(t, join(targetRoot, p || "."));
     pathMarkers.set(t, marker);
-    log.info("detect", "type", `${t} (근거: ${marker || "직접 선택"})`);
+    // 파일이 실제로 없으면 사용자가 직접 고른 타입이다 — 대표 파일명을 근거로 적으면 감지된 것처럼 보인다.
+    const found = marker && existsSync(join(targetRoot, p || ".", marker));
+    log.info("detect", "type", `${t} (근거: ${found ? marker : "직접 선택"})`);
   }
   log.info("detect", "version", `${version}${context.versionSource ? ` (${context.versionSource})` : ""}`);
   log.info("detect", "branch", `${branch}${context.branches ? ` | main=${context.branches.main} develop=${context.branches.develop} mode=${context.branches.mode}` : ""}`);
+  logChoices(context, types);
   for (const a of context.envAnswers || []) {
     log.info("prompt", a.isDefault ? "default" : "answer", `${a.key}=${maskValue(a.key, a.value)}`);
   }
@@ -167,6 +170,19 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   ]);
 
   return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts, optionalSecrets };
+}
+
+// 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도
+// 여기로 모이므로, 나중에 "왜 이렇게 설치됐나"를 로그만으로 따라갈 수 있다.
+function logChoices(context, types) {
+  if (context.deployStyle) log.info("option", "deploy", context.deployStyle);
+  if (context.includeSemverAuto != null) log.info("option", "semver", context.includeSemverAuto ? "on" : "off");
+  if (context.includeCopilotAi != null) log.info("option", "copilot", context.includeCopilotAi ? "on" : "off");
+  if (types.includes("flutter")) {
+    const stores = Array.isArray(context.flutterStore) ? (context.flutterStore.join(",") || "없음") : "미결정(둘 다)";
+    log.info("option", "flutter",
+      `env=${context.envMode || "-"} stores=${stores} android=${context.androidDeployMode || "-"} ios=${context.iosDeployMode || "-"}`);
+  }
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
