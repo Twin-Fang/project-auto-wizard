@@ -19,6 +19,7 @@ import { join, isAbsolute } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { PATHS, PAYLOAD } from "./paths.js";
 import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash } from "./baseline.js";
+import { LOG_DIR } from "./logger.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
@@ -94,6 +95,8 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
   }
   // baseline은 마법사가 만든 내부 상태 파일이다 — 설치물을 지우면 함께 사라져야 한다.
   // 남겨두면 다음 설치가 "예전에 깔았다가 사용자가 지운 파일"로 오인해 전부 removed로 분류한다.
-  const baselineDirs = existsSync(join(targetRoot, BASELINE_PATH)) ? [BASELINE_DIR] : [];
+  // 실행 로그(.wizard/logs)만 남은 경우도 같은 폴더째 지운다 — 설치물을 다 지운 뒤 로그 폴더만 남으면
+  // "완전 삭제"가 아니다.
+  const baselineDirs = existsSync(join(targetRoot, BASELINE_PATH)) || existsSync(join(targetRoot, LOG_DIR)) ? [BASELINE_DIR] : [];
   return { workflows: [...removedWf], scripts: removedScripts, appFiles, baseline: baselineDirs };
 }

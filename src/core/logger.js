@@ -6,7 +6,7 @@
 // 왜 로컬 전용인가: 상세도를 제약하지 않기 위해서다. 로그 디렉토리에 .gitignore를 직접
 // 두어 그 폴더만 추적에서 뺀다 — 루트 .gitignore는 건드리지 않는다.
 import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export const LOG_DIR = ".github/.wizard/logs";
 const KEEP = 20;              // 유지할 로그 파일 수
@@ -163,6 +163,14 @@ export const log = {
     }
   },
 };
+
+// 로그 폴더(.github/.wizard)째 지울 수 있는 삭제 실행용. 지우기 전에 쓰면 기록이 함께 사라지며
+// ENOENT 경고가 나고, 지운 뒤에 쓰면 폴더를 되살려 완전 삭제 뒤에도 흔적이 남는다.
+// 그래서 기록을 모았다가 폴더가 남아 있을 때만 쓴다(지워졌다면 결과는 화면 출력으로 대신한다).
+export function logRemovals(targetRoot, entries = []) {
+  if (!existsSync(dirname(join(targetRoot, LOG_DIR)))) return;
+  for (const [scope, action, detail] of entries) write("INFO", scope, action, detail);
+}
 
 export function closeLogger() {
   state = null;

@@ -102,3 +102,46 @@ for (const [label, argv, empty] of [
     } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
   });
 }
+
+test("uninstall 두 단계(기본 → --purge-*) 뒤에 로그 폴더가 남지 않고 ENOENT 경고도 없다", async () => {
+  const target = springTarget();
+  writeFileSync(join(target, "README.md"), "# my-app\n");
+  const origWrite = process.stderr.write.bind(process.stderr);
+  let stderr = "";
+  const quiet = { log: console.log, error: console.error };
+  try {
+    resetLogger();
+    await run(["--mode", "full", "--force", "--type", "spring"], { cwd: target });
+    console.log = () => {}; console.error = () => {};
+    process.stderr.write = (s) => { stderr += s; return true; };
+    resetLogger();
+    assert.strictEqual(await run(["--mode", "uninstall", "--force"], { cwd: target }), 0);
+    assert.strictEqual(existsSync(join(target, ".github", ".wizard")), false, "1단계에서 설치 기록 폴더가 지워져야 한다");
+    resetLogger();
+    assert.strictEqual(await run(["--mode", "uninstall", "--force", "--purge-readme", "--purge-gitignore", "--purge-version"], { cwd: target }), 0);
+    assert.strictEqual(existsSync(join(target, ".github", ".wizard")), false, "2단계가 로그 폴더를 되살리면 안 된다");
+  } finally {
+    process.stderr.write = origWrite;
+    Object.assign(console, quiet);
+    resetLogger(); rmSync(target, { recursive: true, force: true });
+  }
+  assert.doesNotMatch(stderr, /실행 로그 기록을 중단합니다/, "자기 로그를 지워 ENOENT 경고가 나면 안 된다");
+});
+
+test("설치 기록 폴더를 지우지 않는 uninstall은 로그를 남긴다", async () => {
+  const target = springTarget();
+  try {
+    resetLogger();
+    await run(["--mode", "full", "--force", "--type", "spring"], { cwd: target });
+    resetLogger();
+    // 워크플로우를 남기고 스크립트만 지우는 선택 — .github/.wizard가 그대로 남는다
+    const { runUninstall } = await import("../../src/commands/uninstall.js");
+    const { initLogger } = await import("../../src/core/logger.js");
+    const { resolvePayloadRoot } = await import("../../src/core/assets.js");
+    initLogger(target, { action: "uninstall", now: "2026-08-26 12:03:41", ms: 0 });
+    runUninstall({}, resolvePayloadRoot(), target, { workflows: false, scripts: true });
+    const logs = logsIn(target).filter((f) => f.endsWith("-uninstall.log"));
+    assert.strictEqual(logs.length, 1);
+    assert.match(readFileSync(join(target, LOG_DIR, logs[0]), "utf8"), /remove\s+script\s+version_manager\.py/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});

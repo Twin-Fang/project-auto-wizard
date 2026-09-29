@@ -9,7 +9,7 @@ import { planRemoval } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
-import { log } from "../core/logger.js";
+import { logRemovals } from "../core/logger.js";
 
 // 파일을 지운 뒤 비게 된 상위 폴더를 레포 루트 직전까지 정리한다(마법사가 만든 fastlane/ 등).
 // 비어 있지 않은 폴더를 만나면 멈추므로 사용자 파일이 남은 폴더는 건드리지 않는다.
@@ -26,11 +26,12 @@ export function pruneEmptyDirs(targetRoot, relDir) {
 }
 
 // Flutter 앱 파일 제거 — 미수정분만 plan에 들어오므로 그대로 지우고 빈 폴더를 정리한다.
-export function removeAppFiles(targetRoot, appFiles) {
+// 로그는 삭제가 끝난 뒤 한꺼번에 남기므로 기록할 항목을 done에 모은다.
+export function removeAppFiles(targetRoot, appFiles, done = []) {
   for (const rel of appFiles) {
     remove(join(targetRoot, rel));
     pruneEmptyDirs(targetRoot, posix.dirname(rel));
-    log.info("remove", "flutter-app", rel);
+    done.push(["remove", "flutter-app", rel]);
   }
 }
 
@@ -62,10 +63,11 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
 export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const plan = planUninstall(payloadRoot, targetRoot, selection);
   const wfDir = join(targetRoot, PATHS.workflowsDir);
-  for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
-  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
-  removeAppFiles(targetRoot, plan.appFiles);
-  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
+  const done = [];
+  for (const name of plan.workflows) { remove(join(wfDir, name)); done.push(["remove", "workflow", name]); }
+  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); done.push(["remove", "script", name]); }
+  removeAppFiles(targetRoot, plan.appFiles, done);
+  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); done.push(["remove", "metadata", p]); }
   pruneInstallDirs(targetRoot, plan);
   // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
   // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
@@ -73,7 +75,10 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const readmeRemoved = plan.readme && removeVersionSectionFromReadme(targetRoot) === "removed";
   const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
   const gitignoreRemoved = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
-  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
+  if (readmeRemoved) done.push(["remove", "readme", "README.md 버전 섹션"]);
+  if (gitignoreStatus) done.push(["remove", "gitignore", `.gitignore 자동 추가 항목 (${gitignoreStatus})`]);
+  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); done.push(["remove", "version", PATHS.versionFile]); }
+  logRemovals(targetRoot, done);
   return { ...plan, readme: readmeRemoved, gitignore: gitignoreRemoved };
 }
 
