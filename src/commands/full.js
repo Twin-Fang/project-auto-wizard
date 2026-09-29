@@ -7,7 +7,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
 import { CliError } from "../cli/args.js";
 import { PATHS } from "../core/paths.js";
-import { renderVersionYml, parseExisting } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
@@ -17,8 +17,9 @@ import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
-import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
+import { findStaleWorkflows, cleanupStaleWorkflows } from "../core/removal-plan.js";
 import { log, maskValue } from "../core/logger.js";
 
 // context: { version, types, paths:Map, branch, versionCode,
@@ -68,13 +69,18 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다.
   const vyPath = join(targetRoot, PATHS.versionFile);
-  const extraTopLevel = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")).extraTopLevel : [];
+  const prevVy = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
+  const extraTopLevel = prevVy != null ? parseExisting(prevVy).extraTopLevel : [];
 
   // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성)
-  writeText(join(targetRoot, PATHS.versionFile),
-    renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel }));
-
-  log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
+  //    날짜 줄만 달라지는 재실행은 다시 쓰지 않는다(멱등).
+  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel });
+  if (prevVy == null || !sameIgnoringTimestamps(prevVy, vyText)) {
+    writeText(vyPath, vyText);
+    log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
+  } else {
+    log.info("version", "skip", `version.yml (v${version}, code=${versionCode}, 변경 없음)`);
+  }
 
   // 3. README 버전 섹션
   const readme = addVersionSectionToReadme(version, targetRoot);
@@ -97,7 +103,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     join(targetRoot, PATHS.workflowsDir),
     existsSync(join(targetRoot, PATHS.workflowsDir)) ? readdirSync(join(targetRoot, PATHS.workflowsDir)) : [],
     context.deployStyle || DEFAULT_DEPLOY_STYLE,
-    previousBaseline);
+    previousBaseline,
+    { available: payloadWorkflowNames(payloadRoot), justWritten: wfCounters.copiedFiles || [] });
   // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
   for (const f of [...cleanup.removed, ...cleanup.backedUp]) delete previousBaseline?.files?.[f];
 
@@ -120,7 +127,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (선택 해제된 스토어 워크플로우 정리)`);
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
 
-  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
+  // 6-2. payload에서 이름이 바뀌거나 빠진 옛 워크플로우 정리 — 규칙은 6과 같다(미수정 삭제, 수정본 .bak).
+  const staleCleanup = cleanupStaleWorkflows(targetRoot, findStaleWorkflows(payloadRoot, targetRoot, previousBaseline), previousBaseline);
+  for (const f of [...staleCleanup.removed, ...staleCleanup.backedUp]) delete previousBaseline?.files?.[f];
+  for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (현재 버전에 없는 이전 워크플로우 정리)`);
+  for (const f of staleCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
+
+  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0
+    || staleCleanup.backedUp.length > 0;
   if (gitignoreUpdated) {
     const gi = ensureGitignore(targetRoot);
     log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
@@ -137,7 +151,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     entries: computeBaselineEntries(
       wfCounters.baselineTargets || new Map(),
       join(targetRoot, PATHS.workflowsDir),
-      makeSrcText(context.branches || null, context.deployStyle || "")),
+      makeSrcText(context.branches || null, context.deployStyle || ""),
+      deployValues),
     previous: previousBaseline,
     // 새로 만든 Flutter 앱 파일만 기록한다 — 기존 사용자 파일(kept)은 완전 삭제 대상이 아니다.
     appFiles: new Map(flutterApp.created.map((rel) => [rel, appFileHash(readFileSync(join(targetRoot, rel), "utf8"))])),
@@ -169,7 +184,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts, optionalSecrets };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, optionalSecrets };
 }
 
 // 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도
@@ -183,6 +198,24 @@ function logChoices(context, types) {
     log.info("option", "flutter",
       `env=${context.envMode || "-"} stores=${stores} android=${context.androidDeployMode || "-"} ios=${context.iosDeployMode || "-"}`);
   }
+}
+
+// 완료 요약과 별도로 알려야 하는 사실 — 비대화형 실행이 조용히 넘어가면 사용자는 업데이트를 다 받았다고 믿는다.
+// interactive: 대화형은 충돌을 사용자가 직접 골랐으므로 충돌 안내를 빼고 정리 결과만 알린다.
+export function postInstallNotices(result, { interactive = false } = {}) {
+  const lines = [];
+  const stale = result?.staleCleanup || { removed: [], backedUp: [] };
+  if (stale.removed.length || stale.backedUp.length) {
+    lines.push("현재 버전에 없는 이전 워크플로우를 정리했습니다 (이름이 바뀌었거나 제거된 파일):");
+    for (const f of stale.removed) lines.push(`   • ${f} — 삭제 (손대지 않은 파일)`);
+    for (const f of stale.backedUp) lines.push(`   • ${f} → ${f}.bak — 수정하신 내용이 있어 백업`);
+  }
+  const kept = interactive ? [] : result?.workflows?.conflictKept || [];
+  if (kept.length) {
+    lines.push(`충돌 ${kept.length}개 — 기존 파일을 유지했습니다 (업스트림 변경 미반영): ${kept.join(", ")}`);
+    lines.push("   파일마다 고르려면 대화형(npx project-auto-wizard)으로 다시 실행하세요.");
+  }
+  return lines;
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

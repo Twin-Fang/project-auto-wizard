@@ -8,7 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { inferInstalledStores } from "./core/installed-stores.js";
 import { PATHS } from "./core/paths.js";
@@ -22,7 +22,7 @@ import {
 } from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
-import { runFull } from "./commands/full.js";
+import { runFull, postInstallNotices } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { isPromptAbort } from "./ui/readline-engine.js";
@@ -263,12 +263,7 @@ async function runInner(argv, {
   }
   const types = opts.types.length ? opts.types
     : detectTypes(cwd, { paths: cliPaths, warn: (m) => console.error(m) });
-  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
-  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   const detectWarnings = [];
-  const version = (existing?.version) || opts.version
-    || detectVersion(cwd, { types, warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd, {
     warn: (m) => { detectWarnings.push(m); console.error(m); },
     hint: "다르면 --main-branch로 지정하세요.",
@@ -285,6 +280,13 @@ async function runInner(argv, {
     if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   }
+
+  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
+  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
+  // 경로 확정 뒤에 감지해야 모노레포 하위 폴더의 버전·빌드 번호를 읽는다.
+  const version = (existing?.version) || opts.version
+    || detectVersion(cwd, { types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); } });
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
@@ -356,6 +358,12 @@ async function runInner(argv, {
 
   context.templateVersion = readTemplateVersion();
 
+  // 무중단(nginx·traefik) 워크플로우가 없는 타입은 단일 서버 배포로 설치한다 — 조용히 넘어가지 않게 알린다.
+  const fallbackTypes = fallbackStyleTypes(payload, types, context.deployStyle);
+  if (fallbackTypes.length) {
+    console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${context.deployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
+  }
+
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });
 
@@ -390,6 +398,7 @@ async function runInner(argv, {
     readme: result?.readme ?? null,
     scripts: result?.scripts ?? null,
   });
+  for (const n of postInstallNotices(result)) console.error(n.startsWith(" ") ? n : `⚠️  ${n}`);
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
   // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
   // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다.

@@ -16,9 +16,9 @@
 // 이 파일은 원래 src/commands/revert.js였다. revert 모드는 uninstall의 부분집합이라 제거됐고
 //, 판별 로직만 남아 commands가 아닌 core로 옮겨졌다.
 import { join, isAbsolute } from "node:path";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { PATHS, PAYLOAD } from "./paths.js";
-import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash } from "./baseline.js";
+import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash, sha256 } from "./baseline.js";
 import { LOG_DIR } from "./logger.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
@@ -99,4 +99,36 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
   // "완전 삭제"가 아니다.
   const baselineDirs = existsSync(join(targetRoot, BASELINE_PATH)) || existsSync(join(targetRoot, LOG_DIR)) ? [BASELINE_DIR] : [];
   return { workflows: [...removedWf], scripts: removedScripts, appFiles, baseline: baselineDirs };
+}
+
+// 업데이트 때 정리할 옛 워크플로우 — 마법사가 설치했지만(baseline 기록 + 관리 마커) 지금 payload에는 없는 파일.
+// payload에서 이름이 바뀌거나 빠진 파일이라, 남겨두면 옛 트리거·옛 절차로 계속 돈다.
+// baseline에 없는 파일은 대상이 아니다 — 사용자가 마법사 파일을 복사해 만든 워크플로우일 수 있다.
+export function findStaleWorkflows(payloadRoot, targetRoot = ".", baseline = null) {
+  if (!baseline?.files) return [];
+  const current = payloadWorkflowNames(payloadRoot);
+  return [...markedWorkflowNames(join(targetRoot, PATHS.workflowsDir))]
+    .filter((n) => /\.ya?ml$/.test(n) && !n.endsWith(".template.yaml") && !current.has(n) && baseline.files[n])
+    .sort();
+}
+
+// 배포 방식 정리와 같은 규칙 — 손대지 않은 파일(installed 해시 일치)은 삭제, 손댄 파일은 .bak으로 옮겨
+// 내용은 지키고 트리거만 끈다.
+export function cleanupStaleWorkflows(targetRoot, names, baseline) {
+  const wfDir = join(targetRoot, PATHS.workflowsDir);
+  const removed = [];
+  const backedUp = [];
+  for (const name of names) {
+    const p = join(wfDir, name);
+    if (!existsSync(p)) continue;
+    const known = baseline?.files?.[name]?.installed;
+    if (known && sha256(readFileSync(p, "utf8")) === known) {
+      rmSync(p, { force: true });
+      removed.push(name);
+    } else {
+      renameSync(p, `${p}.bak`);
+      backedUp.push(name);
+    }
+  }
+  return { removed, backedUp };
 }

@@ -12,12 +12,12 @@ import { run } from "../../src/index.js";
 
 const payload = resolvePayloadRoot();
 
-test("hasServerDeployWorkflows: spring·go·python만 서버 배포 워크플로우를 가진다", () => {
-  for (const t of ["spring", "go", "python"]) assert.strictEqual(hasServerDeployWorkflows(payload, [t]), true, t);
-  for (const t of ["node", "flutter", "basic", "react", "next", "react-native", "react-native-expo"]) {
+test("hasServerDeployWorkflows: spring·go·python·react·next만 서버 배포 워크플로우를 가진다", () => {
+  for (const t of ["spring", "go", "python", "react", "next"]) assert.strictEqual(hasServerDeployWorkflows(payload, [t]), true, t);
+  for (const t of ["node", "flutter", "basic", "react-native", "react-native-expo"]) {
     assert.strictEqual(hasServerDeployWorkflows(payload, [t]), false, t);
   }
-  assert.strictEqual(hasServerDeployWorkflows(payload, ["react", "spring"]), true);
+  assert.strictEqual(hasServerDeployWorkflows(payload, ["flutter", "spring"]), true);
 });
 
 function stubIo(deployAsked) {

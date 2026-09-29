@@ -87,8 +87,13 @@ export function replaceProjectTokens(text, repoName) {
 //   resolvers     - resolveToken용
 //   repoName      - __PROJECT_NAME__/__APP_ARTIFACT_NAME__ 치환값
 //   projectPath   - paths-anchor 치환용 ('.'이면 anchor 미변경)
+//   savedValues   - Map<key,value>: version.yml deploy 블록에 저장된 이 타입의 값. ask 기본값보다 우선한다
+//                   (재실행·자동 갱신이 설치 때 답한 값을 템플릿 기본값으로 되돌리지 않도록).
 export function substituteEnv(content, opts = {}) {
-  const { type = "", values = new Map(), useDefaults = true, resolvers = {}, repoName = "", projectPath = ".", collectAsks = null } = opts;
+  const {
+    type = "", values = new Map(), useDefaults = true, resolvers = {}, repoName = "", projectPath = ".",
+    collectAsks = null, savedValues = null,
+  } = opts;
   if (!content.includes("@wizard")) return content;
 
   // CRLF 안전: EOL을 분리해 LF 기준으로 파싱·치환하고, 원래 EOL 스타일을 복원한다.
@@ -108,6 +113,8 @@ export function substituteEnv(content, opts = {}) {
       val = resolveToken(p.arg, type, resolvers);
     } else { // ask
       let def = p.arg.startsWith("@") ? resolveToken(p.arg.slice(1), type, resolvers) : p.arg;
+      const saved = savedValues?.get(p.key);
+      if (saved != null && saved !== "") def = saved;
       const chosen = values.get(p.key);
       if (chosen != null && chosen !== "" && !useDefaults) val = chosen;
       else val = def;

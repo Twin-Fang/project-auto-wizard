@@ -46,7 +46,7 @@ export function readBaseline(targetRoot = ".") {
   }
 }
 
-// entries: Map<filename, {installed?:string|null, rendered:string}>
+// entries: Map<filename, {installed?:string|null, rendered?:string|null}>
 // appFiles: Map<레포 기준 상대경로, appFileHash> — 이번에 새로 만든 Flutter 앱 파일. 완전 삭제가
 //   "마법사가 만들었고 사용자가 손대지 않은 파일"만 지우는 근거다. files는 워크플로우 파일명 키라 섞지 않는다.
 // 기존 baseline은 병합 대상이다 — 이번 실행에서 건드리지 않은 파일의 기준점을 잃지 않는다.
@@ -57,13 +57,18 @@ export function writeBaseline(targetRoot, { templateVersion, installedAt, entrie
     files[filename] = {
       // installed는 이번에 실제로 쓴 경우에만 갱신. 유지(skip)한 파일은 예전 기준점을 지킨다.
       installed: entry.installed ?? prev.installed ?? null,
-      rendered: entry.rendered,
+      // rendered가 없으면(충돌로 업스트림 변경을 받지 않은 파일) 예전 기준점을 지킨다.
+      rendered: entry.rendered ?? prev.rendered ?? null,
     };
   }
   const apps = { ...(previous?.appFiles || {}), ...Object.fromEntries(appFiles) };
+  // 기준점이 하나도 바뀌지 않은 재실행은 설치 시각도 그대로 둔다 — 매 실행마다 파일이 바뀌면 멱등이 아니다.
+  const unchanged = previous && previous.templateVersion === (templateVersion || "unknown")
+    && JSON.stringify(previous.files) === JSON.stringify(files)
+    && JSON.stringify(previous.appFiles || {}) === JSON.stringify(apps);
   const out = {
     templateVersion: templateVersion || "unknown",
-    installedAt: installedAt || "",
+    installedAt: unchanged ? (previous.installedAt || "") : (installedAt || ""),
     files,
     ...(Object.keys(apps).length ? { appFiles: apps } : {}),
   };

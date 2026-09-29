@@ -126,9 +126,10 @@ test("collectBreaking: 같은 버전 키의 값이 배열이면 항목마다 별
   assert.ok(critical.concat(warnings).every((r) => typeof r.version === "string"));
 });
 
-test("번들 breaking-changes.json: 0.10.0에서 0.10.1 이상으로 올라가면 warning 4건이 나온다 (다음 릴리스 번호와 무관)", () => {
+test("번들 breaking-changes.json: 0.10.0에서 0.10.1 이상으로 올라가면 0.10.1 warning 4건이 나온다 (다음 릴리스 번호와 무관)", () => {
   for (const target of ["0.10.1", "0.11.0", "1.0.0"]) {
-    const { critical, warnings } = collectBreaking(BUNDLED, "0.10.0", target);
+    const { critical, warnings: all } = collectBreaking(BUNDLED, "0.10.0", target, ["flutter"]);
+    const warnings = all.filter((w) => w.version === "0.10.1");
     assert.strictEqual(critical.length, 0, `${target}: critical 없음`);
     assert.strictEqual(warnings.length, 4, `${target}: warning 4건`);
     for (const w of warnings) {
@@ -173,4 +174,55 @@ test("runBreakingCheck: 번들 고지 4건은 모두 warning이라 대화형 확
     process.stderr.write = originalWrite;
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ── 타입 필터 · 0.12 고지 ─────────────────────────────────
+test("collectBreaking: types가 있는 항목은 설치된 타입과 겹칠 때만 보여준다", () => {
+  const json = {
+    "0.2.0": [
+      { severity: "warning", types: ["flutter"], title: "flutter only" },
+      { severity: "warning", types: ["spring", "go"], title: "server" },
+      { severity: "warning", title: "all" },
+    ],
+  };
+  const titles = (types) => collectBreaking(json, "0.1.0", "0.2.0", types).warnings.map((w) => w.title);
+  assert.deepStrictEqual(titles(["spring"]), ["server", "all"]);
+  assert.deepStrictEqual(titles(["flutter"]), ["flutter only", "all"]);
+  assert.deepStrictEqual(titles([]), ["flutter only", "server", "all"], "타입을 모르면 전부 보여준다");
+});
+
+test("번들 breaking-changes.json: spring 레포를 0.8.2에서 올리면 Flutter 전용 경고가 나오지 않는다", () => {
+  const { warnings } = collectBreaking(BUNDLED, "0.8.2", "0.12.2", ["spring"]);
+  assert.ok(warnings.length > 0);
+  assert.ok(!warnings.some((w) => /Flutter/.test(w.title)), "Flutter 전용 경고가 섞이면 안 된다");
+  assert.ok(warnings.some((w) => w.title.includes("ci-gate")), "모든 CI 타입 공통 고지는 나온다");
+});
+
+test("번들 breaking-changes.json: 0.11에서 올리면 AI 요약 기본값 변경과 제거된 옵션을 알린다", () => {
+  const spring = collectBreaking(BUNDLED, "0.11.0", "0.12.2", ["spring"]).warnings.map((w) => `${w.title} ${w.message}`);
+  assert.ok(spring.some((t) => t.includes("copilot_ai")), "AI 요약이 기본으로 꺼진다는 고지");
+  assert.ok(spring.some((t) => t.includes("NEXUS-PUBLISH")), "nexus 옵션 제거 고지");
+  assert.ok(spring.some((t) => t.includes("SECRET-FILE-UPLOAD")), "secret 백업 제거 고지");
+  const flutter = collectBreaking(BUNDLED, "0.11.0", "0.12.2", ["flutter"]).warnings.map((w) => w.title);
+  assert.ok(!flutter.some((t) => t.includes("nexus")), "spring 전용 고지는 flutter 레포에 나오지 않는다");
+  for (const w of collectBreaking(BUNDLED, "0.11.0", "0.12.2").warnings) {
+    assert.ok(w.message && !w.message.includes("\n"), "박스에 그대로 찍히므로 메시지는 한 줄");
+  }
+});
+
+test("runBreakingCheck: version.yml의 project_types로 고지를 거른다", async () => {
+  const dir = makeRepo("0.8.2");
+  writeFileSync(join(dir, "version.yml"),
+    'version: "1.0.0"\nproject_types: ["spring"]\nmetadata:\n  template:\n    version: "0.8.2"\n');
+  const originalWrite = process.stderr.write.bind(process.stderr);
+  let stderr = "";
+  process.stderr.write = (chunk) => { stderr += chunk; return true; };
+  try {
+    await runBreakingCheck({ cwd: dir, payloadRoot: "unused", templateVersion: "0.12.2", loader: async () => BUNDLED });
+  } finally {
+    process.stderr.write = originalWrite;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.doesNotMatch(stderr, /Flutter SELFHOSTED/);
+  assert.match(stderr, /ci-gate/);
 });

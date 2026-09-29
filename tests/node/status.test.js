@@ -216,3 +216,33 @@ test("runStatus: 스토어 선택 필터 검증 — 둘 다 설치 후 하나 �
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+// 설치 때 고른 배포 방식(nginx·traefik)의 CD 수정도 드리프트로 잡아야 한다.
+for (const style of ["nginx", "traefik"]) {
+  test(`runStatus: deploy_style=${style}로 설치한 CD를 고치면 수정 파일로 표시한다`, async () => {
+    const target = mkdtempSync(join(tmpdir(), "paw-status-deploy-"));
+    const original = process.stderr.write;
+    const originalLog = console.log;
+    try {
+      writeFileSync(join(target, "build.gradle"), "version = '1.0.0'\n");
+      const { run } = await import("../../src/index.js");
+      process.stderr.write = () => true;
+      console.log = () => {};
+      assert.strictEqual(await run(["--mode", "full", "--force", "--type", "spring", "--deploy-style", style], { cwd: target }), 0);
+      process.stderr.write = original;
+      console.log = originalLog;
+
+      const file = `PROJECT-SPRING-NONSTOP-${style.toUpperCase()}-CICD.yaml`;
+      assert.deepStrictEqual(runStatus(resolvePayloadRoot(), target).modifiedFiles, []);
+      const p = join(target, ".github", "workflows", file);
+      writeFileSync(p, readFileSync(p, "utf8") + "\n# edit\n");
+      const status = runStatus(resolvePayloadRoot(), target);
+      assert.deepStrictEqual(status.modifiedFiles, [file]);
+      assert.strictEqual(status.options.deployStyle, style);
+    } finally {
+      process.stderr.write = original;
+      console.log = originalLog;
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+}

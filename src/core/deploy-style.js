@@ -26,25 +26,76 @@ export const isDeployStyle = (v) => v === NO_DEPLOY_STYLE || DEPLOY_STYLES.some(
 // 이 파일이 CD 본체인가 (= 택1 대상인가). PR 프리뷰는 배포 방식과 직교하는 축이라 제외한다.
 export const isDeployWorkflow = (filename) => DEPLOY_STYLES.some((s) => filename.endsWith(s.suffix));
 
-// 선택한 타입 중 서버 배포(CD) 워크플로우를 가진 타입이 있는가 — payload 파일로 판정한다.
-// 없으면(node·flutter·react 등) 배포 방식은 설치 결과에 아무 영향이 없으므로 묻지도 기록하지도 않는다.
+// 배포 방식 변형 없이 서버 배포 CD가 하나뿐인 타입(react·next). 단일 서버 배포와 같은 축이다.
+const SINGLE_SERVER_CD = new Set(["PROJECT-REACT-CICD.yaml", "PROJECT-NEXT-CICD.yaml"]);
+const PREVIEW_SUFFIX = "-PR-PREVIEW.yaml";
+
+// 서버에 배포하는 워크플로우 전부 — CD 본체, 단일 CD(react·next), PR 프리뷰.
+// "배포 안 함"은 이 전부를 모든 타입에서 똑같이 뺀다. 일부만 빼면 서버 Secret 요구가 남는다.
+export const isServerDeployWorkflow = (filename) =>
+  isDeployWorkflow(filename) || SINGLE_SERVER_CD.has(filename) || filename.endsWith(PREVIEW_SUFFIX);
+
+// 선택한 타입 중 서버 배포 워크플로우를 가진 타입이 있는가 — payload 파일로 판정한다.
+// 없으면(node·flutter 등) 배포 방식은 설치 결과에 아무 영향이 없으므로 묻지도 기록하지도 않는다.
 export function hasServerDeployWorkflows(payloadRoot, types = []) {
   const base = join(payloadRoot, PAYLOAD.workflowsDir);
   return types.some((type) => [join(base, type), join(base, type, "server-deploy")]
-    .some((dir) => existsSync(dir) && readdirSync(dir).some(isDeployWorkflow)));
+    .some((dir) => existsSync(dir) && readdirSync(dir).some(isServerDeployWorkflow)));
+}
+
+// 선택한 타입 중 무중단(nginx·traefik) 워크플로우가 있는 타입이 있는가 — 없으면 무중단 선택지를 보이지 않는다.
+export function hasNonstopWorkflows(payloadRoot, types = []) {
+  const base = join(payloadRoot, PAYLOAD.workflowsDir);
+  const nonstop = DEPLOY_STYLES.filter((s) => s.value !== DEFAULT_DEPLOY_STYLE).map((s) => s.suffix);
+  return types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+    .some((dir) => existsSync(dir) && readdirSync(dir).some((f) => nonstop.some((sfx) => f.endsWith(sfx)))));
+}
+
+// payload/workflows/** 의 워크플로우 파일명 전체. 파일명은 PROJECT-{TYPE}- 접두사로 타입 간 유일하다.
+export function payloadWorkflowNames(payloadRoot) {
+  const names = new Set();
+  const root = join(payloadRoot, PAYLOAD.workflowsDir);
+  if (!existsSync(root)) return names;
+  for (const e of readdirSync(root, { recursive: true, withFileTypes: true })) {
+    if (e.isFile() && /\.ya?ml$/.test(e.name)) names.add(e.name);
+  }
+  return names;
 }
 
 // 모르는 값은 기본값으로 수렴시킨다. 빈 접미사를 돌려주면 endsWith("")가 항상 참이라
 // "전부 통과"가 되어, 잘못된 값이 조용히 CD 전부 설치로 새어나간다.
 const suffixOf = (style) =>
   (DEPLOY_STYLES.find((s) => s.value === style) ?? DEPLOY_STYLES.find((s) => s.value === DEFAULT_DEPLOY_STYLE)).suffix;
+const SIMPLE_SUFFIX = suffixOf(DEFAULT_DEPLOY_STYLE);
+
+// 고른 방식의 CD가 없는 타입의 단일 서버 배포 CD인가 (예: nginx를 골랐는데 python·go에는 NONSTOP이 없다).
+// 그런 타입은 단일 서버 배포로 대신 설치한다 — 설치 직후 지우거나 .bak으로 옮기면 배포가 사라진다.
+function isFallbackSimple(filename, style, available) {
+  if (!available || !filename.endsWith(SIMPLE_SUFFIX)) return false;
+  const prefix = filename.slice(0, -SIMPLE_SUFFIX.length);
+  return !available.has(prefix + suffixOf(style));
+}
 
 // 파일 필터 — 고른 방식의 CD만 통과. CD가 아닌 파일(PR 프리뷰·common 등)은 항상 통과.
-// "none"은 CD를 하나도 설치하지 않으므로 접미사 매칭 없이 CD 파일 전부를 거른다.
-export function deployFilter(style) {
-  if (style === NO_DEPLOY_STYLE) return (filename) => !isDeployWorkflow(filename);
+// "none"은 서버 배포 워크플로우(CD·단일 CD·PR 프리뷰)를 하나도 설치하지 않는다.
+// available: payload 워크플로우 파일명 집합(payloadWorkflowNames). 주면 고른 방식이 없는 타입은
+// 단일 서버 배포로 대체한다. 없으면 접미사만으로 가른다.
+export function deployFilter(style, available = null) {
+  if (style === NO_DEPLOY_STYLE) return (filename) => !isServerDeployWorkflow(filename);
   const suffix = suffixOf(style);
-  return (filename) => !isDeployWorkflow(filename) || filename.endsWith(suffix);
+  return (filename) => !isDeployWorkflow(filename) || filename.endsWith(suffix)
+    || isFallbackSimple(filename, style, available);
+}
+
+// 고른 방식(nginx·traefik)의 워크플로우가 없어 단일 서버 배포로 대신 설치하는 타입 목록 — 안내용.
+export function fallbackStyleTypes(payloadRoot, types = [], style) {
+  if (!style || style === NO_DEPLOY_STYLE || suffixOf(style) === SIMPLE_SUFFIX) return [];
+  const base = join(payloadRoot, PAYLOAD.workflowsDir);
+  return types.filter((type) => {
+    const files = [join(base, type), join(base, type, "server-deploy")]
+      .filter((dir) => existsSync(dir)).flatMap((dir) => readdirSync(dir));
+    return files.some(isServerDeployWorkflow) && !files.some((f) => f.endsWith(suffixOf(style)));
+  });
 }
 
 // 무중단 템플릿은 push 트리거가 주석 처리된 채 들어 있다(기본 배포가 단일 서버라서).
@@ -82,19 +133,24 @@ export function activateDeployTrigger(content) {
 //   손대지 않은 것(baseline의 installed 해시와 동일) → 삭제. 물어볼 이유가 없다.
 //   손댄 것                                          → .bak으로 옮긴다. 내용은 지키고 트리거만 죽인다.
 //
+// opts.available  — payload 워크플로우 파일명 집합. 주면 그 안의 파일(마법사가 까는 파일)만 정리하고,
+//                   고른 방식이 없는 타입의 단일 서버 배포는 남긴다.
+// opts.justWritten — 이번 실행에서 마법사가 방금 쓴 파일. 첫 설치처럼 baseline이 없어도 수정본으로 오인하지 않는다.
 // 반환: { removed:[], backedUp:[] } — 완료 화면·설치 기록에 그대로 보고한다.
-export function cleanupOtherDeployWorkflows(workflowsDir, installedFilenames, style, baseline) {
-  const keep = deployFilter(style);
+export function cleanupOtherDeployWorkflows(workflowsDir, installedFilenames, style, baseline, { available = null, justWritten = [] } = {}) {
+  const keep = deployFilter(style, available);
+  const written = new Set(justWritten);
   const removed = [];
   const backedUp = [];
 
   for (const filename of installedFilenames) {
-    if (!isDeployWorkflow(filename) || keep(filename)) continue;
+    if (!isServerDeployWorkflow(filename) || keep(filename)) continue;
+    if (available && !available.has(filename)) continue; // 사용자가 만든 비슷한 이름의 워크플로우는 건드리지 않는다
     const p = join(workflowsDir, filename);
     if (!existsSync(p)) continue;
 
     const known = baseline?.files?.[filename]?.installed;
-    const untouched = known && sha256(readFileSync(p, "utf8")) === known;
+    const untouched = written.has(filename) || (known && sha256(readFileSync(p, "utf8")) === known);
     if (untouched) {
       rmSync(p, { force: true });
       removed.push(filename);

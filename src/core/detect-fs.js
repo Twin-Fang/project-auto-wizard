@@ -72,8 +72,28 @@ function findSubdirProjects(root, maxDepth = 2) {
 
 // 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.
 // hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
-export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [] } = {}) {
+// 모노레포(--paths)는 버전 파일이 타입 폴더 안에 있다 — 루트만 보면 0.0.1/1로 초기화된다.
+// 주 타입 폴더 → 나머지 타입 폴더 → 루트 순으로 찾는다.
+function readFromProject(root, types = [], paths = null) {
   const read = readFile(root);
+  const bases = [];
+  for (const t of types) {
+    const p = paths?.get?.(t);
+    if (p && p !== "." && !bases.includes(p)) bases.push(p);
+  }
+  if (!bases.length) return read;
+  bases.push(".");
+  return (rel) => {
+    for (const b of bases) {
+      const c = read(b === "." ? rel : `${b}/${rel}`);
+      if (c != null) return c;
+    }
+    return null;
+  };
+}
+
+export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [], paths = null } = {}) {
+  const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
   return detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types });
@@ -93,8 +113,8 @@ export function detectJdk(root, base = ".") {
 }
 
 // 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다.
-export function detectBuildNumber(root, { types = [], warn = (m) => console.error(m) } = {}) {
-  const read = readFile(root);
+export function detectBuildNumber(root, { types = [], paths = null, warn = (m) => console.error(m) } = {}) {
+  const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   return detectBuildNumberFromFiles({ types, read, readJson, warn });
 }
@@ -138,9 +158,14 @@ export function detectRepoName(root) {
 // 같은 디렉토리에서는 프로파일 없는 기본 파일(application.yml/.yaml)을 우선한다. 파일명 정렬만
 // 쓰면 'application-dev.yml'이 'application.yml'보다 앞서(`-` < `.`) 프로파일 파일이 잡힌다.
 export function findSpringAppYml(root, base = ".") {
+  return findSpringConfig(root, base, /^application(-[^/]*)?\.ya?ml$/, /^application\.ya?ml$/);
+}
+
+// src/main/resources 아래에서 pattern에 맞는 설정 파일을 찾는다. basePattern(프로파일 없는 기본 파일)이
+// 나오면 그걸로 확정한다.
+function findSpringConfig(root, base, pattern, basePattern) {
   const startRel = base === "." ? "" : base;
   const PRUNE = new Set(["node_modules", ".git", "build", ".gradle", "target", ".idea"]);
-  const APP_YML = /^application(-[^/]*)?\.ya?ml$/;
   let hit = "";
   let hitIsBase = false;
   const walk = (rel, depth) => {
@@ -154,8 +179,8 @@ export function findSpringAppYml(root, base = ".") {
       if (e.isDirectory()) {
         if (PRUNE.has(e.name)) continue;
         walk(childRel, depth + 1);
-      } else if (APP_YML.test(e.name) && childRel.includes("src/main/resources/")) {
-        const isBase = /^application\.ya?ml$/.test(e.name);
+      } else if (pattern.test(e.name) && childRel.includes("src/main/resources/")) {
+        const isBase = basePattern.test(e.name);
         // 첫 매치는 일단 채택하고, 이후 기본 파일이 나오면 그걸로 승격한다.
         if (!hit || isBase) { hit = childRel; hitIsBase = isBase; }
       }
@@ -163,6 +188,16 @@ export function findSpringAppYml(root, base = ".") {
   };
   walk(startRel, 0);
   return hit;
+}
+
+// 배포 워크플로우가 application-prod.yml을 만들 리소스 폴더.
+// Spring Initializr 기본 산출물은 application.properties라 yml만 찾으면 빈 값이 되어
+// __APPLICATION_YML_DIR__가 치환되지 않은 채 설치된다. yml → properties → 표준 경로 순으로 정한다.
+export function findSpringResourcesDir(root, base = ".") {
+  const f = findSpringAppYml(root, base)
+    || findSpringConfig(root, base, /^application(-[^/]*)?\.properties$/, /^application\.properties$/);
+  if (f) return f.split("/").slice(0, -1).join("/");
+  return base === "." ? "src/main/resources" : `${base}/src/main/resources`;
 }
 
 // 실 resolver 세트 생성 (.sh resolve_token 4종 등가) — index/interactive 공용.
@@ -177,11 +212,11 @@ export function makeResolvers(root, repoName, paths, flutterOptions = null) {
     // ⚠️ 빈 문자열을 돌려주면 setEnvLine이 그 줄을 건너뛰어 __JAVA_VERSION__이 그대로 남는다
     //    (같은 실패 형태). 감지 실패 시 반드시 종전 기본값 21로 폴백한다.
     jdk: (t) => detectJdk(root, springBase(t)) || "21",
-    "spring-app-yml-dir": (t) => {
-      const f = findSpringAppYml(root, springBase(t));
-      return f ? f.split("/").slice(0, -1).join("/") : "";
-    },
-    "spring-app-yml-path": (t) => findSpringAppYml(root, springBase(t)) || "",
+    "spring-app-yml-dir": (t) => findSpringResourcesDir(root, springBase(t)),
+    // yml이 없는 프로젝트(properties 전용)는 리소스 폴더의 application.yml로 만든다 —
+    // properties 파일 자리에 YAML 내용을 쓰면 설정이 깨진다.
+    "spring-app-yml-path": (t) => findSpringAppYml(root, springBase(t))
+      || `${findSpringResourcesDir(root, springBase(t))}/application.yml`,
     "flutter-root": () => paths.get("flutter") || ".",
     // CI changes job의 경로 필터 — 타입별 프로젝트 루트. 단일 레포·common은 "."(항상 변경됨으로 판정).
     "project-path": (t) => paths.get(t) || ".",
