@@ -159,3 +159,16 @@ test("수집 결과를 classify-bump에 넣으면 본문 푸터 커밋이 major�
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// fallback 사유가 잡 로그에만 있으면 PR 댓글만 보는 사용자는 원인을 알 수 없다.
+for (const name of ["AI-PR-SUMMARY", "AUTO-CHANGELOG-CONTROL"]) {
+  for (const path of bothCopies(name)) {
+    test(`${path}: engine 줄과 실행 요약에 fallback 사유를 붙인다`, () => {
+      const body = read(path);
+      assert.ok(body.includes('.get("fallback_reason")'), "결과 JSON의 fallback_reason을 읽어야 한다");
+      assert.ok(body.includes("html.escape("), "댓글 HTML에 들어가므로 이스케이프해야 한다");
+      assert.ok(body.includes('echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"'), "실행 요약에도 남겨야 한다");
+      assert.match(body, /<sub>engine: \$\{ENGINE[^}]*\}\$\{FALLBACK_REASON:\+ \(\$FALLBACK_REASON\)\}<\/sub>|<sub>engine: \$\{ENGINE_LINE\}<\/sub>/, "PR 댓글 engine 줄에 사유가 붙어야 한다");
+    });
+  }
+}

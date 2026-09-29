@@ -94,13 +94,17 @@ jobs:
             --pr-title "$PR_TITLE" \
             --diff-stat-file diff_stat.txt | tail -n 1)
           ENGINE=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("engine") or "unknown")' "$SUMMARY_RESULT" 2>/dev/null || echo "unknown")
+          # fallback이면 사유(스크립트가 ::warning::으로도 남김)를 engine 줄에 붙인다 — 잡 로그를 열지 않아도 원인이 보이게
+          FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
+          ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
+          echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
 
           {
             echo "📋 **PR Summary (project-auto-wizard)**"
             echo ""
             cat summary.md
             echo ""
-            echo "<sub>engine: ${ENGINE}</sub>"
+            echo "<sub>engine: ${ENGINE_LINE}</sub>"
           } > comment_body.md
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
