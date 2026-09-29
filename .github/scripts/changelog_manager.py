@@ -661,8 +661,8 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
                 else:
                     body = (matched.get('raw_summary') or '').strip()
                 notes_text = (header + (body or "")).strip()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"::warning::CHANGELOG.json에서 {version} 노트를 읽지 못했습니다: {e}", file=sys.stderr)
 
     # 2) CHANGELOG.md 폴백
     if not notes_text and os.path.isfile('CHANGELOG.md'):
@@ -673,12 +673,14 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
             m = pattern.search(md)
             if m:
                 start = m.end()
-                next_m = re.search(r"^## \\[", md[start:], re.MULTILINE)
+                next_m = re.search(r"^## \[", md[start:], re.MULTILINE)
                 section = md[start: start + next_m.start()] if next_m else md[start:]
-                body = section.strip()
+                # generate-md가 릴리스 사이에 넣는 구분선은 노트 내용이 아니다
+                body = re.sub(r'(?:\n\s*-{3,}\s*)+$', '', '\n' + section.strip()).strip()
                 notes_text = (f"버전 {version} 업데이트\n\n" + body).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            # 조용히 삼키면 고정 문구 폴백이 정상 출력처럼 보여 원인을 알 수 없다.
+            print(f"::warning::CHANGELOG.md에서 {version} 노트를 읽지 못했습니다: {e}", file=sys.stderr)
 
     # 3) 최종 폴백
     if not notes_text:

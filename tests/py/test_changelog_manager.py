@@ -20,6 +20,26 @@ def run(args, cwd):
                           cwd=cwd, capture_output=True, text=True)
 
 
+class TestExportMdFallback(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_export_reads_section_from_changelog_md_when_json_missing(self):
+        md = ("# Changelog\n\n---\n\n## [0.5.1] - 2026-01-02\n\n**✨ 기능**\n- 새 기능\n\n---\n\n"
+              "## [0.5.0] - 2026-01-01\n\n**🐛 수정**\n- 옛 수정\n\n---\n\n")
+        (Path(self.tmp) / "CHANGELOG.md").write_text(md, encoding="utf-8")
+        r = run(["export", "--version", "0.5.0"], self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("- 옛 수정", r.stdout)
+        self.assertNotIn("새 기능", r.stdout)
+        self.assertNotIn("앱 안정성", r.stdout)
+        self.assertNotIn("---", r.stdout)
+        r = run(["export", "--version", "0.5.1"], self.tmp)
+        self.assertIn("- 새 기능", r.stdout)
+        self.assertNotIn("옛 수정", r.stdout)
+
+
 class TestGenerateMd(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
