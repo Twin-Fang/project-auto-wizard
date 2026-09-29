@@ -5,8 +5,8 @@
 # Runs on release PRs ({{DEVELOP_BRANCH}} -> {{MAIN_BRANCH}}) and:
 # 1. Confirms the release version and syncs every version file:
 #    - If version.yml metadata.template.options.semver_auto is true
-#      (default): classifies commits (feat -> minor, `!` marker -> major,
-#      else patch; AI-assisted patch->minor upgrade for unclassified
+#      (default): classifies commits (feat -> minor, `!` marker or a
+#      `BREAKING CHANGE:` body footer -> major, else patch; AI-assisted patch->minor upgrade for unclassified
 #      commits) and bumps accordingly.
 #    - Otherwise: always patch+1 (legacy behavior).
 # 2. Generates the release summary locally with changelog_manager.py
@@ -116,6 +116,9 @@ jobs:
         run: |
           git fetch origin {{MAIN_BRANCH}}
           git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
+          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
+          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          git log --pretty=%b "origin/{{MAIN_BRANCH}}..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/{{MAIN_BRANCH}}...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt

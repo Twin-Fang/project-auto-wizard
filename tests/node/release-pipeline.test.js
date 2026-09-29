@@ -87,3 +87,75 @@ test("NPM-PUBLISH는 패키징 전에 README 버전 줄을 배포 버전으로 �
   assert.ok(step.includes("steps.target.outputs.version"), "배포 대상 버전을 써야 한다");
   assert.match(body, /^env:\n(?:  .*\n)*  PYTHONDONTWRITEBYTECODE: "1"/m, "배포 게이트 테스트가 pyc를 남기면 패키지에 실린다");
 });
+
+// ---------------------------------------------------------------
+// 커밋 수집: 제목 한 줄 = 한 항목 형식을 지키면서 본문 BREAKING CHANGE 푸터도 승격 판정에 닿아야 한다.
+// 워크플로우의 수집 줄을 그대로 뽑아 실제 git 레포에서 돌린다.
+// ---------------------------------------------------------------
+const COLLECTORS = ["AUTO-CHANGELOG-CONTROL", "AI-PR-SUMMARY", "RELEASE-PUBLISH"];
+
+function collectLines(name) {
+  return read(payloadPath(name))
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("git log --pretty=%") && /> ?commits\.txt|>> commits\.txt/.test(l));
+}
+
+for (const name of COLLECTORS) {
+  test(`${name}: 커밋 제목과 함께 본문 BREAKING CHANGE 푸터만 수집한다`, () => {
+    const lines = collectLines(name);
+    assert.ok(lines.some((l) => l.startsWith("git log --pretty=%s") && l.includes("> commits.txt")), "제목 수집 줄이 없다");
+    const footer = lines.find((l) => l.includes(">> commits.txt"));
+    assert.ok(footer, "본문 푸터 수집 줄이 없다");
+    assert.ok(footer.startsWith("git log --pretty=%b"), "본문(%b)에서 뽑아야 한다");
+    assert.ok(footer.includes("grep -E '^BREAKING[ -]CHANGE[[:space:]]*:'"), "푸터 줄만 걸러야 한다");
+    assert.ok(footer.endsWith("|| true"), "푸터가 없을 때 grep 종료 코드로 스텝이 실패하면 안 된다");
+  });
+}
+
+function findPython() {
+  for (const cmd of ["python3", "python"]) {
+    const r = spawnSync(cmd, ["-c", "import sys; print(sys.version_info[0])"], { encoding: "utf-8", input: "" });
+    if (r.status === 0 && r.stdout.trim() === "3") return cmd;
+  }
+  return null;
+}
+
+test("수집 결과를 classify-bump에 넣으면 본문 푸터 커밋이 major가 되고 다른 본문 줄은 섞이지 않는다", (t) => {
+  if (process.platform === "win32") {
+    t.skip("워크플로우 셸 조각은 ubuntu 러너용 bash 전제");
+    return;
+  }
+  const python = findPython();
+  if (!python) {
+    t.skip("python3 없음");
+    return;
+  }
+  const scriptPath = join(process.cwd(), "payload", "scripts", "changelog_manager.py");
+  const dir = mkdtempSync(join(tmpdir(), "paw-collect-"));
+  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", GIT_CONFIG_NOSYSTEM: "1" };
+  const git = (...args) => {
+    const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: dir, encoding: "utf-8", env });
+    assert.strictEqual(r.status, 0, r.stderr);
+  };
+  try {
+    git("init", "-q");
+    git("commit", "-q", "--allow-empty", "-m", "chore: init");
+    git("branch", "base");
+    git("commit", "-q", "--allow-empty", "-m", "fix: 로그인 오류 수정", "-m", "원인 설명 한 줄");
+    git("commit", "-q", "--allow-empty", "-m", "feat: 인증 API 교체", "-m", "BREAKING CHANGE: 토큰 형식이 바뀝니다");
+    const snippet = collectLines("AUTO-CHANGELOG-CONTROL").map((l) => l.replaceAll("origin/{{MAIN_BRANCH}}", "base")).join("\n");
+    const r = spawnSync("bash", ["-e", "-c", snippet], { cwd: dir, encoding: "utf-8", env });
+    assert.strictEqual(r.status, 0, r.stderr);
+    const collected = readFileSync(join(dir, "commits.txt"), "utf-8").split("\n").filter(Boolean);
+    assert.deepStrictEqual(collected, ["feat: 인증 API 교체", "fix: 로그인 오류 수정", "BREAKING CHANGE: 토큰 형식이 바뀝니다"]);
+
+    const bump = spawnSync(python, [scriptPath, "classify-bump", "--commits-file", "commits.txt"], {
+      cwd: dir, encoding: "utf-8", env: { ...env, AI_API_KEY: "", COPILOT_AI: "false" },
+    });
+    assert.strictEqual(bump.status, 0, bump.stderr);
+    assert.strictEqual(bump.stdout.trim().split("\n").pop(), "major");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

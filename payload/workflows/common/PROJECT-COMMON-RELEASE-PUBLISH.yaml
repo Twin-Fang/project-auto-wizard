@@ -18,8 +18,8 @@
 #   CHANGELOG.json / CHANGELOG.md, and commits everything back with
 #   [skip ci]. Same as pr-flow's AUTO-CHANGELOG-CONTROL:
 #   - If version.yml metadata.template.options.semver_auto is true
-#     (default): classifies commits (feat -> minor, `!` marker -> major,
-#     else patch; AI-assisted patch->minor upgrade for unclassified
+#     (default): classifies commits (feat -> minor, `!` marker or a
+#     `BREAKING CHANGE:` body footer -> major, else patch; AI-assisted patch->minor upgrade for unclassified
 #     commits) and bumps accordingly.
 #   - Otherwise: always patch+1 (legacy behavior).
 #
@@ -215,13 +215,17 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
             echo "collecting commits since $LAST_TAG"
-            git log --pretty=%s "${LAST_TAG}..HEAD" > commits.txt
+            LOG_RANGE="${LAST_TAG}..HEAD"
             DIFF_BASE="$LAST_TAG"
           else
             echo "no previous tag — collecting the full history"
-            git log --pretty=%s > commits.txt
+            LOG_RANGE="HEAD"
             DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
           fi
+          git log --pretty=%s "$LOG_RANGE" > commits.txt
+          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
+          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "${DIFF_BASE}..HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
