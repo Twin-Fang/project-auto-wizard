@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -38,6 +39,44 @@ class TestExportMdFallback(unittest.TestCase):
         r = run(["export", "--version", "0.5.1"], self.tmp)
         self.assertIn("- 새 기능", r.stdout)
         self.assertNotIn("옛 수정", r.stdout)
+
+
+class TestUpdateFromSummaryIdempotence(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def update(self, version, summary="## [x]\n\n### ✨ 기능\n- 새 기능\n"):
+        (Path(self.tmp) / "pr_body.md").write_text(summary, encoding="utf-8")
+        env = {**os.environ, "VERSION": version, "PROJECT_TYPES": "node", "TODAY": "2026-01-01"}
+        return subprocess.run([sys.executable, str(SCRIPT), "update-from-summary"],
+                              cwd=self.tmp, capture_output=True, text=True, env=env)
+
+    def releases(self):
+        data = json.loads((Path(self.tmp) / "CHANGELOG.json").read_text(encoding="utf-8"))
+        return [r["version"] for r in data["releases"]], data["metadata"]["totalReleases"]
+
+    def test_same_version_is_replaced_not_duplicated(self):
+        self.update("0.5.0")
+        self.update("0.5.1")
+        r = self.update("0.5.1")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.releases(), (["0.5.1", "0.5.0"], 2))
+
+    def test_broken_changelog_json_is_not_overwritten(self):
+        path = Path(self.tmp) / "CHANGELOG.json"
+        path.write_text("{broken", encoding="utf-8")
+        r = self.update("0.6.0")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(path.read_text(encoding="utf-8"), "{broken")
+
+    def test_empty_commit_summary_does_not_repeat_version_header(self):
+        r = self.update("0.5.2", summary="## [0.5.2]\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        run(["generate-md"], self.tmp)
+        md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertEqual(md.count("## [0.5.2]"), 1)
+        self.assertIn("*변경사항 정보 없음*", md)
 
 
 class TestGenerateMd(unittest.TestCase):

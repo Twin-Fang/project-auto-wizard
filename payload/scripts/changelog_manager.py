@@ -68,6 +68,20 @@ def _clean_summary_noise(text: str) -> str:
     return text.strip()
 
 
+def _strip_version_headings(text: str) -> str:
+    """요약 본문의 `## [1.2.3]` 버전 헤더 줄을 뺀다 — CHANGELOG.md는 릴리스마다
+    자체 헤더를 쓰므로, 남겨 두면 커밋이 없는 릴리스에서 헤더가 두 번 찍힌다."""
+    if not text:
+        return text
+    kept = []
+    for line in text.split('\n'):
+        heading = _HEADING_RE.match(line)
+        if heading and _VERSION_HEADING_RE.match(heading.group(2).strip()):
+            continue
+        kept.append(line)
+    return '\n'.join(kept).strip()
+
+
 def _make_safe_key(title: str, idx: int) -> str:
     """카테고리 제목을 안전한 키로 변환."""
     safe_key = re.sub(r'[^a-zA-Z0-9가-힣]', '_', title.lower()).strip('_')
@@ -505,7 +519,7 @@ def cmd_update_from_summary() -> int:
             print("⚠️ 파싱 실패, raw_summary만 저장")
 
         # raw_summary 생성 (노이즈 제거)
-        raw_summary = _clean_summary_noise(content)
+        raw_summary = _strip_version_headings(_clean_summary_noise(content))
 
         # 릴리즈 데이터 생성
         new_release = {
@@ -532,7 +546,12 @@ def cmd_update_from_summary() -> int:
         try:
             with open('CHANGELOG.json', 'r', encoding='utf-8') as f:
                 changelog_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except json.JSONDecodeError as e:
+            # 머지 충돌 마커 등으로 깨진 파일을 새 구조로 덮으면 기존 이력이 전부 사라진다.
+            print(f"❌ CHANGELOG.json을 해석할 수 없어 갱신을 중단합니다 (기존 이력 보호): {e}")
+            print(f"::error::CHANGELOG.json이 올바른 JSON이 아닙니다: {e}", file=sys.stderr)
+            return 1
+        except FileNotFoundError:
             changelog_data = {
                 "metadata": {
                     "lastUpdated": timestamp,
@@ -552,8 +571,14 @@ def cmd_update_from_summary() -> int:
         changelog_data["metadata"]["lastUpdated"] = timestamp
         changelog_data["metadata"]["currentVersion"] = version
         changelog_data["metadata"]["projectTypes"] = project_types
-        changelog_data["metadata"]["totalReleases"] = len(changelog_data.get("releases", [])) + 1
-        changelog_data.setdefault("releases", []).insert(0, new_release)
+        # 같은 버전은 교체한다 — 워크플로우 재실행 시 항목이 중복으로 쌓이지 않게.
+        releases = [
+            r for r in (changelog_data.get("releases") or [])
+            if not (isinstance(r, dict) and str(r.get("version")) == str(version))
+        ]
+        releases.insert(0, new_release)
+        changelog_data["releases"] = releases
+        changelog_data["metadata"]["totalReleases"] = len(releases)
 
         with open('CHANGELOG.json', 'w', encoding='utf-8') as f:
             json.dump(changelog_data, f, indent=2, ensure_ascii=False)
@@ -616,7 +641,7 @@ def cmd_generate_md() -> int:
                     # 파싱 실패 시 raw_summary 출력
                     raw_summary = release.get('raw_summary', '').strip()
                     if raw_summary:
-                        raw_summary = _clean_summary_noise(raw_summary)
+                        raw_summary = _strip_version_headings(_clean_summary_noise(raw_summary))
                         if raw_summary:
                             f.write(raw_summary + "\n\n")
                         else:
@@ -657,9 +682,9 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
                         if title and items:
                             block = "**" + title + "**\n" + "\n".join("- " + it for it in items)
                             category_blocks.append(block)
-                    body = "\n\n".join(category_blocks) if category_blocks else (matched.get('raw_summary') or '').strip()
+                    body = "\n\n".join(category_blocks) if category_blocks else _strip_version_headings((matched.get('raw_summary') or '').strip())
                 else:
-                    body = (matched.get('raw_summary') or '').strip()
+                    body = _strip_version_headings((matched.get('raw_summary') or '').strip())
                 notes_text = (header + (body or "")).strip()
     except Exception as e:
         print(f"::warning::CHANGELOG.json에서 {version} 노트를 읽지 못했습니다: {e}", file=sys.stderr)
@@ -810,7 +835,8 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
     try:
         with open(commits_file, 'r', encoding='utf-8') as f:
             commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
-    except Exception:
+    except Exception as e:
+        print(f"::warning::커밋 목록 파일을 읽지 못해 빈 목록으로 요약합니다: {e}", file=sys.stderr)
         commit_lines = []
 
     diff_stat = None

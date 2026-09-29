@@ -270,6 +270,14 @@ class TestAiSummary(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(payload["ok"])
 
+    def test_missing_commits_file_warns_and_still_writes_summary(self):
+        self.commits_file.unlink()
+        rc, payload, stderr = self._run_main_capture()
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["engine"], "fallback")
+        self.assertIn("::warning::", stderr)
+        self.assertTrue(self.output_file.exists())
+
     def test_no_diff_stat_flag_behaves_exactly_as_before(self):
         with patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:
             rc, payload, _ = self._run_main_capture()
