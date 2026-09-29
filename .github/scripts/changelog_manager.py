@@ -455,13 +455,13 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
         try:
             return call_openai_compatible(base_url, api_key, model, prompt).strip() == 'MINOR'
         except Exception as e:
-            print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
+            _warn_engine_failure(f"[warn] bump AI assist failed: {e}")
 
     if _copilot_enabled():
         try:
             return call_copilot_cli(prompt).strip() == 'MINOR'
         except Exception as e:
-            print(f"[warn] bump AI assist (copilot) failed: {e}", file=sys.stderr)
+            _warn_engine_failure(f"[warn] bump AI assist (copilot) failed: {e}")
     return False
 
 
@@ -770,6 +770,16 @@ _COPILOT_MODEL = "auto"
 _COPILOT_TIMEOUT_SECONDS = 90
 
 
+def _warn_engine_failure(message: str) -> str:
+    """엔진 실패를 Actions 실행 요약(Annotations)에 경고로 띄운다.
+    평문 로그만 남기면 잡 로그를 열기 전에는 fallback 사유를 알 수 없다.
+    stdout은 결과 JSON 계약용이라 stderr로 쓴다. 반환값은 한 줄로 줄인 사유."""
+    reason = " ".join(str(message).split())[:200]
+    escaped = reason.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f"::warning::{escaped}", file=sys.stderr)
+    return reason
+
+
 def _user_api_settings() -> tuple[str, str, str] | None:
     """사용자 지정 AI 티어 설정. AI_API_KEY와 AI_API_BASE_URL, AI_MODEL이 모두 있어야 한다.
 
@@ -895,6 +905,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 
     engine = None
     summary_text = None
+    failures: list[str] = []
     prompt = _build_ai_prompt(commit_lines, pr_title, version, diff_stat)
 
     settings = _user_api_settings()
@@ -906,9 +917,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "user-api"
             else:
-                print("[warn] user-api failed: empty content in response", file=sys.stderr)
+                failures.append(_warn_engine_failure("[warn] user-api failed: empty content in response"))
         except Exception as e:
-            print(f"[warn] user-api failed: {e}", file=sys.stderr)
+            failures.append(_warn_engine_failure(f"[warn] user-api failed: {e}"))
 
     if summary_text is None and _copilot_enabled():
         try:
@@ -917,9 +928,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "copilot"
             else:
-                print("[warn] copilot failed: empty or not in the requested Markdown format", file=sys.stderr)
+                failures.append(_warn_engine_failure("[warn] copilot failed: empty or not in the requested Markdown format"))
         except Exception as e:
-            print(f"[warn] copilot failed: {e}", file=sys.stderr)
+            failures.append(_warn_engine_failure(f"[warn] copilot failed: {e}"))
 
     if summary_text is None:
         classified = classify_commits(commit_lines)
@@ -938,7 +949,11 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
         print(f"[warn] output write failed: {e}", file=sys.stderr)
         print(summary_text, file=sys.stderr)
 
-    print(json.dumps({"ok": write_ok, "engine": engine, "output": output_path}))
+    result = {"ok": write_ok, "engine": engine, "output": output_path}
+    if engine == "fallback" and failures:
+        # 워크플로우가 PR 댓글의 engine 줄에 사유를 붙일 수 있도록 함께 넘긴다.
+        result["fallback_reason"] = "; ".join(r.replace("[warn] ", "", 1) for r in failures)
+    print(json.dumps(result))
     return 0
 
 
