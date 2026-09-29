@@ -16,6 +16,7 @@ import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
+import { resolveReleaseOptions } from "./core/release-options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
 import {
@@ -334,13 +335,8 @@ async function runInner(argv, {
     mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
     paths,
-    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값
-    // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
-    // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
-    // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
-    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
-    // Copilot AI 요약은 AI Credits를 소비하는 opt-in — 신규·기존 설치 모두 명시하지 않으면 false다.
-    includeCopilotAi: opts.includeCopilotAi ?? existing?.options?.copilotAi ?? false,
+    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
+    ...resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
     repoName,
     // 실 resolver 4종 (.sh resolve_token 등가)
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),

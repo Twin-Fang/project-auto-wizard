@@ -4,7 +4,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { sha256 } from "./baseline.js";
-import { PAYLOAD } from "./paths.js";
+import { PAYLOAD, typeWorkflowDirs } from "./paths.js";
 import { SINGLE_SERVER_CD_FILES } from "./types.js";
 
 // 파일명 접미사로 식별한다 — 타입 접두사(PROJECT-SPRING- 등)는 타입마다 다르기 때문.
@@ -37,16 +37,14 @@ export const isServerDeployWorkflow = (filename) =>
 // 선택한 타입 중 서버 배포 워크플로우를 가진 타입이 있는가 — payload 파일로 판정한다.
 // 없으면(node·flutter 등) 배포 방식은 설치 결과에 아무 영향이 없으므로 묻지도 기록하지도 않는다.
 export function hasServerDeployWorkflows(payloadRoot, types = []) {
-  const base = join(payloadRoot, PAYLOAD.workflowsDir);
-  return types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+  return types.some((type) => typeWorkflowDirs(payloadRoot, type)
     .some((dir) => existsSync(dir) && readdirSync(dir).some(isServerDeployWorkflow)));
 }
 
 // 선택한 타입 중 무중단(nginx·traefik) 워크플로우가 있는 타입이 있는가 — 없으면 무중단 선택지를 보이지 않는다.
 export function hasNonstopWorkflows(payloadRoot, types = []) {
-  const base = join(payloadRoot, PAYLOAD.workflowsDir);
   const nonstop = DEPLOY_STYLES.filter((s) => s.value !== DEFAULT_DEPLOY_STYLE).map((s) => s.suffix);
-  return types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+  return types.some((type) => typeWorkflowDirs(payloadRoot, type)
     .some((dir) => existsSync(dir) && readdirSync(dir).some((f) => nonstop.some((sfx) => f.endsWith(sfx)))));
 }
 
@@ -89,9 +87,8 @@ export function deployFilter(style, available = null) {
 // 고른 방식(nginx·traefik)의 워크플로우가 없어 단일 서버 배포로 대신 설치하는 타입 목록 — 안내용.
 export function fallbackStyleTypes(payloadRoot, types = [], style) {
   if (!style || style === NO_DEPLOY_STYLE || suffixOf(style) === SIMPLE_SUFFIX) return [];
-  const base = join(payloadRoot, PAYLOAD.workflowsDir);
   return types.filter((type) => {
-    const files = [join(base, type), join(base, type, "server-deploy")]
+    const files = typeWorkflowDirs(payloadRoot, type)
       .filter((dir) => existsSync(dir)).flatMap((dir) => readdirSync(dir));
     return files.some(isServerDeployWorkflow) && !files.some((f) => f.endsWith(suffixOf(style)));
   });
@@ -102,8 +99,7 @@ export function fallbackStyleTypes(payloadRoot, types = [], style) {
 // 다음 실행도 그 값을 기본값으로 이어받는다. 한 타입이라도 그 방식이 있으면 고른 값을 유지한다.
 export function effectiveDeployStyle(payloadRoot, types = [], style) {
   if (!style || style === NO_DEPLOY_STYLE || suffixOf(style) === SIMPLE_SUFFIX) return style;
-  const base = join(payloadRoot, PAYLOAD.workflowsDir);
-  const installed = types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+  const installed = types.some((type) => typeWorkflowDirs(payloadRoot, type)
     .some((dir) => existsSync(dir) && readdirSync(dir).some((f) => f.endsWith(suffixOf(style)))));
   return installed ? style : DEFAULT_DEPLOY_STYLE;
 }

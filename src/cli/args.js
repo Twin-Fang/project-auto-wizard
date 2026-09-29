@@ -5,6 +5,11 @@ import { isValidBranchName } from "../core/branches.js";
 import {
   ENV_MODES, DEPLOY_MODES, STORE_PLATFORMS, NO_STORE, isEnvMode, isDeployMode, parseStoreList,
 } from "../core/flutter-options.js";
+import { CliError } from "../core/errors.js";
+import { normalizePath, isRepoRelativePath } from "../core/paths.js";
+
+// 기존 import 경로(cli/args.js) 호환 — 정의는 core에 있다.
+export { CliError, normalizePath, isRepoRelativePath };
 
 // argv(process.argv.slice(2)) → 파싱 결과. 오류 시 throw(호출부에서 exit 1).
 export function parseArgs(argv) {
@@ -165,24 +170,6 @@ export function parseArgs(argv) {
     );
   }
   return result;
-}
-
-export class CliError extends Error {}
-
-// 경로 정규화 (.sh resolve_project_paths §3.4): 앞뒤 공백·\→/·끝 /·앞 ./ 제거, 빈값→"."
-export function normalizePath(p) {
-  let s = String(p).trim();
-  s = s.replace(/\\/g, "/");
-  s = s.replace(/\/+$/, "");   // 끝 /
-  s = s.replace(/^\.\//, "");  // 앞 ./
-  return s === "" ? "." : s;
-}
-
-// 정규화된 경로가 레포 안(상대경로, '..' 없음)인가. 레포 밖을 가리키면 설치 파일(fastlane 등)이
-// 옆 레포에 만들어지고 워크플로우 paths 필터도 동작하지 않는다.
-export function isRepoRelativePath(p) {
-  if (/^\//.test(p) || /^[A-Za-z]:/.test(p)) return false;
-  return !p.split("/").includes("..");
 }
 
 // "flutter=app,react=client" → Map<type, normalizedPath>. 타입 검증(무효 → throw).

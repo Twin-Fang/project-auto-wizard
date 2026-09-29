@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "../core/detect-fs.js";
 import { parseExisting } from "../core/version-yml.js";
+import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
 import {
@@ -96,8 +97,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const repoName = detectRepoName(cwd);
   // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   // 플래그로 정한 값은 질문을 생략한다 — 비대화형과 같은 우선순위.
-  let includeSemverAuto = baseCtx?.includeSemverAuto ?? existing?.options?.semverAuto ?? null;
-  let includeCopilotAi = baseCtx?.includeCopilotAi ?? existing?.options?.copilotAi ?? null;
+  let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
+    { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
   // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
   let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
@@ -166,11 +167,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       includeCopilotAi = y3 === true;
     }
   }
-  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
-  // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
-  // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
-  includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
-  includeCopilotAi = includeCopilotAi === true;
+  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중하고, 안 나온 옵션만 기본값으로 채운다
+  // — CLI 경로(index.js)와 같은 함수라 같은 규칙이다.
+  ({ includeSemverAuto, includeCopilotAi } = resolveReleaseOptions(
+    { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi }, existing));
   const showOptionToggles = mode === "full";
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)

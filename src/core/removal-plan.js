@@ -17,23 +17,14 @@
 //, 판별 로직만 남아 commands가 아닌 core로 옮겨졌다.
 import { join, isAbsolute } from "node:path";
 import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
-import { PATHS, PAYLOAD } from "./paths.js";
+import { PATHS } from "./paths.js";
 import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash, sha256 } from "./baseline.js";
 import { LOG_DIR } from "./logger.js";
+import { payloadWorkflowNames } from "./deploy-style.js";
+import { SCRIPT_NAMES } from "./copy/simple.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
-
-// payload/workflows/** 전체(하위 폴더 포함)의 yaml 파일명 집합.
-function payloadWorkflowNames(payloadRoot) {
-  const names = new Set();
-  const root = join(payloadRoot, PAYLOAD.workflowsDir);
-  if (!existsSync(root)) return names;
-  for (const e of readdirSync(root, { recursive: true, withFileTypes: true })) {
-    if (e.isFile() && /\.(ya?ml)$/.test(e.name)) names.add(e.name);
-  }
-  return names;
-}
 
 // 설치된 워크플로우 디렉토리(평면 구조)에서 관리 마커로 시작하는 파일명 집합.
 // .bak/.template.yaml 백업본도 원본 텍스트를 그대로 복사한 것이라 마커를 그대로 갖고 있어
@@ -87,7 +78,7 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
       if (isInstalledName(name, recorded)) removedWf.add(name);
     }
   }
-  for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"]) {
+  for (const s of SCRIPT_NAMES) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
   // Flutter 앱 파일(Fastfile 등)은 마법사가 새로 만들었고 내용이 그대로인 것만 — 값을 채워 넣은 파일은 사용자 것이다.

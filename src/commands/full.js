@@ -5,7 +5,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
-import { CliError } from "../cli/args.js";
+import { CliError } from "../core/errors.js";
 import { PATHS } from "../core/paths.js";
 import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";

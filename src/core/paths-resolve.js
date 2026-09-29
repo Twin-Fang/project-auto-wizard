@@ -11,7 +11,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
 import { TYPES, typeInfo } from "./types.js";
-import { normalizePath, isRepoRelativePath, CliError } from "../cli/args.js";
+import { normalizePath, isRepoRelativePath } from "./paths.js";
+import { CliError } from "./errors.js";
 
 // 취소(ESC)는 CANCEL 심볼(Ctrl+C는 엔진이 예외로 중단시킨다) — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
 const isCancel = (v) => typeof v === "symbol";

@@ -4,6 +4,7 @@ import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
 import { EITHER_SEP } from "../core/verify.js";
 import { BUILD_NUMBER_TYPES } from "../core/types.js";
+import { SCRIPT_NAMES } from "../core/copy/simple.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
@@ -105,7 +106,7 @@ export function printSummary(ctx) {
   err("  🔧 .github/scripts/");
   const scriptRows = scripts
     ? scripts.map(({ name, action }) => (action === "overwrite" ? `${name} ${paint("(기존 파일을 새 버전으로 덮어씀)", A.dim, enabled)}` : name))
-    : ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"];
+    : SCRIPT_NAMES;
   scriptRows.forEach((row, i) => err(`     ${i === scriptRows.length - 1 ? "└─" : "├─"} ${row}`));
   err("");
 
