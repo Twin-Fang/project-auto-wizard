@@ -17,7 +17,7 @@ import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
-import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
+import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
 import { savedFlutterState, askUnsetFlutterOptions, editFlutterOption, FLUTTER_EDIT_ITEMS } from "./interactive-flutter.js";
 import { runFull } from "./full.js";
@@ -109,7 +109,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     envModeDefault: resolveFlutterOptions({
       cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
     }).envMode,
-    inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [],
+    // 신규 설치의 초기 선택은 CLI 기본값(--flutter-store 미지정 = 둘 다)과 같아야 한다 — 경로에 따라 설치 결과가 달라지면 안 된다.
+    inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [...STORE_PLATFORMS],
   };
   // 이미 정해진 값은 건너뛰므로 여러 번 불러도 같은 질문이 반복되지 않는다.
   const askFlutterOptions = async () => {

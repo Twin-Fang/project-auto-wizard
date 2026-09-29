@@ -46,7 +46,7 @@ async function askUnsetDeployModes(io, state) {
 
 // 아직 정해지지 않은 옵션만 묻는다.
 //   envModeDefault  — 신규 설치 dart-define / 기존 설치 dotenv (동작 보존)
-//   inferredStores  — 저장값 없는 기존 설치가 이미 쓰던 스토어 (신규 설치는 [])
+//   inferredStores  — 저장값 없는 기존 설치가 이미 쓰던 스토어 (신규 설치는 CLI 기본값과 같은 전체)
 export async function askUnsetFlutterOptions(io, state, { envModeDefault, inferredStores }) {
   const next = { ...state };
   if (!next.envMode) {
