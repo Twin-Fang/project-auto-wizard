@@ -73,15 +73,12 @@ test("README 지원 프로젝트 타입 목록이 VALID_TYPES와 같다", () => 
   assert.deepStrictEqual(sorted(listed), VALID);
 });
 
-test("version_manager.py sync_for_type이 모든 타입을 분기한다", () => {
+test("version_manager.py TYPE_HANDLERS가 모든 타입을 다룬다", () => {
   const py = readFileSync("payload/scripts/version_manager.py", "utf8");
-  const body = py.match(/\ndef sync_for_type\([\s\S]*?(?=\ndef )/);
-  assert.ok(body, "sync_for_type 함수를 찾지 못함");
-  // project_type == "x" 와 project_type in ("a", "b") 양쪽 형태를 모두 모은다.
-  const handled = [];
-  for (const [, cond] of body[0].matchAll(/project_type (?:==|in) ([^:]+):/g)) {
-    for (const [, t] of cond.matchAll(/"([^"]+)"/g)) handled.push(t);
-  }
+  const body = py.match(/\nTYPE_HANDLERS = \{\n([\s\S]*?)\n\}/);
+  assert.ok(body, "TYPE_HANDLERS 테이블을 찾지 못함");
+  // 테이블 최상위 키(4칸 들여쓰기 "type":)만 모은다 — 값 안의 문자열은 제외.
+  const handled = [...body[1].matchAll(/^ {4}"([^"]+)":/gm)].map((x) => x[1]);
   assert.deepStrictEqual(sorted(handled), VALID);
 });
 

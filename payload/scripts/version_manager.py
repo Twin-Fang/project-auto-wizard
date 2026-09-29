@@ -37,6 +37,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Callable, NamedTuple
 
 VERSION_YML = "version.yml"
 
@@ -580,24 +581,11 @@ def sync_react_native(path_dir, new_version):
 
 def sync_for_type(project_type, new_version, version_code_getter):
     path_dir = get_type_path(project_type)
-    if project_type == "spring":
-        sync_spring(path_dir, new_version)
-    elif project_type == "flutter":
-        sync_flutter(path_dir, new_version, version_code_getter())
-    elif project_type in ("react", "next", "node"):
-        sync_json_version(Path(path_dir) / "package.json", new_version, ["version"])
-    elif project_type == "python":
-        sync_python(path_dir, new_version)
-    elif project_type == "react-native":
-        sync_react_native(path_dir, new_version)
-    elif project_type == "react-native-expo":
-        sync_json_version(Path(path_dir) / "app.json", new_version, ["expo", "version"])
-    elif project_type == "basic":
-        pass
-    elif project_type == "go":
-        pass
-    else:
+    handler = TYPE_HANDLERS.get(project_type)
+    if handler is None:
         log(f"WARNING: unknown project type: {project_type} — skipping")
+        return
+    handler.sync(path_dir, new_version, version_code_getter)
 
 
 def sync_all_project_files(new_version):
@@ -657,69 +645,129 @@ def update_all_versions(new_version):
 
 
 # ===================================================================
-# Project file -> version read-back (for sync comparison)
+# Project file -> version read-back, and the per-type handler table
 # ===================================================================
+
+def _read_spring(path_dir):
+    version = None
+    for name in ("build.gradle", "build.gradle.kts"):
+        p = Path(path_dir) / name
+        if p.is_file():
+            text = p.read_text(encoding="utf-8")
+            m = re.search(r"^\s*version\s*=\s*['\"](\d+\.\d+\.\d+)['\"]", text, re.MULTILINE)
+            if m:
+                version = m.group(1)
+            break
+    pom = Path(path_dir) / "pom.xml"
+    if version is None and pom.is_file():
+        pom_version = _pom_text(read_file(pom), ["version"])
+        if pom_version and SEMVER_RE.match(pom_version):
+            version = pom_version
+    return version
+
+
+def _read_flutter(path_dir):
+    p = Path(path_dir) / "pubspec.yaml"
+    if p.is_file():
+        text = p.read_text(encoding="utf-8")
+        m = re.search(r'^version:\s*([^\s#]+)', text, re.MULTILINE)
+        if m:
+            return m.group(1).split("+")[0]
+    return None
+
+
+def _read_package_json(path_dir):
+    p = Path(path_dir) / "package.json"
+    if p.is_file():
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data.get("version")
+    return None
+
+
+def _read_react_native(path_dir):
+    ios_dir = Path(path_dir) / "ios"
+    plist = None
+    if ios_dir.is_dir():
+        plists = list(ios_dir.rglob("Info.plist"))
+        plist = plists[0] if plists else None
+    if plist is not None:
+        text = plist.read_text(encoding="utf-8")
+        m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', text)
+        return m.group(1) if m else None
+    gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
+    if gradle_file.is_file():
+        text = gradle_file.read_text(encoding="utf-8")
+        m = re.search(r'versionName\s+"([^"]+)"', text)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_expo(path_dir):
+    p = Path(path_dir) / "app.json"
+    if p.is_file():
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return (data.get("expo") or {}).get("version")
+    return None
+
+
+def _read_python(path_dir):
+    p = Path(path_dir) / "pyproject.toml"
+    if p.is_file():
+        text = read_file(p)
+        span = _pyproject_version_span(text)
+        if span and SEMVER_RE.match(text[span[0]:span[1]]):
+            return text[span[0]:span[1]]
+    return None
+
+
+def _read_none(path_dir):
+    return None
+
+
+def _sync_none(path_dir, new_version, version_code_getter):
+    pass
+
+
+class TypeHandler(NamedTuple):
+    """타입별 버전 파일 처리. read(path_dir)는 파일의 버전(없으면 None),
+    sync(path_dir, new_version, version_code_getter)는 새 버전을 파일에 쓴다."""
+    read: Callable
+    sync: Callable
+
+
+_PACKAGE_JSON = TypeHandler(
+    read=_read_package_json,
+    sync=lambda d, v, _code: sync_json_version(Path(d) / "package.json", v, ["version"]),
+)
+
+# 새 타입은 여기 한 줄만 추가하면 읽기(sync 비교)와 쓰기가 함께 따라온다.
+# 버전 파일이 없는 타입(basic·go)은 version.yml만 쓰도록 빈 핸들러를 둔다.
+TYPE_HANDLERS = {
+    "spring": TypeHandler(read=_read_spring, sync=lambda d, v, _code: sync_spring(d, v)),
+    # build number가 필요한 타입만 version_code를 계산한다 (pubspec 조정 부수효과가 있다).
+    "flutter": TypeHandler(read=_read_flutter, sync=lambda d, v, code: sync_flutter(d, v, code())),
+    "react": _PACKAGE_JSON,
+    "next": _PACKAGE_JSON,
+    "node": _PACKAGE_JSON,
+    "python": TypeHandler(read=_read_python, sync=lambda d, v, _code: sync_python(d, v)),
+    "react-native": TypeHandler(read=_read_react_native, sync=lambda d, v, _code: sync_react_native(d, v)),
+    "react-native-expo": TypeHandler(
+        read=_read_expo,
+        sync=lambda d, v, _code: sync_json_version(Path(d) / "app.json", v, ["expo", "version"]),
+    ),
+    "basic": TypeHandler(read=_read_none, sync=_sync_none),
+    "go": TypeHandler(read=_read_none, sync=_sync_none),
+}
+
 
 def get_project_file_version(project_type):
     path_dir = get_type_path(project_type)
+    handler = TYPE_HANDLERS.get(project_type)
     version = None
     try:
-        if project_type == "spring":
-            for name in ("build.gradle", "build.gradle.kts"):
-                p = Path(path_dir) / name
-                if p.is_file():
-                    text = p.read_text(encoding="utf-8")
-                    m = re.search(r"^\s*version\s*=\s*['\"](\d+\.\d+\.\d+)['\"]", text, re.MULTILINE)
-                    if m:
-                        version = m.group(1)
-                    break
-            pom = Path(path_dir) / "pom.xml"
-            if version is None and pom.is_file():
-                pom_version = _pom_text(read_file(pom), ["version"])
-                if pom_version and SEMVER_RE.match(pom_version):
-                    version = pom_version
-        elif project_type == "flutter":
-            p = Path(path_dir) / "pubspec.yaml"
-            if p.is_file():
-                text = p.read_text(encoding="utf-8")
-                m = re.search(r'^version:\s*([^\s#]+)', text, re.MULTILINE)
-                if m:
-                    version = m.group(1).split("+")[0]
-        elif project_type in ("react", "next", "node"):
-            p = Path(path_dir) / "package.json"
-            if p.is_file():
-                data = json.loads(p.read_text(encoding="utf-8"))
-                version = data.get("version")
-        elif project_type == "react-native":
-            ios_dir = Path(path_dir) / "ios"
-            plist = None
-            if ios_dir.is_dir():
-                plists = list(ios_dir.rglob("Info.plist"))
-                plist = plists[0] if plists else None
-            if plist is not None:
-                text = plist.read_text(encoding="utf-8")
-                m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', text)
-                if m:
-                    version = m.group(1)
-            else:
-                gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
-                if gradle_file.is_file():
-                    text = gradle_file.read_text(encoding="utf-8")
-                    m = re.search(r'versionName\s+"([^"]+)"', text)
-                    if m:
-                        version = m.group(1)
-        elif project_type == "react-native-expo":
-            p = Path(path_dir) / "app.json"
-            if p.is_file():
-                data = json.loads(p.read_text(encoding="utf-8"))
-                version = (data.get("expo") or {}).get("version")
-        elif project_type == "python":
-            p = Path(path_dir) / "pyproject.toml"
-            if p.is_file():
-                text = read_file(p)
-                span = _pyproject_version_span(text)
-                if span and SEMVER_RE.match(text[span[0]:span[1]]):
-                    version = text[span[0]:span[1]]
+        if handler is not None:
+            version = handler.read(path_dir)
     except Exception as e:
         log(f"WARNING: failed reading project file for {project_type}: {e}")
         version = None
