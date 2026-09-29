@@ -73,6 +73,42 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v7
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: Dockerfile
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: 디스크 공간 확보
         run: |
           echo "📊 빌드 전 디스크 사용량:"
