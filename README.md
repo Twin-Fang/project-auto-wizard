@@ -159,6 +159,10 @@ The full documentation is currently in Korean: [README.ko.md](README.ko.md). An 
 
 Issues and pull requests are welcome. Branch from `develop` and open PRs against `develop`; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and tests (`npm test`). This repository releases itself with the workflows it installs.
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — 모듈 구조, 설치 흐름, `@wizard` 마커 문법, 업데이트 시 파일 비교 규칙
+- [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md) — 새 프로젝트 타입 추가 절차
+- [CONTRIBUTING.md](CONTRIBUTING.md) — 개발 환경과 PR 규칙
+
 ## License
 
 [MIT](LICENSE)
