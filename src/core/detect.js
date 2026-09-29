@@ -81,14 +81,50 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
   };
   // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
   // 따옴표로 감싼 값만 본다 — 릴리스 때 동기화가 고칠 수 있는 형태가 이것뿐이다.
-  const gradleRe = /^\s*version\s*=\s*(["'])([^"'\n]*)\1/;
+  const gradleRe = /^(\s*)version\s*=\s*(["'])([^"'\n]*)\2/;
+  // 들여쓰지 않은 `version =`을 우선하고, 없을 때만 allprojects/subprojects 블록 안의 들여쓴 줄을 쓴다.
+  // `node { version = '20.11.0' }` 같은 플러그인 설정 블록이 프로젝트 버전으로 읽히면 첫 릴리스에서 버전이 뛴다.
+  // 릴리스 때의 version_manager.py와 같은 규칙이어야 한다.
+  // 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다 — url 'https://…'의 `//`나 문자열 속 중괄호가
+  // 블록 깊이 계산을 흐트러뜨리지 않게 한다. version_manager.py와 같은 규칙이어야 한다.
+  const gradleCode = (line) => {
+    let out = "", quote = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quote) {
+        if (ch === "\\" && i + 1 < line.length) { out += "  "; i++; continue; }
+        if (ch === quote) { quote = ""; out += ch; } else out += " ";
+      } else if (ch === "'" || ch === '"') { quote = ch; out += ch; }
+      else if (line.startsWith("//", i)) break;
+      else out += ch;
+    }
+    return out;
+  };
+  const gradleVersion = (content) => {
+    const top = [], shared = [], stack = [];
+    for (const line of (content || "").split("\n")) {
+      const m = line.match(gradleRe);
+      if (m) {
+        if (m[1] === "") top.push(m[3]);
+        else if (stack.some((b) => b === "allprojects" || b === "subprojects")) shared.push(m[3]);
+      }
+      const code = gradleCode(line);
+      const name = code.match(/(\w+)\s*\{[^{}]*$/)?.[1] ?? "";
+      for (const ch of code) {
+        if (ch === "{") stack.push(name);
+        else if (ch === "}") stack.pop();
+      }
+    }
+    for (const v of top.length ? top : shared) { const c = coreVersion(v); if (c) return c; }
+    return null;
+  };
   const sources = {
     packageJson: () => coreVersion(readJson?.("package.json")?.version),
     appJson: () => coreVersion(readJson?.("app.json")?.expo?.version),
     // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
     // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
-    gradle: () => grab(read("build.gradle"), gradleRe),
-    gradleKts: () => grab(read("build.gradle.kts"), gradleRe),
+    gradle: () => gradleVersion(read("build.gradle")),
+    gradleKts: () => gradleVersion(read("build.gradle.kts")),
     pom: () => versionFromPom(read("pom.xml")),
     pubspec: () => grab(read("pubspec.yaml"), /^version:\s*([^\s#]+)/),
     pyproject: () => versionFromPyproject(read("pyproject.toml")),

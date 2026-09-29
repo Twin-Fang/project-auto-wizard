@@ -1,0 +1,8 @@
+node {
+    version = '20.11.0'
+}
+
+allprojects {
+    group = 'com.example'
+    version = '2.3.4'
+}

@@ -1,0 +1,11 @@
+plugins {
+    id 'com.github.node-gradle.node' version '7.0.1'
+}
+
+node {
+    version = '20.11.0'
+    download = true
+}
+
+group = 'com.example'
+version = '1.7.2'
