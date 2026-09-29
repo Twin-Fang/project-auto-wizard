@@ -11,7 +11,9 @@ import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { planScripts } from "../core/copy/simple.js";
 import { planVersionSection } from "../core/copy/readme.js";
-import { BASELINE_PATH } from "../core/baseline.js";
+import { BASELINE_PATH, readBaseline } from "../core/baseline.js";
+import { cleanupWorkflows } from "./full.js";
+import { planGitignore } from "../core/copy/gitignore.js";
 
 function versionYmlPreview(context, payloadRoot, targetRoot) {
   const { paths = new Map() } = context;
@@ -34,9 +36,18 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
   if (mode === "uninstall") {
     return { mode, uninstall: planUninstall(payloadRoot, targetRoot, context.uninstallSelection) };
   }
+  const workflows = planWorkflows(context, payloadRoot, targetRoot);
+  // 실제 실행과 같은 정리 판정을 파일을 건드리지 않고 돌린다 — 배포 방식 변경·스토어 해제로 지워지거나
+  // .bak으로 옮겨질 파일이 미리보기에서 빠지면 안 된다. 비대화형 실행이 새로 쓰는 파일은 신규·자동 갱신분이다.
+  const justWritten = [...workflows.newFiles, ...workflows.upstreamOnly].map((f) => f.filename);
+  const cleanup = cleanupWorkflows(context, payloadRoot, targetRoot, readBaseline(targetRoot), { justWritten, dryRun: true });
+  // .bak이 생기면 실제 실행은 .gitignore에 백업 파일 항목을 보장한다. 비대화형 충돌은 기존 유지라 .bak을 만들지 않는다.
+  const backedUp = Object.values(cleanup).some((r) => r.backedUp.length > 0);
   return {
     mode,
-    workflows: planWorkflows(context, payloadRoot, targetRoot),
+    workflows,
+    cleanup,
+    gitignore: backedUp ? planGitignore(targetRoot) : null,
     // Flutter 스토어 배포 파일(Fastfile·ExportOptions.plist) — 이미 있는 파일은 덮어쓰지 않고 유지한다.
     flutterApp: planFlutterAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
@@ -67,6 +78,23 @@ export function printDryRun(plan) {
       lines.push(`변경될 파일 (${w.changed.length}개, 기존 설치가 사용자 수정본이면 충돌):`);
       for (const f of w.changed) lines.push(`  ~ ${f.filename} [${f.type}]`);
       lines.push(`동일한 파일 (${w.unchanged.length}개, 변경 없음)`);
+    }
+    if (plan.cleanup) {
+      const reasons = { cleanup: "이전 배포 방식 정리", storeCleanup: "선택 해제된 스토어 워크플로우 정리", staleCleanup: "현재 버전에 없는 이전 워크플로우 정리" };
+      const removed = [];
+      const backedUp = [];
+      for (const [key, reason] of Object.entries(reasons)) {
+        for (const f of plan.cleanup[key]?.removed || []) removed.push(`  - ${f} (${reason})`);
+        for (const f of plan.cleanup[key]?.backedUp || []) backedUp.push(`  > ${f} → ${f}.bak (${reason}, 수정본이라 백업)`);
+      }
+      if (removed.length) lines.push(`삭제될 파일 (${removed.length}개):`, ...removed);
+      if (backedUp.length) lines.push(`.bak으로 옮겨질 파일 (${backedUp.length}개):`, ...backedUp);
+    }
+    if (plan.gitignore) {
+      const g = plan.gitignore;
+      lines.push(g.created
+        ? `.gitignore: 새로 생성될 예정 (${g.added.join(", ")})`
+        : g.added.length ? `.gitignore: ${g.added.join(", ")} 추가될 예정` : ".gitignore: 변경 없음 (이미 있는 항목)");
     }
     if (plan.flutterApp && (plan.flutterApp.created.length || plan.flutterApp.kept.length)) {
       const { created, kept } = plan.flutterApp;

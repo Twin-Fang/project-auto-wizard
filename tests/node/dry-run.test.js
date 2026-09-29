@@ -1,7 +1,7 @@
 // tests/node/dry-run.test.js
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createContext } from "../../src/context.js";
@@ -202,3 +202,87 @@ test("planDryRun: 실제 설치 뒤에는 스크립트가 변경 없음, README�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+// 미리보기는 실제 실행과 같은 정리 판정을 보여줘야 한다 — 지워지거나 .bak으로 옮겨질 파일이 빠지면
+// 사용자는 미리보기만 믿고 실행했다가 워크플로우가 사라진 것을 뒤늦게 알게 된다.
+function snapshot(dir) {
+  const out = {};
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else out[p] = readFileSync(p, "utf8");
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+test("planDryRun: 배포 방식을 바꾸면 이전 CD 삭제가 미리보기에 나오고 실제 실행 결과와 같다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const payload = resolvePayloadRoot();
+    runFull(baseContext({ types: ["spring"], deployStyle: "simple" }), payload, target);
+    const next = baseContext({ types: ["spring"], deployStyle: "traefik" });
+    const before = snapshot(target);
+    const plan = planDryRun("full", next, payload, target);
+    assert.deepStrictEqual(snapshot(target), before, "미리보기는 아무 파일도 바꾸지 않는다");
+    assert.deepStrictEqual(plan.cleanup.cleanup.removed, ["PROJECT-SPRING-SIMPLE-CICD.yaml"]);
+    assert.strictEqual(plan.gitignore, null, "삭제만 있으면 .gitignore는 건드리지 않는다");
+
+    const real = runFull(next, payload, target);
+    assert.deepStrictEqual(real.cleanup, plan.cleanup.cleanup);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planDryRun: 수정한 CD는 .bak 이동과 .gitignore 생성이 미리보기에 나온다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const payload = resolvePayloadRoot();
+    runFull(baseContext({ types: ["spring"], deployStyle: "simple" }), payload, target);
+    const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
+    writeFileSync(simple, readFileSync(simple, "utf8") + "# 직접 수정\n");
+    const next = baseContext({ types: ["spring"], deployStyle: "traefik" });
+    const plan = planDryRun("full", next, payload, target);
+    assert.deepStrictEqual(plan.cleanup.cleanup.backedUp, ["PROJECT-SPRING-SIMPLE-CICD.yaml"]);
+    assert.deepStrictEqual(plan.gitignore, { created: true, added: ["*.bak", "*.template.yaml"] });
+
+    const output = captureDryRun(plan);
+    assert.match(output, /PROJECT-SPRING-SIMPLE-CICD\.yaml → PROJECT-SPRING-SIMPLE-CICD\.yaml\.bak/);
+    assert.match(output, /\.gitignore: 새로 생성될 예정/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planDryRun: 스토어 선택을 해제하면 해당 워크플로우 삭제가 미리보기에 나온다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const payload = resolvePayloadRoot();
+    runFull(baseContext({ types: ["flutter"], flutterStore: ["android", "ios"] }), payload, target);
+    const next = baseContext({ types: ["flutter"], flutterStore: ["android"] });
+    const plan = planDryRun("full", next, payload, target);
+    assert.deepStrictEqual(plan.cleanup.storeCleanup.removed.sort(),
+      ["PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml", "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"]);
+    assert.match(captureDryRun(plan), /PROJECT-FLUTTER-IOS-TESTFLIGHT\.yaml \(선택 해제된 스토어 워크플로우 정리\)/);
+
+    const real = runFull(next, payload, target);
+    assert.deepStrictEqual(real.storeCleanup.removed.sort(), plan.cleanup.storeCleanup.removed);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+function captureDryRun(plan) {
+  const originalLog = console.log;
+  let output = "";
+  console.log = (msg) => { output += msg; };
+  try {
+    printDryRun(plan);
+  } finally {
+    console.log = originalLog;
+  }
+  return output;
+}
