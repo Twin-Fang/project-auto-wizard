@@ -50,8 +50,15 @@ export function parseArgs(argv) {
       case "-v": case "--version":
         // npm 관례: -v/--version 은 패키지 버전 출력. (초기 버전 지정은 --project-version)
         result.showVersion = true; break;
-      case "--project-version":
-        result.version = args.shift() ?? ""; break;
+      case "--project-version": {
+        // 릴리스 워크플로우(version_manager)는 x.y.z만 올릴 수 있다 — 흔한 v 접두사는 떼고 받는다.
+        const raw = (args.shift() ?? "").trim();
+        const v = raw.replace(/^v/i, "");
+        if (!/^\d+\.\d+\.\d+$/.test(v)) {
+          throw new CliError(`--project-version 값이 올바르지 않습니다: '${raw}' (x.y.z 형식, 예: 1.0.0)`);
+        }
+        result.version = v; break;
+      }
       case "-t": case "--type": {
         const csv = args.shift() ?? "";
         const seen = new Set();

@@ -129,3 +129,13 @@ test("HELP_TEXT: Flutter 옵션 플래그 4종을 안내한다", () => {
     assert.ok(HELP_TEXT.includes(flag), `${flag}가 --help에 없다`);
   }
 });
+
+// ── --project-version 형식 검증 ──
+test("parseArgs: --project-version은 x.y.z만 받고 v 접두사는 떼어낸다", () => {
+  assert.strictEqual(parseArgs(["--project-version", "1.2.3"]).version, "1.2.3");
+  assert.strictEqual(parseArgs(["--project-version", "v1.2.3"]).version, "1.2.3");
+  for (const bad of ["abc", "1.2", "1.2.3.4", "", "1.2.x"]) {
+    assert.throws(() => parseArgs(["--project-version", bad]), CliError, bad);
+  }
+  assert.throws(() => parseArgs(["--project-version"]), CliError);
+});
