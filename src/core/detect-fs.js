@@ -5,6 +5,7 @@ import { join, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { detectTypesFromMarkers, detectVersionFromFiles, detectBuildNumberFromFiles, detectJdkFromFiles, resolveMarkers } from "./detect.js";
 import { parseExisting } from "./version-yml.js";
+import { isValidBranchName } from "./branches.js";
 
 const hasFile = (root) => (rel) => existsSync(join(root, rel));
 const readFile = (root) => (rel) => {
@@ -57,13 +58,21 @@ export function detectBuildNumber(root, { types = [], warn = (m) => console.erro
 }
 
 // 기본 브랜치 감지 — symbolic-ref → remote show → main.
-export function detectDefaultBranch(root) {
-  let b = gitOut(root, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
-  if (b) return b.replace(/^refs\/remotes\/origin\//, "");
+// 빈 원격(remote add만 하고 push 전)은 remote show가 "HEAD branch: (unknown)"을 돌려준다. 이 값이
+// 워크플로우 트리거에 기록되면 릴리스 자동화가 조용히 멈추므로, 유효한 브랜치 이름만 인정하고
+// 아니면 로컬 현재 브랜치(첫 push 대상) → main 순으로 폴백하며 경고한다.
+// hint: 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
+export function detectDefaultBranch(root, { warn = null, hint = "" } = {}) {
+  const b = gitOut(root, ["symbolic-ref", "refs/remotes/origin/HEAD"]).replace(/^refs\/remotes\/origin\//, "");
+  if (isValidBranchName(b)) return b;
   const show = gitOut(root, ["remote", "show", "origin"]);
   const m = show.match(/HEAD branch:\s*(\S+)/);
-  if (m) return m[1];
-  return "main";
+  if (m && isValidBranchName(m[1])) return m[1];
+  if (!m) return "main"; // origin 없음 — 기존 규칙 그대로
+  const local = gitOut(root, ["symbolic-ref", "--short", "HEAD"]);
+  const fallback = isValidBranchName(local) ? local : "main";
+  warn?.(`⚠️  원격 기본 브랜치를 확인할 수 없어(빈 원격 레포 등) 릴리스 브랜치를 '${fallback}'(으)로 가정합니다.${hint ? ` ${hint}` : ""}`);
+  return fallback;
 }
 
 // 레포명 — git remote get-url origin 마지막 세그먼트, 실패 시 폴더명.

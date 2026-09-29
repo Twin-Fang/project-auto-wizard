@@ -9,7 +9,9 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "../core/version-yml.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection } from "../core/branches.js";
+import {
+  resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection, isValidBranchName, developMissingNotice,
+} from "../core/branches.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
@@ -82,7 +84,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     warn: (m) => detectWarnings.push(m),
     hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
   });
-  let branch = detectDefaultBranch(cwd);
+  let branch = detectDefaultBranch(cwd, {
+    warn: (m) => detectWarnings.push(m),
+    hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
+  });
   const repoName = detectRepoName(cwd);
   // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
   let includeSemverAuto = existing?.options?.semverAuto ?? null;
@@ -213,10 +218,15 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
   // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
-  let branches = existing?.branches
-    ? resolveBranchConfig({ mainBranch: existing.branches.main, developBranch: existing.branches.develop, defaultBranch: branch })
+  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)이 있으면 저장값이 없는 것으로 보고 다시 묻는다.
+  const savedBranches = existing?.branches
+    && isValidBranchName(existing.branches.main) && isValidBranchName(existing.branches.develop)
+    ? existing.branches : null;
+  let branches = savedBranches
+    ? resolveBranchConfig({ mainBranch: savedBranches.main, developBranch: savedBranches.develop, defaultBranch: branch })
     : resolveBranchConfig({ defaultBranch: branch });
-  if (showOptional && !existing?.branches) {
+  let developMissing = false;
+  if (showOptional && !savedBranches) {
     const remoteBranches = await detectRemoteBranches(cwd);
     // 두 질문에 같은 이름을 입력해야만 trunk-based가 되는 암묵적 규칙 대신,
     // 전략을 먼저 명시적으로 고르게 한다. 취소/그 외 값은 기존 기본 동작과 같은 pr-flow로 폴백
@@ -231,12 +241,17 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
     if (branches.mode === "trunk-based") {
       io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 모드");
-    } else if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
-      await ensureDevelopBranch({
+    } else if (!remoteBranches.length) {
+      // 원격이 없거나 비어 있으면 push할 기준이 없다 — 만들지 않았다는 사실과 방법을 알린다.
+      developMissing = true;
+      io.note?.(developMissingNotice(branches), "브랜치");
+    } else if (!remoteBranches.includes(branches.develop)) {
+      const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, cwd,
         confirm: (msg) => io.askYesNo(msg, true),
         log: (m) => io.note?.(m, "브랜치"),
       });
+      developMissing = r.created !== true || r.pushed === false;
     }
   }
 
@@ -328,7 +343,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 완료 요약 (.sh print_summary L5438)
   io.summary?.({
-    mode, types, version, versionCode, branches,
+    mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     answers: envAnswers,

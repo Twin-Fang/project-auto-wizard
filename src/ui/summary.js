@@ -7,6 +7,8 @@ const SEPARATOR = "────────────────────�
 
 export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
+    // pr-flow인데 원격에 develop을 만들지 못한 경우 — 구성 줄만 보면 이미 준비된 것처럼 보이므로 따로 알린다.
+    developMissing = false,
     // 설치 후 검증·기록
     answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
     // Flutter 스토어 배포 — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
@@ -49,6 +51,10 @@ export function printSummary(ctx) {
       err(`  🌿 ${branches.main} 단일 브랜치 (trunk-based) — RELEASE-PUBLISH 하나가 버전확정→체인지로그→tag→Release를 순차 처리`);
     } else {
       err(`  🌿 개발 ${branches.develop} → 릴리스 ${branches.main} (pr-flow) — 릴리스 PR에서 버전확정·체인지로그·automerge`);
+      if (developMissing) {
+        err(`     ⚠️  '${branches.develop}' 브랜치가 아직 원격에 없습니다 — 만들기 전에는 개발 브랜치 워크플로우가 동작하지 않습니다`);
+        err(`        → 설치 파일을 커밋해 ${branches.main}을 push한 뒤: git push origin ${branches.main}:${branches.develop}`);
+      }
     }
   }
   if (mode === "full" || mode === "workflows") {

@@ -15,7 +15,9 @@ import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeRe
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec } from "./core/branches.js";
+import {
+  resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec, isValidBranchName, developMissingNotice,
+} from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
@@ -238,7 +240,10 @@ async function runInner(argv, {
   const version = (existing?.version) || opts.version
     || detectVersion(cwd, { types, warn: (m) => { detectWarnings.push(m); console.error(m); } });
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
-  const branch = detectDefaultBranch(cwd);
+  const branch = detectDefaultBranch(cwd, {
+    warn: (m) => { detectWarnings.push(m); console.error(m); },
+    hint: "다르면 --main-branch로 지정하세요.",
+  });
   const repoName = detectRepoName(cwd);
   // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
   let paths;
@@ -253,20 +258,27 @@ async function runInner(argv, {
   }
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
+  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
+  const savedBranch = (b) => (isValidBranchName(b) ? b : "");
   const branches = resolveBranchConfig({
-    mainBranch: opts.mainBranch || existing?.branches?.main || "",
-    developBranch: opts.developBranch || existing?.branches?.develop || "",
+    mainBranch: opts.mainBranch || savedBranch(existing?.branches?.main),
+    developBranch: opts.developBranch || savedBranch(existing?.branches?.develop),
     defaultBranch: branch,
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
-  // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
+  // 원격에 브랜치가 하나도 없으면(빈 원격·origin 없음) push할 기준이 없으므로 만들지 않고 안내한다.
+  let developMissing = false;
   if (branches.mode === "pr-flow" && !opts.dryRun) {
     const remoteBranches = await detectRemoteBranches(cwd);
-    if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
-      await ensureDevelopBranch({
+    if (!remoteBranches.length) {
+      developMissing = true;
+      console.error(`⚠️  ${developMissingNotice(branches)}`);
+    } else if (!remoteBranches.includes(branches.develop)) {
+      const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, confirm: null, cwd,
         log: (m) => console.error(m),
       });
+      developMissing = r.pushed === false;
     }
   }
 
@@ -327,7 +339,7 @@ async function runInner(argv, {
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version, versionCode, branches,
+    mode: opts.mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
