@@ -1,46 +1,14 @@
 // uninstall 모드 — 마법사가 설치한 파일(planRemoval 판별분)에 더해 README/.gitignore/version.yml까지
 // 선택적으로 제거한다. 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in.
 // core/removal-plan.js는 읽기 전용으로만 재사용한다(아무것도 지우지 않는 순수 함수).
-import { join, posix } from "node:path";
-import { existsSync, readdirSync, rmdirSync } from "node:fs";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
-import { remove } from "../core/fsutil.js";
 import { planRemoval, backupArtifacts } from "../core/removal-plan.js";
-import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
-import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
+import { executeRemoval } from "../core/removal-exec.js";
+import { hasVersionSection } from "../core/copy/readme.js";
+import { hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
-import { logRemovals } from "../core/logger.js";
-
-// 파일을 지운 뒤 비게 된 상위 폴더를 레포 루트 직전까지 정리한다(마법사가 만든 fastlane/ 등).
-// 비어 있지 않은 폴더를 만나면 멈추므로 사용자 파일이 남은 폴더는 건드리지 않는다.
-export function pruneEmptyDirs(targetRoot, relDir) {
-  let rel = relDir;
-  while (rel && rel !== "." && rel !== "/") {
-    const abs = join(targetRoot, rel);
-    try {
-      if (readdirSync(abs).length) break;
-      rmdirSync(abs);
-    } catch { break; }
-    rel = posix.dirname(rel);
-  }
-}
-
-// Flutter 앱 파일 제거 — 미수정분만 plan에 들어오므로 그대로 지우고 빈 폴더를 정리한다.
-// 로그는 삭제가 끝난 뒤 한꺼번에 남기므로 기록할 항목을 done에 모은다.
-export function removeAppFiles(targetRoot, appFiles, done = []) {
-  for (const rel of appFiles) {
-    remove(join(targetRoot, rel));
-    pruneEmptyDirs(targetRoot, posix.dirname(rel));
-    done.push(["remove", "flutter-app", rel]);
-  }
-}
-
-// 설치물을 지운 뒤 비게 된 .github/workflows·.github/scripts(와 .github)를 정리한다.
-// 이번에 그 폴더에서 무언가를 지웠을 때만 — 원래 비어 있던 폴더까지 손대지 않는다.
-export function pruneInstallDirs(targetRoot, plan) {
-  if (plan.workflows.length || plan.baseline?.length) pruneEmptyDirs(targetRoot, PATHS.workflowsDir);
-  if (plan.scripts.length) pruneEmptyDirs(targetRoot, PATHS.scriptsDir);
-}
 
 // selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
@@ -65,24 +33,11 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
 // 반환: planUninstall과 동일한 형태 — 실제로 제거된 항목.
 export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const plan = planUninstall(payloadRoot, targetRoot, selection);
-  const wfDir = join(targetRoot, PATHS.workflowsDir);
-  const done = [];
-  for (const name of plan.workflows) { remove(join(wfDir, name)); done.push(["remove", "workflow", name]); }
-  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); done.push(["remove", "script", name]); }
-  removeAppFiles(targetRoot, plan.appFiles, done);
-  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); done.push(["remove", "metadata", p]); }
-  pruneInstallDirs(targetRoot, plan);
-  // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
-  // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
-  // 실제 결과로 plan을 덮어써서 호출부(CLI/대화형 요약)가 거짓 성공을 보고하지 않게 한다.
-  const readmeRemoved = plan.readme && removeVersionSectionFromReadme(targetRoot) === "removed";
-  const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
-  const gitignoreRemoved = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
-  if (readmeRemoved) done.push(["remove", "readme", "README.md 버전 섹션"]);
-  if (gitignoreStatus) done.push(["remove", "gitignore", `.gitignore 자동 추가 항목 (${gitignoreStatus})`]);
-  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); done.push(["remove", "version", PATHS.versionFile]); }
-  logRemovals(targetRoot, done);
-  return { ...plan, readme: readmeRemoved, gitignore: gitignoreRemoved };
+  const { readme, gitignore } = executeRemoval(targetRoot, plan, {
+    logOrder: ["readme", "gitignore", "version"],
+    gitignoreDetail: (status) => `.gitignore 자동 추가 항목 (${status})`,
+  });
+  return { ...plan, readme, gitignore };
 }
 
 // ── 대화형 체크리스트 흐름 ────────────────────────────────────────────
