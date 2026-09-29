@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRemoval } from "../core/removal-plan.js";
-import { removeAppFiles } from "./uninstall.js";
+import { removeAppFiles, pruneInstallDirs } from "./uninstall.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { log } from "../core/logger.js";
@@ -88,6 +88,7 @@ export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
   removeAppFiles(targetRoot, plan.appFiles);
   for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
+  pruneInstallDirs(targetRoot, plan);
   if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
   const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;

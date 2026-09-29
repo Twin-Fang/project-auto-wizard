@@ -223,7 +223,10 @@ async function runInner(argv, {
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
     }
-    await runUninstallFlow(payload, cwd, prompts);
+    // --purge-* 플래그는 체크리스트 초기 선택으로 반영한다(조용히 무시하지 않는다).
+    await runUninstallFlow(payload, cwd, prompts, {
+      readme: opts.purgeReadme, gitignore: opts.purgeGitignore, versionYml: opts.purgeVersion,
+    });
     return 0;
   }
 

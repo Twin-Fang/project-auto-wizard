@@ -34,6 +34,13 @@ export function removeAppFiles(targetRoot, appFiles) {
   }
 }
 
+// 설치물을 지운 뒤 비게 된 .github/workflows·.github/scripts(와 .github)를 정리한다.
+// 이번에 그 폴더에서 무언가를 지웠을 때만 — 원래 비어 있던 폴더까지 손대지 않는다.
+export function pruneInstallDirs(targetRoot, plan) {
+  if (plan.workflows.length || plan.baseline?.length) pruneEmptyDirs(targetRoot, PATHS.workflowsDir);
+  if (plan.scripts.length) pruneEmptyDirs(targetRoot, PATHS.scriptsDir);
+}
+
 // selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
 export function planUninstall(payloadRoot, targetRoot, selection) {
@@ -59,6 +66,7 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
   for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
   removeAppFiles(targetRoot, plan.appFiles);
   for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
+  pruneInstallDirs(targetRoot, plan);
   // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
   // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
   // 실제 결과로 plan을 덮어써서 호출부(CLI/대화형 요약)가 거짓 성공을 보고하지 않게 한다.
@@ -123,7 +131,8 @@ function summarizeResult(result) {
 
 // io 계약: engineIo.multiselect({message,options,initialValues}), askYesNo(msg,def),
 // note(text,title)?, cancelMessage(text)? — src/ui/prompts.js가 실물, 테스트는 스텁 주입.
-export async function runUninstallFlow(payloadRoot, targetRoot, io) {
+// preset: CLI의 --purge-* 플래그 { readme, gitignore, versionYml } — 체크리스트 초기 선택에 반영한다.
+export async function runUninstallFlow(payloadRoot, targetRoot, io, preset = {}) {
   const available = detectAvailableItems(payloadRoot, targetRoot);
   if (available.length === 0) {
     io.note?.("제거할 항목이 없습니다.", "완전 삭제");
@@ -133,7 +142,7 @@ export async function runUninstallFlow(payloadRoot, targetRoot, io) {
   const checked = await io.engineIo.multiselect({
     message: "삭제할 항목을 선택하세요 (Space 토글, Enter 확정)",
     options: available,
-    initialValues: available.map((o) => o.value).filter((v) => SAFE_ITEMS.includes(v)),
+    initialValues: available.map((o) => o.value).filter((v) => SAFE_ITEMS.includes(v) || preset[v] === true),
   });
   if (checked === CANCEL || !Array.isArray(checked) || checked.length === 0) {
     io.cancelMessage?.("완전 삭제를 취소했습니다.");
