@@ -25,7 +25,7 @@
 # ANALYZE_ONLY    : true면 analyze만 실행, 빌드 스킵 (기본: false)
 # ENABLE_ANDROID  : Android 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
 # ENABLE_IOS      : iOS 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
-# FLUTTER_VERSION : Flutter SDK 버전
+# FLUTTER_VERSION : Flutter SDK 버전 (빈 값 = stable 최신)
 # JAVA_VERSION    : Java 버전 (Android 빌드용)
 # XCODE_VERSION   : Xcode 버전 (iOS 빌드용)
 # ENV_FILE_PATH   : dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 기본값: .env)
@@ -84,7 +84,9 @@ env:
   ENABLE_IOS: "true"        # iOS 빌드 활성화 (true/false)
 
   # 프로젝트별 설정
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
   ENV_FILE_PATH: ".env"     # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 커스터마이징 가능)
@@ -288,6 +290,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -383,6 +386,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -527,6 +531,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
