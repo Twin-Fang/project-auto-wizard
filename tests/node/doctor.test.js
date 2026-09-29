@@ -180,10 +180,12 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
 
 // 출력에서 링크하는 README 앵커가 실제로 README에 존재해야 한다(링크 부패 방지).
 test("DOC 링크가 가리키는 앵커가 README에 실제로 존재한다", () => {
-  const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
   for (const url of Object.values(DOC)) {
-    const anchor = url.split("#")[1];
-    assert.ok(readme.includes(`<a id="${anchor}">`), `README에 #${anchor} 앵커가 없습니다`);
+    const [page, anchor] = url.split("#");
+    // blob URL이면 그 파일, 레포 루트 URL이면 README.md가 렌더된다.
+    const file = page.includes("/blob/") ? page.split("/blob/")[1].split("/").slice(1).join("/") : "README.md";
+    const readme = readFileSync(join(REPO_ROOT, file), "utf8");
+    assert.ok(readme.includes(`<a id="${anchor}">`), `${file}에 #${anchor} 앵커가 없습니다`);
   }
 });
 
