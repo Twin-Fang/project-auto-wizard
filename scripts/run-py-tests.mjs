@@ -34,9 +34,11 @@ if (!python) {
 }
 
 // 한글 출력이 Windows 기본 코드페이지(cp949)에서 깨지지 않도록 강제한다.
+// payload/scripts를 import해도 __pycache__가 남지 않게 한다 — 남으면 npm 패키지에 실리고
+// 원작자 이름 가드 테스트가 두 번째 실행부터 pyc를 잡아 실패한다.
 const result = spawnSync(python, ARGS, {
   stdio: "inherit",
-  env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+  env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1" },
 });
 
 process.exit(result.status ?? 1);

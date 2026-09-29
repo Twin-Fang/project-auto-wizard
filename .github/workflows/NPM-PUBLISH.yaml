@@ -6,6 +6,7 @@
 # - 태그에서 버전을 뽑고 version.yml과 대조해 불일치 시 실패시킨다
 # - 배포 전 테스트를 실행한다 (검증된 것만 배포)
 # - 이미 레지스트리에 있는 버전이면 성공 종료 (멱등)
+# - README 버전 줄은 태그보다 늦게 커밋되므로 패키징 직전에 배포 버전으로 맞춘다
 # - provenance를 첨부해 어느 커밋·워크플로우에서 빌드됐는지 검증 가능하게 한다
 #
 # 트리거: GitHub Release published (+ 수동 재배포는 workflow_dispatch)
@@ -40,6 +41,10 @@ on:
 permissions:
   contents: read
   id-token: write
+
+env:
+  # 테스트가 payload/scripts를 import하며 만드는 __pycache__가 패키지에 실리지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   publish-npm:
@@ -90,6 +95,19 @@ jobs:
 
       - name: package.json 버전 주입
         run: npm pkg set version=${{ steps.target.outputs.version }}
+
+      - name: README 버전 줄을 배포 버전으로 맞춤
+        # README 버전 커밋은 릴리스 태그보다 늦게 만들어져, 태그 스냅샷의 README는 항상
+        # 한 버전 전이다. npm 페이지가 이 README를 보여주므로 패키징 직전에 고쳐 싣는다 (커밋하지 않음).
+        run: |
+          VERSION="${{ steps.target.outputs.version }}"
+          RELEASE_DATE=$(git log -1 --format=%cs)
+          sed -i -E "/AUTO-VERSION-SECTION/{n;s/^(##[^:]*:[[:space:]]*).*/\1v${VERSION} (${RELEASE_DATE})/;}" README.md
+          if grep -qF "v${VERSION} (${RELEASE_DATE})" README.md; then
+            echo "README 버전 줄: $(grep -A1 'AUTO-VERSION-SECTION' README.md | tail -n 1)"
+          else
+            echo "::warning::README.md에서 AUTO-VERSION-SECTION 버전 줄을 찾지 못해 갱신하지 못했습니다"
+          fi
 
       - name: 이미 배포된 버전인지 확인 (멱등)
         id: check

@@ -292,7 +292,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run
 
 ### 자동 semver 승격 (`--semver-auto`)
 
-기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, 표준 타입 뒤 `!` 브레이킹 마커(`feat!:`, `fix(api)!:` 등) → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 분류가 애매한 커밋은 AI 엔진 체인이 patch→minor 승격 여부를 판단합니다. 끄면 기존과 동일하게 항상 patch+1입니다. 타입은 대소문자를 가리지 않습니다. 릴리스 워크플로우는 커밋 제목만 읽으므로 본문의 `BREAKING CHANGE:` 푸터만으로는 major가 되지 않습니다 — 호환이 깨지는 변경은 제목에 `!`를 붙이세요.
+기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, 표준 타입 뒤 `!` 브레이킹 마커(`feat!:`, `fix(api)!:` 등) 또는 본문의 `BREAKING CHANGE:` 푸터 → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 분류가 애매한 커밋은 AI 엔진 체인이 patch→minor 승격 여부를 판단합니다. 끄면 기존과 동일하게 항상 patch+1입니다. 타입은 대소문자를 가리지 않습니다. 커밋 본문은 줄 맨 앞에서 시작하는 `BREAKING CHANGE:` 푸터만 읽고 나머지 본문은 판정에 쓰지 않습니다.
 
 ```bash
 npx project-auto-wizard --semver-auto      # 기본값, 명시 지정도 가능

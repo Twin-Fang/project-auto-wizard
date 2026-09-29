@@ -18,8 +18,8 @@
 #   CHANGELOG.json / CHANGELOG.md, and commits everything back with
 #   [skip ci]. Same as pr-flow's AUTO-CHANGELOG-CONTROL:
 #   - If version.yml metadata.template.options.semver_auto is true
-#     (default): classifies commits (feat -> minor, `!` marker -> major,
-#     else patch; AI-assisted patch->minor upgrade for unclassified
+#     (default): classifies commits (feat -> minor, `!` marker or a
+#     `BREAKING CHANGE:` body footer -> major, else patch; AI-assisted patch->minor upgrade for unclassified
 #     commits) and bumps accordingly.
 #   - Otherwise: always patch+1 (legacy behavior).
 #
@@ -27,7 +27,8 @@
 # release checked separately so a half-published release can be finished
 # on re-run), tag push, release notes = changelog export (ai_notes) +
 # GitHub generate-notes API (contributors/compare links), then
-# gh release create.
+# gh release create, then a workflow_dispatch of README-VERSION-UPDATE
+# (bot-token pushes never wake it, so the README would stay behind).
 #
 # Release-confirm pattern: "chore(release):" — keep in sync with
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-VERSION-CONTROL.
@@ -55,8 +56,13 @@ on:
 
 permissions:
   contents: write
+  # README-VERSION-UPDATE를 workflow_dispatch로 깨운다
   actions: write
   copilot-requests: write
+
+env:
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   release:
@@ -208,13 +214,17 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
             echo "collecting commits since $LAST_TAG"
-            git log --pretty=%s "${LAST_TAG}..HEAD" > commits.txt
+            LOG_RANGE="${LAST_TAG}..HEAD"
             DIFF_BASE="$LAST_TAG"
           else
             echo "no previous tag — collecting the full history"
-            git log --pretty=%s > commits.txt
+            LOG_RANGE="HEAD"
             DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
           fi
+          git log --pretty=%s "$LOG_RANGE" > commits.txt
+          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
+          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "${DIFF_BASE}..HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
@@ -263,7 +273,11 @@ jobs:
 
           rm -f pr_body.md summary.md commits.txt diff_stat.txt
 
-          git add -A
+          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
+          # 버전 파일은 이미 추적 중이라 -u로 충분하고, 첫 릴리스에 새로 생기는
+          # CHANGELOG만 따로 올린다 (.gitignore에 있으면 건너뛴다).
+          git add -u
+          git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
           if git diff --staged --quiet; then
             echo "no changes to commit"
           else
@@ -396,3 +410,17 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           gh workflow run NPM-PUBLISH.yaml --ref main -f tag="v${VERSION}"
           echo "NPM-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)"
+
+      - name: Trigger README-VERSION-UPDATE
+        # 봇 토큰(GITHUB_TOKEN)이 만든 push는 README 갱신 워크플로우를 깨우지 못한다 —
+        # PAT 없는 릴리스 PR 병합, 안전망·trunk-based의 [skip ci] 버전 커밋이 그렇다.
+        # 릴리스를 새로 발행했을 때 확정된 버전으로 한 번 직접 깨운다 (중복 실행돼도 변경 없으면 커밋 안 함).
+        if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh workflow run PROJECT-COMMON-README-VERSION-UPDATE.yaml --ref main; then
+            echo "README-VERSION-UPDATE workflow_dispatch 트리거 요청 완료"
+          else
+            echo "::notice::README-VERSION-UPDATE 워크플로우를 깨우지 못했습니다 (삭제했거나 비활성화됨) — README 버전 갱신을 건너뜁니다"
+          fi

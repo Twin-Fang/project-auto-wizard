@@ -4,7 +4,9 @@
 #
 # [Safety net] Only when a direct push (one that did not go through a
 # release PR) lands on main (production), this workflow bumps
-# the patch version and syncs every version file.
+# the patch version, syncs every version file, and adds a CHANGELOG entry
+# built from the commits since the last release tag (these become the
+# release notes RELEASE-PUBLISH publishes).
 #
 # Normal releases (develop -> main PR) get their
 # version confirmed by AUTO-CHANGELOG-CONTROL before the merge. The merge
@@ -20,7 +22,9 @@
 #
 # After pushing the safety-net bump, this workflow also triggers
 # RELEASE-PUBLISH via workflow_dispatch so a version drift is
-# auto-recovered instead of requiring a manual re-run.
+# auto-recovered instead of requiring a manual re-run, and merges
+# main back into develop so the next release PR does
+# not conflict on the version files.
 
 name: PROJECT-VERSION-CONTROL
 
@@ -41,6 +45,10 @@ on:
 permissions:
   contents: write
   actions: write
+
+env:
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   version-bump:
@@ -130,6 +138,44 @@ jobs:
             echo "version.yml not found"
           fi
 
+      - name: Update CHANGELOG for the safety-net release
+        # 안전망 릴리스도 실제로 들어간 커밋으로 CHANGELOG 항목을 만든다. 항목이 없으면
+        # RELEASE-PUBLISH가 고정 문구로 릴리스 노트를 채우고 변경 내역이 어디에도 남지 않는다.
+        # 요약 엔진: 사용자 API(설정된 경우) -> 규칙 기반 (Copilot은 릴리스 PR·trunk 경로에서만 쓴다)
+        if: steps.release_guard.outputs.skip != 'true'
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          # 마지막 릴리스 태그 이후 main에 직접 들어온 커밋 (태그가 없으면 전체 이력)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          LOG_RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
+          git log --pretty=%s "$LOG_RANGE" > commits.txt
+          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
+          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          echo "commits since ${LAST_TAG:-the beginning}: $(wc -l < commits.txt)"
+
+          python3 .github/scripts/changelog_manager.py ai-summary \
+            --commits-file commits.txt \
+            --version "$NEW_VERSION" \
+            --output summary.md
+
+          # update-from-summary reads ./pr_body.md
+          cp summary.md pr_body.md
+          VERSION="$NEW_VERSION"
+          PROJECT_TYPES="${{ steps.project_info.outputs.project_types }}"
+          TODAY=$(date '+%Y-%m-%d')
+          TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%SZ')
+          export VERSION PROJECT_TYPES TODAY TIMESTAMP
+          python3 .github/scripts/changelog_manager.py update-from-summary
+          python3 .github/scripts/changelog_manager.py generate-md
+
+          rm -f commits.txt summary.md pr_body.md
+
       - name: Commit and push changes
         id: commit_push
         if: steps.release_guard.outputs.skip != 'true'
@@ -137,7 +183,11 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          git add -A
+          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
+          # 버전 파일은 이미 추적 중이라 -u로 충분하고, 새로 생기는 CHANGELOG만
+          # 따로 올린다 (.gitignore에 있으면 건너뛴다).
+          git add -u
+          git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
           if git diff --staged --quiet; then
             echo "no changes to commit (already in sync)"
@@ -191,6 +241,42 @@ jobs:
         run: |
           gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
           echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 이슈 #61 드리프트 자동 복구)"
+
+      - name: Back-merge the safety-net bump into develop
+        # 안전망 bump는 main에만 올라간다. develop가 이를 모르면 다음 릴리스 PR에서
+        # 양쪽이 같은 버전 줄을 고쳐 충돌하므로 곧바로 develop에도 병합해 둔다.
+        # 실패(충돌·브랜치 보호)해도 안전망 릴리스는 이미 끝났으므로 경고만 남긴다.
+        if: steps.release_guard.outputs.skip != 'true' && steps.commit_push.outputs.pushed == 'true'
+        run: |
+          DEVELOP_BRANCH="develop"
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          MANUAL="git checkout $DEVELOP_BRANCH && git pull && git merge origin/main && git push"
+
+          if ! git ls-remote --exit-code --heads origin "$DEVELOP_BRANCH" >/dev/null 2>&1; then
+            echo "branch $DEVELOP_BRANCH not found — nothing to back-merge"
+            exit 0
+          fi
+
+          for ATTEMPT in 1 2 3; do
+            git fetch -q origin "$DEVELOP_BRANCH" main
+            git checkout -q -B safety-net-back-merge "origin/$DEVELOP_BRANCH"
+            if git merge-base --is-ancestor "origin/main" HEAD; then
+              echo "$DEVELOP_BRANCH already contains main"
+              exit 0
+            fi
+            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/main"; then
+              git merge --abort 2>/dev/null || true
+              echo "::warning::main을 ${DEVELOP_BRANCH}에 자동 병합하지 못했습니다 (충돌). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
+              exit 0
+            fi
+            if git push origin "HEAD:$DEVELOP_BRANCH"; then
+              echo "safety-net bump v$NEW_VERSION merged into $DEVELOP_BRANCH"
+              exit 0
+            fi
+            echo "push attempt $ATTEMPT failed — retrying"
+            sleep 5
+          done
+          echo "::warning::${DEVELOP_BRANCH}에 push하지 못했습니다 (브랜치 보호 등). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
 
       - name: Summary
         if: always()

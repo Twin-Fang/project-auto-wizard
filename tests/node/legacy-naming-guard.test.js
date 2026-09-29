@@ -16,7 +16,10 @@ const LEGACY_NAME = /suh/i;
 function allFiles(dir, acc = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) allFiles(path, acc);
+    // 바이트코드 캐시는 .gitignore·패키지 제외 대상이라 설치물·소스가 아니다
+    if (entry.isDirectory()) {
+      if (entry.name !== "__pycache__") allFiles(path, acc);
+    }
     else acc.push(path);
   }
   return acc;
