@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,96 @@ class TestSyncSpring(SyncTestCase):
         self.assertIn('version = "1.2.3"', text)
 
 
+class TestSyncSpringDependencyVersions(SyncTestCase):
+    def test_increment_leaves_kotlin_version_variable_untouched(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").write_text(
+            "buildscript {\n  ext.kotlin_version = '1.9.0'\n}\n"
+            "version = '1.2.3'\n"
+            "ext { compose_version = \"1.5.0\" }\n",
+            encoding="utf-8",
+        )
+        run(["set", "1.2.3"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.2.4")
+        text = (Path(tmp) / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn("version = '1.2.4'", text)
+        self.assertIn("ext.kotlin_version = '1.9.0'", text)
+        self.assertIn('compose_version = "1.5.0"', text)
+
+
+POM = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <!-- <version>0.0.0</version> -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.4.0</version>
+  </parent>
+  <groupId>com.example</groupId>
+  <artifactId>my-service</artifactId>
+  <version>1.4.0</version>
+  <dependencies>
+    <dependency>
+      <groupId>org.example</groupId>
+      <artifactId>lib</artifactId>
+      <version>1.4.0</version>
+    </dependency>
+  </dependencies>
+</project>
+"""
+
+CHILD_POM = """<project>
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>my-service</artifactId>
+    <version>1.4.0</version>
+  </parent>
+  <artifactId>my-service-api</artifactId>
+</project>
+"""
+
+
+class TestSyncMaven(SyncTestCase):
+    def make_maven(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").unlink()
+        (Path(tmp) / "pom.xml").write_text(POM, encoding="utf-8")
+        (Path(tmp) / "api").mkdir()
+        (Path(tmp) / "api" / "pom.xml").write_text(CHILD_POM, encoding="utf-8")
+        return tmp
+
+    def test_get_reads_project_version_from_pom(self):
+        tmp = self.make_maven()
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.0")
+
+    def test_increment_updates_only_project_version(self):
+        tmp = self.make_maven()
+        run(["set", "1.4.0"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.1")
+        text = (Path(tmp) / "pom.xml").read_text(encoding="utf-8")
+        self.assertIn("<artifactId>my-service</artifactId>\n  <version>1.4.1</version>", text)
+        # 부모 BOM·의존성·주석의 버전은 그대로
+        self.assertIn("<version>3.4.0</version>", text)
+        self.assertIn("<artifactId>lib</artifactId>\n      <version>1.4.0</version>", text)
+        self.assertIn("<!-- <version>0.0.0</version> -->", text)
+        child = (Path(tmp) / "api" / "pom.xml").read_text(encoding="utf-8")
+        self.assertIn("<version>1.4.1</version>", child)
+
+    def test_property_version_is_left_alone(self):
+        tmp = self.make_maven()
+        pom = Path(tmp) / "pom.xml"
+        pom.write_text(POM.replace("<version>1.4.0</version>\n  <dependencies>",
+                                   "<version>${revision}</version>\n  <dependencies>"), encoding="utf-8")
+        run(["set", "2.0.0"], tmp)
+        self.assertIn("<version>${revision}</version>", pom.read_text(encoding="utf-8"))
+
+
 class TestSyncFlutter(SyncTestCase):
     def test_sync_updates_pubspec_with_build_number(self):
         tmp = self.make_tmp("flutter")
@@ -57,6 +148,37 @@ class TestSyncFlutter(SyncTestCase):
         self.assertEqual(r.returncode, 0)
         text = (Path(tmp) / "pubspec.yaml").read_text(encoding="utf-8")
         self.assertIn("version: 1.2.3+1", text)
+
+
+class TestFlutterBuildNumberNeverRegresses(SyncTestCase):
+    def make_flutter(self, pubspec_version):
+        tmp = self.make_tmp("flutter")
+        run(["set", "2.5.0"], tmp)
+        pubspec = Path(tmp) / "pubspec.yaml"
+        text = pubspec.read_text(encoding="utf-8")
+        pubspec.write_text(re.sub(r"^version: .*$", f"version: {pubspec_version}", text, flags=re.M),
+                           encoding="utf-8")
+        return tmp, pubspec
+
+    def test_get_and_sync_keep_higher_pubspec_build_number(self):
+        tmp, pubspec = self.make_flutter("2.5.0+40")
+        run(["get"], tmp)
+        r = run(["sync"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version: 2.5.0+40", pubspec.read_text(encoding="utf-8"))
+        self.assertEqual(run(["get-code"], tmp).stdout.strip().splitlines()[-1], "40")
+
+    def test_increment_uses_max_plus_one_and_writes_both(self):
+        tmp, pubspec = self.make_flutter("2.5.0+100")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version: 2.5.1+101", pubspec.read_text(encoding="utf-8"))
+        self.assertIn("version_code: 101", (Path(tmp) / "version.yml").read_text(encoding="utf-8"))
+
+    def test_increment_code_uses_max_plus_one(self):
+        tmp, _ = self.make_flutter("2.5.0+40")
+        r = run(["increment-code"], tmp)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "41")
 
 
 class TestSyncReact(SyncTestCase):
@@ -87,6 +209,47 @@ class TestSyncPython(SyncTestCase):
         self.assertEqual(r.returncode, 0)
         text = (Path(tmp) / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('version = "1.2.3"', text)
+
+
+class TestSyncFailuresAreReported(SyncTestCase):
+    def test_missing_version_key_is_added_on_increment(self):
+        tmp = self.make_tmp("basic")
+        yml = Path(tmp) / "version.yml"
+        text = yml.read_text(encoding="utf-8")
+        yml.write_text(re.sub(r"^version: .*\n", "", text, flags=re.M), encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.0.1")
+        self.assertIn('version: "0.0.1"', yml.read_text(encoding="utf-8"))
+        r = run(["increment"], tmp)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.0.2")
+
+    def test_invalid_package_json_fails_with_nonzero_exit(self):
+        tmp = self.make_tmp("react")
+        (Path(tmp) / "package.json").write_text('{ "name": "my-app", "version": "0.5.0", }', encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("ERROR", r.stderr)
+
+    def test_single_quoted_pyproject_version_is_updated(self):
+        tmp = self.make_tmp("python-proj")
+        (Path(tmp) / "pyproject.toml").write_text("[project]\nname = 'my-app'\nversion = '0.9.10'\n",
+                                                  encoding="utf-8")
+        run(["set", "0.9.10"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version = '0.9.11'", (Path(tmp) / "pyproject.toml").read_text(encoding="utf-8"))
+
+    def test_pyproject_tool_section_version_is_not_the_package_version(self):
+        tmp = self.make_tmp("python-proj")
+        toml = '[project]\nname = "my-app"\ndynamic = ["version"]\n\n[tool.other]\nversion = "9.9.9"\n'
+        (Path(tmp) / "pyproject.toml").write_text(toml, encoding="utf-8")
+        run(["set", "0.1.0"], tmp)
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.1.0")
+        self.assertNotIn("updated:", r.stderr)
+        self.assertEqual((Path(tmp) / "pyproject.toml").read_text(encoding="utf-8"), toml)
 
 
 class TestSyncReactNative(SyncTestCase):

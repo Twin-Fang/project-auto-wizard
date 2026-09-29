@@ -235,7 +235,7 @@ async function runInner(argv, {
   // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   const detectWarnings = [];
   const version = (existing?.version) || opts.version
-    || detectVersion(cwd, { warn: (m) => { detectWarnings.push(m); console.error(m); } });
+    || detectVersion(cwd, { types, warn: (m) => { detectWarnings.push(m); console.error(m); } });
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd);
   const repoName = detectRepoName(cwd);

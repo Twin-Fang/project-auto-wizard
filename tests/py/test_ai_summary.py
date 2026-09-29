@@ -245,6 +245,29 @@ class TestAiSummary(unittest.TestCase):
         content = self.output_file.read_text(encoding="utf-8")
         self.assertTrue(len(content.strip()) > 0)
 
+    def test_copilot_failure_reason_is_surfaced_as_actions_warning(self):
+        changelog_manager.os.environ.update({"COPILOT_AI": "true", "GITHUB_TOKEN": "ghp_test_token"})
+        failed = subprocess.CompletedProcess(
+            args=["copilot"], returncode=1, stdout="",
+            stderr='Error: Model "x" from --model flag is not available.\nmore',
+        )
+        with patch.object(changelog_manager.subprocess, "run", return_value=failed):
+            rc, payload, stderr = self._run_main_capture()
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["engine"], "fallback")
+        warning = [l for l in stderr.splitlines() if l.startswith("::warning::")]
+        self.assertEqual(len(warning), 1)
+        self.assertIn("not available", warning[0])
+        self.assertIn("copilot failed", payload["fallback_reason"])
+        self.assertIn("not available", payload["fallback_reason"])
+
+    def test_no_fallback_reason_when_no_engine_was_tried(self):
+        rc, payload, stderr = self._run_main_capture()
+        self.assertEqual(payload["engine"], "fallback")
+        self.assertNotIn("fallback_reason", payload)
+        self.assertNotIn("::warning::", stderr)
+
     def test_diff_stat_included_when_provided(self):
         self._set_user_api_env()
         diff_stat_file = Path(self.tmp) / "diff_stat.txt"
@@ -269,6 +292,14 @@ class TestAiSummary(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         self.assertTrue(payload["ok"])
+
+    def test_missing_commits_file_warns_and_still_writes_summary(self):
+        self.commits_file.unlink()
+        rc, payload, stderr = self._run_main_capture()
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["engine"], "fallback")
+        self.assertIn("::warning::", stderr)
+        self.assertTrue(self.output_file.exists())
 
     def test_no_diff_stat_flag_behaves_exactly_as_before(self):
         with patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:

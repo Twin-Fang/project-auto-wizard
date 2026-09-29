@@ -47,6 +47,33 @@ class TestClassifyBumpLevel(unittest.TestCase):
         self.assertEqual(changelog_manager.classify_bump_level(lines), "patch")
 
 
+class TestClassifyBumpEdgeCases(unittest.TestCase):
+    def bump(self, *lines):
+        return changelog_manager.classify_bump_level(list(lines))
+
+    def test_uppercase_type_is_minor(self):
+        self.assertEqual(self.bump("Feat: x"), "minor")
+        self.assertEqual(self.bump("FEAT: x"), "minor")
+
+    def test_space_before_colon_is_minor(self):
+        self.assertEqual(self.bump("feat : 공백 콜론"), "minor")
+
+    def test_breaking_change_footer_is_major(self):
+        self.assertEqual(self.bump("feat: x", "", "BREAKING CHANGE: 설정 형식 변경"), "major")
+        self.assertEqual(self.bump("fix: y", "BREAKING-CHANGE: z"), "major")
+
+    def test_title_convention_bang_is_major(self):
+        self.assertEqual(self.bump("로그인 : feat! : 호환 깨짐"), "major")
+
+    def test_bang_on_non_standard_word_is_not_major(self):
+        self.assertEqual(self.bump("hotfix!: 긴급 수정"), "patch")
+        self.assertEqual(self.bump("WIP!: 급함"), "patch")
+
+    def test_footer_line_is_not_listed_as_change(self):
+        out = changelog_manager.classify_commits(["feat: x", "BREAKING CHANGE: y"])
+        self.assertEqual(out["changes"], [])
+
+
 class TestCmdClassifyBump(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

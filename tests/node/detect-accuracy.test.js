@@ -8,7 +8,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectVersionFromFiles, versionFromPom, detectJdkFromFiles, resolveMarker, resolveMarkers,
-  detectTypesFromMarkers, markerForType,
+  detectTypesFromMarkers, markerForType, versionFromPyproject,
 } from "../../src/core/detect.js";
 import { findSpringAppYml } from "../../src/core/detect-fs.js";
 
@@ -35,6 +35,47 @@ test("detectVersionFromFiles: build.gradle.kts만 있어도 버전을 읽는다 
   assert.strictEqual(warned.length, 0, "감지에 성공했으면 폴백 경고가 없어야 한다");
 });
 
+test("detectVersionFromFiles: build.gradle의 kotlin_version 변수를 앱 버전으로 읽지 않는다", () => {
+  const gradle = "buildscript {\n  ext.kotlin_version = '1.9.0'\n}\nversion = '1.2.3'\n";
+  const v = detectVersionFromFiles({
+    read: readFrom({ "build.gradle": gradle }), readJson: () => null, gitTag: "", warn: () => {},
+  });
+  assert.strictEqual(v, "1.2.3");
+});
+
+test("versionFromPyproject: [tool.*] 섹션의 version은 무시하고 [project] 버전을 읽는다", () => {
+  const toml = '[tool.other]\nversion = "9.9.9"\n\n[project]\nname = "my-app"\nversion = "0.4.0"\n';
+  assert.strictEqual(versionFromPyproject(toml), "0.4.0");
+  assert.strictEqual(versionFromPyproject('[project]\ndynamic = ["version"]\n[tool.other]\nversion = "9.9.9"\n'), null);
+});
+
+test("detectVersionFromFiles: 멀티타입이면 주 타입(첫 항목)의 버전 파일을 먼저 읽는다", () => {
+  const files = { "build.gradle": "version = '1.0.0'\n" };
+  const readJson = (rel) => (rel === "package.json" ? { version: "3.0.0" } : null);
+  const opts = { read: readFrom(files), readJson, gitTag: "", warn: () => {} };
+  assert.strictEqual(detectVersionFromFiles({ ...opts, types: ["spring", "react"] }), "1.0.0");
+  assert.strictEqual(detectVersionFromFiles({ ...opts, types: ["react", "spring"] }), "3.0.0");
+});
+
+test("detectVersionFromFiles: setup.py의 version을 읽는다", () => {
+  const v = detectVersionFromFiles({
+    read: readFrom({ "setup.py": 'setup(\n  name="my-app",\n  python_version="3.11.0",\n  version="1.0.0",\n)\n' }),
+    readJson: () => null, gitTag: "", warn: () => {}, types: ["python"],
+  });
+  assert.strictEqual(v, "1.0.0");
+});
+
+test("detectVersionFromFiles: prerelease 버전은 x.y.z 코어로 감지한다", () => {
+  const warned = [];
+  const v = detectVersionFromFiles({
+    read: () => null, readJson: (rel) => (rel === "package.json" ? { version: "2.0.0-rc.1" } : null),
+    gitTag: "", warn: (m) => warned.push(m),
+  });
+  assert.strictEqual(v, "2.0.0");
+  assert.strictEqual(warned.length, 0);
+  assert.strictEqual(detectVersionFromFiles({ read: () => null, readJson: () => null, gitTag: "v1.2.3-beta.1" }), "1.2.3");
+});
+
 test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 버전은 쓰지 않는다", () => {
   const pom = `<project>
   <parent>
@@ -52,6 +93,12 @@ test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 
 test("versionFromPom: 프로젝트 버전이 <parent>보다 앞에 있어도 부모 버전을 고르지 않는다", () => {
   const pom = `<project><version>9.9.9</version><parent><version>1.1.1</version></parent></project>`;
   assert.strictEqual(versionFromPom(pom), "9.9.9");
+});
+
+test("versionFromPom: 프로젝트 버전이 없으면 의존성 버전을 대신 고르지 않는다", () => {
+  const pom = `<project><parent><version>3.4.0</version></parent>
+  <dependencies><dependency><version>9.9.9</version></dependency></dependencies></project>`;
+  assert.strictEqual(versionFromPom(pom), null);
 });
 
 test("detectVersionFromFiles: 폴백 경고 문구는 호출부가 준 hint를 쓴다 (대화형/CLI 분기)", () => {

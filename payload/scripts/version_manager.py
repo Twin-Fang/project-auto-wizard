@@ -23,7 +23,8 @@ Usage:
 
 Contract:
     - The LAST line printed to stdout is always the value (callers do `| tail -n 1`).
-    - Exit 0 on success; exit 1 on validation failure or missing version.yml.
+    - Exit 0 on success; exit 1 on validation failure, missing version.yml,
+      or when a version could not be written (e.g. invalid package.json).
 """
 
 import argparse
@@ -35,6 +36,10 @@ import sys
 from pathlib import Path
 
 VERSION_YML = "version.yml"
+
+
+class VersionSyncError(Exception):
+    """version.yml·프로젝트 파일에 버전을 쓰지 못했다 — exit 1로 알린다."""
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -283,7 +288,18 @@ def get_higher_version(v1, v2):
 
 
 def update_version_yml(new_version):
-    write_scalar_key("version", new_version)
+    if not write_scalar_key("version", new_version):
+        # 키가 없으면 아무것도 쓰지 않은 채 성공처럼 끝나 매번 같은 버전이 나왔다.
+        log("WARNING: version field missing in version.yml, adding it")
+        text = read_text()
+        line = f'version: "{new_version}"\n'
+        if re.search(r'^version_code:', text, re.MULTILINE):
+            new_text = re.sub(r'^(?=version_code:)', lambda _m: line, text, count=1, flags=re.MULTILINE)
+        else:
+            new_text = text.rstrip("\n") + "\n" + line
+        write_text(new_text)
+    if read_scalar_key("version") != new_version:
+        raise VersionSyncError(f"failed to write version {new_version} to version.yml")
     today = datetime.date.today().isoformat()
     user = os.environ.get("GITHUB_ACTOR", "")
     if not user:
@@ -316,22 +332,136 @@ def _write_nested_scalar(key, value):
 # Project file sync (type-specific)
 # ===================================================================
 
+_XML_TOKEN_RE = re.compile(
+    r'<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<![^>]*>|<(/?)([A-Za-z_][\w.:-]*)[^>]*?(/?)>',
+    re.DOTALL,
+)
+
+
+def _pom_text_span(text, path):
+    """루트(<project>) 기준 경로의 요소 텍스트 구간 (start, end). 없으면 None.
+    <parent>·<dependencies> 안의 <version>은 다른 아티팩트 버전이라 깊이로 구분한다."""
+    stack = []
+    start = None
+    target = list(path)
+    for m in _XML_TOKEN_RE.finditer(text):
+        name = m.group(2)
+        if not name:
+            continue  # 주석·CDATA·선언
+        if m.group(1):  # 닫는 태그
+            if start is not None and stack[1:] == target:
+                return start, m.start()
+            if stack:
+                stack.pop()
+            continue
+        if m.group(3):  # <tag/>
+            continue
+        stack.append(name)
+        if stack[1:] == target:
+            start = m.end()
+    return None
+
+
+def _pom_text(text, path):
+    span = _pom_text_span(text, path)
+    return text[span[0]:span[1]].strip() if span else None
+
+
+def _pom_replace(text, path, value):
+    span = _pom_text_span(text, path)
+    if not span:
+        return text, False
+    return text[:span[0]] + value + text[span[1]:], True
+
+
+def sync_maven(path_dir, new_version):
+    """pom.xml의 프로젝트 자신의 <version>만 바꾼다. 하위 모듈은 루트를 가리키는
+    <parent><version>(과 루트와 같던 자기 <version>)만 따라 올린다."""
+    root_pom = Path(path_dir) / "pom.xml"
+    if not root_pom.is_file():
+        return False
+    text = read_file(root_pom)
+    old_version = _pom_text(text, ["version"])
+    if old_version is None:
+        log(f"WARNING: spring: {root_pom} has no project <version> (inherited from parent?) — skipping")
+        return True
+    if "${" in old_version:
+        # ${revision} 같은 CI-friendly 버전은 프로퍼티 쪽에서 관리하므로 건드리지 않는다.
+        log(f"WARNING: spring: {root_pom} <version> is a property ({old_version}) — skipping")
+        return True
+    new_text, _ = _pom_replace(text, ["version"], new_version)
+    write_file(root_pom, new_text)
+    log(f"updated: {root_pom}")
+
+    root_artifact = _pom_text(text, ["artifactId"])
+    for child in sorted(Path(path_dir).glob("*/pom.xml")):
+        ctext = read_file(child)
+        if _pom_text(ctext, ["parent", "artifactId"]) != root_artifact:
+            continue
+        if _pom_text(ctext, ["parent", "version"]) != old_version:
+            continue
+        ctext, _ = _pom_replace(ctext, ["parent", "version"], new_version)
+        if _pom_text(ctext, ["version"]) == old_version:
+            ctext, _ = _pom_replace(ctext, ["version"], new_version)
+        write_file(child, ctext)
+        log(f"updated: {child}")
+    return True
+
+
+_GRADLE_VERSION_RE =re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])[^'"\n]*\2""", re.MULTILINE)
+
+
 def sync_spring(path_dir, new_version):
-    """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2)."""
+    """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2),
+    and pom.xml for Maven projects."""
     candidates = []
     for name in ("build.gradle", "build.gradle.kts"):
         for p in [Path(path_dir) / name] + list(Path(path_dir).glob("*/" + name)):
             if p.is_file():
                 candidates.append(p)
+    has_pom = sync_maven(path_dir, new_version)
     if not candidates:
-        log(f"WARNING: spring: no build.gradle(.kts) found under {path_dir} — skipping")
+        if not has_pom:
+            log(f"WARNING: spring: no build.gradle(.kts) or pom.xml found under {path_dir} — skipping")
         return
     for gradle_file in candidates:
         text = read_file(gradle_file)
-        new_text = re.sub(r"version\s*=\s*'[^']*'", f"version = '{new_version}'", text)
-        new_text = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{new_version}"', new_text)
+        # 줄 시작의 `version =`만 프로젝트 버전이다. 앵커가 없으면 kotlin_version 같은
+        # 의존성 버전 변수까지 함께 바뀌어 빌드가 깨진다.
+        new_text, count = _GRADLE_VERSION_RE.subn(
+            lambda m: f"{m.group(1)}{m.group(2)}{new_version}{m.group(2)}", text,
+        )
+        if count == 0:
+            log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
+            continue
         write_file(gradle_file, new_text)
         log(f"updated: {gradle_file}")
+
+
+def _pubspec_build_number(path_dir):
+    """pubspec.yaml `version: x.y.z+N`의 N. 없으면 None."""
+    target = Path(path_dir) / "pubspec.yaml"
+    if not target.is_file():
+        return None
+    m = re.search(r'^version:[ \t]*[^\s#+]+\+(\d+)', read_file(target), re.MULTILINE)
+    return int(m.group(1)) if m else None
+
+
+def get_reconciled_version_code():
+    """version.yml의 version_code와 pubspec.yaml의 +N 중 큰 값.
+    로컬 수동 배포 등으로 pubspec 쪽이 앞서 있으면 스토어는 더 작은 build number를
+    거부하므로, 그 값을 version.yml에 반영해 역행을 막는다."""
+    code = int(get_version_code())
+    types = get_project_types_csv()
+    pubspec_codes = [
+        n for n in (_pubspec_build_number(get_type_path(t)) for t in types if t == "flutter")
+        if n is not None
+    ]
+    if pubspec_codes and max(pubspec_codes) > code:
+        log(f"pubspec.yaml build number {max(pubspec_codes)} is ahead of version_code {code} — adopting it")
+        code = max(pubspec_codes)
+        set_version_code(code)
+    return code
 
 
 def sync_flutter(path_dir, new_version, version_code):
@@ -357,8 +487,8 @@ def sync_json_version(target, new_version, key_path):
     try:
         data = json.loads(read_file(target))
     except json.JSONDecodeError as e:
-        log(f"WARNING: {target} invalid JSON ({e}) — skipping")
-        return
+        # 건너뛰고 성공으로 끝내면 태그·version.yml과 패키지 버전이 조용히 어긋난다.
+        raise VersionSyncError(f"{target} is not valid JSON ({e}) — cannot write version")
     node = data
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
@@ -367,14 +497,36 @@ def sync_json_version(target, new_version, key_path):
     log(f"updated: {target}")
 
 
+_TOML_HEADER_RE = re.compile(r'^[ \t]*\[+[ \t]*([^\]\n]+?)[ \t]*\]+[ \t]*(?:#.*)?$', re.MULTILINE)
+_TOML_VERSION_RE = re.compile(r'^[ \t]*version[ \t]*=[ \t]*([\'"])([^\'"\n]*)\1', re.MULTILINE)
+
+
+def _pyproject_version_span(text):
+    """[project] 또는 [tool.poetry] 섹션의 version 값 구간. [tool.*] 등 다른 섹션의
+    `version =`은 도구 설정이라 패키지 버전으로 쓰지 않는다."""
+    headers = list(_TOML_HEADER_RE.finditer(text))
+    for i, h in enumerate(headers):
+        if h.group(1) not in ("project", "tool.poetry"):
+            continue
+        end = headers[i + 1].start() if i + 1 < len(headers) else len(text)
+        m = _TOML_VERSION_RE.search(text, h.end(), end)
+        if m:
+            return m.start(2), m.end(2)
+    return None
+
+
 def sync_python(path_dir, new_version):
     target = Path(path_dir) / "pyproject.toml"
     if not target.is_file():
         log(f"WARNING: python: {target} not found — skipping")
         return
     text = read_file(target)
-    new_text = re.sub(r'^version\s*=\s*"[^"]*"', f'version = "{new_version}"', text, count=1, flags=re.MULTILINE)
-    write_file(target, new_text)
+    span = _pyproject_version_span(text)
+    if span is None:
+        # dynamic = ["version"] 등 버전을 파일에 두지 않는 구성은 쓸 곳이 없다.
+        log(f"WARNING: python: no version in [project]/[tool.poetry] of {target} — skipping")
+        return
+    write_file(target, text[:span[0]] + new_version + text[span[1]:])
     log(f"updated: {target}")
 
 
@@ -437,8 +589,16 @@ def sync_all_project_files(new_version):
         # No silent fallback: an unreadable project_types used to degrade to
         # "basic" and skip every sync without a word.
         raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
+    errors = []
     for t in types:
-        sync_for_type(t, new_version, get_version_code)
+        # 한 타입이 실패해도 나머지는 맞춰 두고, 실패는 끝에서 모아 종료 코드로 알린다.
+        try:
+            sync_for_type(t, new_version, get_reconciled_version_code)
+        except VersionSyncError as e:
+            log(f"ERROR: {t}: {e}")
+            errors.append(t)
+    if errors:
+        raise VersionSyncError(f"project file sync failed for: {', '.join(errors)}")
 
 
 def update_all_versions(new_version):
@@ -463,6 +623,11 @@ def get_project_file_version(project_type):
                     if m:
                         version = m.group(1)
                     break
+            pom = Path(path_dir) / "pom.xml"
+            if version is None and pom.is_file():
+                pom_version = _pom_text(read_file(pom), ["version"])
+                if pom_version and SEMVER_RE.match(pom_version):
+                    version = pom_version
         elif project_type == "flutter":
             p = Path(path_dir) / "pubspec.yaml"
             if p.is_file():
@@ -501,10 +666,10 @@ def get_project_file_version(project_type):
         elif project_type == "python":
             p = Path(path_dir) / "pyproject.toml"
             if p.is_file():
-                text = p.read_text(encoding="utf-8")
-                m = re.search(r'^version\s*=\s*"(\d+\.\d+\.\d+)"', text, re.MULTILINE)
-                if m:
-                    version = m.group(1)
+                text = read_file(p)
+                span = _pyproject_version_span(text)
+                if span and SEMVER_RE.match(text[span[0]:span[1]]):
+                    version = text[span[0]:span[1]]
     except Exception as e:
         log(f"WARNING: failed reading project file for {project_type}: {e}")
         version = None
@@ -560,14 +725,14 @@ def cmd_get(args):
 
 def cmd_get_code(args):
     require_version_yml()
-    code = get_version_code()
+    code = get_reconciled_version_code()
     print(code)
     return 0
 
 
 def cmd_increment_code(args):
     require_version_yml()
-    current = int(get_version_code())
+    current = get_reconciled_version_code()
     new_code = current + 1
     set_version_code(new_code)
     print(new_code)
@@ -582,10 +747,9 @@ def cmd_increment(args):
         return 1
     bump = getattr(args, "bump", None) or "patch"
     new_version = increment_version(current_version, bump)
+    # build number를 먼저 올려야 이어지는 pubspec 동기화에 새 값이 함께 기록된다.
+    set_version_code(get_reconciled_version_code() + 1)
     update_all_versions(new_version)
-
-    current_code = int(get_version_code())
-    set_version_code(current_code + 1)
 
     print(new_version)
     return 0
@@ -640,7 +804,11 @@ def main(argv=None):
         "sync": cmd_sync,
     }
     handler = handlers[args.command]
-    return handler(args)
+    try:
+        return handler(args)
+    except VersionSyncError as e:
+        log(f"ERROR: {e}")
+        return 1
 
 
 if __name__ == "__main__":

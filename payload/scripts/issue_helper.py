@@ -99,20 +99,25 @@ def format_date_yyyymmdd(dt):
     return dt.strftime("%Y%m%d")
 
 
-_NON_ALNUM_KO_RE = re.compile(r"[^a-zA-Z0-9가-힣]")
+# 유니코드 문자·숫자는 모두 살린다. 한글·영문만 남기면 일본어 등 다른 언어 제목이
+# 통째로 사라져 브랜치명이 `_`로 끝나고 커밋 제목이 비었다.
+_NON_WORD_RE = re.compile(r"[\W_]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
+# 이모지·기호만 있는 제목처럼 정규화 결과가 비었을 때 쓰는 이름
+FALLBACK_TITLE = "issue"
 
 
 def normalize_title(title):
-    normalized = _NON_ALNUM_KO_RE.sub("_", title)
+    normalized = _NON_WORD_RE.sub("_", unicodedata.normalize("NFC", title))
     normalized = _MULTI_UNDERSCORE_RE.sub("_", normalized)
     return normalized.strip("_")
 
 
 def create_branch_name(issue_title, issue_number, date_yyyymmdd, branch_prefix, max_branch_length):
-    normalized_title = normalize_title(issue_title)
+    normalized_title = normalize_title(issue_title) or FALLBACK_TITLE
     base = f"{date_yyyymmdd}_#{issue_number}_{normalized_title}"
-    limited_base = base[:max_branch_length] if max_branch_length > 0 else base
+    # 절단 지점이 구분자면 `_`로 끝나지 않게 정리한다.
+    limited_base = base[:max_branch_length].rstrip("_") if max_branch_length > 0 else base
     return f"{branch_prefix}{limited_base}"
 
 
@@ -127,7 +132,7 @@ def render_commit_message(template, issue_title, issue_url, issue_number, branch
 
 
 def normalize_all(title, issue_url, issue_number, date_yyyymmdd, branch_prefix, max_branch_length, commit_template):
-    normalized_title = normalize_title(title)
+    normalized_title = normalize_title(title) or FALLBACK_TITLE
     branch_name = create_branch_name(title, issue_number, date_yyyymmdd, branch_prefix, max_branch_length)
     commit_message = render_commit_message(
         commit_template, normalized_title, issue_url, issue_number, branch_name, date_yyyymmdd,
@@ -272,7 +277,31 @@ def create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch
     log(f"브랜치 생성됨: {branch_name}")
 
 
+def filter_existing_issues(owner, repo, issue_numbers, token):
+    """레포에 실제로 있는 이슈 번호만 남긴다. 브랜치명의 번호가 오타이거나 다른 레포
+    기준이면 없는 이슈를 Closes로 걸고 "연결 완료"로 기록하게 된다.
+    조회 자체가 실패(권한·일시 오류)하면 확인할 수 없으므로 그대로 둔다."""
+    kept = []
+    for n in issue_numbers:
+        status, data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/issues/{n}", token)
+        if status in (404, 410):
+            print(f"::warning::이슈 #{n}이 레포에 없어 PR 본문 Closes 연결에서 제외합니다", file=sys.stderr)
+            continue
+        if status < 400 and isinstance(data, dict) and data.get("pull_request"):
+            print(f"::warning::#{n}은 이슈가 아니라 PR이라 Closes 연결에서 제외합니다", file=sys.stderr)
+            continue
+        if status >= 400:
+            log(f"이슈 #{n} 확인 실패({status}) — 확인하지 못해 그대로 연결합니다")
+        kept.append(n)
+    return kept
+
+
 def link_pr_issues(owner, repo, pr_number, issue_numbers, token, replace_existing):
+    issue_numbers = filter_existing_issues(owner, repo, issue_numbers, token)
+    if not issue_numbers:
+        log(f"연결할 이슈가 없음 — 건너뜀 (PR #{pr_number})")
+        return
+
     status, pr_data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}", token)
     if status >= 400:
         raise RuntimeError(f"PR 조회 실패({status}): {pr_number}")
