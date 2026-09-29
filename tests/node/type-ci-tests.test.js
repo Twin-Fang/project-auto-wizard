@@ -59,3 +59,22 @@ for (const file of ["react/PROJECT-REACT-CI.yaml", "next/PROJECT-NEXT-CI.yaml"])
     assert.ok(text.indexOf("- name: 테스트 실행") < text.indexOf("- name: 프로젝트 빌드"));
   });
 }
+
+test("Flutter CI: 테스트가 있으면 flutter test를 실행해 실패를 CI Gate까지 올리고, 없으면 건너뛴다", () => {
+  const text = read("flutter/PROJECT-FLUTTER-CI.yaml");
+  const block = stepBlock(text, "Run Flutter Test");
+  assert.ok(block, "flutter test 스텝 없음");
+  assert.match(block, /flutter test/);
+  assert.match(block, /find test -name '\*_test\.dart'/, "테스트 파일이 없으면 건너뛰어야 한다");
+  assert.match(block, /::notice::|::notice title=/, "건너뛸 때 이유를 남겨야 한다");
+  assert.doesNotMatch(block, /continue-on-error/, "테스트 실패가 job 실패로 이어져야 한다");
+  // CI Gate가 needs로 집계하는 analyze job 안에 있어야 실패가 게이트에 반영된다
+  const analyzeJob = text.slice(text.indexOf("\n  analyze:\n"), text.indexOf("\n  build-android:\n"));
+  assert.ok(analyzeJob.includes("- name: Run Flutter Test"), "analyze job 밖에 있음");
+  assert.ok(analyzeJob.indexOf("- name: Run Flutter Analyze") < analyzeJob.indexOf("- name: Run Flutter Test"));
+  const gate = text.slice(text.indexOf("\n  ci-gate:\n"));
+  assert.match(gate, /needs: \[[^\]]*\banalyze\b/);
+  // 결과 댓글에도 테스트 결과가 나와야 한다
+  assert.match(text, /test_status: \$\{\{ steps\.result\.outputs\.test_status \}\}/);
+  assert.match(text, /\| 🧪 Test \| \$\{testDisplay\}/);
+});
