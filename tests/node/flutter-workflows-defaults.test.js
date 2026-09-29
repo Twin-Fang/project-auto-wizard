@@ -97,3 +97,15 @@ test("빈 서명·자격증명 Secret을 성공처럼 넘기지 않는다", () =
   assert.ok(selfhosted.includes('if [ -z "$DEBUG_KEYSTORE" ]; then'), "SELFHOSTED: DEBUG_KEYSTORE 검사 누락");
   assert.ok(selfhosted.includes("# DEBUG_KEYSTORE:"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
 });
+
+test("수동 실행(workflow_dispatch) 배포 모드 기본값이 설치 시 선택한 모드를 따른다", async () => {
+  const { makeSrcText } = await import("../../src/core/copy/workflows.js");
+  const { substituteEnv } = await import("../../src/core/wizard-env.js");
+  for (const [f, token] of [["PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml", "android-deploy-mode"], ["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml", "ios-deploy-mode"]]) {
+    assert.ok(read(f).includes(`        default: "store_only"  # @wizard auto:${token}\n`), `${f}: dispatch 기본값 마커 누락`);
+    const source = makeSrcText({ main: "main", develop: "develop", mode: "pr-flow" })(join(FLUTTER_DIR, f));
+    const rendered = substituteEnv(source, { type: "flutter", resolvers: { [token]: () => "store_submit" } });
+    assert.ok(rendered.includes('        default: "store_submit"\n'), `${f}: dispatch 기본값이 선택값으로 바뀌지 않았습니다`);
+    assert.ok(rendered.includes("|| 'store_submit' }}"), `${f}: 폴백과 dispatch 기본값이 어긋납니다`);
+  }
+});

@@ -25,7 +25,7 @@ on:
       deploy_mode:
         description: "배포 모드 (store_only=internal까지 / store_prepare=production draft / store_submit=심사 자동등록)"
         required: false
-        default: "store_only"
+        default: "store_only"  # @wizard auto:android-deploy-mode
         type: choice
         options:
           - store_only

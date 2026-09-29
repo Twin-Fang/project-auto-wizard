@@ -79,7 +79,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
       if (!content.includes("@wizard")) continue;
       const workflowName = workflowDisplayName(prompts, filename);
       for (const line of content.split(/\r?\n/)) {
-        const p = parseWizardLine(line); // KEY 정규식 [A-Z_]+ (.sh와 동일)
+        const p = parseWizardLine(line);
         if (!p || p.action !== "ask") continue;
         // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴 (.sh _type_default 등가)
         const rawDefault = p.arg.startsWith("@")

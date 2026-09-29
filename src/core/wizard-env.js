@@ -2,10 +2,11 @@
 // ⚠️ YAML 파싱/재직렬화 금지 — 라인 단위 문자열 처리 (포맷·주석 보존이 unchanged 판정 전제).
 // 실측 기준: template_integrator.sh 3282~3360, 3003~3012.
 
-// KEY 정규식: .sh는 [A-Z_]+ (대문자+언더스코어만). ask/auto/fallback 마커가 있는 라인만 대상.
+// KEY 정규식: env 키(대문자)에 더해 workflow_dispatch 입력의 `default:`처럼 소문자 키도 받는다.
+// 마커가 붙은 줄만 대상이라 넓혀도 다른 줄에는 영향이 없다.
 // fallback은 `KEY: ${{ 런타임값 || 'literal' }}` 표현식 안의 기본 리터럴을 교체하는 마커다.
 const MARKER_RE = /#\s*@wizard\s+(ask|auto|fallback):(.*)$/;
-const KEY_RE = /^(\s*)([A-Z_]+):/;
+const KEY_RE = /^(\s*)([A-Za-z_]+):/;
 const PATHS_ANCHOR_RE = /#\s*@wizard\s+paths-anchor/;
 
 // 한 라인을 파싱해 {indent,key,action,arg} 반환. ask/auto/fallback 마커 없으면 null.
