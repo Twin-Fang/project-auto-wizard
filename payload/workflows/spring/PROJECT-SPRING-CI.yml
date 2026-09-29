@@ -87,7 +87,8 @@ jobs:
       run: |
         set +e
         ./gradlew compileJava compileTestJava 2>&1 | tee compile_output.txt
-        echo "compile_exit_code=$?" >> $GITHUB_OUTPUT
+        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        echo "compile_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
 
@@ -96,7 +97,8 @@ jobs:
       run: |
         set +e
         ./gradlew test 2>&1 | tee test_output.txt
-        echo "test_exit_code=$?" >> $GITHUB_OUTPUT
+        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        echo "test_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
 
@@ -105,7 +107,8 @@ jobs:
       run: |
         set +e
         ./gradlew build -x test 2>&1 | tee build_output.txt
-        echo "build_exit_code=$?" >> $GITHUB_OUTPUT
+        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        echo "build_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
 
