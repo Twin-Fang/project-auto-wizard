@@ -396,3 +396,65 @@ test("릴리스 PR 버전 확정은 재실행·추가 push·main 역병합에도
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// 안전망 릴리스의 노트가 고정 문구로 나가지 않도록 CHANGELOG 항목을 만든다.
+test("VERSION-CONTROL 안전망 경로는 마지막 태그 이후 커밋으로 CHANGELOG를 갱신하고 export가 그 내용을 낸다", (t) => {
+  if (process.platform === "win32") {
+    t.skip("워크플로우 셸 조각은 ubuntu 러너용 bash 전제");
+    return;
+  }
+  if (findPython() !== "python3") {
+    t.skip("워크플로우 조각은 python3 명령을 전제");
+    return;
+  }
+  const body = read(payloadPath("VERSION-CONTROL"));
+  const s = body.slice(body.indexOf("- name: Update CHANGELOG for the safety-net release"), body.indexOf("- name: Commit and push changes"));
+  assert.ok(s.includes("if: steps.release_guard.outputs.skip != 'true'"));
+  const snippet = s.slice(s.indexOf("run: |") + 7).split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n")
+    .replaceAll("{{MAIN_BRANCH}}", "main")
+    .replaceAll("${{ steps.version.outputs.new_version }}", "0.3.1")
+    .replaceAll("${{ steps.project_info.outputs.project_types }}", "node");
+
+  const dir = mkdtempSync(join(tmpdir(), "paw-safety-"));
+  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1" };
+  const run = (cmd, args) => {
+    const r = spawnSync(cmd, args, { cwd: dir, encoding: "utf-8", env });
+    assert.strictEqual(r.status, 0, `${cmd} ${args.join(" ")}\n${r.stdout}\n${r.stderr}`);
+    return r.stdout;
+  };
+  const git = (...args) => run("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args]);
+  try {
+    mkdirSync(join(dir, ".github", "scripts"), { recursive: true });
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+      writeFileSync(join(dir, ".github", "scripts", f), read(join("payload", "scripts", f)));
+    }
+    git("init", "-q");
+    git("commit", "-q", "--allow-empty", "-m", "feat: 지난 릴리스에 들어간 기능");
+    git("tag", "v0.3.0");
+    git("commit", "-q", "--allow-empty", "-m", "fix: main 직접 핫픽스");
+    run("bash", ["-e", "-c", snippet]);
+
+    const changelog = JSON.parse(read(join(dir, "CHANGELOG.json")));
+    assert.strictEqual(changelog.releases[0].version, "0.3.1");
+    assert.ok(read(join(dir, "CHANGELOG.md")).includes("## [0.3.1]"));
+    for (const f of ["commits.txt", "summary.md", "pr_body.md"]) {
+      assert.throws(() => readFileSync(join(dir, f)), `${f} 작업 파일이 남았다`);
+    }
+
+    const notes = run("python3", [join(".github", "scripts", "changelog_manager.py"), "export", "--version", "0.3.1"]);
+    assert.ok(notes.includes("main 직접 핫픽스"), `릴리스 노트에 실제 커밋이 없다:\n${notes}`);
+    assert.ok(!notes.includes("지난 릴리스에 들어간 기능"), "지난 태그 이전 커밋이 섞였다");
+    assert.ok(!notes.includes("앱 안정성"), "고정 문구로 떨어졌다");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+for (const path of bothCopies("VERSION-CONTROL")) {
+  test(`${path}: 안전망 커밋이 새로 생긴 CHANGELOG도 올린다`, () => {
+    const body = read(path);
+    const idx = body.indexOf("- name: Commit and push changes");
+    const step = body.slice(idx, idx + 1200);
+    assert.ok(step.includes("git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md"));
+  });
+}
