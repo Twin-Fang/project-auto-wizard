@@ -5,7 +5,7 @@ import { join, posix } from "node:path";
 import { existsSync, readdirSync, rmdirSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
-import { planRemoval } from "../core/removal-plan.js";
+import { planRemoval, backupArtifacts } from "../core/removal-plan.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
@@ -54,7 +54,10 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
     baseline: selection.workflows ? removalPlan.baseline : [],
     scripts: selection.scripts ? removalPlan.scripts : [],
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
-    gitignore: selection.gitignore ? hasAutoAddedEntries(targetRoot) : false,
+    // 워크플로우를 남기면 그 백업 파일(.bak 등)도 남는다 — .gitignore 항목을 지우면 git 상태에 드러나므로 유지한다.
+    gitignore: selection.gitignore
+      ? hasAutoAddedEntries(targetRoot) && (selection.workflows || backupArtifacts(removalPlan.workflows).length === 0)
+      : false,
     versionYml: selection.versionYml ? existsSync(join(targetRoot, PATHS.versionFile)) : false,
   };
 }
