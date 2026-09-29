@@ -46,6 +46,8 @@ npm run test:py   # Python 테스트만 (tests/py)
 2. PR은 `develop`을 향해 엽니다(이 레포는 pr-flow 브랜치 모드를 사용합니다).
 3. `npm test`가 통과하는지 확인하세요.
 4. PR 설명에 "무엇을 왜 바꿨는지"를 적어 주세요.
+5. `README.md`(영어)를 바꾸면 `README.ko.md`, `README.zh-CN.md`, `README.ja.md`도 같은 PR에서 함께 고치세요. 번역이 어려우면 `type: docs` 라벨로 후속 이슈를 열어 두세요. 섹션 수와 언어 전환 줄은 `tests/node/readme-translations.test.js`가 확인합니다.
+   - 릴리스 워크플로우가 자동으로 갱신하는 버전 섹션(`AUTO-VERSION-SECTION`)은 `README.md`에만 있습니다. 번역본은 [CHANGELOG.md](CHANGELOG.md)로 연결하며 버전 번호를 적지 않습니다.
 
 ## 이슈
 
