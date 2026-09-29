@@ -290,6 +290,41 @@ class TestSyncReactNative(SyncTestCase):
         self.assertIn('versionName "1.2.3"', gradle_text)
 
 
+class TestSyncReactNativePlistScope(SyncTestCase):
+    def _plist(self, path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "<plist><dict><key>CFBundleShortVersionString</key>"
+            f"<string>{value}</string></dict></plist>\n", encoding="utf-8")
+
+    def test_pods_and_build_variable_plists_are_left_alone(self):
+        tmp = self.make_tmp("react-native")
+        ios = Path(tmp) / "ios"
+        pods = ios / "Pods" / "Info.plist"
+        self._plist(pods, "9.9.9")
+        self._plist(ios / "Pods" / "SomeLib" / "Info.plist", "3.0.0")
+        var = ios / "MyAppTests" / "Info.plist"
+        self._plist(var, "$(MARKETING_VERSION)")
+        run(["set", "1.2.3"], tmp)
+        r = run(["sync"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("<string>9.9.9</string>", pods.read_text(encoding="utf-8"))
+        self.assertIn("<string>3.0.0</string>", (ios / "Pods" / "SomeLib" / "Info.plist").read_text(encoding="utf-8"))
+        self.assertIn("$(MARKETING_VERSION)", var.read_text(encoding="utf-8"))
+        self.assertIn("<string>1.2.3</string>", (ios / "App" / "Info.plist").read_text(encoding="utf-8"))
+
+    def test_app_plist_with_build_variable_is_not_overwritten(self):
+        tmp = self.make_tmp("react-native")
+        plist = Path(tmp) / "ios" / "App" / "Info.plist"
+        self._plist(plist, "$(MARKETING_VERSION)")
+        run(["set", "1.2.3"], tmp)
+        r = run(["sync"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("$(MARKETING_VERSION)", plist.read_text(encoding="utf-8"))
+        gradle = (Path(tmp) / "android" / "app" / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn('versionName "1.2.3"', gradle)
+
+
 class TestSyncExpo(SyncTestCase):
     def test_sync_updates_app_json_expo_version(self):
         tmp = self.make_tmp("react-native-expo")
@@ -441,3 +476,4 @@ class TestVersionSuffixesAndSources(SyncTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

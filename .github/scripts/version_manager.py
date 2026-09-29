@@ -436,8 +436,6 @@ def sync_maven(path_dir, new_version):
 
 
 _GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*)\2""", re.MULTILINE)
-
-
 def sync_spring(path_dir, new_version):
     """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2),
     and pom.xml for Maven projects."""
@@ -586,21 +584,36 @@ def sync_python(path_dir, new_version):
         log(f"updated: {target}")
 
 
+_PLIST_VERSION_RE = re.compile(r'(<key>CFBundleShortVersionString</key>\s*<string>)([^<]*)(</string>)')
+
+
+def _rn_app_plists(ios_dir):
+    """앱 타깃의 Info.plist만 이름순으로. Pods·빌드 산출물·테스트 타깃은 우리 버전이 아니다.
+    읽기와 동기화가 같은 파일 집합을 보도록 한 곳에서 고른다."""
+    skip = {"Pods", "build"}
+    return [
+        p for p in sorted(ios_dir.glob("*/Info.plist"))
+        if p.parent.name not in skip and not p.parent.name.endswith("Tests")
+    ]
+
+
 def sync_react_native(path_dir, new_version):
     ios_dir = Path(path_dir) / "ios"
     found_plist = False
     if ios_dir.is_dir():
-        for plist_file in ios_dir.rglob("Info.plist"):
+        for plist_file in _rn_app_plists(ios_dir):
             text = read_file(plist_file)
-            if "CFBundleShortVersionString" in text:
-                new_text = re.sub(
-                    r'(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)',
-                    r'\g<1>' + new_version + r'\g<2>',
-                    text,
-                )
-                write_file(plist_file, new_text)
-                log(f"updated: {plist_file}")
-                found_plist = True
+            m = _PLIST_VERSION_RE.search(text)
+            if not m:
+                continue
+            # $(MARKETING_VERSION) 같은 빌드 변수 참조는 Xcode 설정이 원본이라 덮어쓰지 않는다.
+            if m.group(2).strip().startswith("$("):
+                log(f"skipped: {plist_file} — CFBundleShortVersionString references a build variable")
+                continue
+            new_text = _PLIST_VERSION_RE.sub(lambda mm: mm.group(1) + new_version + mm.group(3), text)
+            write_file(plist_file, new_text)
+            log(f"updated: {plist_file}")
+            found_plist = True
     else:
         log(f"WARNING: react-native: {ios_dir} not found — skipping")
 
@@ -725,10 +738,9 @@ def _read_react_native(path_dir):
     $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아닌 값은 건너뛴다."""
     ios_dir = Path(path_dir) / "ios"
     if ios_dir.is_dir():
-        # rglob 첫 결과는 파일시스템 순서라 Pods·테스트 타깃 plist가 걸릴 수 있다 — 앱 폴더 한 단계만, 이름순.
-        for plist in sorted(ios_dir.glob("*/Info.plist")):
-            m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', read_file(plist))
-            version = core_version(m.group(1)) if m else None
+        for plist in _rn_app_plists(ios_dir):
+            m = _PLIST_VERSION_RE.search(read_file(plist))
+            version = core_version(m.group(2)) if m else None
             if version:
                 return version
     gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
