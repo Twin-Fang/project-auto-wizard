@@ -196,8 +196,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
           else io.note?.("버전 형식이 올바르지 않습니다 (x.y.z 형태) — 기존 값을 유지합니다.", "⚠ 버전");
         }
       } else if (what === "branch") {
-        const b = await io.askText("기본 브랜치", branch);
-        if (!isCancel(b) && b) branch = b;
+        branch = await askBranchName(io, "기본 브랜치", branch, isCancel);
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
@@ -370,14 +369,23 @@ export async function pickBranch(io, message, def, remoteBranches, isCancel) {
     options.push({ value: "__custom__", label: "직접 입력..." });
     const initialIndex = Math.max(0, options.findIndex((o) => o.value === def));
     const sel = await io.engineIo.select({ message, options, initialIndex });
-    if (sel === "__custom__") {
-      const v = await io.askText("브랜치 이름", def);
-      return isCancel(v) || !v ? def : v;
-    }
+    if (sel === "__custom__") return askBranchName(io, "브랜치 이름", def, isCancel);
     return isCancel(sel) || sel == null ? def : sel;
   }
-  const v = await io.askText(message, def);
-  return isCancel(v) || !v ? def : v;
+  return askBranchName(io, message, def, isCancel);
+}
+
+// 브랜치 이름 텍스트 입력 — 앞뒤 공백을 떼고, 비었거나 ESC면 기본값, 쓸 수 없는 이름이면 다시 묻는다.
+// 입력값이 워크플로우 트리거에 그대로 들어가므로 공백 포함 이름 등은 워크플로우가 영영 돌지 않는다.
+async function askBranchName(io, message, def, isCancel) {
+  for (;;) {
+    const v = await io.askText(message, def);
+    if (isCancel(v)) return def;
+    const name = String(v ?? "").trim();
+    if (!name) return def;
+    if (isValidBranchName(name)) return name;
+    io.note?.(`'${name}'은(는) 브랜치 이름으로 쓸 수 없습니다 (공백·특수문자·'..' 등 불가) — 다시 입력하세요.`, "⚠ 브랜치");
+  }
 }
 
 function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault }) {

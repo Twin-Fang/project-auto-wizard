@@ -41,6 +41,17 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.developBranch, "dev");
 });
 
+test("parseArgs: 공백만·공백 포함·git에서 쓸 수 없는 브랜치 이름은 CliError를 던진다", () => {
+  for (const bad of ["   ", "dev branch", "(unknown)", "a..b", "feature/"]) {
+    assert.throws(() => parseArgs(["--main-branch", bad]), CliError, `--main-branch '${bad}'`);
+    assert.throws(() => parseArgs(["--develop-branch", bad]), CliError, `--develop-branch '${bad}'`);
+  }
+});
+
+test("parseArgs: 브랜치 이름 앞뒤 공백은 떼고 받는다", () => {
+  assert.strictEqual(parseArgs(["--main-branch", " release "]).mainBranch, "release");
+});
+
 // ── --semver-auto 상호 모순 플래그 거부 ──
 
 test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {

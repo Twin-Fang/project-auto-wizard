@@ -1,6 +1,7 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
 import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { isValidBranchName } from "../core/branches.js";
 import {
   ENV_MODES, DEPLOY_MODES, STORE_PLATFORMS, NO_STORE, isEnvMode, isDeployMode, parseStoreList,
 } from "../core/flutter-options.js";
@@ -133,15 +134,13 @@ export function parseArgs(argv) {
         if (seenFlags.has("--copilot")) throw new CliError("--copilot과 --no-copilot은 동시에 지정할 수 없습니다");
         seenFlags.add("--no-copilot"); result.includeCopilotAi = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
-      case "--main-branch": {
-        const v = args.shift();
-        if (!v) throw new CliError("--main-branch에 빈 값을 지정할 수 없습니다");
-        result.mainBranch = v; break;
-      }
-      case "--develop-branch": {
-        const v = args.shift();
-        if (!v) throw new CliError("--develop-branch에 빈 값을 지정할 수 없습니다");
-        result.developBranch = v; break;
+      case "--main-branch": case "--develop-branch": {
+        const v = (args.shift() ?? "").trim();
+        if (!v) throw new CliError(`${a}에 빈 값을 지정할 수 없습니다`);
+        // 워크플로우 트리거·셸 명령에 그대로 치환되는 값이라 쓸 수 없는 이름은 설치 전에 거부한다.
+        if (!isValidBranchName(v)) throw new CliError(`${a} 값이 브랜치 이름으로 올바르지 않습니다: '${v}'`);
+        if (a === "--main-branch") result.mainBranch = v; else result.developBranch = v;
+        break;
       }
       case "-h": case "--help": result.help = true; break;
       default:
