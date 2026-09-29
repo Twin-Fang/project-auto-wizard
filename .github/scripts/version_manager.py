@@ -436,6 +436,37 @@ def sync_maven(path_dir, new_version):
 
 
 _GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*)\2""", re.MULTILINE)
+_GRADLE_SHARED_BLOCKS = ("allprojects", "subprojects")
+
+
+def _gradle_version_matches(text):
+    """프로젝트 버전 줄의 match 목록. 읽기와 동기화가 이 한 곳을 공유해 같은 줄만 다룬다.
+
+    들여쓰지 않은 `version =`이 있으면 그것만 쓴다. 없을 때만 allprojects/subprojects 블록 안의
+    들여쓴 줄을 인정한다 — `node { version = '20.11.0' }` 같은 플러그인 설정 블록을
+    프로젝트 버전으로 오인하면 버전이 뛰고 빌드 설정이 깨진다."""
+    top, shared = [], []
+    stack = []  # 열린 블록 이름. 줄 끝이 `{`로 끝나는 줄의 마지막 단어
+    pos = 0
+    for line in text.splitlines(keepends=True):
+        m = _GRADLE_VERSION_RE.match(line)
+        if m:
+            m = _GRADLE_VERSION_RE.match(text, pos)
+            if not m.group(1)[:1].isspace():
+                top.append(m)
+            elif any(b in _GRADLE_SHARED_BLOCKS for b in stack):
+                shared.append(m)
+        code = line.split("//", 1)[0]
+        name = re.search(r"(\w+)\s*\{[^{}]*$", code)
+        for ch in code:
+            if ch == "{":
+                stack.append(name.group(1) if name else "")
+            elif ch == "}" and stack:
+                stack.pop()
+        pos += len(line)
+    return top or shared
+
+
 def sync_spring(path_dir, new_version):
     """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2),
     and pom.xml for Maven projects."""
@@ -453,10 +484,13 @@ def sync_spring(path_dir, new_version):
         text = read_file(gradle_file)
         # 줄 시작의 `version =`만 프로젝트 버전이다. 앵커가 없으면 kotlin_version 같은
         # 의존성 버전 변수까지 함께 바뀌어 빌드가 깨진다.
-        new_text, count = _GRADLE_VERSION_RE.subn(
-            lambda m: f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}", text,
-        )
-        if count == 0:
+        matches = _gradle_version_matches(text)
+        new_text = text
+        # 뒤에서부터 바꿔 앞쪽 span이 밀리지 않게 한다.
+        for m in reversed(matches):
+            replaced = f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}"
+            new_text = new_text[:m.start()] + replaced + new_text[m.end():]
+        if not matches:
             log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
             continue
         write_file(gradle_file, new_text)
@@ -704,7 +738,7 @@ def _read_spring(path_dir):
     for name in ("build.gradle", "build.gradle.kts"):
         p = Path(path_dir) / name
         if p.is_file():
-            for m in _GRADLE_VERSION_RE.finditer(read_file(p)):
+            for m in _gradle_version_matches(read_file(p)):
                 version = core_version(m.group(3))
                 if version:
                     return version

@@ -50,6 +50,42 @@ class TestSyncSpring(SyncTestCase):
         self.assertIn('version = "1.2.3"', text)
 
 
+class TestSyncSpringIndentedVersion(SyncTestCase):
+    """들여쓴 `version =`(플러그인 설정 블록 등)은 프로젝트 버전이 아니다."""
+
+    def _gradle(self, body):
+        tmp = self.make_tmp("spring")
+        gradle = Path(tmp) / "build.gradle"
+        gradle.write_text(body, encoding="utf-8")
+        return tmp, gradle
+
+    def test_plugin_block_version_is_not_the_project_version(self):
+        tmp, gradle = self._gradle(
+            "node {\n    version = '20.11.0'\n}\n\ngroup = 'com.example'\nversion = '1.7.2'\n")
+        self.assertEqual(last_line(run(["get"], tmp)), "1.7.2")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = gradle.read_text(encoding="utf-8")
+        self.assertIn("    version = '20.11.0'", text)
+        self.assertIn("\nversion = '1.7.3'", text)
+
+    def test_allprojects_block_version_is_the_project_version(self):
+        tmp, gradle = self._gradle(
+            "node {\n    version = '20.11.0'\n}\n\nallprojects {\n    version = '2.3.4'\n}\n")
+        self.assertEqual(last_line(run(["get"], tmp)), "2.3.4")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = gradle.read_text(encoding="utf-8")
+        self.assertIn("    version = '20.11.0'", text)
+        self.assertIn("    version = '2.3.5'", text)
+
+    def test_only_plugin_block_version_is_not_synced(self):
+        tmp, gradle = self._gradle("node {\n    version = '20.11.0'\n}\n")
+        run(["set", "1.2.3"], tmp)
+        run(["sync"], tmp)
+        self.assertIn("version = '20.11.0'", gradle.read_text(encoding="utf-8"))
+
+
 class TestSyncSpringDependencyVersions(SyncTestCase):
     def test_increment_leaves_kotlin_version_variable_untouched(self):
         tmp = self.make_tmp("spring")
@@ -477,3 +513,35 @@ class TestVersionSuffixesAndSources(SyncTestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+class TestGetReconcilesFilesToCore(SyncTestCase):
+    """get은 값을 읽기만 하는 것처럼 보여도, 동기화 단계가 파일을 x.y.z 코어로 다시 맞춘다."""
+
+    def test_get_rewrites_package_json_prerelease_to_core(self):
+        tmp = self.make_tmp("react")
+        pkg = Path(tmp) / "package.json"
+        data = json.loads(pkg.read_text(encoding="utf-8"))
+        data["version"] = "2.0.0-beta.1"
+        pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        # version.yml이 이미 같은 코어 버전이면 동기화 단계가 파일을 코어로 다시 쓴다.
+        run(["set", "2.0.0"], tmp)
+        pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "2.0.0")
+        self.assertEqual(json.loads(pkg.read_text(encoding="utf-8"))["version"], "2.0.0")
+
+    def test_get_rewrites_pubspec_prerelease_keeping_build_number(self):
+        tmp = self.make_tmp("flutter")
+        pubspec = Path(tmp) / "pubspec.yaml"
+        run(["set", "1.2.3"], tmp)
+        pubspec.write_text("name: my_app\nversion: 1.2.3-rc.1+4\n", encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "1.2.3")
+        self.assertIn("version: 1.2.3+4", pubspec.read_text(encoding="utf-8"))
+
+    def test_pyproject_and_setup_py_are_both_updated(self):
+        tmp = self.make_tmp("python-proj")
+        (Path(tmp) / "pyproject.toml").write_text('[project]\nname = "my-app"\nversion = "0.9.0"\n', encoding="utf-8")
+        (Path(tmp) / "setup.py").write_text('from setuptools import setup\nsetup(name="my-app", version="0.9.0")\n', encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('version = "0.9.1"', (Path(tmp) / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertIn('version="0.9.1"', (Path(tmp) / "setup.py").read_text(encoding="utf-8"))

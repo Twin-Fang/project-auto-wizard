@@ -27,6 +27,7 @@
 # - go: (none — git tag based, go.mod has no version field)
 # - basic: version.yml only
 # A file version like 1.2.0-rc.1 or 1.2.0+4 is read as 1.2.0 (version below is x.y.z only).
+# Synced files are rewritten to x.y.z as well, so even `get` turns 2.0.0-beta.1 in package.json into 2.0.0.
 # Gradle/Maven -SNAPSHOT is kept when the version is bumped (1.2.0-SNAPSHOT -> 1.2.1-SNAPSHOT).
 # ===
 
