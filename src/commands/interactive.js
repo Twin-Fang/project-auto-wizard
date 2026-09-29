@@ -5,7 +5,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "../core/detect-fs.js";
+import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "../core/detect-fs.js";
 import { parseExisting } from "../core/version-yml.js";
 import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
@@ -15,8 +15,9 @@ import {
 } from "../core/branches.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
-import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows, effectiveDeployStyle } from "../core/deploy-style.js";
+import { VALID_TYPES } from "../context.js";
+import { savedDeployStyle, resolveDeployStyle, resolveVersion, resolveVersionCode, buildInstallContext } from "./install-settings.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
@@ -83,8 +84,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 먼저 나와 앞선 질문에 대한 경고처럼 보였다. 안내 문구도 대화형용으로 바꾼다.
   const detectWarnings = [];
   let types = detectTypes(cwd);
-  let version = (existing?.version) || detectVersion(cwd, {
-    types,
+  let version = resolveVersion({
+    cwd, existing, types,
     warn: (m) => detectWarnings.push(m),
     hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
   });
@@ -100,7 +101,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
     { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
   // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
-  let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
+  let deployStyle = savedDeployStyle(existing);
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
@@ -295,7 +296,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
     version = detectVersion(cwd, { types, paths, warn: () => {} });
   }
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
+  const versionCode = resolveVersionCode({ cwd, existing, types, paths });
 
   // @wizard env 계획 질문 (full/workflows만)
   const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);
@@ -312,20 +313,17 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }
 
   const { now, today } = clock || utcNow();
-  const ctx = createContext({
-    mode, force: true, types, version, versionCode, branch, branches, paths,
-    includeSemverAuto,
-    includeCopilotAi,
-    repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
+  const ctx = buildInstallContext({
+    payload, existing, templateVersion, types,
+    // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    deployStyle: resolveDeployStyle({ payload, types, explicit: deployStyle, existing }),
+    flutterOptions,
+    releaseOptions: { includeSemverAuto, includeCopilotAi },
+    mode, force: true, version, versionCode, branch, branches, paths,
+    repoName, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
-    // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
-    deployStyle: hasServerDeploy() ? effectiveDeployStyle(payload, types, deployStyle || DEFAULT_DEPLOY_STYLE) : null,
-    envMode: flutterOptions.envMode, flutterStore: flutterOptions.stores,
-    androidDeployMode: flutterOptions.androidDeployMode, iosDeployMode: flutterOptions.iosDeployMode,
-    previousTemplateVersion: existing?.templateVersion || "",
   });
-  ctx.templateVersion = templateVersion;
 
   // 사용자가 답해야 하는 것만 묻는다. baseline 3-way가 자동으로 안전한 경우를
   // 걸러내므로, 여기 오는 것은 (a) 양쪽이 다 바뀐 진짜 충돌과 (b) 사용자가 지운 파일뿐이다.
