@@ -1,14 +1,15 @@
 // tests/node/readme-flutter-docs.test.js
 // README Flutter 문서에 빠지면 안 되는 항목과 doctor가 링크하는 앵커를 가드한다.
+// Flutter 상세는 전체 문서인 README.ko.md에 있다.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { DOC } from "../../src/commands/doctor.js";
 
-const README = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
+const README = readFileSync(new URL("../../README.ko.md", import.meta.url), "utf8");
 
 test("README: doctor가 링크하는 #flutter-store 앵커가 존재한다", () => {
-  assert.ok(DOC.flutterStore.endsWith("#flutter-store"));
+  assert.ok(DOC.flutterStore.endsWith("README.ko.md#flutter-store"));
   assert.ok(README.includes('<a id="flutter-store"></a>'));
 });
 
