@@ -10,9 +10,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
-import { normalizePath, CliError } from "../cli/args.js";
+import { normalizePath, isRepoRelativePath, CliError } from "../cli/args.js";
 
-// 취소(ESC/Ctrl+C)는 CANCEL 심볼 — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
+// 취소(ESC)는 CANCEL 심볼(Ctrl+C는 엔진이 예외로 중단시킨다) — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
 const isCancel = (v) => typeof v === "symbol";
 
 // 타입의 대표 마커 파일명 (.sh marker_for_type L1220~1229 등가).
@@ -225,14 +225,21 @@ export async function resolveProjectPaths({
       input = String(input).trim();
       // 빈값 → 기존값 또는 루트 (.sh L1541~1543) — normalizePath 전에 판정
       input = input === "" ? (existing || ".") : normalizePath(input);
+      if (!isRepoRelativePath(input)) {
+        say(`  ⚠️ '${input}'은(는) 레포 밖 경로입니다 — 레포 루트 기준 상대경로로 입력하세요.`);
+        continue;
+      }
       // 검증: 입력 경로에 마커 존재 확인 (보조 마커 포함, .sh L1544~1552)
       const m = existingMarkerInDir(t, input === "." ? root : join(root, input));
       if (m && existsSync(join(root, input === "." ? "" : input, m))) {
         chosen = input;
       } else {
         say(`  ⚠️ ${input}/${m} 파일이 없습니다.`);
-        const forceOk = await io.confirm({ message: "  그래도 이 경로를 사용할까요?", initialValue: false });
-        if (forceOk === true) chosen = input;
+        // 기본(Enter)·ESC는 이 경로를 그대로 쓴다 — 기본을 '아니오'로 두면 마커가 아직 없는 타입
+        // (프로젝트 생성 전에 미리 추가한 타입 등)은 Enter만으로는 빠져나갈 수 없었다.
+        // 다시 입력하려면 '아니오'를 명시적으로 고른다. 경로는 version.yml project_paths에서 나중에 고칠 수 있다.
+        const forceOk = await io.confirm({ message: "  그래도 이 경로를 사용할까요? (아니오 = 다시 입력)", initialValue: true });
+        if (forceOk !== false) chosen = input;
       }
     }
 

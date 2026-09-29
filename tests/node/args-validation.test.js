@@ -41,6 +41,17 @@ test("parseArgs: --main-branch/--develop-branch에 값을 지정하면 그대로
   assert.strictEqual(opts.developBranch, "dev");
 });
 
+test("parseArgs: 공백만·공백 포함·git에서 쓸 수 없는 브랜치 이름은 CliError를 던진다", () => {
+  for (const bad of ["   ", "dev branch", "(unknown)", "a..b", "feature/"]) {
+    assert.throws(() => parseArgs(["--main-branch", bad]), CliError, `--main-branch '${bad}'`);
+    assert.throws(() => parseArgs(["--develop-branch", bad]), CliError, `--develop-branch '${bad}'`);
+  }
+});
+
+test("parseArgs: 브랜치 이름 앞뒤 공백은 떼고 받는다", () => {
+  assert.strictEqual(parseArgs(["--main-branch", " release "]).mainBranch, "release");
+});
+
 // ── --semver-auto 상호 모순 플래그 거부 ──
 
 test("parseArgs: --semver-auto --no-semver-auto 동시 지정은 CliError를 던진다", () => {
@@ -117,4 +128,23 @@ test("HELP_TEXT: Flutter 옵션 플래그 4종을 안내한다", () => {
   for (const flag of ["--flutter-env-mode", "--flutter-store", "--android-deploy-mode", "--ios-deploy-mode"]) {
     assert.ok(HELP_TEXT.includes(flag), `${flag}가 --help에 없다`);
   }
+});
+
+// ── --project-version 형식 검증 ──
+test("parseArgs: --project-version은 x.y.z만 받고 v 접두사는 떼어낸다", () => {
+  assert.strictEqual(parseArgs(["--project-version", "1.2.3"]).version, "1.2.3");
+  assert.strictEqual(parseArgs(["--project-version", "v1.2.3"]).version, "1.2.3");
+  for (const bad of ["abc", "1.2", "1.2.3.4", "", "1.2.x"]) {
+    assert.throws(() => parseArgs(["--project-version", bad]), CliError, bad);
+  }
+  assert.throws(() => parseArgs(["--project-version"]), CliError);
+});
+
+// ── --paths 레포 밖 경로 거부 ──
+test("parsePathsCsv: 레포 밖을 가리키는 경로('..', 절대경로)는 CliError를 던진다", () => {
+  for (const bad of ["flutter=../other-repo", "flutter=app/../../x", "flutter=/tmp/x", "flutter=C:\\\\work\\\\x"]) {
+    assert.throws(() => parsePathsCsv(bad), CliError, bad);
+  }
+  assert.strictEqual(parsePathsCsv("flutter=./apps/mobile/").get("flutter"), "apps/mobile");
+  assert.strictEqual(parsePathsCsv("flutter=apps/..hidden").get("flutter"), "apps/..hidden");
 });

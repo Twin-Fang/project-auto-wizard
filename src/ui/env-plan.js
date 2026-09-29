@@ -146,6 +146,23 @@ function isBooleanDefault(value) {
   return value === "true" || value === "false";
 }
 
+// 형식이 정해진 ask 값 검증 — 잘못된 값은 설치는 통과하고 배포 단계에서야 실패하므로 입력 시점에 다시 묻는다.
+// 반환: 오류 문구(문제 없으면 "").
+export function validateAskValue(key, value) {
+  const v = String(value);
+  if (/_PORT$/.test(key)) {
+    const n = Number(v);
+    return /^\d+$/.test(v) && n >= 1 && n <= 65535 ? "" : "1~65535 사이의 숫자로 입력하세요.";
+  }
+  if (key === "SSH_AUTH_METHOD") {
+    return v === "password" || v === "key" ? "" : "password 또는 key 중 하나로 입력하세요.";
+  }
+  if (key === "JAVA_VERSION") {
+    return /^\d+(\.\d+)*$/.test(v) ? "" : "JDK 버전 숫자로 입력하세요 (예: 21, 17).";
+  }
+  return "";
+}
+
 // 지정 KEY들을 하나씩 입력받아 values에 기록 (.sh _wf_prefill_interactive 등가).
 // 빈 입력(Enter)/ESC → KEY 공통 기본값 유지 (.sh safe_read || _in="" 등가).
 async function promptEach(io, prompts, asks, todoKeys, values, log) {
@@ -165,8 +182,15 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
       const answer = await io.confirm({ message: `↳ ${label} — 활성화할까요?`, initialValue: def === "true" });
       input = answer === CANCEL ? def : (answer ? "true" : "false");
     } else {
-      input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
-      if (input === CANCEL || input == null || input === "") input = def;
+      for (;;) {
+        input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
+        if (input === CANCEL || input == null) { input = def; break; }
+        input = String(input).trim();
+        if (input === "") { input = def; break; }
+        const problem = validateAskValue(key, input);
+        if (!problem) break;
+        log(`         ⚠️  '${input}' — ${problem}`);
+      }
     }
     values.set(key, input);
     log(`         → ${label} = ${input}`);

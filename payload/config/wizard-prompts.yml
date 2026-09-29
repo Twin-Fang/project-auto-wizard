@@ -50,6 +50,51 @@ SSH_AUTH_METHOD:
   help: "배포 서버 접속 방식입니다. 둘 중 하나를 그대로 입력하세요."
   example: "password 또는 key"
 
+SSH_PORT:
+  label: "SSH 포트"
+  help: "배포 서버에서 SSH가 열려 있는 포트입니다 (일반 서버는 보통 22, NAS 등은 따로 정한 포트)."
+  example: "22"
+
+BLUE_PORT:
+  label: "무중단 배포 Blue 포트"
+  help: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Blue 쪽 호스트 포트입니다. 다른 서비스·Green 포트와 겹치지 않게 정하세요."
+  example: "8080"
+
+GREEN_PORT:
+  label: "무중단 배포 Green 포트"
+  help: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Green 쪽 호스트 포트입니다. Blue 포트와 달라야 합니다."
+  example: "8081"
+
+NGINX_RP_CONF:
+  label: "Nginx 리버스 프록시 설정 파일 경로"
+  help: "배포 때 proxy_pass 포트를 Blue/Green으로 바꿔 쓰는 서버의 Nginx 설정 파일입니다. 경로가 틀리면 무중단 전환이 동작하지 않습니다."
+  example: "/etc/nginx/sites-enabled/my-service.conf"
+
+NGINX_BACKUP_DIR:
+  label: "Nginx 설정 백업 폴더"
+  help: "설정 파일을 바꾸기 전에 백업을 남길 서버의 폴더입니다."
+  example: "/volume1/projects/nginx/backups"
+
+JAR_PATH:
+  label: "빌드 산출물(JAR) 경로"
+  help: "Gradle 빌드 후 PR 프리뷰 컨테이너에 넣을 JAR 파일 경로입니다 (프로젝트 루트 기준, 와일드카드 가능)."
+  example: "build/libs/*.jar"
+
+PREVIEW_DOMAIN_SUFFIX:
+  label: "PR 프리뷰 도메인 접미사"
+  help: "PR마다 뜨는 프리뷰 서버 주소의 뒷부분입니다. 이 도메인의 와일드카드 DNS가 서버(Traefik)를 가리켜야 합니다."
+  example: "pr.example.com"
+
+PROJECT_TARGET_DIR:
+  label: "PR 프리뷰 호스트 볼륨 경로"
+  help: "PR 프리뷰 컨테이너에 마운트할 서버의 데이터 디렉토리입니다. 비워 두면 마운트하지 않습니다."
+  example: "/volume1/projects/my-service"
+
+PROJECT_MNT_DIR:
+  label: "PR 프리뷰 컨테이너 마운트 경로"
+  help: "위 호스트 볼륨이 PR 프리뷰 컨테이너 안에서 보일 위치입니다."
+  example: "/mnt/my-service"
+
 ISSUE_HELPER_CREATE_BRANCH:
   label: "이슈 생성 시 브랜치 자동 생성"
   help: "이슈가 열리면 base 브랜치 기준으로 브랜치를 자동으로 만듭니다. 원치 않으면 기본값(아니오)을 그대로 두세요."

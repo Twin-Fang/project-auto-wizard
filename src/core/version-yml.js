@@ -245,6 +245,7 @@ export function buildVersionYml({
     if (t === "{{PROJECT_PATHS}}") { if (pathsBlock) out.push(pathsBlock); continue; }
     if (t === "{{FLUTTER_OPTIONS}}") { if (flutterBlock) out.push(flutterBlock); continue; }
     if (t === "{{DEPLOY}}") { if (deployBlock) out.push(deployBlock); continue; }
+    if (t.startsWith("deploy_style:") && deployStyle === null) continue; // 서버 배포가 없는 타입은 기록하지 않는다
     out.push(line.replace(/\{\{([A-Z][A-Z0-9_]*)\}\}/g, (_, name) => {
       if (name in scalars) return scalars[name];
       throw new Error(`version.yml.template에 알 수 없는 플레이스홀더: {{${name}}}`);
@@ -275,7 +276,8 @@ export function renderVersionYml(context, templateText, { pathMarkers, deployVal
       templateVersion,
       includeSemverAuto: includeSemverAuto !== false,
       includeCopilotAi: includeCopilotAi === true,
-      deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+      // null = 서버 배포 워크플로우가 없는 타입이라 배포 방식이 의미 없음(기록 생략)
+      deployStyle: deployStyle === null ? null : (deployStyle || DEFAULT_DEPLOY_STYLE),
       optionsDate: today,
     },
   });

@@ -94,3 +94,37 @@ test("전략 선택이 취소(ESC)되면 pr-flow로 폴백해 기존과 동일�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("pr-flow + 원격 없음: develop을 만들지 않았다고 안내하고 요약에 developMissing을 넘긴다", async () => {
+  const target = tmpProject();
+  try {
+    const { io, noteCalls, summaryCalls } = stubIo({ strategy: "pr-flow" });
+    const code = await runInteractive({}, { cwd: target, io });
+    assert.strictEqual(code, 0);
+    const notice = noteCalls.find((n) => n.title === "브랜치" && n.text.includes("git push origin main:develop"));
+    assert.ok(notice, "develop 생성 방법 안내 note가 떠야 한다");
+    assert.strictEqual(summaryCalls[0].developMissing, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("브랜치 입력: 앞뒤 공백은 떼고, 공백만이면 기본값, 쓸 수 없는 이름이면 다시 묻는다", async () => {
+  const target = tmpProject();
+  try {
+    const answers = { "릴리스 브랜치": ["   "], "개발 브랜치": ["dev branch", " dev "] };
+    const { io, noteCalls, summaryCalls } = stubIo({ strategy: "pr-flow" });
+    io.askText = async (message, def) => {
+      const key = Object.keys(answers).find((k) => message.includes(k));
+      return key && answers[key].length ? answers[key].shift() : def;
+    };
+    const code = await runInteractive({}, { cwd: target, io });
+    assert.strictEqual(code, 0);
+    const { branches } = summaryCalls[0];
+    assert.strictEqual(branches.main, "main");
+    assert.strictEqual(branches.develop, "dev");
+    assert.ok(noteCalls.some((n) => n.text.includes("'dev branch'")), "잘못된 이름을 알려야 한다");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

@@ -8,19 +8,24 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
+import { inferInstalledStores } from "./core/installed-stores.js";
+import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec } from "./core/branches.js";
+import {
+  resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec, isValidBranchName, developMissingNotice,
+} from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
+import { isPromptAbort } from "./ui/readline-engine.js";
 import { runInteractive } from "./commands/interactive.js";
 import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
@@ -101,7 +106,21 @@ async function runInner(argv, {
       console.error("대화형 입력이 불가능한 환경입니다. --mode <full|uninstall> 와 --force 를 지정하세요.");
       return 1;
     }
-    return await runInteractive({}, { cwd, payloadRoot: payload, clock });
+    // 켜고 끄기 옵션은 대화형에서도 반영한다(해당 질문 생략). 나머지 설치 플래그는 대화형 질문이 정하므로
+    // 조용히 무시하지 않고 알린다.
+    const ignored = [
+      [opts.types.length, "--type"], [opts.version, "--project-version"], [opts.pathsCsv, "--paths"],
+      [opts.mainBranch, "--main-branch"], [opts.developBranch, "--develop-branch"], [opts.deployStyle, "--deploy-style"],
+      [opts.flutterEnvMode, "--flutter-env-mode"], [opts.flutterStore, "--flutter-store"],
+      [opts.androidDeployMode, "--android-deploy-mode"], [opts.iosDeployMode, "--ios-deploy-mode"],
+    ].filter(([v]) => v).map(([, flag]) => flag);
+    if (ignored.length) {
+      console.error(`⚠️  대화형 모드에서는 ${ignored.join(", ")}를 사용하지 않습니다 — 질문에서 고르거나 --mode full --force와 함께 쓰세요.`);
+    }
+    return await runInteractive(
+      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi },
+      { cwd, payloadRoot: payload, clock },
+    );
   }
 
   // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
@@ -237,7 +256,10 @@ async function runInner(argv, {
   const version = (existing?.version) || opts.version
     || detectVersion(cwd, { types, warn: (m) => { detectWarnings.push(m); console.error(m); } });
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
-  const branch = detectDefaultBranch(cwd);
+  const branch = detectDefaultBranch(cwd, {
+    warn: (m) => { detectWarnings.push(m); console.error(m); },
+    hint: "다르면 --main-branch로 지정하세요.",
+  });
   const repoName = detectRepoName(cwd);
   // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
   let paths;
@@ -252,28 +274,41 @@ async function runInner(argv, {
   }
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
+  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
+  const savedBranch = (b) => (isValidBranchName(b) ? b : "");
   const branches = resolveBranchConfig({
-    mainBranch: opts.mainBranch || existing?.branches?.main || "",
-    developBranch: opts.developBranch || existing?.branches?.develop || "",
+    mainBranch: opts.mainBranch || savedBranch(existing?.branches?.main),
+    developBranch: opts.developBranch || savedBranch(existing?.branches?.develop),
     defaultBranch: branch,
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
-  // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
+  // 원격에 브랜치가 하나도 없으면(빈 원격·origin 없음) push할 기준이 없으므로 만들지 않고 안내한다.
+  let developMissing = false;
   if (branches.mode === "pr-flow" && !opts.dryRun) {
     const remoteBranches = await detectRemoteBranches(cwd);
-    if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
-      await ensureDevelopBranch({
+    if (!remoteBranches.length) {
+      developMissing = true;
+      console.error(`⚠️  ${developMissingNotice(branches)}`);
+    } else if (!remoteBranches.includes(branches.develop)) {
+      const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, confirm: null, cwd,
         log: (m) => console.error(m),
       });
+      developMissing = r.pushed === false;
     }
   }
 
   // Flutter 옵션 — CLI 플래그 → version.yml 저장값 → 기본값(신규 dart-define, 기존 설치 dotenv 보존).
   // Flutter 타입이 없는 프로젝트에서는 렌더·치환 단계가 전부 무시한다.
+  // 스토어 저장값이 없는 기존 Flutter 설치는 설치돼 있는 스토어 워크플로우로 추론한다(대화형과 같은 결론).
+  // 추론하지 않으면 미결정이 "둘 다"로 확정 저장되어, 지웠던 플랫폼의 워크플로우·fastlane 파일이 되살아난다.
+  const workflowsDir = join(cwd, PATHS.workflowsDir);
+  const inferredStores = opts.flutterStore == null && existing?.types?.includes("flutter")
+    && existing.options?.flutterStore == null && existsSync(workflowsDir)
+    ? inferInstalledStores(workflowsDir) : null;
   const flutterOptions = resolveFlutterOptions({
     cli: {
-      envMode: opts.flutterEnvMode, stores: opts.flutterStore,
+      envMode: opts.flutterEnvMode, stores: opts.flutterStore ?? inferredStores,
       androidDeployMode: opts.androidDeployMode, iosDeployMode: opts.iosDeployMode,
     },
     existing,
@@ -296,7 +331,8 @@ async function runInner(argv, {
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
-    deployStyle: opts.deployStyle
+    // 서버 배포 워크플로우가 없는 타입은 배포 방식이 설치에 영향이 없으므로 기록하지 않는다(null).
+    deployStyle: !hasServerDeployWorkflows(payload, types) ? null : opts.deployStyle
       || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
     previousTemplateVersion: existing?.templateVersion || "",
     envMode: flutterOptions.envMode,
@@ -326,7 +362,7 @@ async function runInner(argv, {
 
   // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version, versionCode, branches,
+    mode: opts.mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
@@ -359,6 +395,13 @@ async function runInner(argv, {
 export async function run(argv, opts = {}) {
   try {
     return await runInner(argv, opts);
+  } catch (e) {
+    // Ctrl+C/EOF는 어느 질문에서든 즉시 중단한다 — 설치 파일을 쓰기 전에 빠져나오고, 셸 관례대로 130을 돌려준다.
+    if (isPromptAbort(e)) {
+      prompts.cancelMessage("중단했습니다 — 변경 없이 종료합니다.");
+      return 130;
+    }
+    throw e;
   } finally {
     closeLogger();
   }

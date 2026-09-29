@@ -1,6 +1,7 @@
 // CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
 import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { isValidBranchName } from "../core/branches.js";
 import {
   ENV_MODES, DEPLOY_MODES, STORE_PLATFORMS, NO_STORE, isEnvMode, isDeployMode, parseStoreList,
 } from "../core/flutter-options.js";
@@ -49,8 +50,15 @@ export function parseArgs(argv) {
       case "-v": case "--version":
         // npm 관례: -v/--version 은 패키지 버전 출력. (초기 버전 지정은 --project-version)
         result.showVersion = true; break;
-      case "--project-version":
-        result.version = args.shift() ?? ""; break;
+      case "--project-version": {
+        // 릴리스 워크플로우(version_manager)는 x.y.z만 올릴 수 있다 — 흔한 v 접두사는 떼고 받는다.
+        const raw = (args.shift() ?? "").trim();
+        const v = raw.replace(/^v/i, "");
+        if (!/^\d+\.\d+\.\d+$/.test(v)) {
+          throw new CliError(`--project-version 값이 올바르지 않습니다: '${raw}' (x.y.z 형식, 예: 1.0.0)`);
+        }
+        result.version = v; break;
+      }
       case "-t": case "--type": {
         const csv = args.shift() ?? "";
         const seen = new Set();
@@ -133,15 +141,13 @@ export function parseArgs(argv) {
         if (seenFlags.has("--copilot")) throw new CliError("--copilot과 --no-copilot은 동시에 지정할 수 없습니다");
         seenFlags.add("--no-copilot"); result.includeCopilotAi = false; break;
       case "--paths": result.pathsCsv = args.shift() ?? ""; break;
-      case "--main-branch": {
-        const v = args.shift();
-        if (!v) throw new CliError("--main-branch에 빈 값을 지정할 수 없습니다");
-        result.mainBranch = v; break;
-      }
-      case "--develop-branch": {
-        const v = args.shift();
-        if (!v) throw new CliError("--develop-branch에 빈 값을 지정할 수 없습니다");
-        result.developBranch = v; break;
+      case "--main-branch": case "--develop-branch": {
+        const v = (args.shift() ?? "").trim();
+        if (!v) throw new CliError(`${a}에 빈 값을 지정할 수 없습니다`);
+        // 워크플로우 트리거·셸 명령에 그대로 치환되는 값이라 쓸 수 없는 이름은 설치 전에 거부한다.
+        if (!isValidBranchName(v)) throw new CliError(`${a} 값이 브랜치 이름으로 올바르지 않습니다: '${v}'`);
+        if (a === "--main-branch") result.mainBranch = v; else result.developBranch = v;
+        break;
       }
       case "-h": case "--help": result.help = true; break;
       default:
@@ -167,6 +173,13 @@ export function normalizePath(p) {
   return s === "" ? "." : s;
 }
 
+// 정규화된 경로가 레포 안(상대경로, '..' 없음)인가. 레포 밖을 가리키면 설치 파일(fastlane 등)이
+// 옆 레포에 만들어지고 워크플로우 paths 필터도 동작하지 않는다.
+export function isRepoRelativePath(p) {
+  if (/^\//.test(p) || /^[A-Za-z]:/.test(p)) return false;
+  return !p.split("/").includes("..");
+}
+
 // "flutter=app,react=client" → Map<type, normalizedPath>. 타입 검증(무효 → throw).
 export function parsePathsCsv(csv) {
   const map = new Map();
@@ -179,7 +192,11 @@ export function parsePathsCsv(csv) {
     if (!VALID_TYPES.includes(type)) {
       throw new CliError(`--paths에 지원하지 않는 타입: '${type}'`);
     }
-    map.set(type, normalizePath(rawPath));
+    const path = normalizePath(rawPath);
+    if (!isRepoRelativePath(path)) {
+      throw new CliError(`--paths는 레포 안의 상대경로만 지정할 수 있습니다: '${type}=${rawPath.trim()}'`);
+    }
+    map.set(type, path);
   }
   return map;
 }

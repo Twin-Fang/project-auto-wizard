@@ -1,6 +1,7 @@
 // 대화형 프롬프트 래핑 (.sh interactive_menu/choose_menu/ask_* 등가).
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
-// 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
+// ESC는 각 함수가 CANCEL 심볼을 반환 → 호출부가 기본값/머무르기로 해석한다.
+// Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
@@ -36,12 +37,17 @@ export async function confirmProjectMenu() {
 
 // 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출.
 // 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
-export function editMenuOptions({ showFlutter = false } = {}) {
+// showOptions=선택 워크플로우 토글(자동 버전 승격·Copilot) 노출 — 저장값이 있으면 처음 질문을 건너뛰므로 여기서 바꾼다.
+export function editMenuOptions({ showFlutter = false, showOptions = false } = {}) {
   const options = [
     { value: "type", label: "프로젝트 타입" },
     { value: "version", label: "버전" },
     { value: "branch", label: "기본 브랜치" },
   ];
+  if (showOptions) {
+    options.push({ value: "semverAuto", label: "자동 버전 승격" });
+    options.push({ value: "copilotAi", label: "Copilot AI 요약" });
+  }
   if (showFlutter) {
     options.push({ value: "envMode", label: "환경변수 방식" });
     options.push({ value: "flutterStore", label: "스토어 배포 대상" });
@@ -52,8 +58,8 @@ export function editMenuOptions({ showFlutter = false } = {}) {
 }
 
 // 수정 메뉴 — 어떤 항목을 고칠지.
-export async function editMenu({ showFlutter = false } = {}) {
-  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter }) });
+export async function editMenu({ showFlutter = false, showOptions = false } = {}) {
+  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter, showOptions }) });
 }
 
 const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];

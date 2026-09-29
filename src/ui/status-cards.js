@@ -31,7 +31,7 @@ export function printDetectionLog({ types = [], version = "", branch = "", marke
 // 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
   paths = new Map(), showOptional = false,
-  flutter = null, envModeDefault = "" },
+  flutter = null, envModeDefault = "", options = null },
   out = (s) => process.stderr.write(s)) {
   out(`${HEAD}  ${paint("프로젝트 분석 결과", A.bold)}\n`);
   const row = (icon, label, value) => out(`${GUT}  ${icon} ${label.padEnd(10)} ${value}\n`);
@@ -50,6 +50,12 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
       row("🏬", "스토어", stores.length ? stores.join(", ") : "없음");
       row("🚀", "배포모드", modeParts.length ? modeParts.join(" ") : "없음");
     }
+  }
+  // 선택 워크플로우 — 저장값이 있으면 질문 없이 쓰이므로 확정 전에 현재값을 보여준다.
+  if (options) {
+    const onOff = (v) => (v ? paint("켜짐", A.green) : paint("꺼짐", A.dim));
+    row("🔢", "자동승격", onOff(options.semverAuto));
+    row("🤖", "Copilot", onOff(options.copilotAi));
   }
   // 모노레포 경로 — 루트가 아닌 항목이 하나라도 있으면 표시
   const nonRoot = [...paths.entries()].filter(([, p]) => p && p !== ".");
