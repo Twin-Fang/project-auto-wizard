@@ -281,3 +281,18 @@ for (const name of ["AUTO-CHANGELOG-CONTROL", "AI-PR-SUMMARY"]) {
     });
   }
 }
+
+// 확정 커밋 push 직후 머지는 GitHub 반영 지연으로 간헐 실패한다 — 한 번 실패로 파이프라인을 끝내지 않는다.
+for (const path of bothCopies("AUTO-CHANGELOG-CONTROL")) {
+  test(`${path}: 자동 머지는 backoff 재시도하고 out of date면 브랜치를 갱신한다`, () => {
+    const body = read(path);
+    const idx = body.indexOf("- name: Enable automerge");
+    const step = body.slice(idx, body.indexOf("\n  wait-for-merge-and-trigger-release:"));
+    assert.match(step, /for ATTEMPT in \$\(seq 1 \$MAX_ATTEMPTS\)/, "재시도 루프가 없다");
+    assert.ok(step.includes('sleep "$WAIT"'), "재시도 사이에 대기해야 한다");
+    assert.ok(step.includes('grep -qi "out of date"'));
+    assert.ok(step.includes("/update-branch"), "뒤처진 head는 base로 갱신해야 한다");
+    assert.ok(step.indexOf('= "MERGED"') < step.indexOf("gh pr merge"), "이미 병합된 PR은 성공으로 본다");
+    assert.ok(step.includes("exit 1"), "끝내 실패하면 성공처럼 넘어가지 않는다");
+  });
+}

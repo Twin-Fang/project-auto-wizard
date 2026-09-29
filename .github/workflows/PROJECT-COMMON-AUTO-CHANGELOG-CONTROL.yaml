@@ -25,7 +25,9 @@
 #    commit's GITHUB_TOKEN push doesn't retrigger pull_request events)
 # 4. Updates CHANGELOG.json / CHANGELOG.md and commits to the PR head
 #    branch with [skip ci]
-# 5. Enables automerge (gh pr merge --auto --merge)
+# 5. Enables automerge (gh pr merge --auto --merge, falling back to a
+#    direct merge), retrying with backoff while GitHub catches up with the
+#    freshly pushed head; an already-merged PR counts as success
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -383,18 +385,49 @@ jobs:
           # Merge-commit subject carries the release-confirm pattern —
           # VERSION-CONTROL skips on it and RELEASE-PUBLISH proceeds on it.
           SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
+          ERR_FILE="${RUNNER_TEMP:-/tmp}/merge_err.txt"
 
-          if gh pr merge "$PR_NUMBER" --auto --merge --subject "$SUBJECT"; then
-            echo "automerge enabled: $SUBJECT"
-          elif gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT"; then
-            echo "automerge unavailable — merged directly: $SUBJECT"
-          else
-            # Both attempts failed — diagnose instead of pretending success.
+          # 확정 커밋 push 직후에는 GitHub가 PR head 갱신을 아직 반영하지 못해 "Head branch is
+          # out of date"·"not mergeable"로 간헐 실패한다. 간격을 늘려 가며 다시 시도한다.
+          MERGED=false
+          MAX_ATTEMPTS=4
+          for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+            if [ "$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null)" = "MERGED" ]; then
+              echo "PR #$PR_NUMBER is already merged"
+              MERGED=true
+              break
+            fi
+            if gh pr merge "$PR_NUMBER" --auto --merge --subject "$SUBJECT" 2> "$ERR_FILE"; then
+              echo "automerge enabled: $SUBJECT"
+              MERGED=true
+              break
+            fi
+            cat "$ERR_FILE" >&2
+            if gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT" 2> "$ERR_FILE"; then
+              echo "automerge unavailable — merged directly: $SUBJECT"
+              MERGED=true
+              break
+            fi
+            cat "$ERR_FILE" >&2
+            [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && break
+            if grep -qi "out of date" "$ERR_FILE"; then
+              # 브랜치 보호의 "최신 상태 요구"로 실제로 뒤처졌다면 base를 head에 병합해 따라잡는다
+              # (단순 반영 지연이면 "새 커밋 없음"으로 거절되고 그대로 재시도한다)
+              gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" > /dev/null 2>&1 \
+                && echo "head branch updated from base" || true
+            fi
+            WAIT=$((ATTEMPT * 10))
+            echo "merge attempt $ATTEMPT/$MAX_ATTEMPTS failed — retrying in ${WAIT}s"
+            sleep "$WAIT"
+          done
+
+          if [ "$MERGED" != "true" ]; then
+            # All attempts failed — diagnose instead of pretending success.
             ALLOW_MERGE_COMMIT=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_merge_commit' 2>/dev/null || echo "unknown")
             if [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
               echo "::error::이 레포는 merge commit이 비활성화되어 있습니다 — Settings에서 'Allow merge commits'를 켜세요; 릴리스 감지는 merge commit subject를 사용합니다"
             else
-              echo "::error::PR merge failed (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
+              echo "::error::PR merge failed after $MAX_ATTEMPTS attempts (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
             fi
             exit 1
           fi
