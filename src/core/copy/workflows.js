@@ -54,6 +54,40 @@ export function buildTypeRootFilter(type, deployStyle, flutterStore, available =
   return (filename) => filters.every((keep) => keep(filename));
 }
 
+// 한 타입이 설치하는 원본 디렉토리를 순서대로 돌려준다 — 타입 루트 → server-deploy.
+// 각 항목: { srcDir, type, filter }. 폴더 존재 여부와 "배포 안 함" 제외를 여기서 한 번에 판단한다.
+export function typeWorkflowSources(type, payloadRoot, { deployStyle, flutterStore = null, available = null }) {
+  const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
+  const sources = [];
+  // go/python·react/next처럼 서버 배포 워크플로우가 타입 루트에 바로 있는 타입도 있어 루트에도 배포 방식 필터를 건다.
+  if (exists(typeDir)) sources.push({ srcDir: typeDir, type, filter: buildTypeRootFilter(type, deployStyle, flutterStore, available) });
+  // "배포 안 함"이면 폴더째 제외
+  if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
+    sources.push({ srcDir: serverDeployDir, type, filter: deployFilter(deployStyle, available) });
+  }
+  return sources;
+}
+
+// common 원본 — trunk-based 모드의 제외 필터를 반영한다. 폴더가 없으면 null.
+export function commonWorkflowSource(context, payloadRoot) {
+  const commonDir = join(payloadRoot, PAYLOAD.workflowsDir, "common");
+  if (!exists(commonDir)) return null;
+  const branchMode = context.branches?.mode || "pr-flow";
+  return {
+    srcDir: commonDir, type: "common",
+    filter: (filename) => !(branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename)),
+  };
+}
+
+// 설치 대상 워크플로우 원본을 엔진 처리 순서(common → 타입 순회 → 타입 루트 → server-deploy)로 내준다.
+// 복사·충돌 조사·미리보기 계획이 모두 이 순회를 써야 서로 다른 파일 집합을 보지 않는다.
+export function* workflowSources(context, payloadRoot, { deployStyle, available }) {
+  const { types = [], flutterStore = null } = context;
+  const common = commonWorkflowSource(context, payloadRoot);
+  if (common) yield common;
+  for (const type of types) yield* typeWorkflowSources(type, payloadRoot, { deployStyle, flutterStore, available });
+}
+
 // 한 파일에 env 치환을 적용해 대상 파일을 갱신.
 // values/useDefaults: env 계획(promptEnvPlan) 결과 — 미지정이면 기본값 경로(현행 force 동작).
 function configureEnv(targetPath, { type, projectPath = ".", repoName = "", resolvers = {}, collectAsks = null, values = new Map(), useDefaults = true, savedValues = null }) {
@@ -211,10 +245,9 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
 
   // (1) common — 타입별과 동일 규칙 (README 계약).
   //     trunk-based 모드는 VERSION-CONTROL·AUTO-CHANGELOG 미설치 (RELEASE-PUBLISH 단독).
-  const branchMode = context.branches?.mode || "pr-flow";
-  const commonDir = join(projectTypesDir, "common");
-  if (exists(commonDir)) {
-    const notExcluded = (filename) => !(branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(filename));
+  const commonSource = commonWorkflowSource(context, payloadRoot);
+  if (commonSource) {
+    const { srcDir: commonDir, filter: notExcluded } = commonSource;
     const c = processDir(commonDir, workflowsDir, envOptsFor("common"), dirCtx, counters, notExcluded);
     // env 치환 — 타입별 폴더(copyWorkflowsForType)와 동일하게, 손대지 않기로 한 파일(unchanged/localOnly)은
     // 건너뛴다. common 최상위는 지금까지 @wizard 마커가 없어 이 루프가 없어도 드러나지 않았지만,
@@ -297,47 +330,26 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
 //   conflicts — 양쪽이 다 바뀐 진짜 충돌. upstreamOnly/localOnly는 자동 처리되므로 여기 없다.
 //   removed   — 우리가 깔았는데 사용자가 지운 파일. 되살리기 전에 물어봐야 한다.
 export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), repoName = "", resolvers = {}, flutterStore = null } = context;
+  const { paths = new Map(), repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
-  const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
-  const branchMode = context.branches?.mode || "pr-flow";
   const saved = readSavedDeployValues(targetRoot);
   const conflicts = []; // 엔진 처리 순서와 동일 (common → 타입 순회 → 직하위 → server-deploy)
   const removed = [];
-
   const available = payloadWorkflowNames(payloadRoot);
-  const keepDeploy = deployFilter(deployStyle, available);
-  const collect = (srcDir, envOpts, type, skipFile = () => false, filter = null) => {
-    const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline, filter);
-    for (const f of c.changed) { if (!skipFile(f)) conflicts.push({ filename: f, type }); }
-    for (const f of c.removed) { if (!skipFile(f)) removed.push({ filename: f, type }); }
-  };
+  const values = context.envValues || new Map();
+  const useDefaults = context.envUseDefaults !== false;
 
-  const commonDir = join(projectTypesDir, "common");
-  if (exists(commonDir)) {
-    collect(commonDir, {
-      type: "common", projectPath: ".", repoName, resolvers,
-      values: context.envValues || new Map(), useDefaults: context.envUseDefaults !== false,
-    }, "common",
-      (f) => branchMode === "trunk-based" && TRUNK_BASED_EXCLUDED.has(f));
-  }
-
-  for (const type of types) {
+  for (const { srcDir, type, filter } of workflowSources(context, payloadRoot, { deployStyle, available })) {
     // 복사 엔진과 같은 값(이번 답변 포함)으로 분류해야 결정 목록이 실제 처리 대상과 맞는다.
-    const envOpts = {
-      type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null,
-      values: context.envValues || new Map(), useDefaults: context.envUseDefaults !== false,
-    };
-    const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
-    if (exists(typeDir)) {
-      collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore, available));
-    }
-    if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
-      collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
-    }
+    const envOpts = type === "common"
+      ? { type, projectPath: ".", repoName, resolvers, values, useDefaults }
+      : { type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null, values, useDefaults };
+    const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline, filter);
+    for (const f of c.changed) conflicts.push({ filename: f, type });
+    for (const f of c.removed) removed.push({ filename: f, type });
   }
   return { conflicts, removed };
 }
@@ -364,37 +376,23 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 
 function copyWorkflowsForType(type, payloadRoot, workflowsDir, ctx, counters) {
   const { deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
-  const keepDeploy = deployFilter(deployStyle, dirCtx.available);
-  const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore, dirCtx.available);
-  const { srcText, baselineTargets } = dirCtx;
-  const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
+  const { srcText } = dirCtx;
+  const sources = typeWorkflowSources(type, payloadRoot, { deployStyle, flutterStore, available: dirCtx.available });
   const envOpts = envOptsFor(type);
   // env 치환에서 제외할 파일 — 손대지 않기로 한 것들(unchanged/localOnly/유지된 삭제분)에
   // 치환을 다시 걸면 사용자 수정본을 덮어쓰게 된다.
   const untouched = [];
 
-  // 타입별 워크플로우 (직하위). go/python·react/next처럼 서버 배포 워크플로우가 server-deploy 없이
-  // 타입 루트에 바로 있는 타입도 있어, 타입 루트에도 같은 배포 방식 필터를 건다.
-  if (exists(typeDir)) {
-    const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters, keepTypeRoot);
-    untouched.push(...c.unchanged, ...c.localOnly);
-  }
-
-  // server-deploy
-  // "배포 안 함"이면 폴더째 제외 (복사 안 함)
-  if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
-    const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
+  for (const { srcDir, filter } of sources) {
+    const c = processDir(srcDir, workflowsDir, envOpts, dirCtx, counters, filter);
     untouched.push(...c.unchanged, ...c.localOnly);
   }
 
   // env 치환 — 이 타입의 원본 디렉토리들에서 복사돼 존재하고, 손대지 않기로 한 것이 아닌 파일만
-  for (const srcDir of [typeDir, serverDeployDir]) {
-    if (!exists(srcDir)) continue;
-    if (srcDir === serverDeployDir && deployStyle === NO_DEPLOY_STYLE) continue; // 폴더째 제외
+  for (const { srcDir, filter } of sources) {
     for (const filename of listYamlFiles(srcDir)) {
       const target = join(workflowsDir, filename);
-      if (srcDir === serverDeployDir && !keepDeploy(filename)) continue; // 안 고른 배포 방식
-      if (srcDir === typeDir && !keepTypeRoot(filename)) continue; // 타입 루트: 배제된 CD·안 고른 스토어 워크플로우
+      if (!filter(filename)) continue; // 배제된 CD·안 고른 배포 방식·안 고른 스토어 워크플로우
       if (!existsSync(target)) continue;          // 건너뛴 파일 제외
       // unchanged/localOnly와 치환 마커가 이미 없는 유지본은 다시 치환하지 않는다. 대신 deploy 블록이
       // 사라지지 않도록 저장값(없으면 기본값)으로 ask 값만 수집한다 — 파일은 건드리지 않는다.
@@ -411,44 +409,24 @@ function copyWorkflowsForType(type, payloadRoot, workflowsDir, ctx, counters) {
 // changed뿐 아니라 newFiles/unchanged까지 전부 반환한다는 점이 listWorkflowConflicts(changed만
 // 반환)와 다르다(읽기 전용 — 실제로 아무 파일도 쓰지 않는다).
 export function planWorkflows(context, payloadRoot, targetRoot = ".") {
-  const { types = [], paths = new Map(), repoName = "", resolvers = {}, flutterStore = null } = context;
+  const { paths = new Map(), repoName = "", resolvers = {} } = context;
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
-  const projectTypesDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const saved = readSavedDeployValues(targetRoot);
   const available = payloadWorkflowNames(payloadRoot);
-  const branchMode = context.branches?.mode || "pr-flow";
   // upstreamOnly/localOnly/removed는 baseline이 있을 때만 채워진다.
   const plan = { newFiles: [], unchanged: [], changed: [], upstreamOnly: [], localOnly: [], removed: [] };
   const BUCKETS = ["newFiles", "unchanged", "changed", "upstreamOnly", "localOnly", "removed"];
 
-  const merge = (result, type, excluded = null) => {
+  for (const { srcDir, type, filter } of workflowSources(context, payloadRoot, { deployStyle, available })) {
+    const envOpts = type === "common"
+      ? { type, projectPath: ".", repoName, resolvers }
+      : { type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null };
+    const result = classify(srcDir, workflowsDir, envOpts, srcText, baseline, filter);
     for (const bucket of BUCKETS) {
-      for (const filename of result[bucket]) {
-        if (excluded && excluded.has(filename)) continue;
-        plan[bucket].push({ filename, type });
-      }
-    }
-  };
-
-  const commonDir = join(projectTypesDir, "common");
-  if (exists(commonDir)) {
-    const envOpts = { type: "common", projectPath: ".", repoName, resolvers };
-    merge(classify(commonDir, workflowsDir, envOpts, srcText, baseline), "common",
-      branchMode === "trunk-based" ? TRUNK_BASED_EXCLUDED : null);
-  }
-
-  for (const type of types) {
-    const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null };
-    const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
-    if (exists(typeDir)) {
-      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, buildTypeRootFilter(type, deployStyle, flutterStore, available)), type);
-    }
-
-    if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
-      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle, available)), type);
+      for (const filename of result[bucket]) plan[bucket].push({ filename, type });
     }
   }
 
