@@ -72,6 +72,7 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
@@ -115,7 +116,10 @@ jobs:
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
           echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
 
+          # push마다 댓글이 쌓이지 않도록 이 봇이 남긴 요약 댓글을 표식으로 찾아 최신 내용으로 교체한다
+          MARKER="<!-- project-auto-wizard:pr-summary -->"
           {
+            echo "$MARKER"
             echo "📋 **PR Summary (project-auto-wizard)**"
             echo ""
             cat summary.md
@@ -125,12 +129,15 @@ jobs:
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
 
-          curl -sf -H "Authorization: token ${{ github.token }}" \
-               -H "Content-Type: application/json" \
-               -X POST \
-               -d @comment_payload.json \
-               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
-            || echo "comment post failed — continuing (this workflow never blocks the PR)"
+          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" 2>/dev/null | tail -n 1 || true)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" --input comment_payload.json > /dev/null \
+              || echo "comment update failed — continuing (this workflow never blocks the PR)"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --input comment_payload.json > /dev/null \
+              || echo "comment post failed — continuing (this workflow never blocks the PR)"
+          fi
 
       - name: Link related issue via branch name
         continue-on-error: true

@@ -240,3 +240,44 @@ test("AI-PR-SUMMARY: 버전을 읽지 못하면 Unreleased로 표시한다", (t)
   const v = runExpectedVersion(t, { mode: "pr-flow", semverAuto: true, commits: ["fix: x"], withVersionYml: false });
   if (v !== null) assert.strictEqual(v, "Unreleased");
 });
+
+// ---------------------------------------------------------------
+// 재실행·대기열 실행의 멱등성: 이미 병합된 PR은 다시 처리하지 않고, 요약 댓글은 쌓지 않고 교체한다.
+// ---------------------------------------------------------------
+for (const path of bothCopies("AUTO-CHANGELOG-CONTROL")) {
+  test(`${path}: 실행 시점에 PR이 병합·종료됐으면 파이프라인을 건너뛴다`, () => {
+    const body = read(path);
+    const pre = body.indexOf("\n  precheck:");
+    const main = body.indexOf("\n  changelog-and-merge:");
+    assert.ok(pre > -1 && main > pre, "changelog-and-merge 앞에 precheck 잡이 있어야 한다");
+    const preJob = body.slice(pre, main);
+    assert.ok(preJob.includes("head.repo.full_name == github.repository"), "fork·오발 PR 가드는 precheck가 맡는다");
+    assert.match(preJob, /gh pr view "\$PR_NUMBER" --json state/);
+    assert.ok(preJob.includes('"$STATE" = "MERGED"'));
+    const mainJob = body.slice(main, main + 400);
+    assert.ok(mainJob.includes("needs: precheck"));
+    assert.ok(mainJob.includes("if: needs.precheck.outputs.open == 'true'"));
+  });
+
+  test(`${path}: 재실행 중 PR이 병합됐으면 확정 커밋을 push하지 않는다`, () => {
+    const body = read(path);
+    const idx = body.indexOf("- name: Commit release docs to the PR head branch");
+    const step = body.slice(idx, body.indexOf("- name: Enable automerge"));
+    const guard = step.indexOf('if [ "$PR_STATE" = "MERGED" ]');
+    assert.ok(guard > -1, "push 전에 PR 상태를 다시 봐야 한다");
+    assert.ok(guard < step.indexOf("git push origin"), "push보다 먼저 확인해야 한다");
+  });
+}
+
+for (const name of ["AUTO-CHANGELOG-CONTROL", "AI-PR-SUMMARY"]) {
+  for (const path of bothCopies(name)) {
+    test(`${path}: 요약 댓글은 표식으로 찾아 교체하고 없을 때만 새로 단다`, () => {
+      const body = read(path);
+      assert.ok(body.includes('MARKER="<!-- project-auto-wizard:pr-summary -->"'));
+      assert.ok(body.includes('echo "$MARKER"'), "댓글 본문 첫 줄에 표식을 넣어야 한다");
+      assert.ok(body.includes('select(.user.login == \\"github-actions[bot]\\"'), "이 봇의 댓글만 교체해야 한다");
+      assert.match(body, /gh api -X PATCH "repos\/\$\{\{ github\.repository \}\}\/issues\/comments\/\$\{COMMENT_ID\}"/);
+      assert.ok(!body.includes("-X POST \\\n               -d @comment_payload.json"), "무조건 새 댓글을 다는 경로가 남아 있다");
+    });
+  }
+}

@@ -2,7 +2,9 @@
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml
 # Release PR pipeline: version confirm + AI changelog + automerge
 #
-# Runs on release PRs ({{DEVELOP_BRANCH}} -> {{MAIN_BRANCH}}) and:
+# Runs on release PRs ({{DEVELOP_BRANCH}} -> {{MAIN_BRANCH}}) that are still
+# open when the run starts (a run queued behind the one that merged the PR
+# exits in the precheck job), and:
 # 1. Confirms the release version and syncs every version file:
 #    - If version.yml metadata.template.options.semver_auto is true
 #      (default): classifies commits (feat -> minor, `!` marker or a
@@ -15,7 +17,8 @@
 #    - The AI prompt includes commit subjects plus a capped
 #      `git diff --stat` (file-level change summary, no diff body)
 #      for richer context without token-cost blowup.
-# 3. Posts the same summary as a PR comment (this replaces
+# 3. Posts the same summary as a PR comment — re-runs edit that comment
+#    instead of adding another (this replaces
 #    PROJECT-COMMON-AI-PR-SUMMARY for release PRs, which skips them —
 #    that workflow would otherwise post the pre-bump version, since it
 #    runs before this job's version-confirm commit lands and that
@@ -66,8 +69,8 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
-  changelog-and-merge:
-    name: Version confirm + changelog + automerge
+  precheck:
+    name: Skip if the release PR is no longer open
     # Guard: only release PRs whose head is the develop branch of THIS
     # repository enter the pipeline (protects against accidental feature
     # PRs opened against production and against fork PRs with a spoofed
@@ -76,6 +79,35 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == '{{DEVELOP_BRANCH}}'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      open: ${{ steps.state.outputs.open }}
+    steps:
+      - name: Read the current PR state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          # 파이프라인 도중 {{DEVELOP_BRANCH}}에 push하면 그 실행은 대기열에서 기다렸다가 이미 병합된
+          # PR을 다시 처리한다 — 빈 요약 댓글, 중복 CHANGELOG 항목, {{DEVELOP_BRANCH}}에만 남는 확정 커밋이 생긴다.
+          # 이벤트 시점이 아니라 지금 상태를 본다. 조회에 실패하면 릴리스를 막지 않고 진행한다.
+          STATE=$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+          if [ "$STATE" = "MERGED" ] || [ "$STATE" = "CLOSED" ]; then
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PR #$PR_NUMBER is already $STATE — skipping the release pipeline"
+          else
+            echo "open=true" >> "$GITHUB_OUTPUT"
+            echo "PR #$PR_NUMBER state: $STATE"
+          fi
+
+  changelog-and-merge:
+    name: Version confirm + changelog + automerge
+    needs: precheck
+    if: needs.precheck.outputs.open == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR head
@@ -232,10 +264,14 @@ jobs:
         env:
           ENGINE: ${{ steps.summary.outputs.engine }}
           FALLBACK_REASON: ${{ steps.summary.outputs.fallback_reason }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
+          # 재실행·재동기화 때 댓글이 쌓이지 않도록 이 봇이 남긴 요약 댓글을 표식으로 찾아 교체한다
+          MARKER="<!-- project-auto-wizard:pr-summary -->"
 
           {
+            echo "$MARKER"
             echo "📋 **PR Summary (project-auto-wizard)**"
             echo ""
             cat summary.md
@@ -245,12 +281,17 @@ jobs:
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
 
-          curl -sf -H "Authorization: token ${{ github.token }}" \
-               -H "Content-Type: application/json" \
-               -X POST \
-               -d @comment_payload.json \
-               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
-            || echo "comment post failed — continuing (this workflow never blocks the release)"
+          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" 2>/dev/null | tail -n 1 || true)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" --input comment_payload.json > /dev/null \
+              && echo "summary comment updated (#${COMMENT_ID})" \
+              || echo "comment update failed — continuing (this workflow never blocks the release)"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --input comment_payload.json > /dev/null \
+              && echo "summary comment posted" \
+              || echo "comment post failed — continuing (this workflow never blocks the release)"
+          fi
 
           rm -f comment_body.md comment_payload.json
 
@@ -271,12 +312,22 @@ jobs:
           python3 .github/scripts/changelog_manager.py generate-md
 
       - name: Commit release docs to the PR head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
           VERSION="${{ steps.bump.outputs.new_version }}"
 
           # Working files must not land in the repo
           rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
+
+          # "Re-run failed jobs"는 precheck 결과를 재사용한다 — 그사이 PR이 병합·종료됐다면
+          # 확정 커밋을 올리지 않는다 (병합 뒤 {{DEVELOP_BRANCH}}에만 남는 커밋이 된다).
+          PR_STATE=$(gh pr view "${{ github.event.pull_request.number }}" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+          if [ "$PR_STATE" = "MERGED" ] || [ "$PR_STATE" = "CLOSED" ]; then
+            echo "::notice::PR is already $PR_STATE — not pushing release docs"
+            exit 0
+          fi
 
           # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
           # 버전 파일은 이미 추적 중이라 -u로 충분하고, 첫 릴리스에 새로 생기는
