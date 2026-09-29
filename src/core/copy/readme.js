@@ -16,12 +16,21 @@ export const README_STATUS_LABEL = {
 
 // README.md 없으면 스킵. 마커 또는 버전 라인 있으면 스킵. 없으면 파일 끝에 append.
 // 반환: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
-export function addVersionSectionToReadme(version, targetRoot = ".") {
+// 쓰지 않고 판정만 한다 — 실제 추가와 --dry-run 미리보기가 같은 판정을 쓰게 한다.
+export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
+  return "added";
+}
+
+export function addVersionSectionToReadme(version, targetRoot = ".") {
+  const status = planVersionSection(targetRoot);
+  if (status !== "added") return status;
+  const p = join(targetRoot, "README.md");
+  const content = readFileSync(p, "utf8");
 
   // .sh: cat >> README.md << EOF — EOF 다음 첫 줄이 빈 줄이므로 append 본문은 "\n---\n..."로 시작.
   const section =
