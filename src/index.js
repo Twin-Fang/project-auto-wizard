@@ -387,6 +387,7 @@ async function runInner(argv, {
   printSummary({
     mode: opts.mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
+    autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),

@@ -155,9 +155,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const u of unresolved) log.warn("verify", "unresolved", `${u.filename}:${u.line} ${u.token}`);
   for (const [name, users] of secrets) log.info("verify", "secret", `${name} ← ${users.join(", ")}`);
   for (const [name, users] of optionalSecrets) log.info("verify", "secret-opt", `${name} (선택) ← ${users.join(", ")}`);
+  // copiedFiles에는 자동 갱신분도 들어 있다 — 빼지 않으면 같은 파일이 설치와 자동 갱신에 두 번 잡힌다.
+  const autoUpdated = new Set(wfCounters.autoUpdated || []);
   log.summary([
-    ["설치", `${(wfCounters.copiedFiles || []).length}개 파일`],
-    ["자동 갱신", `${(wfCounters.autoUpdated || []).length}개 (사용자 미수정)`],
+    ["설치", `${(wfCounters.copiedFiles || []).filter((f) => !autoUpdated.has(f)).length}개 파일`],
+    ["자동 갱신", `${autoUpdated.size}개 (사용자 미수정)`],
     ["유지", `${(wfCounters.keptLocal || []).length}개 (사용자 수정본)`],
     ["변경 없음", `${(wfCounters.unchangedFiles || []).length}개`],
     ["백업 교체", `${wfCounters.backupAdded || 0}개 (.bak 생성)`],

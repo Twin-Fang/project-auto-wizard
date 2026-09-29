@@ -7,7 +7,7 @@ import { EITHER_SEP } from "../core/verify.js";
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx) {
-  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
+  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], autoUpdated = [], branches = null, gitignoreUpdated = false,
     // pr-flow인데 원격에 develop을 만들지 못한 경우 — 구성 줄만 보면 이미 준비된 것처럼 보이므로 따로 알린다.
     developMissing = false,
     // 설치 후 검증·기록
@@ -76,11 +76,14 @@ export function printSummary(ctx) {
 
   // 실제로 이번 실행에서 복사된 파일만 분류한다 (copyWorkflows()가 반환한 copiedFiles —
   // 디렉터리 재스캔은 재실행 시 skip된 파일까지 "새로 설치됨"으로 보여주는 결함이 있었다).
+  // 자동 갱신분(사용자 미수정 파일을 최신으로 교체)도 copiedFiles에 들어 있다 — 새로 설치한 것과 나눠 보여준다.
+  const updated = new Set(autoUpdated);
   const commonWorkflows = [];
   const typeWorkflows = [];
   const typePrefixes = types.map((t) => `${WORKFLOW_PREFIX}-${t.toUpperCase()}-`);
   for (const filename of copiedFiles) {
     if (!filename.startsWith(`${WORKFLOW_PREFIX}-`)) continue; // PROJECT-*만
+    if (updated.has(filename)) continue;
     if (filename.startsWith(`${WORKFLOW_COMMON_PREFIX}-`)) {
       commonWorkflows.push(filename);
     } else if (typePrefixes.some((p) => filename.startsWith(p))) {
@@ -92,6 +95,10 @@ export function printSummary(ctx) {
     err(`  📦 새로 설치됨 (${commonWorkflows.length + typeWorkflows.length}개):`);
     for (const wf of commonWorkflows) err(`     📌 ${wf}`);
     for (const wf of typeWorkflows) err(`     🎯 ${wf}`);
+  }
+  if (updated.size > 0) {
+    err(`  🔄 업데이트됨 (${updated.size}개, 수정하지 않은 파일을 최신으로 교체):`);
+    for (const wf of updated) err(`     • ${wf}`);
   }
 
   err("");
