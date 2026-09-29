@@ -10,6 +10,8 @@ import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
 import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
+import { inferInstalledStores } from "./core/installed-stores.js";
+import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
@@ -298,9 +300,15 @@ async function runInner(argv, {
 
   // Flutter 옵션 — CLI 플래그 → version.yml 저장값 → 기본값(신규 dart-define, 기존 설치 dotenv 보존).
   // Flutter 타입이 없는 프로젝트에서는 렌더·치환 단계가 전부 무시한다.
+  // 스토어 저장값이 없는 기존 Flutter 설치는 설치돼 있는 스토어 워크플로우로 추론한다(대화형과 같은 결론).
+  // 추론하지 않으면 미결정이 "둘 다"로 확정 저장되어, 지웠던 플랫폼의 워크플로우·fastlane 파일이 되살아난다.
+  const workflowsDir = join(cwd, PATHS.workflowsDir);
+  const inferredStores = opts.flutterStore == null && existing?.types?.includes("flutter")
+    && existing.options?.flutterStore == null && existsSync(workflowsDir)
+    ? inferInstalledStores(workflowsDir) : null;
   const flutterOptions = resolveFlutterOptions({
     cli: {
-      envMode: opts.flutterEnvMode, stores: opts.flutterStore,
+      envMode: opts.flutterEnvMode, stores: opts.flutterStore ?? inferredStores,
       androidDeployMode: opts.androidDeployMode, iosDeployMode: opts.iosDeployMode,
     },
     existing,

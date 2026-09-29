@@ -1,7 +1,7 @@
 // 비대화형 경로의 Flutter 옵션 결정 — CLI > 저장값 > 기본값, 신규 dart-define / 기존 dotenv 보존.
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
@@ -178,5 +178,21 @@ test("resolvers에 옵션이 전달되어 @wizard auto/fallback 토큰이 설치
   } finally {
     rmSync(target, { recursive: true, force: true });
     rmSync(payload, { recursive: true, force: true });
+  }
+});
+
+test("스토어 저장값 없는 기존 설치: 설치된 스토어 워크플로우로 추론해 지운 플랫폼 파일을 되살리지 않는다", async () => {
+  const target = flutterTarget();
+  try {
+    mkdirSync(join(target, "lib"));
+    writeFileSync(join(target, "version.yml"), 'version: "1.0.0"\nversion_code: 1\nproject_types: ["flutter"]\n');
+    mkdirSync(join(target, ".github", "workflows"), { recursive: true });
+    writeFileSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "# 기존 설치본\n");
+    assert.strictEqual(await install(target, ["--type", "flutter"]), 0);
+    assert.strictEqual(optionsOf(target).flutterStore, "android");
+    assert.ok(!existsSync(join(target, "ios", "fastlane", "Fastfile")), "선택하지 않은 iOS fastlane 파일을 만들면 안 된다");
+    assert.ok(!existsSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml")));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
   }
 });
