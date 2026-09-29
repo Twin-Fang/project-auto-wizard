@@ -10,7 +10,7 @@ import {
   detectVersionFromFiles, versionFromPom, detectJdkFromFiles, resolveMarker, resolveMarkers,
   detectTypesFromMarkers, markerForType, versionFromPyproject,
 } from "../../src/core/detect.js";
-import { findSpringAppYml } from "../../src/core/detect-fs.js";
+import { findSpringAppYml, makeResolvers } from "../../src/core/detect-fs.js";
 
 const readFrom = (files) => (rel) => (rel in files ? files[rel] : null);
 
@@ -204,5 +204,35 @@ test("findSpringAppYml: src/main/resources 밖의 application.yml은 무시한�
   const root = fixture({ "config/application.yml": "" });
   try {
     assert.strictEqual(findSpringAppYml(root), "");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// ── application.properties 프로젝트 (Spring Initializr 기본 산출물) ─────────
+test("spring-app-yml resolver: properties만 있으면 그 리소스 폴더와 application.yml 경로로 채운다", () => {
+  const root = fixture({ "src/main/resources/application.properties": "spring.application.name=my-service\n" });
+  try {
+    const r = makeResolvers(root, "my-service", new Map([["spring", "."]]));
+    assert.strictEqual(r["spring-app-yml-dir"]("spring"), "src/main/resources");
+    assert.strictEqual(r["spring-app-yml-path"]("spring"), "src/main/resources/application.yml");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("spring-app-yml resolver: 설정 파일이 없어도 표준 리소스 폴더로 폴백한다 (모노레포 경로 포함)", () => {
+  const root = fixture({ "server/build.gradle": "" });
+  try {
+    const r = makeResolvers(root, "my-service", new Map([["spring", "server"]]));
+    assert.strictEqual(r["spring-app-yml-dir"]("spring"), "server/src/main/resources");
+    assert.strictEqual(r["spring-app-yml-path"]("spring"), "server/src/main/resources/application.yml");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("spring-app-yml resolver: yml이 있으면 종전대로 그 파일을 쓴다", () => {
+  const root = fixture({
+    "src/main/resources/application.properties": "",
+    "src/main/resources/application.yml": "",
+  });
+  try {
+    const r = makeResolvers(root, "my-service", new Map([["spring", "."]]));
+    assert.strictEqual(r["spring-app-yml-path"]("spring"), "src/main/resources/application.yml");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
