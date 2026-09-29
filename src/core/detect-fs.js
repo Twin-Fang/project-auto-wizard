@@ -72,8 +72,28 @@ function findSubdirProjects(root, maxDepth = 2) {
 
 // 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.
 // hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
-export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [] } = {}) {
+// 모노레포(--paths)는 버전 파일이 타입 폴더 안에 있다 — 루트만 보면 0.0.1/1로 초기화된다.
+// 주 타입 폴더 → 나머지 타입 폴더 → 루트 순으로 찾는다.
+function readFromProject(root, types = [], paths = null) {
   const read = readFile(root);
+  const bases = [];
+  for (const t of types) {
+    const p = paths?.get?.(t);
+    if (p && p !== "." && !bases.includes(p)) bases.push(p);
+  }
+  if (!bases.length) return read;
+  bases.push(".");
+  return (rel) => {
+    for (const b of bases) {
+      const c = read(b === "." ? rel : `${b}/${rel}`);
+      if (c != null) return c;
+    }
+    return null;
+  };
+}
+
+export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [], paths = null } = {}) {
+  const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
   return detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types });
@@ -93,8 +113,8 @@ export function detectJdk(root, base = ".") {
 }
 
 // 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다.
-export function detectBuildNumber(root, { types = [], warn = (m) => console.error(m) } = {}) {
-  const read = readFile(root);
+export function detectBuildNumber(root, { types = [], paths = null, warn = (m) => console.error(m) } = {}) {
+  const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   return detectBuildNumberFromFiles({ types, read, readJson, warn });
 }

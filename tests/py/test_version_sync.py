@@ -288,6 +288,30 @@ class TestSyncMonorepo(SyncTestCase):
         self.assertEqual(pkg_data["version"], "1.2.3")
 
 
+    def test_sync_reads_project_paths_with_inline_comments(self):
+        # The wizard renders comments after the key and each value line.
+        tmp = self.make_tmp("monorepo")
+        vy = Path(tmp) / "version.yml"
+        text = vy.read_text(encoding="utf-8").replace(
+            'project_paths:\n  flutter: "app"\n  react: "client"\n',
+            'project_paths: # per-type project folder\n'
+            '  flutter: "app" # app/pubspec.yaml\n'
+            '  react: "client" # client/package.json\n',
+        )
+        self.assertIn("# app/pubspec.yaml", text)
+        vy.write_text(text, encoding="utf-8")
+        subprocess.run([sys.executable, str(SCRIPT), "set", "1.2.3"], cwd=tmp,
+                       capture_output=True, text=True, encoding="utf-8")
+        r = subprocess.run([sys.executable, str(SCRIPT), "sync"], cwd=tmp,
+                           capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("not found", r.stdout + r.stderr)
+        pubspec_text = (Path(tmp) / "app" / "pubspec.yaml").read_text(encoding="utf-8")
+        self.assertIn("version: 1.2.3+1", pubspec_text)
+        pkg_data = json.loads((Path(tmp) / "client" / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(pkg_data["version"], "1.2.3")
+
+
 class TestSyncMissingTargetFile(SyncTestCase):
     def test_missing_target_file_warns_but_exits_zero(self):
         tmp = self.make_tmp("missing-target")

@@ -87,6 +87,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     warn: (m) => detectWarnings.push(m),
     hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
   });
+  // 경로가 확정된 뒤 모노레포 하위 폴더에서 다시 감지할지 — 저장값·직접 입력한 값은 건드리지 않는다.
+  let versionAutoDetected = !existing?.version;
   let branch = detectDefaultBranch(cwd, {
     warn: (m) => detectWarnings.push(m),
     hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
@@ -208,7 +210,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
         const v = await io.askText("새 버전 (예: 1.0.0)", version);
         if (!isCancel(v) && v !== version) {
           // semver 형식 검증 (.sh L2010~2015)
-          if (/^\d+\.\d+\.\d+$/.test(v)) version = v;
+          if (/^\d+\.\d+\.\d+$/.test(v)) { version = v; versionAutoDetected = false; }
           else io.note?.("버전 형식이 올바르지 않습니다 (x.y.z 형태) — 기존 값을 유지합니다.", "⚠ 버전");
         }
       } else if (what === "branch") {
@@ -239,8 +241,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     androidDeployMode: flutter.androidDeployMode || DEFAULT_DEPLOY_MODE,
     iosDeployMode: flutter.iosDeployMode || DEFAULT_DEPLOY_MODE,
   };
-
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
 
   // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
   // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
@@ -290,6 +290,12 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   } else {
     for (const t of types) if (t !== "basic" && !paths.has(t)) paths.set(t, existing?.paths.get(t) || ".");
   }
+
+  // 모노레포는 버전·빌드 번호 파일이 타입 폴더 안에 있다 — 경로가 확정된 지금 그 폴더에서 감지한다.
+  if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
+    version = detectVersion(cwd, { types, paths, warn: () => {} });
+  }
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
 
   // @wizard env 계획 질문 (.sh wf_prompt_env_plan L3220 — full/workflows만)
   const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);

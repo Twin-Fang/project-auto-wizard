@@ -263,12 +263,7 @@ async function runInner(argv, {
   }
   const types = opts.types.length ? opts.types
     : detectTypes(cwd, { paths: cliPaths, warn: (m) => console.error(m) });
-  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
-  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   const detectWarnings = [];
-  const version = (existing?.version) || opts.version
-    || detectVersion(cwd, { types, warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
   const branch = detectDefaultBranch(cwd, {
     warn: (m) => { detectWarnings.push(m); console.error(m); },
     hint: "다르면 --main-branch로 지정하세요.",
@@ -285,6 +280,13 @@ async function runInner(argv, {
     if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   }
+
+  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
+  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
+  // 경로 확정 뒤에 감지해야 모노레포 하위 폴더의 버전·빌드 번호를 읽는다.
+  const version = (existing?.version) || opts.version
+    || detectVersion(cwd, { types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); } });
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.

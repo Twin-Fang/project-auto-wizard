@@ -190,12 +190,15 @@ def get_project_types_csv():
 def get_type_path(project_type, project_types_list=None):
     """Return project_paths.<type> if set, else '.' (repo root)."""
     text = read_text()
-    m = re.search(r'^project_paths:[ \t]*\n((?:[ \t]+.+\n?)+)', text, re.MULTILINE)
+    # The wizard writes trailing comments on both the key line and value lines
+    # (e.g. `project_paths: # ...`, `  flutter: "app" # app/pubspec.yaml`).
+    m = re.search(r'^project_paths:[ \t]*(?:#[^\n]*)?\n((?:[ \t]+.+\n?)+)', text, re.MULTILINE)
     if not m:
         return "."
     block = m.group(1)
     km = re.search(
-        r'^[ \t]+["\']?' + re.escape(project_type) + r'["\']?:[ \t]*["\']?([^"\'\n]+?)["\']?[ \t]*$',
+        r'^[ \t]+["\']?' + re.escape(project_type)
+        + r'["\']?:[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$',
         block,
         re.MULTILINE,
     )
