@@ -27,6 +27,10 @@ name: PROJECT-SPRING-PR-PREVIEW
 env:
   # 프로젝트 고유 식별자 (컨테이너명, 이미지명, 도메인에 사용) (프로젝트별 수정 필요)
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-spring'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-spring)
 
   # Spring Boot 빌드 설정 (프로젝트별 수정 필요)
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
@@ -35,7 +39,7 @@ env:
   APPLICATION_YML_PATH: "__APPLICATION_YML_PATH__"  # @wizard auto:spring-app-yml-path
 
   # Docker 설정 (프로젝트별 수정 필요)
-  DOCKERFILE_PATH: './Dockerfile'
+  DOCKERFILE_PATH: './Dockerfile'  # PROJECT_PATH 기준 상대 경로
   INTERNAL_PORT: '8080'
 
   # 볼륨 마운트 설정 (프로젝트별 수정 필요, 빈값이면 마운트 안함)
@@ -231,6 +235,42 @@ jobs:
         with:
           ref: ${{ steps.pr.outputs.ref }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: JDK 설정
         uses: actions/setup-java@v5
         with:
@@ -239,6 +279,7 @@ jobs:
           cache: 'gradle'
 
       - name: Gradle 권한 설정
+        working-directory: ${{ env.PROJECT_PATH }}
         run: chmod +x gradlew
 
       # [영역 2] 프로젝트별 Secret 파일 생성
@@ -280,6 +321,7 @@ jobs:
       # [영역 2 끝] 프로젝트별 Secret 파일 생성 끝
 
       - name: Gradle 빌드
+        working-directory: ${{ env.PROJECT_PATH }}
         run: ${{ env.GRADLE_BUILD_CMD }}
 
       - name: 진행 상황 - 빌드 완료
@@ -333,10 +375,10 @@ jobs:
       - name: Docker 이미지 빌드 & Push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -406,7 +448,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${PR_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -535,7 +577,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -604,7 +646,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -653,6 +695,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Gradle 빌드 실패',
               '- Docker 이미지 빌드 실패',
               '- 컨테이너 시작 실패 (Spring Boot 기동 오류)',
@@ -894,6 +937,43 @@ jobs:
         with:
           ref: ${{ needs.get-branch-from-issue.outputs.branch_name }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        if: steps.check_branch.outputs.exists == 'true'
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: JDK 설정
         if: steps.check_branch.outputs.exists == 'true'
         uses: actions/setup-java@v5
@@ -903,6 +983,7 @@ jobs:
           cache: 'gradle'
 
       - name: Gradle 권한 설정
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         run: chmod +x gradlew
 
@@ -917,6 +998,7 @@ jobs:
       # [영역 2 끝] 프로젝트별 Secret 파일 생성 끝
 
       - name: Gradle 빌드
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         run: ${{ env.GRADLE_BUILD_CMD }}
 
@@ -978,10 +1060,10 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -1056,7 +1138,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             ISSUE_NUMBER=${{ needs.get-branch-from-issue.outputs.issue_number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${ISSUE_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${ISSUE_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${ISSUE_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -1187,7 +1269,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -1257,7 +1339,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
             const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -1303,6 +1385,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Gradle 빌드 실패',
               '- Docker 이미지 빌드 실패',
               '- 컨테이너 시작 실패 (Spring Boot 기동 오류)',
@@ -1379,7 +1462,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ steps.pr_number.outputs.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
 
@@ -1407,7 +1490,7 @@ jobs:
         with:
           script: |
             const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             const body = [
               '## 🗑️ Preview 환경 삭제 완료!',
@@ -1450,7 +1533,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1480,7 +1563,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
@@ -1489,7 +1572,7 @@ jobs:
         with:
           script: |
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
@@ -1640,6 +1723,43 @@ jobs:
         with:
           ref: ${{ steps.extract.outputs.branch_name }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        if: steps.check_branch.outputs.exists == 'true'
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: 최신 커밋 정보 가져오기
         if: steps.check_branch.outputs.exists == 'true'
         id: commit
@@ -1651,7 +1771,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
@@ -1700,6 +1820,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Gradle 빌드
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         id: build
         run: |
@@ -1717,7 +1838,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
             const buildDuration = '${{ steps.build.outputs.duration }}';
@@ -1755,13 +1876,14 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker 이미지 빌드 & 푸시
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         id: docker
         run: |
           DOCKER_START=$(date +%s)
           CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
-          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
-          docker build -t $IMAGE_TAG .
+          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
+          docker build -t $IMAGE_TAG -f "${{ env.DOCKERFILE_PATH }}" .
           docker push $IMAGE_TAG
           DOCKER_END=$(date +%s)
           DOCKER_DURATION=$((DOCKER_END - DOCKER_START))
@@ -1775,7 +1897,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
             const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
@@ -1819,7 +1941,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
             IMAGE_TAG="${{ steps.docker.outputs.image_tag }}"
@@ -1877,7 +1999,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
@@ -1942,7 +2064,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -1987,6 +2109,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Gradle 빌드 실패',
               '- Docker 이미지 빌드 실패',
               '- 서버 연결 문제',
@@ -2056,7 +2179,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 
@@ -2078,7 +2201,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const containerName = `${projectName}-${containerSuffix}`;
@@ -2149,7 +2272,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 
@@ -2159,7 +2282,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';

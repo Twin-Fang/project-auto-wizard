@@ -40,6 +40,9 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
+          # push는 이번 push 범위(직전 커밋 before 대비)만 본다. 비워 두면 기본 브랜치 대비 누적 diff가 된다.
+          # 새 브랜치 첫 push(before가 0)와 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 대비)
+          base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
@@ -50,6 +53,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
+    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_PATH }}
 
     steps:
       - name: 코드 체크아웃
@@ -59,7 +66,8 @@ jobs:
       - name: Go 설정
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ env.PROJECT_PATH }}/go.mod
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/go.sum
           cache: true
 
       - name: go build 검증
@@ -77,6 +85,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+          working-directory: ${{ env.PROJECT_PATH }}
 
       - name: 빌드 검증 완료
         run: |

@@ -70,8 +70,9 @@ flutter.APP_ARTIFACT_NAME:
   - 고른 방식은 `version.yml`에 기록되므로 다시 실행해도 묻지 않습니다. 방식을 바꾸면 **이전 워크플로우를 마법사가 정리합니다** — 손대지 않은 파일은 삭제하고, 수정한 파일은 `.bak`으로 옮겨 내용을 보존합니다. 남겨두면 배포가 두 번 돕니다.
   - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다 (단, `none`을 고르면 PR 프리뷰도 함께 제외됩니다 — 서버 배포 자체를 하지 않는 프로젝트를 위한 선택지입니다).
 - **react/next**: CI와 CI+CD 분리 구성
-- **python**: CI / PR 프리뷰 / SimpleCICD
-- **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 있는 프로젝트만 해당)
+- **python**: CI(의존성 설치·pytest, Dockerfile이 있으면 Docker 빌드 검증) / PR 프리뷰 / SimpleCICD
+- **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 필요)
+- 서버 배포 워크플로우(SimpleCICD·무중단·React/Next CI+CD)와 PR 프리뷰는 체크아웃 직후 **필수 Secret과 Dockerfile을 먼저 점검**합니다. 빠진 것이 있으면 그 이름을 오류로 알려 주고 멈춥니다 — 서버에 배포하지 않는 프로젝트라면 해당 배포 워크플로우 파일을 지우세요 (Spring·Python·Go는 `--deploy-style none`으로 설치해도 됩니다).
 
 <a id="flutter-store"></a>
 

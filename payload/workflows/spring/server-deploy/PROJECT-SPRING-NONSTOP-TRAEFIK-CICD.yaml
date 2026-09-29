@@ -66,6 +66,10 @@ on:
 env:
   # 프로젝트 설정 - 실제 프로젝트명으로 변경하세요
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-spring'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-spring)
   SERVICE_DOMAIN: "__SERVICE_DOMAIN__"  # @wizard ask:example.com
 
   # Spring Boot 설정
@@ -75,7 +79,7 @@ env:
 
   # 경로 설정
   APPLICATION_YML_DIR: "__APPLICATION_YML_DIR__"  # @wizard auto:spring-app-yml-dir
-  DOCKERFILE_PATH: "./Dockerfile"
+  DOCKERFILE_PATH: "./Dockerfile"  # PROJECT_PATH 기준 상대 경로
 
   # 포트 및 컨테이너 설정
   CONTAINER_INTERNAL_PORT: "8080"
@@ -118,6 +122,42 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v7
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: Java 설정
         uses: actions/setup-java@v5
         with:
@@ -126,6 +166,7 @@ jobs:
           cache: 'gradle'
 
       - name: Gradle Wrapper 실행권한 부여
+        working-directory: ${{ env.PROJECT_PATH }}
         run: chmod +x gradlew
 
       - name: application-prod.yml 생성
@@ -137,6 +178,7 @@ jobs:
           echo "✅ application-prod.yml 파일 생성 완료 (${{ env.APPLICATION_YML_DIR }})"
 
       - name: Build with Gradle
+        working-directory: ${{ env.PROJECT_PATH }}
         run: ./gradlew clean build -x test ${{ env.GRADLE_OPTS }}
 
       - name: Docker 빌드환경 설정
@@ -159,10 +201,10 @@ jobs:
       - name: Docker 이미지 빌드 및 푸시
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ github.ref_name }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
@@ -181,7 +223,7 @@ jobs:
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
-          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          PROJECT_NAME: ${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}
           SERVICE_DOMAIN: ${{ env.SERVICE_DOMAIN }}
           CONTAINER_INTERNAL_PORT: ${{ env.CONTAINER_INTERNAL_PORT }}
           SPRING_PROFILE: ${{ env.SPRING_PROFILE }}

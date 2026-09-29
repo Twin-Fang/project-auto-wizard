@@ -31,9 +31,13 @@ name: PROJECT-PYTHON-PR-PREVIEW
 env:
   # 프로젝트 고유 식별자 (컨테이너명, 이미지명, 도메인에 사용)
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-python'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-python)
 
   # Docker 설정
-  DOCKERFILE_PATH: './Dockerfile'
+  DOCKERFILE_PATH: './Dockerfile'  # PROJECT_PATH 기준 상대 경로
   INTERNAL_PORT: '8000'
 
   # 볼륨 마운트 설정 (프로젝트별 수정 필요, 빈값이면 마운트 안함)
@@ -227,8 +231,45 @@ jobs:
         with:
           ref: ${{ steps.pr.outputs.ref }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       # 환경변수 파일 생성 (프로젝트별 수정 영역)
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         run: |
           cat << 'EOF' > .env
           ${{ secrets.ENV_FILE }}
@@ -246,10 +287,10 @@ jobs:
       - name: Docker 이미지 빌드 & Push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -318,7 +359,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${PR_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -445,7 +486,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -513,7 +554,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -550,6 +591,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Docker 이미지 빌드 실패 (Python 의존성 문제)',
               '- 컨테이너 시작 실패 (FastAPI/Uvicorn 기동 오류)',
               '- Health Check 타임아웃 (120초 내 기동 완료 안됨)',
@@ -791,8 +833,46 @@ jobs:
         with:
           ref: ${{ needs.get-branch-from-issue.outputs.branch_name }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        if: steps.check_branch.outputs.exists == 'true'
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       # 환경변수 파일 생성 (프로젝트별 수정 영역)
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         run: |
           cat << 'EOF' > .env
@@ -814,10 +894,10 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -891,7 +971,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             ISSUE_NUMBER=${{ needs.get-branch-from-issue.outputs.issue_number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${ISSUE_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${ISSUE_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${ISSUE_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -1020,7 +1100,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -1089,7 +1169,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
             const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -1124,6 +1204,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Docker 이미지 빌드 실패 (Python 의존성 문제)',
               '- 컨테이너 시작 실패 (FastAPI/Uvicorn 기동 오류)',
               '- Health Check 타임아웃 (120초 내 기동 완료 안됨)',
@@ -1202,7 +1283,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ steps.pr_number.outputs.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
 
@@ -1230,7 +1311,7 @@ jobs:
         with:
           script: |
             const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             const body = [
               '## 🗑️ Preview 환경 삭제 완료!',
@@ -1273,7 +1354,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1303,7 +1384,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
@@ -1312,7 +1393,7 @@ jobs:
         with:
           script: |
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
@@ -1502,7 +1583,45 @@ jobs:
         with:
           ref: ${{ needs.check-command.outputs.custom_branch }}
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        if: steps.branch_info.outputs.branch_exists == 'true'
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.branch_info.outputs.branch_exists == 'true'
         run: |
           cat << 'EOF' > .env
@@ -1530,16 +1649,16 @@ jobs:
             SUFFIX="pr-${{ steps.branch_info.outputs.container_number }}"
           fi
           echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
-          echo "name=${{ env.PROJECT_NAME }}-${SUFFIX}" >> $GITHUB_OUTPUT
+          echo "name=${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}-${SUFFIX}" >> $GITHUB_OUTPUT
 
       - name: Docker 이미지 빌드 & Push
         if: steps.branch_info.outputs.branch_exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ steps.container.outputs.suffix }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ steps.container.outputs.suffix }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -1612,7 +1731,7 @@ jobs:
             fi
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${{ steps.container.outputs.name }}"
             CONTAINER_SUFFIX="${{ steps.container.outputs.suffix }}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${CONTAINER_SUFFIX}"
@@ -1735,7 +1854,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -1837,6 +1956,7 @@ jobs:
               `**[📋 빌드/배포 로그 확인](${runUrl})**`,
               '',
               '### 🔍 가능한 원인',
+              '- 필수 Secret(DOCKERHUB_*, SERVER_*) 미등록 또는 Dockerfile 없음 → 로그의 "배포 사전 점검" 단계 확인',
               '- Docker 이미지 빌드 실패 (Python 의존성 문제)',
               '- 컨테이너 시작 실패 (FastAPI/Uvicorn 기동 오류)',
               '- Health Check 타임아웃 (120초 내 기동 완료 안됨)',
@@ -1882,7 +2002,7 @@ jobs:
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             // 브랜치명에서 Issue 번호 추출 (#번호 패턴)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -1932,7 +2052,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             CONTAINER_NAME="${{ steps.container_info.outputs.container_name }}"
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
             # 컨테이너명에서 suffix 추출
             SUFFIX="${CONTAINER_NAME#${PROJECT_NAME}-}"
@@ -1998,7 +2118,7 @@ jobs:
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             // 브랜치명에서 Issue 번호 추출 (#번호 패턴)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -2056,7 +2176,7 @@ jobs:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
             const containerName = '${{ steps.container_info.outputs.container_name }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${containerName}.${domainSuffix}`;

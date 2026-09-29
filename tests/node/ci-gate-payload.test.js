@@ -34,6 +34,9 @@ const EXPECTED_JOB_IF =
   "${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}";
 const EXPECTED_FILTER_LINE =
   "- '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'";
+// push는 before 커밋 대비, 새 브랜치(before=0)·PR은 빈 값으로 기본 동작에 맡긴다.
+const EXPECTED_BASE_LINE =
+  "base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}";
 const PROJECT_PATH_MARKER_LINE = '  PROJECT_PATH: "."  # @wizard auto:project-path';
 
 // jdk 리졸버가 읽을 빈 디렉토리 — 이 레포의 build.gradle 유무에 결과가 흔들리지 않게 한다.
@@ -116,6 +119,17 @@ for (const { file, type, jobs } of CI_TARGETS) {
     assert.match(body, /^ {6}pull-requests: read$/m);
     assert.match(body, /^ {6}project: \$\{\{ steps\.filter\.outputs\.project \}\}$/m);
     assert.ok(changes.some((l) => l.trim() === EXPECTED_FILTER_LINE), "필터 표현식이 계약과 다릅니다");
+  });
+
+  test(`${file}: push와 pull_request 모두에서 실행된다 (CI Gate를 required check로 쓸 수 있어야 한다)`, () => {
+    const on = topLevelBlock(text, "on").join("\n");
+    assert.match(on, /^ {2}push:$/m);
+    assert.match(on, /^ {2}pull_request:$/m);
+  });
+
+  test(`${file}: push에서는 직전 커밋(before) 대비로 판별한다 (기본 브랜치 대비 누적 diff 금지)`, () => {
+    const changes = parseJobs(text).get("changes");
+    assert.ok(changes.some((l) => l.trim() === EXPECTED_BASE_LINE), "paths-filter base가 push 범위 기준이 아닙니다");
   });
 
   test(`${file}: ci-gate는 항상 실행되고 모든 job을 needs로 집계한다`, () => {
