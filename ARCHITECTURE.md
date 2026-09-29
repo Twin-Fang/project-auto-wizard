@@ -43,7 +43,8 @@ payload/                     everything that gets installed into a user repo (si
   config/                    wizard-prompts.yml (question text), breaking-changes.json
   flutter-app/               fastlane / ExportOptions files for Flutter store deploys
   version.yml.template       rendered into the user's version.yml
-scripts/                     repo tooling (sync-dogfood.mjs, run-py-tests.mjs) — not shipped
+templates/workflows/         shared pieces + per-type values that generate some payload workflows — not shipped
+scripts/                     repo tooling (generate-workflows.mjs, sync-dogfood.mjs, run-py-tests.mjs) — not shipped
 tests/node, tests/py         test suites (see "Tests")
 ```
 
@@ -176,6 +177,22 @@ After changing a source, run `npm run sync:dogfood`. Intended differences (ISSUE
 the NPM publish trigger in RELEASE-PUBLISH) are declared as `PATCHES` in
 `scripts/sync-dogfood.mjs`. `npm run sync:dogfood:check` and `tests/node/dogfood-parity.test.js`
 fail when the copies drift.
+
+## Generated payload workflows
+
+Workflows that differ only in a few values are generated instead of edited by hand. Currently the
+Go and Python PR previews (`payload/workflows/{go,python}/PROJECT-*-PR-PREVIEW.yaml`):
+
+- `templates/workflows/pr-preview.base.yaml` — the shared body with `%%NAME%%` placeholders
+- `templates/workflows/targets.mjs` — which output file gets which values
+- `scripts/generate-workflows.mjs` — fills the placeholders; a placeholder alone on a line is replaced
+  by an array of lines (an empty array drops the line), one inside a line by a string
+
+The generated files stay committed, so what gets installed into a user repo is unchanged and the
+templates are not shipped. To change a generated workflow, edit the template or the values, run
+`npm run generate:workflows`, and commit the result. `npm run generate:workflows:check` and
+`tests/node/workflow-generator.test.js` fail when a committed file differs from what the generator
+produces, so editing a generated file by hand is caught.
 
 ## Tests
 
