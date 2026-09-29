@@ -47,3 +47,37 @@ test("run(): 동일 옵션으로 재실행하면(전부 unchanged) '새로 설�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("run(): README.md가 없으면 완료 요약이 버전 섹션을 추가했다고 말하지 않는다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-noreadme-"));
+  writeFileSync(join(target, "package.json"), '{"name":"my-app","version":"1.2.3"}\n');
+  try {
+    let code;
+    const output = await captureStderr(async () => {
+      code = await run(["--mode", "full", "--force", "--type", "node"], { cwd: target });
+    });
+    assert.strictEqual(code, 0);
+    assert.ok(!output.includes("README.md (버전 섹션 추가)"), "하지 않은 작업을 '추가됨'으로 보고하면 안 된다");
+    assert.ok(!output.includes("README.md 자동 버전 업데이트"));
+    assert.ok(output.includes("README.md가 없어 버전 섹션을 추가하지 않았습니다"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("run(): README.md가 있으면 버전 섹션 추가를 알리고, 고친 스크립트를 덮어쓴 사실도 보여준다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-readme-"));
+  writeFileSync(join(target, "package.json"), '{"name":"my-app","version":"1.2.3"}\n');
+  writeFileSync(join(target, "README.md"), "# my-app\n");
+  try {
+    await run(["--mode", "full", "--force", "--type", "node"], { cwd: target });
+    writeFileSync(join(target, ".github", "scripts", "issue_helper.py"), "# my edit\n");
+    const output = await captureStderr(async () => {
+      assert.strictEqual(await run(["--mode", "full", "--force", "--type", "node"], { cwd: target }), 0);
+    });
+    assert.ok(output.includes("README.md 자동 버전 업데이트"), "원래 있던 버전 섹션은 계속 자동 갱신된다");
+    assert.match(output, /issue_helper\.py .*덮어씀/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

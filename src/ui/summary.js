@@ -1,5 +1,5 @@
 // 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
-// ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated? }
+// ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated?, readme?, scripts? }
 import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
 
@@ -12,7 +12,10 @@ export function printSummary(ctx) {
     // 설치 후 검증·기록
     answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
     // Flutter 스토어 배포 — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
-    flutterApp = null, storeCleanup = null } = ctx || {};
+    flutterApp = null, storeCleanup = null,
+    // 이번 실행의 실제 결과 — README 버전 섹션 처리 상태(addVersionSectionToReadme 반환값)와 스크립트별 결과.
+    // 고정 문구로 찍으면 README.md가 없어 아무것도 하지 않은 실행도 "추가됨"으로 보고하게 된다.
+    readme = null, scripts = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -26,21 +29,13 @@ export function printSummary(ctx) {
   err("");
   err("통합된 기능:");
 
-  // 모드별 체크리스트
-  switch (mode) {
-    case "full":
-      err("  ✅ 버전 관리 시스템 (version.yml)");
-      err("  ✅ README.md 자동 버전 업데이트");
-      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
-      if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
-      break;
-    case "version":
-      err("  ✅ 버전 관리 시스템 (version.yml)");
-      err("  ✅ README.md 자동 버전 업데이트");
-      break;
-    case "workflows":
-      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
-      break;
+  // README 버전 섹션이 실제로 있는 경우(이번에 추가했거나 원래 있던 경우)에만 자동 업데이트를 안내한다.
+  const readmeTracked = readme === "added" || readme === "skip-marker" || readme === "skip-version-line";
+  if (mode === "full") {
+    err("  ✅ 버전 관리 시스템 (version.yml)");
+    if (readmeTracked) err("  ✅ README.md 자동 버전 업데이트");
+    err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
+    if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
   }
 
   // 브랜치 모드 + 릴리스 요약 엔진 안내 (DESIGN-SPEC §4~5)
@@ -70,7 +65,11 @@ export function printSummary(ctx) {
   if (versionCode != null && types.some((t) => BUILD_NUMBER_TYPES.has(t))) {
     err(`     빌드 번호: ${versionCode}`);
   }
-  err("  📝 README.md (버전 섹션 추가)");
+  if (readme === "added") err("  📝 README.md (버전 섹션 추가)");
+  if (readme === "skip-no-readme") {
+    err("  ℹ️  README.md가 없어 버전 섹션을 추가하지 않았습니다");
+    err("     → README.md를 만든 뒤 다시 실행하면 추가됩니다 (그 전까지 README 버전 갱신 워크플로우는 건너뜁니다)");
+  }
   err("");
   err("추가된 워크플로우:");
 
@@ -96,10 +95,10 @@ export function printSummary(ctx) {
 
   err("");
   err("  🔧 .github/scripts/");
-  err("     ├─ version_manager.py");
-  err("     ├─ changelog_manager.py");
-  err("     ├─ truncate_release_notes.py");
-  err("     └─ issue_helper.py");
+  const scriptRows = scripts
+    ? scripts.map(({ name, action }) => (action === "overwrite" ? `${name} ${paint("(기존 파일을 새 버전으로 덮어씀)", A.dim, enabled)}` : name))
+    : ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"];
+  scriptRows.forEach((row, i) => err(`     ${i === scriptRows.length - 1 ? "└─" : "├─"} ${row}`));
   err("");
 
   // 입력한 환경설정 값 — 마지막으로 눈으로 검산할 기회. 종전에는 답변이 워크플로우
