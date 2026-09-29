@@ -4,7 +4,7 @@ import {
   ENV_MODES, DEPLOY_MODES, DEFAULT_ENV_MODE, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS, formatStoreList,
 } from "./flutter-options.js";
 
-// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략).
+// version.yml 파싱·생성 (전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
@@ -43,7 +43,7 @@ const FLUTTER_OPTION_KEYS = {
   android_deploy_mode: "androidDeployMode", ios_deploy_mode: "iosDeployMode",
 };
 
-// metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
+// metadata.template.options 상태머신 파싱.
 // 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
 //         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
@@ -52,7 +52,7 @@ export function parseTemplateOptions(content) {
     semverAuto: null, copilotAi: null, deployStyle: null,
     envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
   };
-  // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
+  // 값 정규화: 따옴표 제거 + 트림
   // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
   // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
   const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
@@ -80,16 +80,16 @@ export function parseTemplateOptions(content) {
         if (v === "false") out.copilotAi = false;
         continue;
       }
-      // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료 (.sh L2404~2408)
+      // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료
       if (/^\s{0,4}[a-z_]+:/.test(line)) { inOptions = false; inTemplate = false; }
     }
-    // 최상위 키 → template 섹션 종료 (.sh L2411~2415)
+    // 최상위 키 → template 섹션 종료
     if (inTemplate && /^[a-z_]+:/.test(line)) { inTemplate = false; inOptions = false; }
   }
   return out;
 }
 
-// 기존 version.yml에서 값 추출 (.sh grep/sed 등가, 주석 라인 오탐 방지).
+// 기존 version.yml에서 값 추출 (라인 기반, 주석 라인 오탐 방지).
 export function parseExisting(content) {
   const text = String(content || "");
   const line = (re) => {
@@ -135,7 +135,31 @@ export function parseExisting(content) {
   const options = parseTemplateOptions(text);
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
-  return { version, versionCode, types, paths, templateVersion, options, branches, extraTopLevel: parseExtraTopLevel(text) };
+  return {
+    version, versionCode, types, paths, templateVersion, options, branches,
+    deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
+  };
+}
+
+// deploy 블록 파싱 — 설치 때 답한 배포 값을 다시 읽어 재실행·업데이트의 기본값으로 쓴다.
+// 쓰기만 하고 읽지 않으면 손대지 않은 파일은 치환을 건너뛰어 블록이 사라지고, 자동 갱신은
+// 사용자가 고른 값을 템플릿 기본값으로 되돌린다.
+// 반환: Map<type, Map<KEY, value>> (값은 buildVersionYml이 쓴 큰따옴표 이스케이프를 푼 원문)
+export function parseDeployBlock(content) {
+  const out = new Map();
+  let inDeploy = false;
+  let current = null;
+  for (const raw of String(content || "").split("\n")) {
+    const l = raw.replace(/\r$/, "");
+    if (/^deploy:/.test(l)) { inDeploy = true; current = null; continue; }
+    if (!inDeploy) continue;
+    if (/^\S/.test(l)) { inDeploy = false; continue; } // 다음 최상위 키 → 블록 종료
+    const t = l.match(/^ {2}([a-z][a-z-]*):\s*(?:#.*)?$/);
+    if (t) { current = new Map(); out.set(t[1], current); continue; }
+    const kv = l.match(/^ {4}([A-Za-z_][A-Za-z0-9_]*):\s*"((?:[^"\\]|\\.)*)"/);
+    if (kv && current) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
+  }
+  return out;
 }
 
 // metadata.template.branches 블록 파싱. 셋 다 있어야 유효 — 아니면 null.
@@ -245,6 +269,7 @@ export function buildVersionYml({
     if (t === "{{PROJECT_PATHS}}") { if (pathsBlock) out.push(pathsBlock); continue; }
     if (t === "{{FLUTTER_OPTIONS}}") { if (flutterBlock) out.push(flutterBlock); continue; }
     if (t === "{{DEPLOY}}") { if (deployBlock) out.push(deployBlock); continue; }
+    if (t.startsWith("deploy_style:") && deployStyle === null) continue; // 서버 배포가 없는 타입은 기록하지 않는다
     out.push(line.replace(/\{\{([A-Z][A-Z0-9_]*)\}\}/g, (_, name) => {
       if (name in scalars) return scalars[name];
       throw new Error(`version.yml.template에 알 수 없는 플레이스홀더: {{${name}}}`);
@@ -257,6 +282,14 @@ export function buildVersionYml({
   }
   if (!text.endsWith("\n")) text += "\n";
   return text.replace(/\n{3,}$/, "\n"); // 말미 과잉 빈 줄 정리
+}
+
+// 설치 시각 줄(metadata.last_updated 등)만 다른가 — 바뀐 게 없는 재실행이 매번 파일을 고쳐
+// 작업트리를 dirty하게 만들지 않도록 호출부가 쓰기를 건너뛰는 데 쓴다.
+const TIMESTAMP_LINE = /^\s*(last_updated|integration_date|integrated_date|last_update_date):/;
+export function sameIgnoringTimestamps(a, b) {
+  const norm = (t) => String(t).replace(/\r\n/g, "\n").split("\n").filter((l) => !TIMESTAMP_LINE.test(l)).join("\n");
+  return norm(a) === norm(b);
 }
 
 // context 하나로 version.yml 최종형을 만든다 — 실제 설치(full)와 미리보기(dry-run)가
@@ -275,7 +308,8 @@ export function renderVersionYml(context, templateText, { pathMarkers, deployVal
       templateVersion,
       includeSemverAuto: includeSemverAuto !== false,
       includeCopilotAi: includeCopilotAi === true,
-      deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+      // null = 서버 배포 워크플로우가 없는 타입이라 배포 방식이 의미 없음(기록 생략)
+      deployStyle: deployStyle === null ? null : (deployStyle || DEFAULT_DEPLOY_STYLE),
       optionsDate: today,
     },
   });

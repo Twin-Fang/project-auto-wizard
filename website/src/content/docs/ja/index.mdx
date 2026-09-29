@@ -1,0 +1,69 @@
+---
+title: project-auto-wizard
+description: コマンド 1 つで、バージョン管理・CHANGELOG・GitHub Release・CI/CD をリポジトリに導入します。
+template: splash
+hero:
+  tagline: コマンド 1 つで、バージョン管理・CHANGELOG・GitHub Release・CI/CD をリポジトリに導入します。インストールされるのは自分のリポジトリ内の GitHub Actions だけです。API キーも外部サービスも不要です。
+  actions:
+    - text: クイックスタート
+      link: start/quickstart/
+      icon: right-arrow
+    - text: 仕組み
+      link: understand/how-it-works/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/Twin-Fang/project-auto-wizard
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import DemoVideo from '../../../components/DemoVideo.astro';
+
+<DemoVideo label="ウィザードで Spring プロジェクトにリリース自動化を導入する様子" />
+
+## 試してみる
+
+リポジトリのルートで実行します（Node.js 20.12 以上）：
+
+```bash
+npx project-auto-wizard
+```
+
+プロジェクトタイプを検出し、いくつか質問したあとワークフローファイルを書き込みます。CI やスクリプトでは非対話で実行します：
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+```
+
+## 導入されるもの
+
+<CardGrid>
+  <Card title="リリース PR の自動化" icon="rocket">
+    `develop → main` の PR を開くと、コミットタイプから次のバージョンを決め、リリースノートを書き、CHANGELOG を更新して自動マージします。
+  </Card>
+  <Card title="タグと GitHub Release" icon="approve-check">
+    マージ後に `vX.Y.Z` タグと GitHub Release を発行し、README のバージョン行を更新します。
+  </Card>
+  <Card title="スタック別の CI/CD" icon="seti:pipeline">
+    Spring、Flutter、React、Next.js、Python、Go には CI とデプロイ用ワークフローが入ります。その他のタイプはリリース自動化のみです。
+  </Card>
+  <Card title="API キー不要" icon="padlock">
+    リリースノートはデフォルトでルールベースです。GitHub Copilot や OpenAI 互換 API は任意で、失敗した場合はルールにフォールバックします。
+  </Card>
+  <Card title="ファイルは自分のもの" icon="document">
+    ワークフローと標準ライブラリのみの Python スクリプトが `.github/` にコピーされます。読んで編集でき、再実行しても変更は保持されます。
+  </Card>
+  <Card title="読み取り専用のチェック" icon="magnifier">
+    `--mode status` はインストール時のテンプレートとの差分を、`--mode doctor` はワークフローが依存するリポジトリ設定を確認します。
+  </Card>
+</CardGrid>
+
+## 次に読むもの
+
+- [クイックスタート](start/quickstart/) — インストール、コミット、最初のリリース PR まで
+- [リリースフロー](understand/release-flow/) — PR から GitHub Release までの流れ（英語）
+- [プロジェクトタイプ](project-types/common/) — スタック別のワークフローと必要な Secret（英語）
+- [CLI オプション](reference/cli/) — すべてのフラグ（英語）
+
+その他のページは現在英語のみです。

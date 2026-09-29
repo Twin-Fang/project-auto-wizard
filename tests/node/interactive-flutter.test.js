@@ -67,7 +67,7 @@ test("신규 설치: 환경변수 방식·스토어·배포 모드를 묻고 선
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
     assert.deepStrictEqual(calls.envMode, [{ initialValue: "dart-define" }], "신규 설치의 환경변수 초기 선택은 dart-define");
-    assert.deepStrictEqual(calls.stores, [{ initialValues: [] }], "신규 설치의 스토어 초기 선택은 없음");
+    assert.deepStrictEqual(calls.stores, [{ initialValues: ["android", "ios"] }], "신규 설치의 스토어 초기 선택은 CLI 기본값과 같은 둘 다");
     assert.deepStrictEqual(calls.deployMode, [{ platform: "android", initialValue: "store_only" }], "고른 플랫폼(android)만 배포 모드를 묻는다");
 
     const vy = versionYml(target);
@@ -122,16 +122,17 @@ test("저장값 없는 기존 설치: dotenv를 초기 선택으로, 스토어�
   }
 });
 
-test("ESC(취소)는 기본값: dart-define, 스토어 없음(none), 배포 모드는 묻지 않는다", async () => {
+test("ESC(취소)는 기본값: dart-define, 스토어는 CLI 기본값과 같은 둘 다, 배포 모드 store_only", async () => {
   const target = flutterProject();
   try {
-    const { io, calls } = stubIo({ envMode: () => CANCEL, stores: () => CANCEL, deployMode: neverAsked });
+    const { io, calls } = stubIo({ envMode: () => CANCEL, stores: () => CANCEL, deployMode: () => CANCEL });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
-    assert.deepStrictEqual(calls.deployMode, []);
+    assert.deepStrictEqual(calls.deployMode.map((c) => c.platform), ["android", "ios"]);
     const vy = versionYml(target);
     assert.match(vy, /env_mode:\s*"?dart-define"?/);
-    assert.match(vy, /flutter_store:\s*"?none"?/);
-    for (const f of [PLAYSTORE, ...IOS_WORKFLOWS]) assert.ok(!workflowExists(target, f), `${f}는 설치되지 않아야 한다`);
+    assert.match(vy, /flutter_store:\s*"?android,ios"?/);
+    assert.match(vy, /android_deploy_mode:\s*"?store_only"?/);
+    for (const f of [PLAYSTORE, ...IOS_WORKFLOWS]) assert.ok(workflowExists(target, f), `${f}는 설치되어야 한다`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
@@ -166,7 +167,7 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
     });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
-    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: true });
+    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: true, showOptions: true });
     assert.deepStrictEqual(calls.envMode[1], { initialValue: "dart-define" }, "수정 시 초기값은 현재값");
     assert.deepStrictEqual(calls.deployMode[1], { platform: "android", initialValue: "store_only" });
     const vy = versionYml(target);
@@ -232,7 +233,7 @@ test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않�
     let menuRound = 0;
     io.confirmProjectMenu = async () => (++menuRound === 1 ? "edit" : "continue");
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
-    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: false });
+    assert.deepStrictEqual(calls.editMenu[0], { showFlutter: false, showOptions: true });
     assert.deepStrictEqual([calls.envMode, calls.stores, calls.deployMode], [[], [], []]);
     assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
     assert.ok(!calls.cards[0].includes("환경변수"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");

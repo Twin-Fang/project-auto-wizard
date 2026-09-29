@@ -48,31 +48,97 @@ const AUTO_SECRETS = new Set(["GITHUB_TOKEN"]);
 export const OPTIONAL_SECRETS = new Set(["AI_API_KEY", "WORKFLOW_PAT"]);
 const SECRET_RE = /secrets\.([A-Z][A-Z0-9_]*)/g;
 
-// 설치된 워크플로우가 요구하는 GitHub Secret 목록.
-// 완료 화면이 WORKFLOW_PAT와 권한만 안내하는 바람에, 배포 워크플로우가 실제로 필요로 하는
-// SERVER_HOST·SSH_KEY 같은 값이 하나도 안내되지 않았다. 설치 직후 상태로는 배포가 돌지 않는데
-// 그 사실이 어디에도 드러나지 않는다.
-//
-// 반환: Map<secretName, string[] 그 secret을 쓰는 파일명>
-export function collectRequiredSecrets(workflowsDir, filenames = []) {
-  const out = new Map();
+// 워크플로우 머리 주석의 "NAME (선택)" 표기 — 워크플로우가 비어 있어도 동작하도록 작성된 secret이다.
+const OPTIONAL_NOTE_RE = /^\s*#\s*-?\s*([A-Z][A-Z0-9_]*)\s*\(선택/;
+// `secrets.A || secrets.B` — 둘 중 하나만 있으면 된다.
+const EITHER_RE = /^\s*\|\|\s*secrets\.([A-Z][A-Z0-9_]*)/;
+// `secrets.A || '3000'`, `secrets.A || vars.A` — 기본값·대체값이 있다.
+const FALLBACK_AFTER_RE = /^\s*\|\|/;
+const FALLBACK_BEFORE_RE = /\|\|\s*$/;
+export const EITHER_SEP = " 또는 ";
+
+// 한 파일 안의 secret 참조를 필수 / 둘 중 하나 / 선택으로 가른다.
+function classifyFile(content) {
+  const lines = content.split(/\r?\n/);
+  const noted = new Set();
+  for (const line of lines) {
+    const m = line.match(OPTIONAL_NOTE_RE);
+    if (m) noted.add(m[1]);
+  }
+  const singles = new Set();
+  const pairs = [];
+  const optional = new Set();
+  for (const line of lines) {
+    if (isCommented(line)) continue;
+    const matches = [...line.matchAll(SECRET_RE)];
+    for (let i = 0; i < matches.length; i++) {
+      const m = matches[i];
+      const name = m[1];
+      const rest = line.slice(m.index + m[0].length);
+      const either = rest.match(EITHER_RE);
+      if (either) {
+        pairs.push([name, either[1]]);
+        i++; // 짝의 오른쪽은 이미 묶었다
+      } else if (FALLBACK_AFTER_RE.test(rest) || FALLBACK_BEFORE_RE.test(line.slice(0, m.index))) {
+        optional.add(name);
+      } else {
+        singles.add(name);
+      }
+    }
+  }
+  const out = { required: [], optional: [] };
+  for (const name of singles) (noted.has(name) ? out.optional : out.required).push(name);
+  for (const name of optional) out.optional.push(name);
+  for (const [a, b] of pairs) {
+    const key = `${a}${EITHER_SEP}${b}`;
+    (noted.has(a) || noted.has(b) ? out.optional : out.required).push(key);
+  }
+  return out;
+}
+
+// 설치된 워크플로우의 secret을 필수와 선택으로 나눈다.
+// 참조한 이름을 전부 필수로 세면 기본값이 있는 것·둘 중 하나면 되는 폴백 쌍까지 "등록해야 동작합니다"에
+// 섞여 개수가 부풀고, 처음 쓰는 사용자가 필요 없는 secret까지 등록하게 된다.
+// 반환: { required: Map<이름|"A 또는 B", 파일명[]>, optional: Map<같은 형식> }
+export function classifySecrets(workflowsDir, filenames = []) {
+  const required = new Map();
+  const optional = new Map();
+  const add = (map, key, filename) => {
+    if (!map.has(key)) map.set(key, []);
+    if (!map.get(key).includes(filename)) map.get(key).push(filename);
+  };
+  const skip = (key) => key.split(EITHER_SEP).some((n) => AUTO_SECRETS.has(n) || OPTIONAL_SECRETS.has(n));
   for (const filename of filenames) {
     const p = join(workflowsDir, filename);
     if (!existsSync(p)) continue;
     let content;
     try { content = readFileSync(p, "utf8"); } catch { continue; }
-    for (const line of content.split(/\r?\n/)) {
-      if (isCommented(line)) continue;
-      for (const m of line.matchAll(SECRET_RE)) {
-        const name = m[1];
-        if (AUTO_SECRETS.has(name) || OPTIONAL_SECRETS.has(name)) continue;
-        if (!out.has(name)) out.set(name, []);
-        const users = out.get(name);
-        if (!users.includes(filename)) users.push(filename);
-      }
-    }
+    const r = classifyFile(content);
+    for (const k of r.required) if (!skip(k)) add(required, k, filename);
+    for (const k of r.optional) if (!skip(k)) add(optional, k, filename);
   }
-  return new Map([...out.entries()].sort(([a], [b]) => a.localeCompare(b)));
+  // 한 파일에서라도 단독으로 필수인 이름은 필수다 — 그 이름이 든 폴백 쌍·선택 항목은 이미 충족되므로 뺀다.
+  const requiredNames = new Set([...required.keys()].filter((k) => !k.includes(EITHER_SEP)));
+  const coveredByRequired = (k) => k.split(EITHER_SEP).some((n) => requiredNames.has(n));
+  for (const k of [...required.keys()]) if (k.includes(EITHER_SEP) && coveredByRequired(k)) required.delete(k);
+  for (const k of [...optional.keys()]) if (required.has(k) || coveredByRequired(k)) optional.delete(k);
+  const sorted = (m) => new Map([...m.entries()].sort(([a], [b]) => a.localeCompare(b)));
+  return { required: sorted(required), optional: sorted(optional) };
+}
+
+// 설치된 워크플로우가 요구하는 GitHub Secret 목록.
+// 완료 화면이 WORKFLOW_PAT와 권한만 안내하는 바람에, 배포 워크플로우가 실제로 필요로 하는
+// SERVER_HOST·SSH_KEY 같은 값이 하나도 안내되지 않았다. 설치 직후 상태로는 배포가 돌지 않는데
+// 그 사실이 어디에도 드러나지 않는다.
+//
+// 반환: Map<secretName 또는 "A 또는 B", string[] 그 secret을 쓰는 파일명>
+export function collectRequiredSecrets(workflowsDir, filenames = []) {
+  return classifySecrets(workflowsDir, filenames).required;
+}
+
+// 없어도 워크플로우가 도는 secret(기본값·대체값이 있거나 머리 주석에 "(선택)"으로 적힌 것).
+export function collectOptionalSecrets(workflowsDir, filenames = []) {
+  return classifySecrets(workflowsDir, filenames).optional;
 }
 
 // SSH 인증 방식에 따라 둘 중 하나만 필요한 secret — 사용자가 이미 답한 값으로 목록을 좁힌다.

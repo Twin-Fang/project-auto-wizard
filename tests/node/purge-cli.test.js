@@ -237,7 +237,7 @@ test("run(): without --delete-develop-branch, no branch command is issued", asyn
 });
 
 // .gitignore는 이제 충돌 백업 부산물이 실제로 생겼을
-// 때만 만들어지고, purge는 어떤 경우든 절대 건드리지 않으므로(스펙 §2 비목표) 라운드트립 비교에서
+// 때만 만들어지고, purge는 어떤 경우든 절대 건드리지 않으므로 라운드트립 비교에서
 // .git과 함께 안전하게 제외한다 — 자세한 이유는 purge-plan.test.js의 동일 헬퍼 참고.
 function listAllFilesCli(dir, base = dir) {
   let out = [];

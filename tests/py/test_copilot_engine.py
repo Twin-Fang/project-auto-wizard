@@ -199,6 +199,25 @@ class TestCopilotEngineChain(unittest.TestCase):
         self.assertIn("::warning::", err)
         self.assertNotIn("::warning::", out)
 
+    def test_ai_variables_without_key_warn(self):
+        for env in ({"AI_API_BASE_URL": "https://api.example.com/v1", "AI_MODEL": "m"}, {"AI_MODEL": "m"}):
+            with self.subTest(env=sorted(env)):
+                with patch.dict(changelog_manager.os.environ, env):
+                    changelog_manager.os.environ.pop("AI_API_KEY", None)
+                    with patch.object(changelog_manager.urllib.request, "urlopen") as mock_urlopen:
+                        rc, out, err = self._run_capture()
+                self.assertEqual(rc, 0)
+                mock_urlopen.assert_not_called()
+                self.assertEqual(_last_json_line(out)["engine"], "fallback")
+                self.assertIn("::warning::", err)
+                self.assertIn("AI_API_KEY", err)
+
+    def test_no_ai_settings_no_warning(self):
+        for k in ("AI_API_KEY", "AI_API_BASE_URL", "AI_MODEL"):
+            changelog_manager.os.environ.pop(k, None)
+        _, _, err = self._run_capture()
+        self.assertNotIn("AI_API_KEY", err)
+
     def test_partial_user_api_settings_are_skipped(self):
         for env in (
             {"AI_API_KEY": "sk", "AI_API_BASE_URL": "https://api.example.com/v1"},

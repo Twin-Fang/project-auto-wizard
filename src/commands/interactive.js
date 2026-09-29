@@ -1,4 +1,4 @@
-// 대화형 마법사 (.sh interactive_mode 등가) + #446 UI 층.
+// 대화형 마법사.
 // io 주입으로 테스트 가능. 실제 실행은 src/ui/prompts.js 함수를 io로 넘긴다.
 // 새 시각 층(banner/detectionLog/analysisCard/installKind/summary)과 저수준 엔진(engineIo)은
 // io의 "옵셔널 멤버" — 스텁이 생략하면 해당 층만 건너뛰고 실행 계약은 동일하다.
@@ -7,18 +7,21 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "../core/detect-fs.js";
 import { parseExisting } from "../core/version-yml.js";
+import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection } from "../core/branches.js";
+import {
+  resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, sortBranchesForSelection, isValidBranchName, developMissingNotice,
+} from "../core/branches.js";
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows, effectiveDeployStyle } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
-import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
+import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
 import { savedFlutterState, askUnsetFlutterOptions, editFlutterOption, FLUTTER_EDIT_ITEMS } from "./interactive-flutter.js";
-import { runFull } from "./full.js";
+import { runFull, postInstallNotices } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
@@ -26,6 +29,9 @@ import { runDoctor, printDoctorReport } from "./doctor.js";
 import { currentLogPath, hasLegacyMdLogs } from "../core/logger.js";
 
 const CANCEL = prompts.CANCEL;
+
+const SEMVER_AUTO_QUESTION = "자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)";
+const COPILOT_AI_QUESTION = "Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)";
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
 
 // io 기본값 = 실제 prompts. 테스트는 스텁 io 주입.
@@ -37,7 +43,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (io.banner) io.banner({ version: templateVersion, modeLabel: "대화형 통합 마법사" });
   else io.intro?.("project-auto-wizard — 대화형 통합 마법사");
 
-  // 기존 version.yml — version/version_code/paths/옵션 보존의 단일 진실 (.sh SSoT L2208~2239)
+  // 기존 version.yml — version/version_code/paths/옵션 보존의 단일 진실
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
@@ -65,7 +71,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     return 0;
   }
 
-  // Breaking Changes 게이트 (.sh execute_integration L4415~4420 — 모든 모드 공통, 대화형은 확인 질문)
+  // Breaking Changes 게이트 (모든 모드 공통, 대화형은 확인 질문)
   const proceed = await runBreakingCheck({
     cwd, payloadRoot: payload, templateVersion,
     askYesNo: (msg, def) => io.askYesNo(msg, def),
@@ -78,14 +84,21 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const detectWarnings = [];
   let types = detectTypes(cwd);
   let version = (existing?.version) || detectVersion(cwd, {
+    types,
     warn: (m) => detectWarnings.push(m),
     hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
   });
-  let branch = detectDefaultBranch(cwd);
+  // 경로가 확정된 뒤 모노레포 하위 폴더에서 다시 감지할지 — 저장값·직접 입력한 값은 건드리지 않는다.
+  let versionAutoDetected = !existing?.version;
+  let branch = detectDefaultBranch(cwd, {
+    warn: (m) => detectWarnings.push(m),
+    hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
+  });
   const repoName = detectRepoName(cwd);
-  // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
-  let includeSemverAuto = existing?.options?.semverAuto ?? null;
-  let includeCopilotAi = existing?.options?.copilotAi ?? null;
+  // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션
+  // 플래그로 정한 값은 질문을 생략한다 — 비대화형과 같은 우선순위.
+  let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
+    { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
   // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
   let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
@@ -99,11 +112,20 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     envModeDefault: resolveFlutterOptions({
       cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
     }).envMode,
-    inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [],
+    // 신규 설치의 초기 선택은 CLI 기본값(--flutter-store 미지정 = 둘 다)과 같아야 한다 — 경로에 따라 설치 결과가 달라지면 안 된다.
+    inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [...STORE_PLATFORMS],
   };
   // 이미 정해진 값은 건너뛰므로 여러 번 불러도 같은 질문이 반복되지 않는다.
   const askFlutterOptions = async () => {
     if (types.includes("flutter")) flutter = await askUnsetFlutterOptions(io, flutter, flutterAsk);
+  };
+  // 서버 배포 방식 — 서버 배포(CD) 워크플로우가 있는 타입(spring·go·python 등)일 때만 묻는다.
+  // 그 외 타입에는 설치 결과에 영향이 없는 질문이라 묻지도 기록하지도 않는다.
+  const hasServerDeploy = () => hasServerDeployWorkflows(payload, types);
+  const askDeployStyle = async () => {
+    if (isDeployStyle(deployStyle) || !hasServerDeploy()) return;
+    const picked = await io.selectDeployStyle({ nonstop: hasNonstopWorkflows(payload, types) });
+    deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
   };
 
   // 감지 로그. markers = 실제로 존재를 확인한 파일.
@@ -127,11 +149,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 배포 방식·Flutter 옵션·semver/Copilot 질문 — 선택 항목을 묻는 경우(showOptional)만
   if (showOptional) {
-    // 서버 배포 방식.
-    if (!isDeployStyle(deployStyle)) {
-      const picked = await io.selectDeployStyle();
-      deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
-    }
+    await askDeployStyle();
 
     // Flutter 옵션 — 환경변수 방식 → 스토어 배포 대상 → 플랫폼별 배포 모드.
     await askFlutterOptions();
@@ -139,31 +157,37 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
     // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
     if (mode === "full" && includeSemverAuto === null) {
-      const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
+      const y2 = await io.askYesNo(SEMVER_AUTO_QUESTION, true);
       includeSemverAuto = y2 === true;
     }
 
     // Copilot AI 요약 — AI Credits를 소비하므로 opt-in(기본 No). 저장값 있으면 재질문 생략.
     if (mode === "full" && includeCopilotAi === null) {
-      const y3 = await io.askYesNo("Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)", false);
+      const y3 = await io.askYesNo(COPILOT_AI_QUESTION, false);
       includeCopilotAi = y3 === true;
     }
   }
-  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중.
-  // 질문이 안 나온 경우(version/workflows 모드) — 기존 설치는 안전하게 false로 폴백,
-  // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
-  includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
-  includeCopilotAi = includeCopilotAi === true;
+  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중하고, 안 나온 옵션만 기본값으로 채운다
+  // — CLI 경로(index.js)와 같은 함수라 같은 규칙이다.
+  ({ includeSemverAuto, includeCopilotAi } = resolveReleaseOptions(
+    { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi }, existing));
+  const showOptionToggles = mode === "full";
 
-  // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
+  // 확인/수정 루프 — ESC는 '머무르기' (명시적 '아니오'만 종료)
   let paths = new Map();
   let confirmed = false;
   while (!confirmed) {
     // 프로젝트 분석 개요 카드. 스텁엔 없음 → note 폴백.
     if (io.analysisCard) {
-      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault });
+      io.analysisCard({
+        mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault,
+        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+      });
     } else {
-      io.note?.(summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
+      io.note?.(summarize({
+        mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault,
+        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+      }), "프로젝트 분석 결과");
     }
     const choice = await io.confirmProjectMenu();
     if (choice === "cancel") { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
@@ -172,12 +196,12 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // edit 루프
     let editing = true;
     while (editing) {
-      const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter") });
+      const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter"), showOptions: showOptionToggles });
       if (isCancel(what) || what === "done") { editing = false; break; }
       if (what === "type") {
         const t = await io.selectTypes(types);
         if (!isCancel(t) && Array.isArray(t) && t.length) {
-          // 타입 집합이 실제로 바뀌면 경로 재해석 대상으로 초기화 (.sh L1984~1992 — 정렬 집합 비교)
+          // 타입 집합이 실제로 바뀌면 경로 재해석 대상으로 초기화 (정렬 집합 비교)
           const oldSorted = [...types].sort().join(",");
           types = t.filter((x) => VALID_TYPES.includes(x));
           if ([...types].sort().join(",") !== oldSorted) paths = new Map();
@@ -185,13 +209,19 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       } else if (what === "version") {
         const v = await io.askText("새 버전 (예: 1.0.0)", version);
         if (!isCancel(v) && v !== version) {
-          // semver 형식 검증 (.sh L2010~2015)
-          if (/^\d+\.\d+\.\d+$/.test(v)) version = v;
+          // semver 형식 검증
+          if (/^\d+\.\d+\.\d+$/.test(v)) { version = v; versionAutoDetected = false; }
           else io.note?.("버전 형식이 올바르지 않습니다 (x.y.z 형태) — 기존 값을 유지합니다.", "⚠ 버전");
         }
       } else if (what === "branch") {
-        const b = await io.askText("기본 브랜치", branch);
-        if (!isCancel(b) && b) branch = b;
+        branch = await askBranchName(io, "기본 브랜치", branch, isCancel);
+      } else if (what === "semverAuto") {
+        // 저장값이 있으면 처음 질문을 건너뛰므로, 한 번 정한 값을 바꿀 수 있는 곳은 여기뿐이다.
+        const y = await io.askYesNo(SEMVER_AUTO_QUESTION, includeSemverAuto);
+        if (typeof y === "boolean") includeSemverAuto = y;
+      } else if (what === "copilotAi") {
+        const y = await io.askYesNo(COPILOT_AI_QUESTION, includeCopilotAi);
+        if (typeof y === "boolean") includeCopilotAi = y;
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
@@ -199,7 +229,11 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }
 
   // 편집 루프에서 뒤늦게 flutter 타입이 추가된 경우에도 옵션을 확정한다 — 이미 정해진 값은 다시 묻지 않는다.
-  if (showOptional) await askFlutterOptions();
+  // 서버 배포 타입이 뒤늦게 추가된 경우도 같다.
+  if (showOptional) {
+    await askDeployStyle();
+    await askFlutterOptions();
+  }
   // 질문이 나오지 않은 경우(비 full 모드 등)도 동작 보존 기본값으로 채워 워크플로우 치환이 어긋나지 않게 한다.
   const flutterOptions = {
     envMode: flutter.envMode || flutterAsk.envModeDefault,
@@ -208,14 +242,17 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     iosDeployMode: flutter.iosDeployMode || DEFAULT_DEPLOY_MODE,
   };
 
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
-
-  // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
+  // 브랜치 설정. full/workflows만 질문, version은 기본값 기록.
   // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
-  let branches = existing?.branches
-    ? resolveBranchConfig({ mainBranch: existing.branches.main, developBranch: existing.branches.develop, defaultBranch: branch })
+  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)이 있으면 저장값이 없는 것으로 보고 다시 묻는다.
+  const savedBranches = existing?.branches
+    && isValidBranchName(existing.branches.main) && isValidBranchName(existing.branches.develop)
+    ? existing.branches : null;
+  let branches = savedBranches
+    ? resolveBranchConfig({ mainBranch: savedBranches.main, developBranch: savedBranches.develop, defaultBranch: branch })
     : resolveBranchConfig({ defaultBranch: branch });
-  if (showOptional && !existing?.branches) {
+  let developMissing = false;
+  if (showOptional && !savedBranches) {
     const remoteBranches = await detectRemoteBranches(cwd);
     // 두 질문에 같은 이름을 입력해야만 trunk-based가 되는 암묵적 규칙 대신,
     // 전략을 먼저 명시적으로 고르게 한다. 취소/그 외 값은 기존 기본 동작과 같은 pr-flow로 폴백
@@ -230,16 +267,21 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
     if (branches.mode === "trunk-based") {
       io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 모드");
-    } else if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
-      await ensureDevelopBranch({
+    } else if (!remoteBranches.length) {
+      // 원격이 없거나 비어 있으면 push할 기준이 없다 — 만들지 않았다는 사실과 방법을 알린다.
+      developMissing = true;
+      io.note?.(developMissingNotice(branches), "브랜치");
+    } else if (!remoteBranches.includes(branches.develop)) {
+      const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, cwd,
         confirm: (msg) => io.askYesNo(msg, true),
         log: (m) => io.note?.(m, "브랜치"),
       });
+      developMissing = r.created !== true || r.pushed === false;
     }
   }
 
-  // 경로 확정 (.sh resolve_project_paths L1362~1589 — 저장값·후보 스캔·질문)
+  // 경로 확정 (저장값·후보 스캔·질문)
   if (mode === "full") {
     paths = await resolveProjectPaths({
       root: cwd, types, paths, existingPaths: existing?.paths ?? new Map(),
@@ -249,7 +291,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     for (const t of types) if (t !== "basic" && !paths.has(t)) paths.set(t, existing?.paths.get(t) || ".");
   }
 
-  // @wizard env 계획 질문 (.sh wf_prompt_env_plan L3220 — full/workflows만)
+  // 모노레포는 버전·빌드 번호 파일이 타입 폴더 안에 있다 — 경로가 확정된 지금 그 폴더에서 감지한다.
+  if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
+    version = detectVersion(cwd, { types, paths, warn: () => {} });
+  }
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
+
+  // @wizard env 계획 질문 (full/workflows만)
   const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);
   let envValues = new Map(), envUseDefaults = true, envAnswers = [];
   if (showOptional) {
@@ -271,7 +319,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
-    deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+    // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    deployStyle: hasServerDeploy() ? effectiveDeployStyle(payload, types, deployStyle || DEFAULT_DEPLOY_STYLE) : null,
     envMode: flutterOptions.envMode, flutterStore: flutterOptions.stores,
     androidDeployMode: flutterOptions.androidDeployMode, iosDeployMode: flutterOptions.iosDeployMode,
     previousTemplateVersion: existing?.templateVersion || "",
@@ -301,7 +350,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       }
     }
 
-    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용 (.sh L3440~3508 UX 등가)
+    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용
     const decisions = new Map();
     if (conflicts.length) {
       const perType = new Map();
@@ -315,7 +364,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
               { value: "template", label: "기존 유지 + 새 버전을 .template.yaml로 참고 추가" },
             ],
           });
-          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = 건너뛰기 (.sh L3463)
+          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = 건너뛰기
         }
         decisions.set(filename, perType.get(type));
       }
@@ -325,20 +374,26 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   const result = runFull(ctx, payload, cwd, hooks);
 
-  // 완료 요약 (.sh print_summary L5438)
+  // 완료 요약
   io.summary?.({
-    mode, types, version, versionCode, branches,
+    mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
+    autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     answers: envAnswers,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
+    optionalSecrets: result?.optionalSecrets ?? new Map(),
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
     storeCleanup: result?.storeCleanup ?? null,
     flutterApp: result?.flutterApp ?? null,
+    readme: result?.readme ?? null,
+    scripts: result?.scripts ?? null,
   });
+  const notices = postInstallNotices(result, { interactive: true });
+  if (notices.length) io.note?.(notices.join("\n"), "이전 워크플로우 정리");
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
 }
@@ -354,17 +409,26 @@ export async function pickBranch(io, message, def, remoteBranches, isCancel) {
     options.push({ value: "__custom__", label: "직접 입력..." });
     const initialIndex = Math.max(0, options.findIndex((o) => o.value === def));
     const sel = await io.engineIo.select({ message, options, initialIndex });
-    if (sel === "__custom__") {
-      const v = await io.askText("브랜치 이름", def);
-      return isCancel(v) || !v ? def : v;
-    }
+    if (sel === "__custom__") return askBranchName(io, "브랜치 이름", def, isCancel);
     return isCancel(sel) || sel == null ? def : sel;
   }
-  const v = await io.askText(message, def);
-  return isCancel(v) || !v ? def : v;
+  return askBranchName(io, message, def, isCancel);
 }
 
-function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault }) {
+// 브랜치 이름 텍스트 입력 — 앞뒤 공백을 떼고, 비었거나 ESC면 기본값, 쓸 수 없는 이름이면 다시 묻는다.
+// 입력값이 워크플로우 트리거에 그대로 들어가므로 공백 포함 이름 등은 워크플로우가 영영 돌지 않는다.
+async function askBranchName(io, message, def, isCancel) {
+  for (;;) {
+    const v = await io.askText(message, def);
+    if (isCancel(v)) return def;
+    const name = String(v ?? "").trim();
+    if (!name) return def;
+    if (isValidBranchName(name)) return name;
+    io.note?.(`'${name}'은(는) 브랜치 이름으로 쓸 수 없습니다 (공백·특수문자·'..' 등 불가) — 다시 입력하세요.`, "⚠ 브랜치");
+  }
+}
+
+function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault, options = null }) {
   const lines = [
     `통합 모드 : ${modeLabel(mode)}`,
     `프로젝트 타입 : ${types.join(", ")}${types.length > 1 ? " (멀티)" : ""}`,
@@ -379,6 +443,10 @@ function summarize({ mode, types, version, branch, showOptional, flutter, envMod
       lines.push(`스토어 배포 대상 : ${stores.length ? stores.join(", ") : "없음"}`);
       lines.push(`배포 모드 : ${modeParts.length ? modeParts.join(" ") : "없음"}`);
     }
+  }
+  if (options) {
+    lines.push(`자동 버전 승격 : ${options.semverAuto ? "켜짐" : "꺼짐"}`);
+    lines.push(`Copilot AI 요약 : ${options.copilotAi ? "켜짐" : "꺼짐"}`);
   }
   return lines.join("\n");
 }

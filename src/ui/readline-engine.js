@@ -1,13 +1,39 @@
 // node:readline 기반 대화형 프롬프트 엔진 (@clack/prompts 대체).
 // WHY: @clack/prompts 1.7.0 이 Windows TTY 콘솔에서 Enter(return) 키를 처리하지 못하고
-//   멈추는 버그가 있다(실측 확정). node:readline 의 keypress 이벤트는 Windows에서 정상 동작한다.
-//   .sh/.ps1 이 자체 메뉴를 구현한 것과 동일한 접근. 외부 의존성 0 → 내부망에서도 안전.
+//   멈추는 버그가 있다. node:readline 의 keypress 이벤트는 Windows에서 정상 동작한다.
+//   메뉴를 직접 구현하면 외부 의존성 0 → 내부망에서도 안전.
 //
-// 계약: 취소(ESC/Ctrl+C)는 CANCEL 심볼 반환. 각 함수 async.
+// 계약: ESC는 CANCEL 심볼 반환(호출부가 "기본값/머무르기"로 해석). 각 함수 async.
+//       Ctrl+C·Ctrl+D·stdin 종료는 중단 — PromptAbortError로 reject해 어느 질문에서든 즉시 빠져나간다.
 import { emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
+import { visualWidth } from "./ansi.js";
 
 export const CANCEL = Symbol("cancel");
+
+// 사용자 중단(Ctrl+C 등). ESC와 달리 기본값으로 진행하면 안 되므로 반환값이 아니라 예외로 전파한다 —
+// 호출부마다 CANCEL 해석이 달라 일부는 기본값으로 설치를 강행하거나 같은 화면을 무한히 다시 그렸다.
+// signal: 외부 신호로 중단된 경우 그 신호명("SIGINT"·"SIGTERM") — 종료 코드를 셸 관례(128+번호)에 맞춘다.
+export class PromptAbortError extends Error {
+  constructor(signal = null) {
+    super("사용자가 중단했습니다.");
+    this.name = "PromptAbortError";
+    this.signal = signal;
+  }
+}
+export const isPromptAbort = (e) => e instanceof PromptAbortError;
+
+// raw mode에서는 Ctrl+C가 SIGINT가 아니라 keypress로 들어온다. Ctrl+D도 raw mode에선 EOF가 아니다.
+const isAbortKey = (key) => key.ctrl && (key.name === "c" || key.name === "d");
+
+// 외부 신호(kill -INT·kill -TERM)는 keypress가 아니라 프로세스 신호로 온다. 리스너가 없으면 Node가 곧바로
+// 종료해 커서 숨김과 raw mode가 복구되지 않는다 — 입력 대기 중에는 키보드 Ctrl+C와 같은 중단 경로로 돌린다.
+const TERM_SIGNALS = ["SIGINT", "SIGTERM"];
+function onTermSignal(fn) {
+  const handlers = TERM_SIGNALS.map((sig) => [sig, () => fn(sig)]);
+  for (const [sig, h] of handlers) process.on(sig, h);
+  return () => { for (const [sig, h] of handlers) process.removeListener(sig, h); };
+}
 
 // ── ANSI 헬퍼 (picocolors 대체 — 의존성 0) ───────────────────────────
 const ESC = "\x1b[";
@@ -17,10 +43,27 @@ const c = {
 };
 // NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙(존재 여부만 체크, 값 무관)이지만
 // 의존성 0 유지를 위해 자체 구현.
-const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY;
+// TERM=dumb은 색상뿐 아니라 커서 이동·지우기 시퀀스도 해석하지 못한다 — 그때는 다시 그리지 않고 이어서 출력한다.
+const isDumb = () => process.env.TERM === "dumb";
+const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY && !isDumb();
 const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
-const hideCursor = () => stdout.write(`${ESC}?25l`);
-const showCursor = () => stdout.write(`${ESC}?25h`);
+// 커서를 숨긴 채 프로세스가 끝나면(예외·process.exit 등) 터미널 커서가 사라진 채로 남는다 — 종료 시점에 한 번 더 복구한다.
+let cursorHidden = false;
+let exitGuard = false;
+const hideCursor = () => {
+  if (isDumb()) return;
+  stdout.write(`${ESC}?25l`);
+  cursorHidden = true;
+  if (!exitGuard) {
+    exitGuard = true;
+    process.once("exit", () => { if (cursorHidden) stdout.write(`${ESC}?25h`); });
+  }
+};
+const showCursor = () => {
+  if (isDumb()) return;
+  stdout.write(`${ESC}?25h`);
+  cursorHidden = false;
+};
 
 // 심볼 (clack 톤 유지)
 const S_ACTIVE = paint("●", c.green);
@@ -31,16 +74,24 @@ const S_BAR = paint("│", c.gray);
 const S_Q = paint("◆", c.cyan);
 const S_DONE = paint("◇", c.green);
 
+// 한 줄이 터미널에서 실제로 차지하는 행 수 — 폭을 넘는 줄은 터미널이 접어서 여러 행이 된다.
+// 논리 줄 수만큼만 올라가면 접힌 윗부분이 지워지지 않고 화면에 사본이 쌓인다.
+export function physicalRows(line, columns = stdout.columns) {
+  if (!columns) return 1;
+  return Math.max(1, Math.ceil(visualWidth(line) / columns));
+}
+
 // 여러 줄 지운 뒤 커서를 블록 시작으로 되돌리는 렌더러.
-// prevLines 만큼 위로 올라가 지우고 새로 그린다.
+// 직전에 그린 물리 행 수만큼 위로 올라가 지우고 새로 그린다.
 function makeRenderer() {
   let prevLines = 0;
   return {
     render(lines) {
+      if (isDumb()) { stdout.write(lines.join("\n") + "\n"); return; }
       if (prevLines > 0) stdout.write(`${ESC}${prevLines}A`); // 위로
       stdout.write(`${ESC}0J`); // 커서 아래 전부 지우기
       stdout.write(lines.join("\n") + "\n");
-      prevLines = lines.length;
+      prevLines = lines.reduce((n, l) => n + physicalRows(l), 0);
     },
     reset() { prevLines = 0; },
   };
@@ -49,7 +100,7 @@ function makeRenderer() {
 // raw keypress 세션 공통 래퍼. onKey(str,key) → true 반환 시 종료.
 // 반환값은 finalize()가 만든다. 취소 시 CANCEL.
 function keySession(renderFn, onKey) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const wasRaw = stdin.isTTY ? stdin.isRaw : false;
     emitKeypressEvents(stdin);
     if (stdin.isTTY) stdin.setRawMode(true);
@@ -59,21 +110,33 @@ function keySession(renderFn, onKey) {
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
       stdin.removeListener("end", onEnd);
+      offSignal();
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       showCursor();
     };
+    const offSignal = onTermSignal((sig) => {
+      cleanup();
+      stdout.write("\n");
+      reject(new PromptAbortError(sig));
+    });
 
-    // stdin 종료(EOF/Ctrl+D, SSH 연결 끊김 등) — 취소(ESC/Ctrl+C)와 동일하게 처리해 무한 대기를 방지한다.
+    // stdin 종료(EOF, SSH 연결 끊김 등) — 더 이상 입력이 올 수 없으므로 중단한다.
+    // CANCEL로 돌려주면 "머무르기"로 해석하는 화면에서 다시 묻다가 영원히 대기한다.
     const onEnd = () => {
       cleanup();
-      resolve(CANCEL);
+      reject(new PromptAbortError());
     };
 
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
-      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") {
+      if (isAbortKey(key)) {
+        cleanup();
+        stdout.write("\n");
+        reject(new PromptAbortError());
+        return;
+      }
+      if (key.name === "escape") {
         cleanup();
         resolve(CANCEL);
         return;
@@ -190,45 +253,69 @@ export async function multiselect({ message, options, initialValues = [], requir
 // 반환: 입력 문자열(빈 입력 시 defaultValue) 또는 CANCEL.
 export async function text({ message, defaultValue = "" }) {
   if (!stdin.isTTY) return defaultValue;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const wasRaw = stdin.isTTY ? stdin.isRaw : false;
     emitKeypressEvents(stdin);
     if (stdin.isTTY) stdin.setRawMode(true);
     stdin.resume();
     let buf = "";
 
+    // dumb 터미널은 줄을 지울 수 없으므로 프롬프트는 한 번만 쓰고 입력 글자만 이어서 출력한다.
+    const dumb = isDumb();
+    let prevRows = 0; // 직전 프롬프트가 차지한 물리 행 수 — 긴 프롬프트는 여러 행으로 접힌다
     const prompt = () => {
-      stdout.write(`\r${ESC}0K`); // 줄 초기화
+      if (dumb) {
+        stdout.write(`${S_Q}  ${message} ${defaultValue ? `[${defaultValue}] ` : ""}`);
+        return;
+      }
+      // 커서는 접힌 마지막 행에 있으므로 첫 행까지 올라간 뒤 아래를 전부 지운다
+      stdout.write(prevRows > 1 ? `\r${ESC}${prevRows - 1}A${ESC}0J` : `\r${ESC}0J`);
       const shown = buf.length ? buf : paint(defaultValue || "", c.dim);
-      stdout.write(`${S_Q}  ${paint(message, c.bold)} ${shown}`);
+      const line = `${S_Q}  ${paint(message, c.bold)} ${shown}`;
+      stdout.write(line);
+      prevRows = physicalRows(line);
     };
 
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
       stdin.removeListener("end", onEnd);
+      offSignal();
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       stdout.write("\n");
     };
+    const offSignal = onTermSignal((sig) => {
+      cleanup();
+      reject(new PromptAbortError(sig));
+    });
 
-    // stdin 종료(EOF/Ctrl+D) — 취소와 동일하게 처리해 무한 대기를 방지한다.
+    // stdin 종료(EOF) — 더 이상 입력이 올 수 없으므로 중단한다.
     const onEnd = () => {
       cleanup();
-      resolve(CANCEL);
+      reject(new PromptAbortError());
     };
 
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
-      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
+      if (isAbortKey(key)) { cleanup(); reject(new PromptAbortError()); return; }
+      if (key.name === "escape") { cleanup(); resolve(CANCEL); return; }
       if (key.name === "return" || key.name === "enter") {
         cleanup();
         resolve(buf.length ? buf : defaultValue);
         return;
       }
-      if (key.name === "backspace") { buf = buf.slice(0, -1); prompt(); return; }
+      if (key.name === "backspace") {
+        if (dumb && buf.length) stdout.write("\b \b");
+        buf = buf.slice(0, -1);
+        if (!dumb) prompt();
+        return;
+      }
       // 일반 문자 (제어문자 제외)
-      if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") { buf += str; prompt(); return; }
+      if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") {
+        buf += str;
+        if (dumb) stdout.write(str); else prompt();
+        return;
+      }
     };
     stdin.on("keypress", handler);
     stdin.on("end", onEnd);

@@ -1,4 +1,4 @@
-// README 버전 섹션 추가 (.sh add_version_section_to_readme 등가) — template_integrator.sh 2145~2181.
+// README 버전 섹션 추가.
 import { join } from "node:path";
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
 
@@ -6,17 +6,33 @@ export const MARKER = "<!-- AUTO-VERSION-SECTION";
 // ## (최신 버전|최신버전|Version|버전) : vX.Y.Z (대소문자 무시)
 const VERSION_LINE_RE = /##\s*(최신\s*버전|최신버전|Version|버전)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 
+// 실행 로그용 설명 — 상태 코드만 남기면 나중에 로그를 읽는 사람이 의미를 다시 찾아봐야 한다.
+export const README_STATUS_LABEL = {
+  added: "README.md 끝에 버전 섹션 추가",
+  "skip-no-readme": "README.md가 없어 버전 섹션을 추가하지 않음",
+  "skip-marker": "이미 버전 섹션이 있어 그대로 둠",
+  "skip-version-line": "이미 버전 줄이 있어 그대로 둠",
+};
+
 // README.md 없으면 스킵. 마커 또는 버전 라인 있으면 스킵. 없으면 파일 끝에 append.
 // 반환: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
-export function addVersionSectionToReadme(version, targetRoot = ".") {
+// 쓰지 않고 판정만 한다 — 실제 추가와 --dry-run 미리보기가 같은 판정을 쓰게 한다.
+export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
+  return "added";
+}
 
-  // .sh: cat >> README.md << EOF — EOF 다음 첫 줄이 빈 줄이므로 append 본문은 "\n---\n..."로 시작.
-  // (원본 파일이 개행으로 끝난다는 전제는 .sh와 동일 — heredoc은 원본 끝에 그대로 붙는다.)
+export function addVersionSectionToReadme(version, targetRoot = ".") {
+  const status = planVersionSection(targetRoot);
+  if (status !== "added") return status;
+  const p = join(targetRoot, "README.md");
+  const content = readFileSync(p, "utf8");
+
+  // 기존 본문과 구분선 사이에 빈 줄을 두도록 append 본문은 "\n---\n..."로 시작.
   const section =
     "\n" +
     "---\n" +
@@ -25,7 +41,10 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
     `## 최신 버전 : v${version}\n` +
     "\n" +
     "[전체 버전 기록 보기](CHANGELOG.md)\n";
-  appendFileSync(p, section);
+  // 끝 개행이 없는 README에 그대로 붙이면 마지막 줄 바로 다음 줄에 "---"가 와서
+  // 마크다운이 그 줄을 제목(Setext h2)으로 바꿔 버린다 — 줄을 먼저 끝낸다.
+  const lead = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+  appendFileSync(p, lead + section);
   return "added";
 }
 

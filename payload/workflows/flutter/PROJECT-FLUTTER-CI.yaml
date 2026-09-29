@@ -2,12 +2,13 @@
 # Flutter CI (코드 분석 및 빌드 검증) 워크플로우
 #
 # 이 워크플로우는 PR 생성 또는 {{MAIN_BRANCH}} 브랜치 푸시 시
-# 코드 정적 분석(flutter analyze)과 Android/iOS 앱 빌드를 검증합니다.
+# 코드 정적 분석(flutter analyze), 테스트(flutter test)와 Android/iOS 앱 빌드를 검증합니다.
 #
 # 주요 특징:
 # - PR 생성/업데이트 시 자동 실행
 # - {{MAIN_BRANCH}} 브랜치 푸시 시 자동 실행
 # - flutter analyze로 코드 품질 검사
+# - test/ 폴더에 테스트(*_test.dart)가 있으면 flutter test 실행 (없으면 건너뜀)
 # - Android/iOS 빌드 개별 활성화/비활성화 가능
 # - Analyze Only 모드: 빌드 없이 코드 분석만 실행 가능
 # - PR인 경우 진행 상황을 댓글로 실시간 업데이트
@@ -22,10 +23,10 @@
 #
 # 프로젝트별 설정
 #
-# ANALYZE_ONLY    : true면 analyze만 실행, 빌드 스킵 (기본: false)
+# ANALYZE_ONLY    : true면 analyze·test만 실행, 빌드 스킵 (기본: false)
 # ENABLE_ANDROID  : Android 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
 # ENABLE_IOS      : iOS 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
-# FLUTTER_VERSION : Flutter SDK 버전
+# FLUTTER_VERSION : Flutter SDK 버전 (빈 값 = stable 최신)
 # JAVA_VERSION    : Java 버전 (Android 빌드용)
 # XCODE_VERSION   : Xcode 버전 (iOS 빌드용)
 # ENV_FILE_PATH   : dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 기본값: .env)
@@ -77,14 +78,16 @@ env:
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
 
   # CI 모드 설정
-  ANALYZE_ONLY: "false"     # true: analyze만 실행 (빌드 스킵), false: analyze + 빌드
+  ANALYZE_ONLY: "false"     # true: analyze·test만 실행 (빌드 스킵), false: analyze·test + 빌드
 
   # 빌드 대상 플랫폼 설정 (ANALYZE_ONLY=false일 때만 적용)
   ENABLE_ANDROID: "true"    # Android 빌드 활성화 (true/false)
   ENABLE_IOS: "true"        # iOS 빌드 활성화 (true/false)
 
   # 프로젝트별 설정
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
   ENV_FILE_PATH: ".env"     # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 커스터마이징 가능)
@@ -112,6 +115,10 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
+          # push는 이번 push로 들어온 커밋만 비교한다(직전 커밋 github.event.before 기준).
+          # 비워 두면 기본 브랜치와의 누적 diff로 판정해 skip이 사실상 동작하지 않는다.
+          # 새 브랜치 첫 push(before가 0으로만 채워짐)나 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 비교).
+          base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
@@ -212,6 +219,7 @@ jobs:
               '| 검사 항목 | 상태 | 소요 시간 |',
               '|----------|------|----------|',
               '| 🔍 Analyze | ⏳ 진행 중... | - |',
+              '| 🧪 Test | ⏳ 진행 중... | - |',
               `| 🤖 Android 빌드 | ${androidStatus} | - |`,
               `| 🍎 iOS 빌드 | ${iosStatus} | - |`,
               '',
@@ -257,6 +265,7 @@ jobs:
 
     outputs:
       status: ${{ steps.result.outputs.status }}
+      test_status: ${{ steps.result.outputs.test_status }}
       duration: ${{ steps.result.outputs.duration }}
 
     steps:
@@ -288,6 +297,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -304,6 +314,7 @@ jobs:
           restore-keys: ${{ runner.os }}-flutter-pub-
 
       - name: Install dependencies
+        id: deps
         run: |
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
@@ -317,6 +328,22 @@ jobs:
           echo "🔍 Flutter 코드 분석 시작..."
           flutter analyze --no-fatal-infos
           echo "✅ 코드 분석 완료"
+
+      # analyze가 실패해도 테스트 결과는 따로 보여 준다. 실패하면 job이 실패해 CI Gate도 실패한다.
+      - name: Run Flutter Test
+        id: test
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: |
+          # test/에 *_test.dart가 없으면 flutter test 자체가 실패하므로 건너뛴다
+          if [ -d test ] && [ -n "$(find test -name '*_test.dart' -print -quit)" ]; then
+            echo "🧪 Flutter 테스트 시작..."
+            flutter test ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
+            echo "ran=true" >> "$GITHUB_OUTPUT"
+            echo "✅ 테스트 통과"
+          else
+            echo "::notice title=Flutter 테스트 건너뜀::test/ 폴더에 *_test.dart 파일이 없어 flutter test를 실행하지 않았습니다"
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: 분석 결과 기록
         id: result
@@ -332,10 +359,16 @@ jobs:
             const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
             const status = '${{ steps.analyze.outcome }}' === 'success' ? 'success' : 'failure';
+            // none: 테스트 파일 없음, skipped: 의존성 설치 실패로 실행 못 함
+            const testOutcome = '${{ steps.test.outcome }}';
+            const testStatus = testOutcome === 'success'
+              ? ('${{ steps.test.outputs.ran }}' === 'true' ? 'success' : 'none')
+              : (testOutcome === 'failure' ? 'failure' : 'skipped');
 
             core.setOutput('status', status);
+            core.setOutput('test_status', testStatus);
             core.setOutput('duration', duration);
-            console.log(`📋 코드 분석 결과: ${status} (${duration})`);
+            console.log(`📋 코드 분석 결과: ${status}, 테스트: ${testStatus} (${duration})`);
 
   # Job 3: Android 빌드 (조건부, 병렬)
   build-android:
@@ -383,6 +416,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -430,8 +464,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          chmod +x gradlew
-          echo "✅ Gradle wrapper permissions set"
+          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            echo "✅ Gradle wrapper permissions set"
+          else
+            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+          fi
 
       # APK 빌드 (CI는 빌드 검증 목적이므로 서명 불필요한 debug 빌드 사용)
       - name: Build APK
@@ -527,6 +566,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -558,9 +598,14 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install --repo-update || pod install
-          echo "✅ CocoaPods installed"
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && (pod install --repo-update || pod install))
+            echo "✅ CocoaPods installed"
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: Build iOS
         id: build
@@ -614,6 +659,7 @@ jobs:
             // 결과 수집
             const analyzeStatus = '${{ needs.analyze.outputs.status }}';
             const analyzeDuration = '${{ needs.analyze.outputs.duration }}' || '-';
+            const testStatus = '${{ needs.analyze.outputs.test_status }}';
             const androidStatus = '${{ needs.build-android.outputs.status }}';
             const androidDuration = '${{ needs.build-android.outputs.duration }}' || '-';
             const iosStatus = '${{ needs.build-ios.outputs.status }}';
@@ -635,6 +681,17 @@ jobs:
               analyzeDisplay = '✅ 성공';
             } else {
               analyzeDisplay = '❌ 실패';
+              overallSuccess = false;
+            }
+
+            // Test 상태 (테스트 파일이 없으면 실패로 보지 않는다)
+            let testDisplay;
+            if (testStatus === 'success') {
+              testDisplay = '✅ 성공';
+            } else if (testStatus === 'none') {
+              testDisplay = '⏸️ 테스트 없음';
+            } else {
+              testDisplay = testStatus === 'failure' ? '❌ 실패' : '⏸️ 실행 안 됨';
               overallSuccess = false;
             }
 
@@ -681,6 +738,7 @@ jobs:
               '| 검사 항목 | 상태 | 소요 시간 |',
               '|----------|------|----------|',
               `| 🔍 Analyze | ${analyzeDisplay} | ${analyzeDuration} |`,
+              `| 🧪 Test | ${testDisplay} | - |`,
               `| 🤖 Android 빌드 | ${androidDisplay} | ${analyzeOnly || !enableAndroid ? '-' : androidDuration} |`,
               `| 🍎 iOS 빌드 | ${iosDisplay} | ${analyzeOnly || !enableIos ? '-' : iosDuration} |`,
               '',
@@ -709,6 +767,12 @@ jobs:
                 bodyParts.push('**Analyze 실패 시:**');
                 bodyParts.push('- `flutter analyze` 로컬에서 실행하여 lint 오류 확인');
                 bodyParts.push('- 코드 스타일 및 타입 오류 수정');
+                bodyParts.push('');
+              }
+
+              if (testStatus === 'failure') {
+                bodyParts.push('**Test 실패 시:**');
+                bodyParts.push('- `flutter test` 로컬에서 실행하여 실패한 테스트 확인');
                 bodyParts.push('');
               }
 

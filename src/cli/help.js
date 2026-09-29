@@ -1,3 +1,16 @@
+import { TYPE_IDS } from "../core/types.js";
+
+// 지원 타입 목록 — 레지스트리 순서대로 한 줄 40자 안쪽에서 줄바꿈하고, 이어지는 줄은 "지원: " 뒤에 맞춘다.
+function typeListLines(width = 40) {
+  const lines = [];
+  for (const id of TYPE_IDS) {
+    const last = lines.length - 1;
+    if (last >= 0 && lines[last].length + 1 + id.length <= width) lines[last] += ` ${id}`;
+    else lines.push(id);
+  }
+  return lines.join(`\n${" ".repeat(33)}`);
+}
+
 // --help 텍스트.
 export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 설치 마법사
 
@@ -10,8 +23,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
                            uninstall = 완전 삭제(대화형 체크리스트, --force 시 --purge-*로 opt-in)
                            status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
-                           지원: spring flutter next react react-native
-                                 react-native-expo node python basic go
+                           지원: ${typeListLines()}
       --project-version V  통합 대상의 초기 버전 (예: 1.0.0). 미지정 시 자동 감지
       --paths "t=p,..."    타입별 프로젝트 경로 (모노레포). 예: flutter=app,react=client
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
@@ -23,7 +35,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --ios-deploy-mode MODE         iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
       --copilot / --no-copilot  Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비)
-      --force              full 실행에 필수 (모든 확인 생략, 비대화형 기본값 사용)
+      --force              full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
@@ -33,7 +45,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
 
 예시:
   npx project-auto-wizard --mode full --force --type spring,react
-  npx project-auto-wizard --mode workflows --force --type flutter --paths "flutter=app"
+  npx project-auto-wizard --mode full --force --type flutter --paths "flutter=app"
   npx project-auto-wizard --mode status
   npx project-auto-wizard --mode doctor
   npx project-auto-wizard --mode full --force --type node --dry-run

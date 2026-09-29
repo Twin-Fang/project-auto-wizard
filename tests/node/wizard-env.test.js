@@ -88,8 +88,8 @@ test("substituteEnv: __PROJECT_NAME__/__APP_ARTIFACT_NAME__ global tokens replac
 test("substituteEnv: collectAsks Map stores the repoName-substituted value, not the raw __PROJECT_NAME__ literal (issue #114)", () => {
   const content = `VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__" # @wizard ask:/mnt/__PROJECT_NAME__`;
   const collectAsks = new Map();
-  substituteEnv(content, { repoName: "claude-window-keeper", useDefaults: true, collectAsks });
-  assert.strictEqual(collectAsks.get("VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+  substituteEnv(content, { repoName: "my-service", useDefaults: true, collectAsks });
+  assert.strictEqual(collectAsks.get("VOLUME_CONTAINER_PATH"), "/mnt/my-service");
 });
 
 test("replaceProjectTokens: replaces both tokens with repoName", () => {
@@ -255,4 +255,14 @@ test("makeResolvers: 기존 resolver(repo, flutter-root)는 그대로 동작한�
   const r = makeResolvers("/nonexistent", "my-repo", new Map([["flutter", "app"]]));
   assert.strictEqual(resolveToken("repo", "flutter", r), "my-repo");
   assert.strictEqual(resolveToken("flutter-root", "flutter", r), "app");
+});
+
+// workflow_dispatch 입력 기본값(`default:`)도 설치 시 선택값을 따라야 수동 실행이 설정과 어긋나지 않는다.
+test("substituteEnv: 소문자 키(dispatch 입력 default)의 auto 마커도 치환한다", () => {
+  const src = ['        default: "store_only"  # @wizard auto:android-deploy-mode', '        type: choice'].join("\n");
+  assert.deepStrictEqual(parseWizardLine(src.split("\n")[0]), {
+    indent: "        ", key: "default", action: "auto", arg: "android-deploy-mode",
+  });
+  const out = substituteEnv(src, { resolvers: { "android-deploy-mode": () => "store_prepare" } });
+  assert.strictEqual(out, ['        default: "store_prepare"', '        type: choice'].join("\n"));
 });

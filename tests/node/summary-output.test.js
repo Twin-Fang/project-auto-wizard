@@ -3,6 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { printSummary } from "../../src/ui/summary.js";
 
+// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+delete process.env.TERM;
+
 function captureStderr(fn) {
   const original = process.stderr.write.bind(process.stderr);
   let output = "";
@@ -91,6 +94,20 @@ test("printSummary: copiedFiles를 common/타입별로 분류해서 목록과 �
   assert.ok(output.includes("📦 새로 설치됨 (2개):"));
   assert.ok(output.includes("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
   assert.ok(output.includes("PROJECT-SPRING-CI.yml"));
+});
+
+test("printSummary: 자동 갱신된 파일은 '새로 설치됨'이 아니라 '업데이트됨'으로 따로 보여준다", () => {
+  const output = captureStderr(() => {
+    printSummary({
+      mode: "full", types: ["spring"], version: "1.0.0",
+      copiedFiles: ["PROJECT-COMMON-RELEASE-PUBLISH.yaml", "PROJECT-SPRING-CI.yml"],
+      autoUpdated: ["PROJECT-COMMON-RELEASE-PUBLISH.yaml"],
+    });
+  });
+  assert.ok(output.includes("📦 새로 설치됨 (1개):"));
+  assert.ok(output.includes("🔄 업데이트됨 (1개"));
+  const installed = output.slice(output.indexOf("📦 새로 설치됨"), output.indexOf("🔄 업데이트됨"));
+  assert.ok(!installed.includes("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
 test("printSummary: copiedFiles가 비어 있으면(전부 skip) '새로 설치됨' 줄 자체를 출력하지 않는다", () => {

@@ -1,0 +1,4 @@
+// 루트 build.gradle에는 버전이 없고 build.gradle.kts에만 있다
+allprojects {
+    repositories { mavenCentral() }
+}

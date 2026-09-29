@@ -132,3 +132,30 @@ test("removeVersionSectionFromReadme: tail found far beyond the wizard's block -
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("addVersionSectionToReadme: 끝 개행 없는 README도 앞줄을 제목으로 바꾸지 않는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-readme-noeol-"));
+  try {
+    writeFileSync(join(target, "README.md"), "# Title\nbody without newline");
+    assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "added");
+    const body = readFileSync(join(target, "README.md"), "utf8");
+    // "body\n---"면 Setext 제목이 된다 — 빈 줄을 사이에 둬야 한다
+    assert.ok(body.startsWith("# Title\nbody without newline\n\n---\n"), JSON.stringify(body.slice(0, 60)));
+    assert.strictEqual(hasVersionSection(target), true);
+    assert.strictEqual(removeVersionSectionFromReadme(target), "removed");
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), "# Title\nbody without newline\n");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("addVersionSectionToReadme: CRLF로 끝나는 README에는 줄을 더 넣지 않는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-readme-crlf-"));
+  try {
+    writeFileSync(join(target, "README.md"), "# Title\r\nbody\r\n");
+    addVersionSectionToReadme("1.0.0", target);
+    assert.ok(readFileSync(join(target, "README.md"), "utf8").startsWith("# Title\r\nbody\r\n\n---\n"));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

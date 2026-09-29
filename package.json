@@ -1,6 +1,6 @@
 {
   "name": "project-auto-wizard",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "One command DevOps: npx wizard that installs GitHub-native Release Automation (optional GitHub Copilot AI summaries) into any project",
   "license": "MIT",
   "type": "module",
@@ -13,12 +13,16 @@
   "files": [
     "bin/",
     "src/",
-    "payload/"
+    "payload/",
+    "!**/__pycache__/",
+    "!**/*.pyc"
   ],
   "scripts": {
     "test": "npm run test:node && npm run test:py",
     "test:node": "node --test --test-concurrency=1",
-    "test:py": "node scripts/run-py-tests.mjs"
+    "test:py": "node scripts/run-py-tests.mjs",
+    "sync:dogfood": "node scripts/sync-dogfood.mjs",
+    "sync:dogfood:check": "node scripts/sync-dogfood.mjs --check"
   },
   "repository": {
     "type": "git",

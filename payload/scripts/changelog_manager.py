@@ -68,6 +68,20 @@ def _clean_summary_noise(text: str) -> str:
     return text.strip()
 
 
+def _strip_version_headings(text: str) -> str:
+    """요약 본문의 `## [1.2.3]` 버전 헤더 줄을 뺀다 — CHANGELOG.md는 릴리스마다
+    자체 헤더를 쓰므로, 남겨 두면 커밋이 없는 릴리스에서 헤더가 두 번 찍힌다."""
+    if not text:
+        return text
+    kept = []
+    for line in text.split('\n'):
+        heading = _HEADING_RE.match(line)
+        if heading and _VERSION_HEADING_RE.match(heading.group(2).strip()):
+            continue
+        kept.append(line)
+    return '\n'.join(kept).strip()
+
+
 def _make_safe_key(title: str, idx: int) -> str:
     """카테고리 제목을 안전한 키로 변환."""
     safe_key = re.sub(r'[^a-zA-Z0-9가-힣]', '_', title.lower()).strip('_')
@@ -248,10 +262,13 @@ def _parse_markdown_heuristic(md_content: str) -> dict:
 # 1단계 패턴은 제목도 같은 정규식에서 캡처한다 — " : type : " 마커(타입 앞 콜론에
 # 반드시 공백 선행)가 유일한 구분자이므로, 제목 안의 맨몸 콜론("v1:2" 등)에서
 # 잘리지 않는다. 별도 split 재수행 금지.
-_TIER1_RE = re.compile(r'^(.+?)\s:\s*(feat|fix|chore|docs|refactor|test)\s*:\s*(.+)$')
+# 타입은 대소문자를 가리지 않는다(Conventional Commits 스펙). `!`는 breaking 표시.
+_TIER1_RE = re.compile(r'^(.+?)\s:\s*(feat|fix|chore|docs|refactor|test)\s*(!)?\s*:\s*(.+)$', re.IGNORECASE)
 _TRAILING_URL_RE = re.compile(r'\s*https?://\S+$')
+# `feat : 내용`처럼 콜론 앞 공백도 흔한 표기라 허용한다.
 _TIER2_RE = re.compile(
-    r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?!?:\s*(.+)$'
+    r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?\s*(!)?\s*:\s*(.+)$',
+    re.IGNORECASE,
 )
 _TIER2_BUCKET_MAP = {
     'feat': 'feat',
@@ -260,19 +277,33 @@ _TIER2_BUCKET_MAP = {
     'docs': 'docs',
     'refactor': 'refactor',
     'test': 'test',
-    'perf': 'chore',
+    'perf': 'perf',
     'style': 'chore',
     'build': 'chore',
     'ci': 'chore',
 }
 
-_FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
+_FALLBACK_BUCKET_KEYS = ('breaking', 'feat', 'fix', 'perf', 'chore', 'docs', 'refactor', 'test', 'deps', 'changes', 'wip')
 
-# 승격 폭 판단 전용 — 타입 뒤 `!` 마커(어떤 타입이든)는 breaking 신호.
-# BREAKING CHANGE: 본문 푸터는 지원하지 않는다(커밋 수집이 제목 한 줄만
-# 가져오는 구조라 본문에 접근 불가 — Conventional Commits 스펙 조항 13에
-# 따르면 `!` 마커 단독으로도 표준을 만족하므로 이는 표준이 허용하는 부분집합).
-_BREAKING_MARKER_RE = re.compile(r'^[a-zA-Z]+(\([^)]*\))?!:')
+# 의존성 갱신(Dependabot·Renovate 등)과 작업 중 커밋은 일반 변경사항과 섞이면 노트가 흐려진다.
+_DEPS_SCOPE_RE = re.compile(r'^\(deps(?:-dev)?\)$', re.IGNORECASE)
+_DEPS_FREEFORM_RE = re.compile(r'^Bump \S+ from \S+ to \S+', re.IGNORECASE)
+_WIP_RE = re.compile(r'^\[?wip\b', re.IGNORECASE)
+
+# 승격 폭 판단 전용 — 표준 타입 뒤 `!` 마커와 본문 푸터 `BREAKING CHANGE:`가 breaking 신호.
+# `hotfix!:`·`WIP!:`처럼 표준 타입이 아닌 단어의 `!`는 되돌리기 어려운 major를 만들므로 인정하지 않는다.
+# 푸터는 커밋 목록에 본문 줄이 함께 들어올 때만 보인다(제목만 수집하면 `!` 마커만 판정된다).
+_BREAKING_FOOTER_RE = re.compile(r'^BREAKING[ -]CHANGE\s*:\s*(.*)$')
+
+
+def _is_breaking(line: str) -> bool:
+    if _BREAKING_FOOTER_RE.match(line):
+        return True
+    tier1 = _TIER1_RE.match(line)
+    if tier1:
+        return bool(tier1.group(3))
+    tier2 = _TIER2_RE.match(line)
+    return bool(tier2 and tier2.group(3))
 
 
 def classify_commits(lines: list[str]) -> dict:
@@ -281,8 +312,9 @@ def classify_commits(lines: list[str]) -> dict:
 
     1단계: 제목 컨벤션 — "제목 : type : 내용 [URL]"
     2단계: Conventional Commits — "type(scope)!: 내용"
-           (perf/style/build/ci → chore 버킷으로 매핑)
-    3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식)
+           (style/build/ci → chore, chore(deps)/build(deps) → deps 버킷)
+    3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식, Bump… → deps, WIP → wip)
+    `!` 마커·BREAKING CHANGE 푸터는 "breaking" 버킷으로 모은다.
 
     제외 대상 (매칭 전에 걸러냄): [skip ci] 포함 줄, "Merge "로 시작하는 줄, 빈 줄.
     """
@@ -296,6 +328,11 @@ def classify_commits(lines: list[str]) -> dict:
             continue
         if line.startswith('Merge '):
             continue
+        footer = _BREAKING_FOOTER_RE.match(line)
+        if footer:
+            if footer.group(1).strip():
+                classified['breaking'].append(footer.group(1).strip())
+            continue
 
         # 1단계가 2단계보다 먼저다 — 트레이드오프: "제목 : feat : 내용" 형식은
         # "feat: ..." Conventional Commits와 겹칠 수 없지만(타입 앞에 제목 필수),
@@ -304,31 +341,47 @@ def classify_commits(lines: list[str]) -> dict:
         tier1 = _TIER1_RE.match(line)
         if tier1:
             title = tier1.group(1).strip()
-            commit_type = tier1.group(2)
-            desc = tier1.group(3).strip()
+            commit_type = tier1.group(2).lower()
+            desc = tier1.group(4).strip()
             # 커밋 말미의 이슈 URL은 릴리즈 노트 렌더링에서 노이즈 — 제거.
             desc = _TRAILING_URL_RE.sub('', desc).strip()
-            classified[commit_type].append(f"{title} — {desc}")
+            # breaking 커밋은 major 승격의 근거라 별도 섹션에 드러낸다.
+            bucket = 'breaking' if tier1.group(3) else commit_type
+            classified[bucket].append(f"{title} — {desc}")
             continue
 
         tier2 = _TIER2_RE.match(line)
         if tier2:
-            commit_type, _scope, desc = tier2.group(1), tier2.group(2), tier2.group(3)
-            bucket = _TIER2_BUCKET_MAP[commit_type]
+            commit_type, scope, desc = tier2.group(1).lower(), tier2.group(2), tier2.group(4)
+            if tier2.group(3):
+                bucket = 'breaking'
+            elif commit_type in ('chore', 'build') and scope and _DEPS_SCOPE_RE.match(scope):
+                bucket = 'deps'
+            else:
+                bucket = _TIER2_BUCKET_MAP[commit_type]
             classified[bucket].append(desc.strip())
             continue
 
-        classified['changes'].append(line)
+        if _DEPS_FREEFORM_RE.match(line):
+            classified['deps'].append(line)
+        elif _WIP_RE.match(line):
+            classified['wip'].append(line)
+        else:
+            classified['changes'].append(line)
 
     return classified
 
 
 _FALLBACK_SECTION_TITLES = {
+    'breaking': '### ⚠️ 호환성 깨짐',
     'feat': '### ✨ 기능',
     'fix': '### 🐛 수정',
+    'perf': '### ⚡ 성능',
     'docs': '### 📝 문서',
     'refactor': '### ♻️ 리팩토링',
     'test': '### ✅ 테스트',
+    'deps': '### 📦 의존성',
+    'wip': '### 🚧 작업 중',
 }
 
 
@@ -336,14 +389,17 @@ def render_fallback_md(classified: dict, version: str) -> str:
     """분류된 커밋 딕셔너리를 마크다운 릴리즈 노트로 렌더링."""
     lines: list[str] = [f"## [{version}]", ""]
 
-    for bucket_key in ('feat', 'fix', 'docs', 'refactor', 'test'):
+    def add_section(bucket_key):
         items = classified.get(bucket_key) or []
         if not items:
-            continue
+            return
         lines.append(_FALLBACK_SECTION_TITLES[bucket_key])
         for item in items:
             lines.append(f"- {item}")
         lines.append("")
+
+    for bucket_key in ('breaking', 'feat', 'fix', 'perf', 'docs', 'refactor', 'test', 'deps'):
+        add_section(bucket_key)
 
     chore_items = list(classified.get('chore') or [])
     changes_items = list(classified.get('changes') or [])
@@ -354,13 +410,15 @@ def render_fallback_md(classified: dict, version: str) -> str:
             lines.append(f"- {item}")
         lines.append("")
 
+    add_section('wip')
+
     return "\n".join(lines).rstrip() + "\n"
 
 
 def classify_bump_level(lines: list[str]) -> str:
     """커밋 제목 목록에서 semver 승격 폭을 규칙 기반으로 판단.
 
-    - 타입 뒤 `!` 마커 포함 -> major
+    - 표준 타입 뒤 `!` 마커 또는 `BREAKING CHANGE:` 푸터 포함 -> major
     - `feat:`(classify_commits의 feat 버킷과 동일 판정 기준) 포함 -> minor
     - 그 외(매칭 실패 포함) -> patch
     """
@@ -368,7 +426,7 @@ def classify_bump_level(lines: list[str]) -> str:
         line = raw_line.strip()
         if not line or '[skip ci]' in line or line.startswith('Merge '):
             continue
-        if _BREAKING_MARKER_RE.match(line):
+        if _is_breaking(line):
             return 'major'
     classified = classify_commits(lines)
     return 'minor' if classified.get('feat') else 'patch'
@@ -397,13 +455,13 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
         try:
             return call_openai_compatible(base_url, api_key, model, prompt).strip() == 'MINOR'
         except Exception as e:
-            print(f"[warn] bump AI assist failed: {e}", file=sys.stderr)
+            _warn_engine_failure(f"[warn] bump AI assist failed: {e}")
 
     if _copilot_enabled():
         try:
             return call_copilot_cli(prompt).strip() == 'MINOR'
         except Exception as e:
-            print(f"[warn] bump AI assist (copilot) failed: {e}", file=sys.stderr)
+            _warn_engine_failure(f"[warn] bump AI assist (copilot) failed: {e}")
     return False
 
 
@@ -505,7 +563,7 @@ def cmd_update_from_summary() -> int:
             print("⚠️ 파싱 실패, raw_summary만 저장")
 
         # raw_summary 생성 (노이즈 제거)
-        raw_summary = _clean_summary_noise(content)
+        raw_summary = _strip_version_headings(_clean_summary_noise(content))
 
         # 릴리즈 데이터 생성
         new_release = {
@@ -532,7 +590,12 @@ def cmd_update_from_summary() -> int:
         try:
             with open('CHANGELOG.json', 'r', encoding='utf-8') as f:
                 changelog_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except json.JSONDecodeError as e:
+            # 머지 충돌 마커 등으로 깨진 파일을 새 구조로 덮으면 기존 이력이 전부 사라진다.
+            print(f"❌ CHANGELOG.json을 해석할 수 없어 갱신을 중단합니다 (기존 이력 보호): {e}")
+            print(f"::error::CHANGELOG.json이 올바른 JSON이 아닙니다: {e}", file=sys.stderr)
+            return 1
+        except FileNotFoundError:
             changelog_data = {
                 "metadata": {
                     "lastUpdated": timestamp,
@@ -552,8 +615,14 @@ def cmd_update_from_summary() -> int:
         changelog_data["metadata"]["lastUpdated"] = timestamp
         changelog_data["metadata"]["currentVersion"] = version
         changelog_data["metadata"]["projectTypes"] = project_types
-        changelog_data["metadata"]["totalReleases"] = len(changelog_data.get("releases", [])) + 1
-        changelog_data.setdefault("releases", []).insert(0, new_release)
+        # 같은 버전은 교체한다 — 워크플로우 재실행 시 항목이 중복으로 쌓이지 않게.
+        releases = [
+            r for r in (changelog_data.get("releases") or [])
+            if not (isinstance(r, dict) and str(r.get("version")) == str(version))
+        ]
+        releases.insert(0, new_release)
+        changelog_data["releases"] = releases
+        changelog_data["metadata"]["totalReleases"] = len(releases)
 
         with open('CHANGELOG.json', 'w', encoding='utf-8') as f:
             json.dump(changelog_data, f, indent=2, ensure_ascii=False)
@@ -616,7 +685,7 @@ def cmd_generate_md() -> int:
                     # 파싱 실패 시 raw_summary 출력
                     raw_summary = release.get('raw_summary', '').strip()
                     if raw_summary:
-                        raw_summary = _clean_summary_noise(raw_summary)
+                        raw_summary = _strip_version_headings(_clean_summary_noise(raw_summary))
                         if raw_summary:
                             f.write(raw_summary + "\n\n")
                         else:
@@ -657,12 +726,12 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
                         if title and items:
                             block = "**" + title + "**\n" + "\n".join("- " + it for it in items)
                             category_blocks.append(block)
-                    body = "\n\n".join(category_blocks) if category_blocks else (matched.get('raw_summary') or '').strip()
+                    body = "\n\n".join(category_blocks) if category_blocks else _strip_version_headings((matched.get('raw_summary') or '').strip())
                 else:
-                    body = (matched.get('raw_summary') or '').strip()
+                    body = _strip_version_headings((matched.get('raw_summary') or '').strip())
                 notes_text = (header + (body or "")).strip()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"::warning::CHANGELOG.json에서 {version} 노트를 읽지 못했습니다: {e}", file=sys.stderr)
 
     # 2) CHANGELOG.md 폴백
     if not notes_text and os.path.isfile('CHANGELOG.md'):
@@ -673,12 +742,14 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
             m = pattern.search(md)
             if m:
                 start = m.end()
-                next_m = re.search(r"^## \\[", md[start:], re.MULTILINE)
+                next_m = re.search(r"^## \[", md[start:], re.MULTILINE)
                 section = md[start: start + next_m.start()] if next_m else md[start:]
-                body = section.strip()
+                # generate-md가 릴리스 사이에 넣는 구분선은 노트 내용이 아니다
+                body = re.sub(r'(?:\n\s*-{3,}\s*)+$', '', '\n' + section.strip()).strip()
                 notes_text = (f"버전 {version} 업데이트\n\n" + body).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            # 조용히 삼키면 고정 문구 폴백이 정상 출력처럼 보여 원인을 알 수 없다.
+            print(f"::warning::CHANGELOG.md에서 {version} 노트를 읽지 못했습니다: {e}", file=sys.stderr)
 
     # 3) 최종 폴백
     if not notes_text:
@@ -694,9 +765,19 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
 
 # ------------------------ ai-summary 엔진 체인 ------------------------
 
-# Copilot Free/Student 계정은 모델명 지정이 거부되고 auto 모델 선택만 허용된다 (#153).
+# Copilot Free/Student 계정은 모델명 지정이 거부되고 auto 모델 선택만 허용된다.
 _COPILOT_MODEL = "auto"
 _COPILOT_TIMEOUT_SECONDS = 90
+
+
+def _warn_engine_failure(message: str) -> str:
+    """엔진 실패를 Actions 실행 요약(Annotations)에 경고로 띄운다.
+    평문 로그만 남기면 잡 로그를 열기 전에는 fallback 사유를 알 수 없다.
+    stdout은 결과 JSON 계약용이라 stderr로 쓴다. 반환값은 한 줄로 줄인 사유."""
+    reason = " ".join(str(message).split())[:200]
+    escaped = reason.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f"::warning::{escaped}", file=sys.stderr)
+    return reason
 
 
 def _user_api_settings() -> tuple[str, str, str] | None:
@@ -705,10 +786,16 @@ def _user_api_settings() -> tuple[str, str, str] | None:
     키만 있고 URL·모델이 비어 있으면 그 키를 어디로도 보내지 않고 경고 후 건너뛴다
     (종료된 기본 엔드포인트으로 사용자 키가 흘러가던 문제 방지)."""
     api_key = os.environ.get('AI_API_KEY')
-    if not api_key:
-        return None
     base_url = os.environ.get('AI_API_BASE_URL')
     model = os.environ.get('AI_MODEL')
+    if not api_key:
+        # 변수만 등록하고 secret을 빠뜨리면 아무 표시 없이 규칙 요약으로 넘어가 설정이 먹은 줄 안다
+        if base_url or model:
+            print(
+                "::warning::AI_API_BASE_URL/AI_MODEL이 설정됐지만 AI_API_KEY secret이 없어 사용자 API 티어를 건너뜁니다",
+                file=sys.stderr,
+            )
+        return None
     if not base_url or not model:
         print(
             "::warning::AI_API_KEY가 설정됐지만 AI_API_BASE_URL/AI_MODEL이 없어 사용자 API 티어를 건너뜁니다",
@@ -768,7 +855,9 @@ def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str
         "아래 커밋 목록을 바탕으로 한국어 릴리즈 요약을 작성해줘.",
         f"출력 형식: 첫 줄은 '## [{version}]' 헤더로 시작하고,",
         "해당 항목이 있는 섹션만 다음 이름으로 작성해줘:",
-        "'### ✨ 기능', '### 🐛 수정', '### 📝 문서', '### ♻️ 리팩토링', '### ✅ 테스트', '### 🔧 변경사항'.",
+        "'### ⚠️ 호환성 깨짐', '### ✨ 기능', '### 🐛 수정', '### ⚡ 성능', '### 📝 문서', '### ♻️ 리팩토링',",
+        "'### ✅ 테스트', '### 📦 의존성', '### 🔧 변경사항', '### 🚧 작업 중'.",
+        "타입 뒤에 '!'가 붙었거나 BREAKING CHANGE인 커밋은 반드시 '### ⚠️ 호환성 깨짐'에 넣어줘.",
         "각 항목은 '- '로 시작하는 불릿으로 작성해줘.",
     ]
     if pr_title:
@@ -808,7 +897,8 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
     try:
         with open(commits_file, 'r', encoding='utf-8') as f:
             commit_lines = [line.rstrip('\n').rstrip('\r') for line in f]
-    except Exception:
+    except Exception as e:
+        print(f"::warning::커밋 목록 파일을 읽지 못해 빈 목록으로 요약합니다: {e}", file=sys.stderr)
         commit_lines = []
 
     diff_stat = None
@@ -821,6 +911,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 
     engine = None
     summary_text = None
+    failures: list[str] = []
     prompt = _build_ai_prompt(commit_lines, pr_title, version, diff_stat)
 
     settings = _user_api_settings()
@@ -832,9 +923,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "user-api"
             else:
-                print("[warn] user-api failed: empty content in response", file=sys.stderr)
+                failures.append(_warn_engine_failure("[warn] user-api failed: empty content in response"))
         except Exception as e:
-            print(f"[warn] user-api failed: {e}", file=sys.stderr)
+            failures.append(_warn_engine_failure(f"[warn] user-api failed: {e}"))
 
     if summary_text is None and _copilot_enabled():
         try:
@@ -843,9 +934,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "copilot"
             else:
-                print("[warn] copilot failed: empty or not in the requested Markdown format", file=sys.stderr)
+                failures.append(_warn_engine_failure("[warn] copilot failed: empty or not in the requested Markdown format"))
         except Exception as e:
-            print(f"[warn] copilot failed: {e}", file=sys.stderr)
+            failures.append(_warn_engine_failure(f"[warn] copilot failed: {e}"))
 
     if summary_text is None:
         classified = classify_commits(commit_lines)
@@ -864,7 +955,11 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
         print(f"[warn] output write failed: {e}", file=sys.stderr)
         print(summary_text, file=sys.stderr)
 
-    print(json.dumps({"ok": write_ok, "engine": engine, "output": output_path}))
+    result = {"ok": write_ok, "engine": engine, "output": output_path}
+    if engine == "fallback" and failures:
+        # 워크플로우가 PR 댓글의 engine 줄에 사유를 붙일 수 있도록 함께 넘긴다.
+        result["fallback_reason"] = "; ".join(r.replace("[warn] ", "", 1) for r in failures)
+    print(json.dumps(result))
     return 0
 
 

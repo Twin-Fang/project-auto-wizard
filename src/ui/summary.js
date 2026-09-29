@@ -1,16 +1,24 @@
-// 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
-// ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated? }
+// 완료 요약 출력. 전부 stderr.
+// ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated?, readme?, scripts? }
 import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
+import { EITHER_SEP } from "../core/verify.js";
+import { BUILD_NUMBER_TYPES } from "../core/types.js";
+import { SCRIPT_NAMES } from "../core/copy/simple.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
 export function printSummary(ctx) {
-  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], branches = null, gitignoreUpdated = false,
+  const { mode, types = [], version = "", versionCode = null, copiedFiles = [], autoUpdated = [], branches = null, gitignoreUpdated = false,
+    // pr-flow인데 원격에 develop을 만들지 못한 경우 — 구성 줄만 보면 이미 준비된 것처럼 보이므로 따로 알린다.
+    developMissing = false,
     // 설치 후 검증·기록
-    answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
+    answers = [], unresolved = [], secrets = new Map(), optionalSecrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
     // Flutter 스토어 배포 — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
-    flutterApp = null, storeCleanup = null } = ctx || {};
+    flutterApp = null, storeCleanup = null,
+    // 이번 실행의 실제 결과 — README 버전 섹션 처리 상태(addVersionSectionToReadme 반환값)와 스크립트별 결과.
+    // 고정 문구로 찍으면 README.md가 없어 아무것도 하지 않은 실행도 "추가됨"으로 보고하게 된다.
+    readme = null, scripts = null } = ctx || {};
   const err = (s = "") => process.stderr.write(`${s}\n`);
   // 색상은 ansi.js의 공용 가드로 통일 (NO_COLOR + stderr TTY 여부)
   const enabled = colorEnabled(process.stderr);
@@ -24,24 +32,16 @@ export function printSummary(ctx) {
   err("");
   err("통합된 기능:");
 
-  // 모드별 체크리스트
-  switch (mode) {
-    case "full":
-      err("  ✅ 버전 관리 시스템 (version.yml)");
-      err("  ✅ README.md 자동 버전 업데이트");
-      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
-      if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
-      break;
-    case "version":
-      err("  ✅ 버전 관리 시스템 (version.yml)");
-      err("  ✅ README.md 자동 버전 업데이트");
-      break;
-    case "workflows":
-      err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
-      break;
+  // README 버전 섹션이 실제로 있는 경우(이번에 추가했거나 원래 있던 경우)에만 자동 업데이트를 안내한다.
+  const readmeTracked = readme === "added" || readme === "skip-marker" || readme === "skip-version-line";
+  if (mode === "full") {
+    err("  ✅ 버전 관리 시스템 (version.yml)");
+    if (readmeTracked) err("  ✅ README.md 자동 버전 업데이트");
+    err("  ✅ GitHub Actions 워크플로우 (릴리스 자동화 포함)");
+    if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
   }
 
-  // 브랜치 모드 + 릴리스 요약 엔진 안내 (DESIGN-SPEC §4~5)
+  // 브랜치 모드 + 릴리스 요약 엔진 안내
   if (branches) {
     err("");
     err("브랜치 구성:");
@@ -49,6 +49,10 @@ export function printSummary(ctx) {
       err(`  🌿 ${branches.main} 단일 브랜치 (trunk-based) — RELEASE-PUBLISH 하나가 버전확정→체인지로그→tag→Release를 순차 처리`);
     } else {
       err(`  🌿 개발 ${branches.develop} → 릴리스 ${branches.main} (pr-flow) — 릴리스 PR에서 버전확정·체인지로그·automerge`);
+      if (developMissing) {
+        err(`     ⚠️  '${branches.develop}' 브랜치가 아직 원격에 없습니다 — 만들기 전에는 개발 브랜치 워크플로우가 동작하지 않습니다`);
+        err(`        → 설치 파일을 커밋해 ${branches.main}을 push한 뒤: git push origin ${branches.main}:${branches.develop}`);
+      }
     }
   }
   if (mode === "full" || mode === "workflows") {
@@ -60,21 +64,27 @@ export function printSummary(ctx) {
   err("");
   err("추가된 파일:");
   err(`  📄 version.yml (버전: ${version}, 타입: ${types.join(",")})`);
-  const BUILD_NUMBER_TYPES = new Set(["flutter", "react-native", "react-native-expo"]);
   if (versionCode != null && types.some((t) => BUILD_NUMBER_TYPES.has(t))) {
     err(`     빌드 번호: ${versionCode}`);
   }
-  err("  📝 README.md (버전 섹션 추가)");
+  if (readme === "added") err("  📝 README.md (버전 섹션 추가)");
+  if (readme === "skip-no-readme") {
+    err("  ℹ️  README.md가 없어 버전 섹션을 추가하지 않았습니다");
+    err("     → README.md를 만든 뒤 다시 실행하면 추가됩니다 (그 전까지 README 버전 갱신 워크플로우는 건너뜁니다)");
+  }
   err("");
   err("추가된 워크플로우:");
 
   // 실제로 이번 실행에서 복사된 파일만 분류한다 (copyWorkflows()가 반환한 copiedFiles —
   // 디렉터리 재스캔은 재실행 시 skip된 파일까지 "새로 설치됨"으로 보여주는 결함이 있었다).
+  // 자동 갱신분(사용자 미수정 파일을 최신으로 교체)도 copiedFiles에 들어 있다 — 새로 설치한 것과 나눠 보여준다.
+  const updated = new Set(autoUpdated);
   const commonWorkflows = [];
   const typeWorkflows = [];
   const typePrefixes = types.map((t) => `${WORKFLOW_PREFIX}-${t.toUpperCase()}-`);
   for (const filename of copiedFiles) {
     if (!filename.startsWith(`${WORKFLOW_PREFIX}-`)) continue; // PROJECT-*만
+    if (updated.has(filename)) continue;
     if (filename.startsWith(`${WORKFLOW_COMMON_PREFIX}-`)) {
       commonWorkflows.push(filename);
     } else if (typePrefixes.some((p) => filename.startsWith(p))) {
@@ -87,13 +97,17 @@ export function printSummary(ctx) {
     for (const wf of commonWorkflows) err(`     📌 ${wf}`);
     for (const wf of typeWorkflows) err(`     🎯 ${wf}`);
   }
+  if (updated.size > 0) {
+    err(`  🔄 업데이트됨 (${updated.size}개, 수정하지 않은 파일을 최신으로 교체):`);
+    for (const wf of updated) err(`     • ${wf}`);
+  }
 
   err("");
   err("  🔧 .github/scripts/");
-  err("     ├─ version_manager.py");
-  err("     ├─ changelog_manager.py");
-  err("     ├─ truncate_release_notes.py");
-  err("     └─ issue_helper.py");
+  const scriptRows = scripts
+    ? scripts.map(({ name, action }) => (action === "overwrite" ? `${name} ${paint("(기존 파일을 새 버전으로 덮어씀)", A.dim, enabled)}` : name))
+    : SCRIPT_NAMES;
+  scriptRows.forEach((row, i) => err(`     ${i === scriptRows.length - 1 ? "└─" : "├─"} ${row}`));
   err("");
 
   // 입력한 환경설정 값 — 마지막으로 눈으로 검산할 기회. 종전에는 답변이 워크플로우
@@ -162,12 +176,34 @@ export function printSummary(ctx) {
 
   // 설치된 워크플로우가 실제로 요구하는 Secret — 종전에는 하나도 안내되지 않아
   // "설치 성공"인데 배포는 돌지 않는 상태로 끝났다.
+  // "A 또는 B"는 둘 중 하나만 등록하면 되는 폴백 쌍이라 한 항목으로 센다.
   if (secrets.size) {
     err(`  ${num()} 아래 GitHub Secret을 등록해야 배포 워크플로우가 동작합니다 (${secrets.size}개)`);
     err("     → Settings > Secrets and variables > Actions");
     for (const [name, users] of secrets) {
-      err(`     → ${paint(name, A.bold, enabled)}  ${paint(users.join(", "), A.dim, enabled)}`);
+      const either = name.includes(EITHER_SEP) ? paint(" (둘 중 하나)", A.dim, enabled) : "";
+      err(`     → ${paint(name, A.bold, enabled)}${either}  ${paint(users.join(", "), A.dim, enabled)}`);
     }
+    err("");
+  }
+  // 기본값이 있거나 없어도 동작하는 secret — 필수 개수에 섞지 않고 따로 알린다.
+  if (optionalSecrets.size) {
+    err(`  ${paint("ℹ️", A.dim, enabled)}  선택 Secret (없어도 동작합니다 — 필요할 때 등록, ${optionalSecrets.size}개)`);
+    for (const [name, users] of optionalSecrets) {
+      err(`     · ${name}  ${paint(users.join(", "), A.dim, enabled)}`);
+    }
+    err("");
+  }
+
+  // 설치 파일은 아직 커밋 전이다. develop을 이번 실행에서 만들었다면 설치 전 커밋 기준이라 워크플로우가 없다 —
+  // 한쪽 브랜치에만 커밋하면 다른 쪽에는 VERSION-CONTROL 등이 빠진 채로 남는다.
+  if (branches) {
+    err(`  ${num()} 설치된 파일을 커밋해 ${branches.main}에 push하세요`);
+    if (branches.mode !== "trunk-based") {
+      err(`     → ${branches.develop}에도 같은 파일이 있어야 합니다 — 한쪽에 커밋한 뒤 다른 쪽에 병합하세요`);
+      err(`       예) git checkout ${branches.develop} && git merge ${branches.main} && git push`);
+    }
+    err("     → README의 '전체 버전 기록 보기'(CHANGELOG.md) 링크는 첫 릴리스에서 CHANGELOG가 생성된 뒤부터 열립니다");
     err("");
   }
 
@@ -175,10 +211,12 @@ export function printSummary(ctx) {
   err("     → Repository Settings > Secrets > Actions");
   err("     → Secret Name: WORKFLOW_PAT (Scopes: repo, workflow)");
   err("     → 등록 시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요");
-  err("     → 없어도 자동 복구되며, 있으면 병합~Release 반영이 조금 더 빠릅니다");
+  err("     → 없어도 태그·Release 발행과 배포 워크플로우 실행까지 자동으로 이어지며, 있으면 조금 더 빠릅니다");
   err("");
-  err(`  ${num()} GitHub Actions 권한 확인`);
-  err("     → Settings > Actions > Workflow permissions: Read and write");
+  // 설치 워크플로우는 필요한 권한을 각자 선언한다 — doctor 안내와 같은 기준으로 알린다.
+  err(`  ${num()} GitHub Actions 권한 (변경 불필요)`);
+  err("     → Workflow permissions가 기본값 Read여도 설치된 워크플로우는 그대로 동작합니다");
+  err("     → 직접 추가한 워크플로우가 permissions 선언 없이 쓰기 작업을 할 때만 Read and write로 올리세요");
   err("");
   err(SEPARATOR);
   err("");

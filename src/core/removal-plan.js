@@ -8,29 +8,23 @@
 // 없는(그러나 파일명은 여전히 현재 payload와 일치하는) 기존 설치 전체를 인식하지 못하는 회귀가
 // 생긴다 — 그래서 두 방식을 합집합으로 병행한다. 마커는 이 수정 이후 배포되는 payload 템플릿부터
 // 포함되므로, (b) 경로가 실제로 새로 잡아내는 것은 "이름이 바뀌거나 삭제된, 마커가 있는" 파일뿐이다.
+// 단, 마커는 사용자가 워크플로우를 복사해 이름만 바꾼 파일에도 그대로 따라간다. 그래서 (b)는
+// baseline에 설치 기록이 있는 파일명만 인정하고, baseline이 없는 구버전 설치에서만 PROJECT-* 접두로 대신 판단한다.
 // 사용자가 직접 만든 워크플로우·version.yml·README·.gitignore는 대상이 아니다
 // (version.yml은 사용자 버전 데이터 — 제거 대상이 아니라 산출물이다).
 //
 // 이 파일은 원래 src/commands/revert.js였다. revert 모드는 uninstall의 부분집합이라 제거됐고
 //, 판별 로직만 남아 commands가 아닌 core로 옮겨졌다.
-import { join } from "node:path";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { PATHS, PAYLOAD } from "./paths.js";
-import { BASELINE_DIR, BASELINE_PATH } from "./baseline.js";
+import { join, isAbsolute } from "node:path";
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { PATHS } from "./paths.js";
+import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash, sha256 } from "./baseline.js";
+import { LOG_DIR } from "./logger.js";
+import { payloadWorkflowNames } from "./deploy-style.js";
+import { SCRIPT_NAMES } from "./copy/simple.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
-
-// payload/workflows/** 전체(하위 폴더 포함)의 yaml 파일명 집합.
-function payloadWorkflowNames(payloadRoot) {
-  const names = new Set();
-  const root = join(payloadRoot, PAYLOAD.workflowsDir);
-  if (!existsSync(root)) return names;
-  for (const e of readdirSync(root, { recursive: true, withFileTypes: true })) {
-    if (e.isFile() && /\.(ya?ml)$/.test(e.name)) names.add(e.name);
-  }
-  return names;
-}
 
 // 설치된 워크플로우 디렉토리(평면 구조)에서 관리 마커로 시작하는 파일명 집합.
 // .bak/.template.yaml 백업본도 원본 텍스트를 그대로 복사한 것이라 마커를 그대로 갖고 있어
@@ -46,11 +40,29 @@ function markedWorkflowNames(wfDir) {
   return names;
 }
 
+// 마커가 있는 파일이 마법사가 설치한 것인지 — .bak/.template.yaml 백업본은 원본 파일명으로 따진다.
+// recorded: baseline의 파일명 집합, baseline이 없으면 null.
+function isInstalledName(name, recorded) {
+  if (!recorded) return name.startsWith("PROJECT-");
+  const stem = name.endsWith(".bak") ? name.slice(0, -".bak".length) : name;
+  const candidates = [name, stem];
+  if (stem.endsWith(".template.yaml")) {
+    const base = stem.slice(0, -".template.yaml".length);
+    candidates.push(base, base + ".yaml");
+  }
+  return candidates.some((c) => recorded.has(c));
+}
+
+// 충돌 처리·정리로 생긴 백업 파생 파일(.bak/.template.yaml) — .gitignore 자동 추가 항목이 가리는 대상이다.
+// 워크플로우를 남기는 삭제에서 이 파일들이 남으면 .gitignore 항목도 남겨야 git 상태에 드러나지 않는다.
+export const backupArtifacts = (names) => names.filter((n) => n.endsWith(".bak") || n.endsWith(".template.yaml"));
+
 // 아무것도 지우지 않는 순수 함수 — uninstall/purge/--dry-run이 공유한다.
 export function planRemoval(payloadRoot, targetRoot = ".") {
   const removedWf = new Set();
   const removedScripts = [];
   const wfDir = join(targetRoot, PATHS.workflowsDir);
+  const baseline = readBaseline(targetRoot);
   if (existsSync(wfDir)) {
     // (a) 현재 payload와 파일명이 일치하는 것 — 마커 유무 무관(기존 설치 회귀 방지).
     for (const name of payloadWorkflowNames(payloadRoot)) {
@@ -61,13 +73,57 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
       if (existsSync(p + ".bak")) removedWf.add(name + ".bak");
     }
     // (b) 관리 마커로 시작하는 것 — payload에서 이름이 바뀌거나 삭제된 파일도 인식.
-    for (const name of markedWorkflowNames(wfDir)) removedWf.add(name);
+    const recorded = baseline ? new Set(Object.keys(baseline.files)) : null;
+    for (const name of markedWorkflowNames(wfDir)) {
+      if (isInstalledName(name, recorded)) removedWf.add(name);
+    }
   }
-  for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"]) {
+  for (const s of SCRIPT_NAMES) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
+  }
+  // Flutter 앱 파일(Fastfile 등)은 마법사가 새로 만들었고 내용이 그대로인 것만 — 값을 채워 넣은 파일은 사용자 것이다.
+  const appFiles = [];
+  for (const [rel, hash] of Object.entries(baseline?.appFiles || {})) {
+    if (rel.split(/[\\/]/).includes("..") || isAbsolute(rel)) continue; // 레포 밖 경로는 신뢰하지 않는다
+    const p = join(targetRoot, rel);
+    if (existsSync(p) && appFileHash(readFileSync(p, "utf8")) === hash) appFiles.push(rel);
   }
   // baseline은 마법사가 만든 내부 상태 파일이다 — 설치물을 지우면 함께 사라져야 한다.
   // 남겨두면 다음 설치가 "예전에 깔았다가 사용자가 지운 파일"로 오인해 전부 removed로 분류한다.
-  const baseline = existsSync(join(targetRoot, BASELINE_PATH)) ? [BASELINE_DIR] : [];
-  return { workflows: [...removedWf], scripts: removedScripts, baseline };
+  // 실행 로그(.wizard/logs)만 남은 경우도 같은 폴더째 지운다 — 설치물을 다 지운 뒤 로그 폴더만 남으면
+  // "완전 삭제"가 아니다.
+  const baselineDirs = existsSync(join(targetRoot, BASELINE_PATH)) || existsSync(join(targetRoot, LOG_DIR)) ? [BASELINE_DIR] : [];
+  return { workflows: [...removedWf], scripts: removedScripts, appFiles, baseline: baselineDirs };
+}
+
+// 업데이트 때 정리할 옛 워크플로우 — 마법사가 설치했지만(baseline 기록 + 관리 마커) 지금 payload에는 없는 파일.
+// payload에서 이름이 바뀌거나 빠진 파일이라, 남겨두면 옛 트리거·옛 절차로 계속 돈다.
+// baseline에 없는 파일은 대상이 아니다 — 사용자가 마법사 파일을 복사해 만든 워크플로우일 수 있다.
+export function findStaleWorkflows(payloadRoot, targetRoot = ".", baseline = null) {
+  if (!baseline?.files) return [];
+  const current = payloadWorkflowNames(payloadRoot);
+  return [...markedWorkflowNames(join(targetRoot, PATHS.workflowsDir))]
+    .filter((n) => /\.ya?ml$/.test(n) && !n.endsWith(".template.yaml") && !current.has(n) && baseline.files[n])
+    .sort();
+}
+
+// 배포 방식 정리와 같은 규칙 — 손대지 않은 파일(installed 해시 일치)은 삭제, 손댄 파일은 .bak으로 옮겨
+// 내용은 지키고 트리거만 끈다. dryRun이면 판정만 하고 파일은 건드리지 않는다 (--dry-run 미리보기용).
+export function cleanupStaleWorkflows(targetRoot, names, baseline, { dryRun = false } = {}) {
+  const wfDir = join(targetRoot, PATHS.workflowsDir);
+  const removed = [];
+  const backedUp = [];
+  for (const name of names) {
+    const p = join(wfDir, name);
+    if (!existsSync(p)) continue;
+    const known = baseline?.files?.[name]?.installed;
+    if (known && sha256(readFileSync(p, "utf8")) === known) {
+      if (!dryRun) rmSync(p, { force: true });
+      removed.push(name);
+    } else {
+      if (!dryRun) renameSync(p, `${p}.bak`);
+      backedUp.push(name);
+    }
+  }
+  return { removed, backedUp };
 }

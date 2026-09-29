@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parents[2] / "payload" / "scripts"
@@ -159,6 +160,33 @@ class TestNormalizeAll(unittest.TestCase):
             commit_message,
             "버그_발견 : feat : {설명} https://github.com/o/r/issues/68",
         )
+
+
+class TestNonKoreanEnglishTitles(unittest.TestCase):
+    def normalize(self, title):
+        return issue_helper.normalize_all(
+            issue_helper.extract_issue_title(title), "https://github.com/o/r/issues/12", "12",
+            "20260925", "", 100, "${issueTitle} : feat : {설명} ${issueUrl}",
+        )
+
+    def test_japanese_title_is_kept(self):
+        branch, commit = self.normalize("日本語のタイトル")
+        self.assertEqual(branch, "20260925_#12_日本語のタイトル")
+        self.assertTrue(commit.startswith("日本語のタイトル : feat : "))
+
+    def test_accented_letters_are_kept(self):
+        branch, _ = self.normalize("Café menu")
+        self.assertEqual(branch, "20260925_#12_Café_menu")
+
+    def test_emoji_or_blank_title_uses_fallback_name(self):
+        for title in ("🎉🎉🎉", "   ", "!!!"):
+            branch, commit = self.normalize(title)
+            self.assertEqual(branch, "20260925_#12_issue", title)
+            self.assertTrue(commit.startswith("issue : feat : "), title)
+
+    def test_truncation_does_not_end_with_separator(self):
+        name = issue_helper.create_branch_name("ab cd", "12", "20260925", "", len("20260925_#12_ab_"))
+        self.assertEqual(name, "20260925_#12_ab")
 
 
 class TestUpsertIssueLinksInBody(unittest.TestCase):
@@ -330,6 +358,48 @@ class TestLinkPrIssuesCliGuards(unittest.TestCase):
             capture_output=True, text=True, env=env,
         )
         self.assertEqual(r.returncode, 0)
+
+
+
+class TestLinkPrIssuesSkipsMissingIssues(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+
+    def fake_api(self, issues):
+        def _api(method, url, token, body=None):
+            self.calls.append((method, url, body))
+            if "/issues/" in url:
+                n = url.rsplit("/", 1)[1]
+                return issues.get(n, (404, None))[0], issues.get(n, (404, None))[1], None
+            if method == "GET":
+                return 200, {"body": "본문"}, None
+            return 200, {}, None
+        return _api
+
+    def test_nonexistent_issue_is_not_added_as_closes(self):
+        api = self.fake_api({"12": (200, {"number": 12})})
+        with patch.object(issue_helper, "_api_request", side_effect=api), \
+                patch("sys.stderr") as err:
+            issue_helper.link_pr_issues("o", "r", 5, ["12", "99"], "t", False)
+        patched = [c for c in self.calls if c[0] == "PATCH"]
+        self.assertEqual(len(patched), 1)
+        self.assertIn("Closes #12", patched[0][2]["body"])
+        self.assertNotIn("Closes #99", patched[0][2]["body"])
+        written = "".join(str(c.args[0]) for c in err.write.call_args_list)
+        self.assertIn("::warning::", written)
+
+    def test_pull_request_number_is_skipped(self):
+        api = self.fake_api({"7": (200, {"number": 7, "pull_request": {"url": "x"}})})
+        with patch.object(issue_helper, "_api_request", side_effect=api), patch("sys.stderr"):
+            issue_helper.link_pr_issues("o", "r", 5, ["7"], "t", False)
+        self.assertFalse([c for c in self.calls if c[0] == "PATCH"])
+
+    def test_lookup_error_keeps_number(self):
+        api = self.fake_api({"12": (500, None)})
+        with patch.object(issue_helper, "_api_request", side_effect=api), patch("sys.stderr"):
+            issue_helper.link_pr_issues("o", "r", 5, ["12"], "t", False)
+        patched = [c for c in self.calls if c[0] == "PATCH"]
+        self.assertIn("Closes #12", patched[0][2]["body"])
 
 
 if __name__ == "__main__":

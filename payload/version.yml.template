@@ -18,14 +18,16 @@
 #   (e.g., flutter: "app", react: "client"). Omitted -> repo root.
 #
 # Synced files per type:
-# - spring: build.gradle / build.gradle.kts
+# - spring: build.gradle / build.gradle.kts / pom.xml
 # - flutter: pubspec.yaml
 # - next/react/node: package.json
 # - react-native: Info.plist + build.gradle
 # - react-native-expo: app.json
-# - python: pyproject.toml
+# - python: pyproject.toml / setup.py
 # - go: (none — git tag based, go.mod has no version field)
 # - basic: version.yml only
+# A file version like 1.2.0-rc.1 or 1.2.0+4 is read as 1.2.0 (version below is x.y.z only).
+# Gradle/Maven -SNAPSHOT is kept when the version is bumped (1.2.0-SNAPSHOT -> 1.2.1-SNAPSHOT).
 # ===
 
 version: "{{VERSION}}"

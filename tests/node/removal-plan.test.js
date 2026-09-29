@@ -76,6 +76,11 @@ test("planRemoval: recognizes a marker-carrying workflow file even if its name n
     // 실측: payload에는 이 파일명이 존재하지 않는다(과거 버전에서 설치된 뒤 이름이 바뀌었다고 가정) —
     // 그래도 마커가 있으면 인식돼야 한다.
     writeFileSync(renamedPath, "# project-auto-wizard:managed-workflow\nname: old-name\n");
+    // 과거 설치 때 baseline에 기록됐고 baseline은 병합으로 이어지므로 기록이 남아 있다.
+    const bp = join(target, ".github/.wizard/baseline.json");
+    const bl = JSON.parse(readFileSync(bp, "utf8"));
+    bl.files["PROJECT-COMMON-RENAMED-IN-A-LATER-RELEASE.yaml"] = { installed: null, rendered: "sha256:0" };
+    writeFileSync(bp, JSON.stringify(bl, null, 2));
 
     const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.includes("PROJECT-COMMON-RENAMED-IN-A-LATER-RELEASE.yaml"));
@@ -137,6 +142,42 @@ test("planRemoval: a pre-marker install whose filename still matches the current
 
     const plan = planRemoval(resolvePayloadRoot(), target);
     assert.ok(plan.workflows.includes(anyFile), "filename-matching fallback must still recognize marker-less existing installs");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRemoval: 마법사 워크플로우를 복사해 이름만 바꾼 사용자 파일은 마커가 있어도 제거하지 않는다", () => {
+  const target = installFixture();
+  try {
+    const wfDir = join(target, ".github/workflows");
+    const src = readFileSync(join(wfDir, "PROJECT-COMMON-VERSION-CONTROL.yaml"), "utf8");
+    writeFileSync(join(wfDir, "my-version-control-copy.yaml"), src);
+
+    const plan = planRemoval(resolvePayloadRoot(), target);
+    assert.ok(!plan.workflows.includes("my-version-control-copy.yaml"));
+    assert.ok(plan.workflows.includes("PROJECT-COMMON-VERSION-CONTROL.yaml"));
+
+    runUninstall({}, resolvePayloadRoot(), target,
+      { workflows: true, scripts: true, readme: false, gitignore: false, versionYml: false });
+    assert.ok(existsSync(join(wfDir, "my-version-control-copy.yaml")), "사용자 복사본은 남아야 한다");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planRemoval: baseline이 없는 구버전 설치는 PROJECT-* 이름의 마커 파일만 인정한다", () => {
+  const target = installFixture();
+  try {
+    rmSync(join(target, ".github/.wizard"), { recursive: true, force: true });
+    const wfDir = join(target, ".github/workflows");
+    const marked = "# project-auto-wizard:managed-workflow\nname: x\n";
+    writeFileSync(join(wfDir, "PROJECT-COMMON-OLD-NAME.yaml"), marked);
+    writeFileSync(join(wfDir, "my-copy.yaml"), marked);
+
+    const plan = planRemoval(resolvePayloadRoot(), target);
+    assert.ok(plan.workflows.includes("PROJECT-COMMON-OLD-NAME.yaml"));
+    assert.ok(!plan.workflows.includes("my-copy.yaml"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

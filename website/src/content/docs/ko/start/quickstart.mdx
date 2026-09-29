@@ -1,0 +1,68 @@
+---
+title: 빠른 시작
+description: 레포에 릴리스 자동화를 설치하고 첫 릴리스를 내기까지.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+GitHub 원격이 연결된 레포라면 5분 정도 걸립니다.
+
+<Steps>
+
+1. 레포 루트에서 **마법사를 실행합니다** (Node.js 20.12 이상):
+
+   ```bash
+   npx project-auto-wizard
+   ```
+
+   마커 파일(`build.gradle`, `pubspec.yaml`, `package.json`, `go.mod` 등)로 프로젝트 타입을 감지한 뒤 브랜치 전략, 서버 배포가 있는 타입이면 배포 방식, 자동 semver 승격, Copilot 요약 사용 여부를 묻습니다. 잘 모르겠으면 기본값으로 두세요. 모든 선택은 `version.yml`에 저장되고 나중에 바꿀 수 있습니다.
+
+2. 커밋하기 전에 **설정을 점검합니다**:
+
+   ```bash
+   npx project-auto-wizard --mode doctor
+   ```
+
+   `doctor`는 워크플로우가 의존하는 레포 설정(Workflow permissions, merge commit 허용, `WORKFLOW_PAT`)을 점검하고, 무엇을 어디서 바꿔야 하는지 알려 줍니다.
+
+3. 생성된 파일을 **커밋하고 push합니다** — `.github/workflows/`, `.github/scripts/`, `version.yml`, README 버전 섹션:
+
+   ```bash
+   git add .github version.yml README.md .gitignore
+   git commit -m "chore: 릴리스 자동화 추가"
+   git push
+   ```
+
+4. 릴리스할 변경이 쌓이면 `develop`에서 `main`으로 **릴리스 PR을 엽니다**. `AUTO-CHANGELOG-CONTROL` 워크플로우가 다음 버전을 확정하고, 릴리스 노트를 PR 댓글로 남기고, `CHANGELOG.md` / `CHANGELOG.json`을 갱신한 뒤 automerge를 켭니다.
+
+5. **릴리스를 확인합니다.** 머지 후 `RELEASE-PUBLISH`가 `vX.Y.Z` 태그를 push하고 GitHub Release를 만들고 README 버전 줄을 갱신합니다.
+
+</Steps>
+
+## 비대화형 설치
+
+CI나 스크립트에서는 `--mode full --force`와 타입을 넘깁니다:
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+npx project-auto-wizard --mode full --force --type flutter --paths "flutter=app"
+npx project-auto-wizard --mode full --force --type node --dry-run   # 미리보기만, 파일을 쓰지 않음
+```
+
+비대화형에서 `--develop-branch`를 주지 않으면 `develop`을 쓰고, 없으면 생성해 push까지 합니다. `--main-branch`와 같은 값을 주면 trunk-based 전략이 됩니다. [브랜치 전략](../../understand/branch-strategies/)을 참고하세요.
+
+<a id="post-install"></a>
+
+## 설치 후 확인할 것
+
+| 항목 | 할 일 |
+|---|---|
+| Workflow permissions | 변경 불필요. 설치된 워크플로우는 필요한 권한을 각자 선언합니다. 직접 추가한 워크플로우가 `permissions` 선언 없이 쓰기 작업을 할 때만 Settings → Actions → General → Workflow permissions를 **Read and write permissions**로 올리세요. |
+| Merge commit 허용 | 릴리스 PR이 automerge되려면 merge commit을 허용해야 합니다. |
+| `WORKFLOW_PAT` (선택) | 없어도 `GITHUB_TOKEN` 폴백이 릴리스 브랜치 배포 워크플로우 실행까지 이어받습니다(실제 병합 후 최대 ~20초 추가). 등록한다면 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: `repo`, `workflow`). |
+| Copilot 요약 (선택) | 기본 꺼짐. GitHub Copilot AI Credits를 소비하며, 조직은 "Allow use of Copilot CLI billed to the organization" 정책이 필요합니다. [요약 엔진](../../understand/summary-engine/) 참고. |
+| 타입별 Secret | 배포 워크플로우는 `DOCKERHUB_TOKEN`, `SERVER_HOST` 같은 Secret이 필요합니다. 설치 완료 화면에 필요한 목록이 출력되고, 전체 표는 각 [프로젝트 타입 문서](../../project-types/common/)에 있습니다. |
+
+<Aside type="tip">
+배포에 PAT은 필요 없습니다. `GITHUB_TOKEN`이 병합한 릴리스 PR은 `on: push` 워크플로우를 깨우지 못하므로, `RELEASE-PUBLISH`가 릴리스를 발행한 뒤 릴리스 브랜치 배포 워크플로우(서버 배포·스토어 배포)를 `workflow_dispatch`로 대신 실행합니다. PAT이나 사람이 병합했다면 push 이벤트로 이미 실행되므로 다시 실행하지 않습니다.
+</Aside>

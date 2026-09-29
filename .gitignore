@@ -6,19 +6,13 @@ tmp/
 .idea/
 .worktrees/
 
+# 문서 사이트(website/) 빌드 산출물
+website/node_modules/
+website/dist/
+website/.astro/
+
 # ====================================================================
 # project-auto-wizard: Auto-added entries
 # ====================================================================
-/.claude/settings.local.json
-
-# 로컬 이슈 작업 파일
-/.issue
-
-# 로컬 작업용 스크래치 폴더
-/.superpowers
-
-# Playwright MCP 세션 산출물
-/.playwright-mcp
-
 # 로컬 설계·계획 문서
 /docs

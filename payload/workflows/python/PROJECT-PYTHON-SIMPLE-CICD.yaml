@@ -27,6 +27,10 @@ on:
 env:
   # 프로젝트 고유 식별자
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-python'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-python)
 
   # 포트 설정
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8000
@@ -69,6 +73,42 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v7
 
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: Dockerfile
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
       - name: 디스크 공간 확보
         run: |
           echo "📊 빌드 전 디스크 사용량:"
@@ -87,6 +127,7 @@ jobs:
           df -h
 
       - name: .env 파일 생성
+        working-directory: ${{ env.PROJECT_PATH }}
         run: |
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
@@ -105,10 +146,10 @@ jobs:
       - name: Docker 이미지 빌드 및 푸시
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ github.ref_name }}
           # GitHub Actions 캐시 사용 (로컬 디스크 공간 절약)
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -162,7 +203,7 @@ jobs:
 
             BRANCH=${{ github.ref_name }}
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
             # 포트 및 컨테이너명 설정
             PORT=${{ env.DEPLOY_PORT }}

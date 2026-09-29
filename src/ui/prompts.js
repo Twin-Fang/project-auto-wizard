@@ -1,8 +1,10 @@
-// 대화형 프롬프트 래핑 (.sh interactive_menu/choose_menu/ask_* 등가).
+// 대화형 프롬프트 래핑.
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
-// 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
+// ESC는 각 함수가 CANCEL 심볼을 반환 → 호출부가 기본값/머무르기로 해석한다.
+// Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { TYPE_IDS } from "../core/types.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
@@ -36,12 +38,17 @@ export async function confirmProjectMenu() {
 
 // 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출.
 // 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
-export function editMenuOptions({ showFlutter = false } = {}) {
+// showOptions=선택 워크플로우 토글(자동 버전 승격·Copilot) 노출 — 저장값이 있으면 처음 질문을 건너뛰므로 여기서 바꾼다.
+export function editMenuOptions({ showFlutter = false, showOptions = false } = {}) {
   const options = [
     { value: "type", label: "프로젝트 타입" },
     { value: "version", label: "버전" },
     { value: "branch", label: "기본 브랜치" },
   ];
+  if (showOptions) {
+    options.push({ value: "semverAuto", label: "자동 버전 승격" });
+    options.push({ value: "copilotAi", label: "Copilot AI 요약" });
+  }
   if (showFlutter) {
     options.push({ value: "envMode", label: "환경변수 방식" });
     options.push({ value: "flutterStore", label: "스토어 배포 대상" });
@@ -52,11 +59,12 @@ export function editMenuOptions({ showFlutter = false } = {}) {
 }
 
 // 수정 메뉴 — 어떤 항목을 고칠지.
-export async function editMenu({ showFlutter = false } = {}) {
-  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter }) });
+export async function editMenu({ showFlutter = false, showOptions = false } = {}) {
+  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter, showOptions }) });
 }
 
-const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
+// 대화형 타입 선택지 — CLI 검증 목록(VALID_TYPES)과 같은 레지스트리에서 만든다.
+export const ALL_TYPES = TYPE_IDS;
 
 // 타입 멀티선택.
 export async function selectTypes(current = []) {
@@ -93,20 +101,22 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
 // 배포 방식 선택. 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
 // 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
 // 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
-// "서버 배포 안 함"은 server-deploy 폴더 자체(PR 프리뷰 포함)를 제외한다 — 서버 배포를
+// "서버 배포 안 함"은 모든 타입에서 서버 배포 워크플로우(CD·PR 프리뷰)를 제외한다 — 서버 배포를
 // 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 선택지다.
-export async function selectDeployStyle() {
+// nonstop=false면(선택한 타입 어디에도 무중단 워크플로우가 없음) 고를 수 없는 무중단 선택지를 빼고 묻는다.
+export async function selectDeployStyle({ nonstop = true } = {}) {
   engine.note(
     "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
-    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다\n" +
-    "(단, server-deploy 폴더가 있는 타입(spring)은 \"서버 배포 안 함\"을 고르면 PR 프리뷰도 함께 제외됩니다).",
+    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 배포 방식과 함께 설치되고,\n" +
+    "\"서버 배포 안 함\"을 고르면 모든 타입에서 CD와 PR 프리뷰를 함께 제외합니다.\n" +
+    "무중단 배포는 spring에만 있습니다 — 다른 타입(python·go·react·next)은 단일 서버 배포로 설치됩니다.",
     "배포 방식",
   );
   return engine.select({
     message: "서버 배포는 어떤 방식으로 할까요?",
     options: [
-      ...DEPLOY_STYLES.map((s) => ({ value: s.value, label: s.label })),
-      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD 워크플로우/배포 설정을 생성하지 않음" },
+      ...DEPLOY_STYLES.filter((s) => nonstop || s.value === "simple").map((s) => ({ value: s.value, label: s.label })),
+      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD·PR 프리뷰 워크플로우와 배포 설정을 생성하지 않음" },
     ],
   });
 }

@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { runDoctor, printDoctorReport, DOC } from "../../src/commands/doctor.js";
+import { runDoctor, printDoctorReport, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -154,7 +154,7 @@ test("runDoctor: 모든 항목이 용도(purpose)를 가진다", () => {
   }
 });
 
-// 문제 항목은 조치 단계와 문서 링크를 반드시 동반해야 한다(스펙 §3.3② "해결 가이드 링크").
+// 문제 항목은 조치 단계와 문서 링크를 반드시 동반해야 한다(해결 가이드 링크).
 test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공한다", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
@@ -169,7 +169,7 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
       assert.ok(r.impact?.length, `${r.name}에 영향 설명이 없습니다`);
       assert.ok(r.actions?.length, `${r.name}에 조치 단계가 없습니다`);
     }
-    // WORKFLOW_PAT은 #105에서 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
+    // WORKFLOW_PAT은 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
     // 필요한 항목(automerge 호환성)으로 doc 링크 존재를 검증한다.
     const automerge = problems.find((r) => r.name === "automerge 호환성(merge commit 허용)");
     assert.strictEqual(automerge.doc, DOC.postInstall);
@@ -178,12 +178,25 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
   }
 });
 
-// 출력에서 링크하는 README 앵커가 실제로 README에 존재해야 한다(링크 부패 방지).
-test("DOC 링크가 가리키는 앵커가 README에 실제로 존재한다", () => {
-  const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
+// 출력에서 링크하는 문서 사이트 앵커가 실제 문서 소스에 존재해야 한다(링크 부패 방지).
+test("DOC 링크가 가리키는 앵커가 문서 사이트 소스에 실제로 존재한다", () => {
   for (const url of Object.values(DOC)) {
-    const anchor = url.split("#")[1];
-    assert.ok(readme.includes(`<a id="${anchor}">`), `README에 #${anchor} 앵커가 없습니다`);
+    assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `문서 사이트 URL이 아닙니다: ${url}`);
+    const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
+    const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
+    const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
+    assert.ok(file, `${page}에 해당하는 문서 파일이 없습니다`);
+    assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page}에 #${anchor} 앵커가 없습니다`);
+  }
+});
+
+// 이미 배포된 CLI 버전이 README 앵커를 링크하므로 README에도 앵커를 남겨 둔다.
+test("이전 버전 CLI가 링크하는 README 앵커가 모든 README에 남아 있다", () => {
+  for (const file of ["README.md", "README.ko.md", "README.zh-CN.md", "README.ja.md"]) {
+    const readme = readFileSync(join(REPO_ROOT, file), "utf8");
+    for (const anchor of ["post-install", "flutter-store"]) {
+      assert.ok(readme.includes(`<a id="${anchor}"></a>`), `${file}에 #${anchor} 앵커가 없습니다`);
+    }
   }
 });
 
@@ -396,6 +409,42 @@ test("runDoctor: Flutter가 아닌 프로젝트는 저장된 스토어 옵션이
     writeFileSync(join(dir, "version.yml"),
       'version: "1.0.0"\nproject_types: ["spring"]\nmetadata:\n  template:\n    options:\n      flutter_store: "ios"\n');
     assert.deepStrictEqual(runDoctor(dir, { exec: NO_GH }).filter(isFlutterRow), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owner/repo를 인식한다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    for (const [url, expected] of [
+      ["https://github.com/vercel/next.js.git\n", "repos/vercel/next.js"],
+      ["git@github.com:someone/someone.github.io.git\n", "repos/someone/someone.github.io"],
+      ["https://github.com/vercel/next.js\n", "repos/vercel/next.js"],
+    ]) {
+      const calls = [];
+      const base = fakeExec([...ALL_OK_EXEC.filter(([p]) => p !== "git -C"), ["git -C", { status: 0, stdout: url, stderr: "" }]]);
+      const exec = (cmd, args) => { calls.push([cmd, ...args].join(" ")); return base(cmd, args); };
+      const results = runDoctor(dir, { exec });
+      assert.ok(!results.some((r) => r.name === "GitHub 원격"), `${url.trim()}를 인식해야 한다`);
+      assert.ok(calls.some((c) => c.includes(`${expected}/actions/permissions/workflow`)), `${url.trim()} → ${expected}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: Copilot 안내는 version.yml의 실제 copilot_ai 값을 보여준다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    const noteFor = (yml) => {
+      writeFileSync(join(dir, "version.yml"), yml);
+      return runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }).find((r) => r.name === "Copilot AI 요약").note.join("\n");
+    };
+    const opts = (v) => `version: "1.0.0"\nmetadata:\n  template:\n    options:\n      copilot_ai: ${v}\n`;
+    assert.match(noteFor(opts("true")), /켜져 있습니다 \(version\.yml의 copilot_ai: true\)/);
+    assert.match(noteFor(opts("false")), /꺼져 있습니다 \(version\.yml의 copilot_ai: false\)/);
+    assert.match(noteFor('version: "1.0.0"\n'), /기본은 꺼져 있습니다/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

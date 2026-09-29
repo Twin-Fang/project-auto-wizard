@@ -1,0 +1,67 @@
+---
+title: project-auto-wizard
+description: One command sets up versioning, CHANGELOG, GitHub Releases and CI/CD in your repo.
+template: splash
+hero:
+  tagline: One command sets up versioning, CHANGELOG, GitHub Releases and CI/CD in your repo. Everything it installs is plain GitHub Actions in your own repository. No API keys, no hosted service.
+  actions:
+    - text: Quickstart
+      link: start/quickstart/
+      icon: right-arrow
+    - text: How it works
+      link: understand/how-it-works/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/Twin-Fang/project-auto-wizard
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import DemoVideo from '../../components/DemoVideo.astro';
+
+<DemoVideo label="Installing release automation into a Spring project with the wizard" />
+
+## Try it
+
+Run it in the root of your repository (Node.js 20.12 or later):
+
+```bash
+npx project-auto-wizard
+```
+
+It detects the project type, asks a few questions and writes the workflow files. For CI or scripts:
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+```
+
+## What you get
+
+<CardGrid>
+  <Card title="Release PR automation" icon="rocket">
+    Open a `develop → main` PR and the next version is derived from commit types, release notes are written, CHANGELOG is updated and the PR automerges.
+  </Card>
+  <Card title="Tags and GitHub Releases" icon="approve-check">
+    After the merge, a `vX.Y.Z` tag and a GitHub Release are published and the README version line is updated.
+  </Card>
+  <Card title="CI/CD per stack" icon="seti:pipeline">
+    Spring, Flutter, React, Next.js, Python and Go get CI and deploy workflows. Other types get release automation only.
+  </Card>
+  <Card title="No API keys" icon="padlock">
+    Release notes are rule-based by default. GitHub Copilot or an OpenAI-compatible API is optional, and failures fall back to the rules.
+  </Card>
+  <Card title="Files you own" icon="document">
+    Workflows and standard-library Python scripts are copied into `.github/`. Read them, edit them; re-running keeps your changes.
+  </Card>
+  <Card title="Read-only checks" icon="magnifier">
+    `--mode status` shows drift against the installed templates, and `--mode doctor` checks the repository settings the workflows need.
+  </Card>
+</CardGrid>
+
+## Where to go next
+
+- [Quickstart](start/quickstart/) — install, commit, open your first release PR
+- [Release flow](understand/release-flow/) — what happens between the PR and the GitHub Release
+- [Project types](project-types/common/) — installed workflows and required secrets per stack
+- [CLI options](reference/cli/) — every flag

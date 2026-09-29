@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "설치 시 버전 감지(src/core/detect.js)와 릴리스 시 버전 읽기(payload/scripts/version_manager.py)가 같은 파일을 같은 값으로 읽는지 확인하는 공용 기대값.",
+    "키는 이 폴더 아래 케이스 폴더 이름, type은 version.yml project_types의 첫 항목.",
+    "version: 파일에서 읽은 버전. null이면 파일에서 찾지 못한 것(JS는 0.0.1 폴백+경고, Python은 version.yml 값으로 폴백).",
+    "buildNumber: 파일에서 읽은 빌드 번호. Python은 pubspec.yaml(flutter)에서만 읽으므로 flutter 케이스만 양쪽을 비교한다.",
+    "두 구현은 같은 규칙으로 읽어야 하므로 언어별 예외 값은 두지 않는다. prerelease·-SNAPSHOT·+빌드 메타데이터는 x.y.z 코어로 읽는다."
+  ],
+  "cases": {
+    "flutter": { "type": "flutter", "version": "1.4.2", "buildNumber": 17 },
+    "flutter-no-build-number": { "type": "flutter", "version": "2.0.0", "buildNumber": null },
+    "flutter-prerelease": { "type": "flutter", "version": "1.2.3", "buildNumber": 4 },
+    "spring-gradle": { "type": "spring", "version": "0.3.1", "buildNumber": null },
+    "spring-gradle-kts": { "type": "spring", "version": "1.0.0", "buildNumber": null },
+    "spring-gradle-snapshot": { "type": "spring", "version": "1.2.0", "buildNumber": null },
+    "spring-gradle-without-version-and-kts": { "type": "spring", "version": "4.5.6", "buildNumber": null },
+    "spring-pom": { "type": "spring", "version": "0.5.0", "buildNumber": null },
+    "spring-pom-inherited-version": { "type": "spring", "version": null, "buildNumber": null },
+    "node": { "type": "node", "version": "3.1.4", "buildNumber": null },
+    "node-prerelease": { "type": "node", "version": "2.0.0", "buildNumber": null },
+    "react-native-expo": { "type": "react-native-expo", "version": "1.1.0", "buildNumber": 12 },
+    "react-native": { "type": "react-native", "version": "1.0.3", "buildNumber": 9 },
+    "python-pyproject": { "type": "python", "version": "0.9.0", "buildNumber": null },
+    "python-dynamic-version": { "type": "python", "version": null, "buildNumber": null },
+    "python-setup-py": { "type": "python", "version": "0.2.0", "buildNumber": null }
+  }
+}

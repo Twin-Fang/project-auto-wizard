@@ -1,5 +1,4 @@
 // doctor 명령 — 로컬 환경 진단(읽기 전용, 규칙 기반). gh CLI에 위임해 원격 상태를 점검한다.
-// AI 진단은 포함하지 않는다(스펙 §4에서 검토 후 기각 — 복잡도 대비 이득 낮음).
 //
 // 출력 설계 — `flutter doctor` 패턴을 차용한다.
 //   ① 항목 라벨에 purpose("무엇을 위한 설정인지")를 병기한다. `WORKFLOW_PAT`만 보고는 그게
@@ -21,13 +20,13 @@ import { inferInstalledStores } from "../core/installed-stores.js";
 
 const defaultExec = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
 
-// 해결 가이드 링크 (스펙 2026-07-25-osscontest-scope-design.md §3.3② "각 실패 항목에 대한
-// 해결 가이드 링크(README 앵커)"). README에 심은 영문 HTML 앵커를 가리킨다 — 한글 헤딩
+// 해결 가이드 링크. 문서 사이트 페이지 안의 영문 HTML 앵커를 가리킨다 — 한글 헤딩
 // 자동 앵커는 URL 인코딩되어 터미널에서 알아볼 수 없게 깨진다.
-const REPO_URL = "https://github.com/Twin-Fang/project-auto-wizard";
+// 진단 출력이 한국어이므로 한국어 페이지(/ko/)로 연결한다.
+export const DOCS_SITE_URL = "https://twin-fang.github.io/project-auto-wizard";
 export const DOC = {
-  postInstall: `${REPO_URL}#post-install`,
-  flutterStore: `${REPO_URL}#flutter-store`,
+  postInstall: `${DOCS_SITE_URL}/ko/start/quickstart/#post-install`,
+  flutterStore: `${DOCS_SITE_URL}/ko/project-types/flutter/#flutter-store`,
 };
 
 export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
@@ -77,7 +76,8 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
 
   const remote = exec("git", ["-C", cwd, "remote", "get-url", "origin"]);
   const url = remote.status === 0 ? (remote.stdout || "").trim() : "";
-  const match = url.match(/github\.com[:/]([^/]+)\/([^/.]+?)(\.git)?$/);
+  // 레포 이름에는 점이 올 수 있다(user.github.io, next.js) — 끝의 .git만 떼어낸다.
+  const match = url.match(/github\.com[:/]([^/]+)\/([^/]+?)(\.git)?\/?$/);
   if (!match) {
     add({
       name: "GitHub 원격", purpose: "점검 대상 레포 식별", status: "WARN",
@@ -129,7 +129,7 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
       // 파이프라인을 끝까지 이어가므로, 없는 장애를 경고로 띄우지 않는다.
       name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "INFO",
       note: [
-        "secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
+        "secret이 없어도 폴백이 자동으로 이어받아 태그·Release 발행과 main 배포 워크플로우 실행까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
         "속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).",
         "등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT",
       ],
@@ -160,11 +160,18 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
     });
   }
 
+  // 실제 설정값을 보여준다 — 켜 둔 사용자에게 "꺼져 있다"고 안내하면 현재 상태를 오해하게 된다.
+  const copilotAi = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options.copilotAi : null;
+  const copilotState = copilotAi === true
+    ? "켜져 있습니다 (version.yml의 copilot_ai: true)."
+    : copilotAi === false
+      ? "꺼져 있습니다 (version.yml의 copilot_ai: false) — 켜려면 --copilot으로 다시 설치하거나 대화형 '수정하기 > Copilot AI 요약'을 쓰세요."
+      : "기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).";
   add({
     name: "Copilot AI 요약", label: "Copilot AI 요약", purpose: "AI 릴리스 노트 생성(선택)", status: "INFO",
     note: [
-      "기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).",
-      "켜면 GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.",
+      copilotState,
+      `${copilotAi === true ? "" : "켜면 "}GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.`,
       "꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.",
     ],
   });

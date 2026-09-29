@@ -7,7 +7,7 @@
 //
 // 파일 사본이 아니라 해시만 남긴다 — 분류가 목적이지 자동 병합이 목적이 아니다.
 //
-// 해시를 두 개 두는 이유(이슈 원안은 하나였다): env 치환으로 사용자 값이 들어간 파일은
+// 해시를 두 개 두는 이유: env 치환으로 사용자 값이 들어간 파일은
 // 디스크 내용과 "기본값으로 렌더한 결과"가 애초에 다르다. 하나로는 두 질문에 동시에 답할 수 없다.
 //   - installed : 설치 시점 우리가 디스크에 쓴 내용     → "사용자가 그 뒤에 손댔는가"
 //   - rendered  : 그 시점 payload를 기본값 치환한 결과  → "업스트림이 그 뒤에 바뀌었는가"
@@ -26,6 +26,12 @@ export function sha256(text) {
   return "sha256:" + createHash("sha256").update(String(text), "utf8").digest("hex");
 }
 
+// Flutter 앱 파일(Fastfile·ExportOptions.plist) 해시 — 체크아웃 줄바꿈(autocrlf)만 달라진 파일을
+// "사용자가 수정했다"로 보지 않도록 LF로 맞춘 뒤 해시한다.
+export function appFileHash(text) {
+  return sha256(String(text).replace(/\r\n/g, "\n"));
+}
+
 // 없거나 깨졌으면 null — 호출부는 "base 미상"으로 폴백한다(조용히 빈 baseline을 쓰지 않는다.
 // 빈 baseline은 "기록이 없다"가 아니라 "전부 삭제됐다"로 오해될 수 있다).
 export function readBaseline(targetRoot = ".") {
@@ -40,22 +46,31 @@ export function readBaseline(targetRoot = ".") {
   }
 }
 
-// entries: Map<filename, {installed?:string|null, rendered:string}>
+// entries: Map<filename, {installed?:string|null, rendered?:string|null}>
+// appFiles: Map<레포 기준 상대경로, appFileHash> — 이번에 새로 만든 Flutter 앱 파일. 완전 삭제가
+//   "마법사가 만들었고 사용자가 손대지 않은 파일"만 지우는 근거다. files는 워크플로우 파일명 키라 섞지 않는다.
 // 기존 baseline은 병합 대상이다 — 이번 실행에서 건드리지 않은 파일의 기준점을 잃지 않는다.
-export function writeBaseline(targetRoot, { templateVersion, installedAt, entries, previous = null }) {
+export function writeBaseline(targetRoot, { templateVersion, installedAt, entries, previous = null, appFiles = new Map() }) {
   const files = { ...(previous?.files || {}) };
   for (const [filename, entry] of entries) {
     const prev = files[filename] || {};
     files[filename] = {
       // installed는 이번에 실제로 쓴 경우에만 갱신. 유지(skip)한 파일은 예전 기준점을 지킨다.
       installed: entry.installed ?? prev.installed ?? null,
-      rendered: entry.rendered,
+      // rendered가 없으면(충돌로 업스트림 변경을 받지 않은 파일) 예전 기준점을 지킨다.
+      rendered: entry.rendered ?? prev.rendered ?? null,
     };
   }
+  const apps = { ...(previous?.appFiles || {}), ...Object.fromEntries(appFiles) };
+  // 기준점이 하나도 바뀌지 않은 재실행은 설치 시각도 그대로 둔다 — 매 실행마다 파일이 바뀌면 멱등이 아니다.
+  const unchanged = previous && previous.templateVersion === (templateVersion || "unknown")
+    && JSON.stringify(previous.files) === JSON.stringify(files)
+    && JSON.stringify(previous.appFiles || {}) === JSON.stringify(apps);
   const out = {
     templateVersion: templateVersion || "unknown",
-    installedAt: installedAt || "",
+    installedAt: unchanged ? (previous.installedAt || "") : (installedAt || ""),
     files,
+    ...(Object.keys(apps).length ? { appFiles: apps } : {}),
   };
   writeText(join(targetRoot, BASELINE_PATH), JSON.stringify(out, null, 2) + "\n");
   return out;

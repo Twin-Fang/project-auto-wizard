@@ -14,7 +14,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 // 실제로 만들어내는 부산물만 gitignore 대상으로 삼는다.
 const REQUIRED_ENTRIES = ["*.bak", "*.template.yaml"];
 
-// .sh normalize_gitignore_entry: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
+// 항목 정규화: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
 export function normalizeGitignoreEntry(entry) {
   let e = String(entry);
   e = e.replace(/#.*$/, "");        // 주석 제거
@@ -40,23 +40,31 @@ const NEW_FILE_CONTENT =
   "*.bak\n" +
   "*.template.yaml\n";
 
+// 쓰지 않고 판정만 한다 — 실제 갱신과 --dry-run 미리보기가 같은 판정을 쓰게 한다.
+// 반환: {created, added:[...]}
+export function planGitignore(targetRoot = ".") {
+  const p = join(targetRoot, ".gitignore");
+  if (!existsSync(p)) return { created: true, added: REQUIRED_ENTRIES.slice() };
+  const content = readFileSync(p, "utf8");
+  return { created: false, added: REQUIRED_ENTRIES.filter((e) => !entryExists(e, content)) };
+}
+
 // 반환: {created, added:[...]}
 export function ensureGitignore(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
-  if (!existsSync(p)) {
+  const plan = planGitignore(targetRoot);
+  if (plan.created) {
     writeFileSync(p, NEW_FILE_CONTENT);
-    return { created: true, added: REQUIRED_ENTRIES.slice() };
+    return plan;
   }
+  const toAdd = plan.added;
+  if (toAdd.length === 0) return plan;
   let content = readFileSync(p, "utf8");
-  const toAdd = REQUIRED_ENTRIES.filter((e) => !entryExists(e, content));
-  if (toAdd.length === 0) return { created: false, added: [] };
 
-  // 파일 끝에 개행 없으면 추가 (.sh: tail -c 1 이 non-empty면 echo "")
-  if (content.length > 0 && !content.endsWith("\n")) content += "\n";
-  content += "\n";
-  content += "# ====================================================================\n";
-  content += "# project-auto-wizard: Auto-added entries\n";
-  content += "# ====================================================================\n";
+  // BANNER는 "\n"으로 시작한다. 파일 끝에 개행이 없으면 그 "\n"이 마지막 줄을 끝내는 역할을 하고,
+  // 개행이 있으면 빈 줄 하나가 된다. 어느 쪽이든 제거 시 BANNER 앞까지 자르면 원문 그대로 돌아온다.
+  // (개행을 따로 보충하면 제거 후에도 원래 없던 끝 개행이 남는다.)
+  content += BANNER;
   for (const e of toAdd) content += e + "\n";
   content += BANNER_END;
   writeFileSync(p, content);
@@ -64,7 +72,7 @@ export function ensureGitignore(targetRoot = ".") {
 }
 
 // ensureGitignore가 기존 파일에 배너 블록을 추가할 때 항상 이 정확한 시퀀스로 시작한다
-// (빈 줄 하나 + 3줄 배너), 그리고 REQUIRED_ENTRIES 뒤에 BANNER_END로 끝난다. 배너~BANNER_END
+// ("\n" + 3줄 배너), 그리고 REQUIRED_ENTRIES 뒤에 BANNER_END로 끝난다. 배너~BANNER_END
 // 범위 안에서 REQUIRED_ENTRIES와 일치하는 줄만 개별 제거하고, 사용자가 그 사이/뒤에 추가한
 // 줄은 절대 건드리지 않는다.
 const BANNER =

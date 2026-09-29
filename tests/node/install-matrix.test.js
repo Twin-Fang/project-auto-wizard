@@ -1,4 +1,4 @@
-// Task 16 게이트 — 브랜치 모드별 워크플로우 설치 매트릭스 (DESIGN-SPEC §4).
+// Task 16 게이트 — 브랜치 모드별 워크플로우 설치 매트릭스.
 // | 모드        | VERSION-CONTROL | AUTO-CHANGELOG | RELEASE-PUBLISH |
 // | pr-flow     | ✅              | ✅             | ✅              |
 // | trunk-based | ❌              | ❌             | ✅              |

@@ -188,3 +188,47 @@ test("interactive: Copilot 질문에 기본값(No)으로 답하면 false로 저�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("interactive: --copilot/--no-copilot 플래그는 저장값보다 우선하고 질문을 생략한다", async () => {
+  const target = tempProject();
+  try {
+    await runInteractive({}, { cwd: target, io: stubIo([], false) });
+    assert.strictEqual(savedOptions(target).copilotAi, false);
+    const asked = [];
+    await runInteractive({ includeCopilotAi: true }, { cwd: target, io: stubIo(asked, false) });
+    assert.ok(!asked.some((q) => q.message.includes("Copilot")), "플래그로 정했으면 묻지 않는다");
+    assert.strictEqual(savedOptions(target).copilotAi, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("interactive: 저장값이 있어도 확인 화면과 '수정하기'에서 Copilot 설정을 보고 바꿀 수 있다", async () => {
+  const target = tempProject();
+  try {
+    await runInteractive({}, { cwd: target, io: stubIo([], false) });
+    const cards = [];
+    const menus = ["edit", "continue"];
+    const edits = ["copilotAi", "done"];
+    let editArgs = null;
+    const io = {
+      ...stubIo([], true),
+      analysisCard: (info) => cards.push(info),
+      confirmProjectMenu: async () => menus.shift(),
+      editMenu: async (args) => { editArgs = args; return edits.shift(); },
+    };
+    await runInteractive({}, { cwd: target, io });
+    assert.strictEqual(cards[0].options.copilotAi, false, "확인 카드에 현재값이 보여야 한다");
+    assert.strictEqual(editArgs.showOptions, true, "수정하기 메뉴에 옵션 항목이 나와야 한다");
+    assert.strictEqual(savedOptions(target).copilotAi, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("editMenuOptions: showOptions면 자동 버전 승격·Copilot 항목을 포함한다", async () => {
+  const { editMenuOptions } = await import("../../src/ui/prompts.js");
+  const values = editMenuOptions({ showOptions: true }).map((o) => o.value);
+  assert.ok(values.includes("semverAuto") && values.includes("copilotAi"));
+  assert.ok(!editMenuOptions().map((o) => o.value).includes("copilotAi"));
+});

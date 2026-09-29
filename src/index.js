@@ -1,6 +1,7 @@
-// project-auto-wizard CLI 진입 파이프라인 (.sh main + execute_integration 등가).
+// project-auto-wizard CLI 진입 파이프라인.
 // 감지 → payload 해석 → 모드 라우팅 → 통합 실행. 비대화형(--force) 우선.
-// 네트워크 접근 0 — 설치 자산은 전부 npm 패키지 동봉 payload/ (단일 진실).
+// 설치 자산은 전부 npm 패키지 동봉 payload/ (단일 진실). 자체 네트워크 요청은 없고,
+// 기본 브랜치 감지용 git 명령만 사용자 레포의 origin에 접속할 수 있다.
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
@@ -8,21 +9,27 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes, effectiveDeployStyle } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
+import { inferInstalledStores } from "./core/installed-stores.js";
+import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
+import { resolveReleaseOptions } from "./core/release-options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
-import { resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec } from "./core/branches.js";
+import {
+  resolveBranchConfig, detectRemoteBranches, ensureDevelopBranch, defaultExec, isValidBranchName, developMissingNotice,
+} from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
-import { runFull } from "./commands/full.js";
+import { runFull, postInstallNotices } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
+import { isPromptAbort } from "./ui/readline-engine.js";
 import { runInteractive } from "./commands/interactive.js";
-import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs } from "./core/logger.js";
+import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs, log } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
@@ -44,7 +51,8 @@ function utcNow(date = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   const d = `${date.getUTCFullYear()}-${p(date.getUTCMonth() + 1)}-${p(date.getUTCDate())}`;
   const t = `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}`;
-  return { now: `${d} ${t}`, today: d };
+  // ms: 로그 파일명이 같은 초의 연속 실행끼리 겹치지 않도록 쓴다 (now와 같은 시각에서 뽑는다).
+  return { now: `${d} ${t}`, today: d, ms: date.getUTCMilliseconds() };
 }
 
 // purge TTY 확인 — 실제 stdin에서 한 줄 입력을 받는다 (테스트는 promptRepoName 주입으로 대체).
@@ -78,17 +86,11 @@ async function runInner(argv, {
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
 
   // 시각은 여기서 한 번만 계산한다 — 로그 파일명과 설치 기록이 같은 값을 쓰도록.
-  const { now, today } = clock || utcNow();
+  const { now, today, ms } = clock || utcNow();
 
-  // dry-run은 "파일을 바꾸지 않는다"가 계약이므로 로그도 남기지 않는다.
-  // --version/--help는 이 지점 이전에 이미 반환되므로 자연히 제외된다.
-  const loggedAction = opts.dryRun ? null
-    : opts.mode === "uninstall" ? "uninstall"
-    : opts.mode === "purge" ? "purge"
-    : "install";
-  if (loggedAction) {
-    initLogger(cwd, { action: loggedAction, now, argv, templateVersion: readTemplateVersion() });
-  }
+  // 로그는 인자 검증과 모드별 게이트를 모두 통과한 "실제로 파일을 바꾸는" 실행만 남긴다.
+  // status/doctor(읽기 전용)·dry-run·거부된 실행은 대상 레포에 아무 파일도 만들지 않아야 한다.
+  const startLog = (action) => initLogger(cwd, { action, now, ms, argv, templateVersion: readTemplateVersion() });
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
@@ -101,7 +103,23 @@ async function runInner(argv, {
       console.error("대화형 입력이 불가능한 환경입니다. --mode <full|uninstall> 와 --force 를 지정하세요.");
       return 1;
     }
-    return await runInteractive({}, { cwd, payloadRoot: payload, clock });
+    // 켜고 끄기 옵션은 대화형에서도 반영한다(해당 질문 생략). 나머지 설치 플래그는 대화형 질문이 정하므로
+    // 조용히 무시하지 않고 알린다.
+    const ignored = [
+      [opts.types.length, "--type"], [opts.version, "--project-version"], [opts.pathsCsv, "--paths"],
+      [opts.mainBranch, "--main-branch"], [opts.developBranch, "--develop-branch"], [opts.deployStyle, "--deploy-style"],
+      [opts.flutterEnvMode, "--flutter-env-mode"], [opts.flutterStore, "--flutter-store"],
+      [opts.androidDeployMode, "--android-deploy-mode"], [opts.iosDeployMode, "--ios-deploy-mode"],
+    ].filter(([v]) => v).map(([, flag]) => flag);
+    if (ignored.length) {
+      console.error(`⚠️  대화형 모드에서는 ${ignored.join(", ")}를 사용하지 않습니다 — 질문에서 고르거나 --mode full --force와 함께 쓰세요.`);
+    }
+    // 로그 파일은 첫 기록 때 생기므로 메뉴에서 status/doctor만 보고 나가면 아무것도 남지 않는다.
+    startLog("install");
+    return await runInteractive(
+      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi },
+      { cwd, payloadRoot: payload, clock },
+    );
   }
 
   // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
@@ -122,7 +140,7 @@ async function runInner(argv, {
     const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     if (opts.dryRun) {
       printPurgePlan(planPurge(payload, cwd, keepFlags), { dryRun: true });
-      // develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
+      // develop 브랜치 삭제는 plan에 포함되지 않으므로(git 상태는 실행 시점에만
       // 판단 가능) 별도로 예고하지 않으면 dry-run 미리보기가 유일한 파괴적 동작을 사용자에게 숨기게 된다.
       if (opts.deleteDevelopBranch) {
         const developBranch = existing?.branches?.develop || "develop";
@@ -159,6 +177,7 @@ async function runInner(argv, {
         return 1;
       }
     }
+    startLog("purge");
     const plan = planPurge(payload, cwd, keepFlags);
     printPurgePlan(plan, { dryRun: false });
     const result = executePurge(payload, cwd, keepFlags);
@@ -190,9 +209,11 @@ async function runInner(argv, {
       return 0;
     }
     if (opts.force) {
+      startLog("uninstall");
       const r = runUninstall({}, payload, cwd, safeSelection);
       const removed = [
         `워크플로우 ${r.workflows.length}개`, `스크립트 ${r.scripts.length}개`,
+        r.appFiles.length > 0 && `Flutter 앱 파일 ${r.appFiles.length}개`,
         r.readme && "README 버전 섹션",
         r.gitignore && ".gitignore 자동 추가 항목", r.versionYml && "version.yml",
       ].filter(Boolean).join(", ");
@@ -203,7 +224,11 @@ async function runInner(argv, {
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
     }
-    await runUninstallFlow(payload, cwd, prompts);
+    startLog("uninstall");
+    // --purge-* 플래그는 체크리스트 초기 선택으로 반영한다(조용히 무시하지 않는다).
+    await runUninstallFlow(payload, cwd, prompts, {
+      readme: opts.purgeReadme, gitignore: opts.purgeGitignore, versionYml: opts.purgeVersion,
+    });
     return 0;
   }
 
@@ -217,7 +242,7 @@ async function runInner(argv, {
     printDoctorReport(runDoctor(cwd));
     return 0;
   }
-  // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
+  // 명시 모드(full)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
   // (TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
   if (!opts.force && !opts.dryRun) {
@@ -225,25 +250,32 @@ async function runInner(argv, {
     return 1;
   }
 
-  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실 (.sh SSoT)
+  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
   // 감지 (CLI 인자 우선, 없으면 자동 감지 — version.yml 우선 규칙은 detectTypes/detectVersion 내부)
-  const types = opts.types.length ? opts.types : detectTypes(cwd);
-  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
-  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
+  // --paths만 주고 --type을 생략한 모노레포도 그 타입으로 설치되도록 감지에 넘긴다.
+  let cliPaths;
+  try {
+    cliPaths = parsePathsCsv(opts.pathsCsv);
+  } catch (e) {
+    if (e instanceof CliError) { console.error(e.message); return 1; }
+    throw e;
+  }
+  const types = opts.types.length ? opts.types
+    : detectTypes(cwd, { paths: cliPaths, warn: (m) => console.error(m) });
   const detectWarnings = [];
-  const version = (existing?.version) || opts.version
-    || detectVersion(cwd, { warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
-  const branch = detectDefaultBranch(cwd);
+  const branch = detectDefaultBranch(cwd, {
+    warn: (m) => { detectWarnings.push(m); console.error(m); },
+    hint: "다르면 --main-branch로 지정하세요.",
+  });
   const repoName = detectRepoName(cwd);
-  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
+  // 경로 확정 (비대화형 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
   let paths;
   try {
     paths = await resolveProjectPaths({
-      root: cwd, types, paths: parsePathsCsv(opts.pathsCsv),
+      root: cwd, types, paths: cliPaths,
       existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
     });
   } catch (e) {
@@ -251,29 +283,49 @@ async function runInner(argv, {
     throw e;
   }
 
+  // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
+  // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
+  // 경로 확정 뒤에 감지해야 모노레포 하위 폴더의 버전·빌드 번호를 읽는다.
+  const version = (existing?.version) || opts.version
+    || detectVersion(cwd, { types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); } });
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
+
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
+  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
+  const savedBranch = (b) => (isValidBranchName(b) ? b : "");
   const branches = resolveBranchConfig({
-    mainBranch: opts.mainBranch || existing?.branches?.main || "",
-    developBranch: opts.developBranch || existing?.branches?.develop || "",
+    mainBranch: opts.mainBranch || savedBranch(existing?.branches?.main),
+    developBranch: opts.developBranch || savedBranch(existing?.branches?.develop),
     defaultBranch: branch,
   });
   // pr-flow에서 develop이 원격에 없으면 자동 생성+push (--force 비대화형 — 질문 없음).
-  // 원격 목록을 못 읽는 환경(git 없음·origin 없음)은 remoteBranches=[]지만 push 실패를 조용히 보고.
+  // 원격에 브랜치가 하나도 없으면(빈 원격·origin 없음) push할 기준이 없으므로 만들지 않고 안내한다.
+  let developMissing = false;
   if (branches.mode === "pr-flow" && !opts.dryRun) {
     const remoteBranches = await detectRemoteBranches(cwd);
-    if (remoteBranches.length && !remoteBranches.includes(branches.develop)) {
-      await ensureDevelopBranch({
+    if (!remoteBranches.length) {
+      developMissing = true;
+      console.error(`⚠️  ${developMissingNotice(branches)}`);
+    } else if (!remoteBranches.includes(branches.develop)) {
+      const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, confirm: null, cwd,
         log: (m) => console.error(m),
       });
+      developMissing = r.pushed === false;
     }
   }
 
   // Flutter 옵션 — CLI 플래그 → version.yml 저장값 → 기본값(신규 dart-define, 기존 설치 dotenv 보존).
   // Flutter 타입이 없는 프로젝트에서는 렌더·치환 단계가 전부 무시한다.
+  // 스토어 저장값이 없는 기존 Flutter 설치는 설치돼 있는 스토어 워크플로우로 추론한다(대화형과 같은 결론).
+  // 추론하지 않으면 미결정이 "둘 다"로 확정 저장되어, 지웠던 플랫폼의 워크플로우·fastlane 파일이 되살아난다.
+  const workflowsDir = join(cwd, PATHS.workflowsDir);
+  const inferredStores = opts.flutterStore == null && existing?.types?.includes("flutter")
+    && existing.options?.flutterStore == null && existsSync(workflowsDir)
+    ? inferInstalledStores(workflowsDir) : null;
   const flutterOptions = resolveFlutterOptions({
     cli: {
-      envMode: opts.flutterEnvMode, stores: opts.flutterStore,
+      envMode: opts.flutterEnvMode, stores: opts.flutterStore ?? inferredStores,
       androidDeployMode: opts.androidDeployMode, iosDeployMode: opts.iosDeployMode,
     },
     existing,
@@ -283,20 +335,16 @@ async function runInner(argv, {
     mode: opts.mode, force: opts.force, types, version, versionCode, branch,
     branches,
     paths,
-    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값
-    // 기존 version.yml이 있는데 semver_auto 키가 아예 없었던 경우(신규 기능 추가 이전 설치·
-    // workflows-only 재실행) 조용히 true로 켜지면 애매한 커밋 하나로 major가 승격될 위험이 있다 —
-    // 기존 설치는 false로 안전하게 폴백, 완전 신규 설치만 true(기존 설계) 유지.
-    includeSemverAuto: opts.includeSemverAuto ?? existing?.options?.semverAuto ?? (existing ? false : true),
-    // Copilot AI 요약은 AI Credits를 소비하는 opt-in — 신규·기존 설치 모두 명시하지 않으면 false다.
-    includeCopilotAi: opts.includeCopilotAi ?? existing?.options?.copilotAi ?? false,
+    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
+    ...resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
     repoName,
-    // 실 resolver 4종 (.sh resolve_token 등가)
+    // @wizard ask/auto 토큰 값을 계산하는 resolver
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
-    deployStyle: opts.deployStyle
+    // 서버 배포 워크플로우가 없는 타입은 배포 방식이 설치에 영향이 없으므로 기록하지 않는다(null).
+    deployStyle: !hasServerDeployWorkflows(payload, types) ? null : opts.deployStyle
       || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
     previousTemplateVersion: existing?.templateVersion || "",
     envMode: flutterOptions.envMode,
@@ -307,10 +355,18 @@ async function runInner(argv, {
 
   context.templateVersion = readTemplateVersion();
 
+  // 무중단(nginx·traefik) 워크플로우가 없는 타입은 단일 서버 배포로 설치한다 — 조용히 넘어가지 않게 알린다.
+  const fallbackTypes = fallbackStyleTypes(payload, types, context.deployStyle);
+  if (fallbackTypes.length) {
+    console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${context.deployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
+  }
+  // 안내는 고른 값으로 하되, 기록은 실제로 설치되는 방식으로 한다.
+  context.deployStyle = effectiveDeployStyle(payload, types, context.deployStyle);
+
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });
 
-  // Breaking Changes 게이트 (.sh execute_integration L4415~4420 등가 — 비대화형은 경고 후 진행)
+  // Breaking Changes 게이트 (비대화형은 경고 후 진행)
   const proceed = await runBreakingCheck({ cwd, payloadRoot: payload, templateVersion: context.templateVersion });
   if (!proceed) return 0;
 
@@ -319,24 +375,30 @@ async function runInner(argv, {
     return 0;
   }
 
+  startLog("install");
   // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/purge/uninstall/status/doctor는
   // 전부 위에서 조기 반환했으므로 이 시점엔 full 하나로 보장된다 (default 분기 제거,
   // 부분 설치 모드 제거로 분기 자체가 사라졌다).
   const result = runFull(context, payload, cwd);
 
-  // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
+  // 완료 요약 (CLI 모드에서도 출력)
   printSummary({
-    mode: opts.mode, types, version, versionCode, branches,
+    mode: opts.mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
+    autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
+    optionalSecrets: result?.optionalSecrets ?? new Map(),
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
     storeCleanup: result?.storeCleanup ?? null,
     flutterApp: result?.flutterApp ?? null,
+    readme: result?.readme ?? null,
+    scripts: result?.scripts ?? null,
   });
+  for (const n of postInstallNotices(result)) console.error(n.startsWith(" ") ? n : `⚠️  ${n}`);
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
   // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
   // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다.
@@ -359,6 +421,17 @@ async function runInner(argv, {
 export async function run(argv, opts = {}) {
   try {
     return await runInner(argv, opts);
+  } catch (e) {
+    // Ctrl+C/EOF는 어느 질문에서든 즉시 중단한다 — 설치 파일을 쓰기 전에 빠져나오고, 셸 관례대로 130을 돌려준다.
+    if (isPromptAbort(e)) {
+      prompts.cancelMessage("중단했습니다 — 변경 없이 종료합니다.");
+      return e.signal === "SIGTERM" ? 143 : 130;
+    }
+    // 이미 기록을 시작한 실행이 도중에 죽으면 헤더만 남은 로그로는 원인을 알 수 없다 — 사유를 남긴다.
+    if (currentLogPath()) log.fail("run", "error", e?.message || String(e));
+    // 사용자가 고칠 수 있는 실패(권한 등)는 스택트레이스 대신 읽을 수 있는 문구로 끝낸다.
+    if (e instanceof CliError) { console.error(e.message); return 1; }
+    throw e;
   } finally {
     closeLogger();
   }

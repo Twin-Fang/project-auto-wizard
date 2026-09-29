@@ -140,3 +140,28 @@ test("runUninstallFlow: default checked items are exactly SAFE_ITEMS", async () 
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("runUninstallFlow: --purge-* 플래그를 체크리스트 초기 선택에 반영한다", async () => {
+  const target = installFixture();
+  try {
+    const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: CANCEL, confirmReturn: false });
+    await runUninstallFlow(resolvePayloadRoot(), target, io, { readme: true, gitignore: false, versionYml: true });
+    const init = multiselectCalls[0].initialValues;
+    assert.ok(init.includes("workflows") && init.includes("scripts"));
+    assert.ok(init.includes("readme"), "--purge-readme가 초기 선택돼야 한다");
+    assert.ok(init.includes("versionYml"), "--purge-version이 초기 선택돼야 한다");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("runUninstallFlow: 플래그가 없으면 안전 항목만 초기 선택한다", async () => {
+  const target = installFixture();
+  try {
+    const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: CANCEL, confirmReturn: false });
+    await runUninstallFlow(resolvePayloadRoot(), target, io);
+    assert.deepStrictEqual(multiselectCalls[0].initialValues.sort(), ["scripts", "workflows"]);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

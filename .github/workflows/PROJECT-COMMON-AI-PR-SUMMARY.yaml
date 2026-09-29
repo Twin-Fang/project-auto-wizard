@@ -6,6 +6,9 @@
 # same engine chain as the release changelog (user API key -> Copilot CLI,
 # opt-in via version.yml copilot_ai -> rule-based fallback).
 # The prompt includes commit subjects plus a capped `git diff --stat`.
+# The summary header shows the version this PR is expected to ship in
+# (current version + the bump the post-merge workflow will apply), not
+# the version that is already released.
 #
 # On release PRs (head branch == develop) this job is skipped.
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL owns that case: it confirms
@@ -69,13 +72,15 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
-          VERSION=${VERSION:-unreleased}
 
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
+          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
+          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          git log --pretty=%b "origin/main..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
@@ -84,6 +89,21 @@ jobs:
           fi
           rm -f _full_diff_stat.txt
 
+          # 헤더에는 이미 발행된 현재 버전이 아니라 이 PR이 병합되면 붙을 예상 버전을 보인다.
+          # 병합 뒤 버전을 올리는 쪽과 같은 규칙: trunk-based는 RELEASE-PUBLISH가 semver_auto면
+          # 커밋으로 승격 폭을 정하고, pr-flow에서 main로 바로 들어가는 PR은
+          # VERSION-CONTROL 안전망이 patch를 올린다. 예상치라 AI 보조 판정 없이 규칙만 쓴다.
+          CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
+          MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
+          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          BUMP="patch"
+          if [ "$MODE" = "trunk-based" ] && [ "$SEMVER_AUTO" = "true" ]; then
+            BUMP=$(AI_API_KEY="" COPILOT_AI="false" python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt 2>/dev/null | tail -n 1)
+          fi
+          VERSION=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$CURRENT_VERSION" "${BUMP:-patch}" 2>/dev/null || echo "")
+          VERSION=${VERSION:-Unreleased}
+          echo "expected next version: $VERSION (current: ${CURRENT_VERSION:-none}, mode: $MODE, bump: ${BUMP:-patch})"
+
           SUMMARY_RESULT=$(python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
             --version "$VERSION" \
@@ -91,23 +111,33 @@ jobs:
             --pr-title "$PR_TITLE" \
             --diff-stat-file diff_stat.txt | tail -n 1)
           ENGINE=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("engine") or "unknown")' "$SUMMARY_RESULT" 2>/dev/null || echo "unknown")
+          # fallback이면 사유(스크립트가 ::warning::으로도 남김)를 engine 줄에 붙인다 — 잡 로그를 열지 않아도 원인이 보이게
+          FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
+          ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
+          echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
 
+          # push마다 댓글이 쌓이지 않도록 이 봇이 남긴 요약 댓글을 표식으로 찾아 최신 내용으로 교체한다
+          MARKER="<!-- project-auto-wizard:pr-summary -->"
           {
+            echo "$MARKER"
             echo "📋 **PR Summary (project-auto-wizard)**"
             echo ""
             cat summary.md
             echo ""
-            echo "<sub>engine: ${ENGINE}</sub>"
+            echo "<sub>engine: ${ENGINE_LINE}</sub>"
           } > comment_body.md
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
 
-          curl -sf -H "Authorization: token ${{ github.token }}" \
-               -H "Content-Type: application/json" \
-               -X POST \
-               -d @comment_payload.json \
-               "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" > /dev/null \
-            || echo "comment post failed — continuing (this workflow never blocks the PR)"
+          COMMENT_ID=$(gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" 2>/dev/null | tail -n 1 || true)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" --input comment_payload.json > /dev/null \
+              || echo "comment update failed — continuing (this workflow never blocks the PR)"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --input comment_payload.json > /dev/null \
+              || echo "comment post failed — continuing (this workflow never blocks the PR)"
+          fi
 
       - name: Link related issue via branch name
         continue-on-error: true

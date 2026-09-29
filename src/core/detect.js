@@ -1,14 +1,20 @@
-// package.json 내용 분류 (.sh classify_package_json 등가) — 원본 파일 텍스트에 대한
-// grep 부분문자열 매칭. dependencies 파싱이 아니라 raw 텍스트 검사여야 등가.
-// 입력은 package.json의 원문 문자열(raw). 순서 중요.
+import {
+  typeInfo, FALLBACK_TYPE, MARKER_DETECTED_TYPES, PACKAGE_DETECTED_TYPES, PACKAGE_FALLBACK_TYPE,
+} from "./types.js";
+
+// package.json 분류 — 의존성 "키"를 정확히 비교한다. 원문 부분문자열로 보면 export 스크립트나
+// exponential-backoff가 expo로, react-native-web을 쓰는 웹앱이 react-native로, keywords의 "next"가
+// next로 오감지된다. 입력은 package.json 원문 문자열(raw). 판정 순서는 레지스트리의 detectOrder.
 export function classifyPackageText(raw) {
-  const s = String(raw || "");
-  if (s.includes("@react-native") || s.includes("react-native")) {
-    return s.includes("expo") ? "react-native-expo" : "react-native";
+  let pkg;
+  try { pkg = JSON.parse(String(raw || "")); } catch { return PACKAGE_FALLBACK_TYPE; }
+  if (!pkg || typeof pkg !== "object") return PACKAGE_FALLBACK_TYPE;
+  const deps = new Set();
+  for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
+    const d = pkg[field];
+    if (d && typeof d === "object") for (const k of Object.keys(d)) deps.add(k);
   }
-  if (s.includes('"next"')) return "next";
-  if (s.includes('"react"')) return "react";
-  return "node";
+  return PACKAGE_DETECTED_TYPES.find((t) => deps.has(t.packageDep))?.id ?? PACKAGE_FALLBACK_TYPE;
 }
 
 // 편의: 파싱된 객체를 받는 경우 원문으로 재직렬화해 위 규칙 적용
@@ -17,77 +23,152 @@ export function classifyPackageJson(pkgOrRaw) {
   return classifyPackageText(raw);
 }
 
-// 마커 스캔 (동작명세 §3.1). has(relpath)=>bool 주입. node는 다른 타입 있으면 미추가.
+// 마커 스캔. has(relpath)=>bool 주입. node는 다른 타입 있으면 미추가.
 // read(relpath)=>string|null 로 package.json 원문을 받아 classifyPackageText에 넘긴다.
 export function detectTypesFromMarkers({ has, read }) {
   const types = [];
-  if (has("pubspec.yaml")) types.push("flutter");
-  if (has("build.gradle") || has("build.gradle.kts") || has("pom.xml")) types.push("spring");
-  if (has("pyproject.toml") || has("setup.py") || has("requirements.txt")) types.push("python");
-  if (has("go.mod")) types.push("go");
+  for (const t of MARKER_DETECTED_TYPES) if (t.markers.some(has)) types.push(t.id);
   if (has("package.json")) {
     const cls = classifyPackageText(read ? read("package.json") : "");
-    if (cls === "node") { if (types.length === 0) types.push("node"); }
+    if (cls === PACKAGE_FALLBACK_TYPE) { if (types.length === 0) types.push(cls); }
     else types.push(cls);
   }
-  return types.length ? [...new Set(types)] : ["basic"];
+  return types.length ? [...new Set(types)] : [FALLBACK_TYPE];
 }
 
-const VERSION_RE = /^\d+\.\d+\.\d+$/;
+// 1.2.3-rc.1·1.2.3+7·1.2.0-SNAPSHOT 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
+// version.yml은 x.y.z만 받으므로 감지 실패(0.0.1)로 떨어지는 것보다 코어가 정확하다.
+// 릴리스 시 읽기(payload/scripts/version_manager.py core_version)와 같은 규칙이어야 설치 직후 값이 유지된다.
+function coreVersion(v) {
+  const m = String(v ?? "").trim().match(/^v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.+-]*)?$/);
+  return m ? m[1] : null;
+}
 
-// 버전 감지 (동작명세 §3.3) — 순서대로 첫 성공. read(relpath)=>string|null 주입.
+// setup.py의 setup(version="x.y.z"). python_version 같은 다른 키는 단어 경계로 거른다.
+export function versionFromSetupPy(content) {
+  if (!content) return null;
+  const m = String(content).match(/(?<![\w.])version\s*=\s*["']([^"']+)["']/);
+  return m ? coreVersion(m[1]) : null;
+}
+
+// React Native 앱 버전 — 릴리스 때 version_manager가 쓰는 파일(ios/<앱>/Info.plist,
+// android/app/build.gradle)에서 읽는다. package.json version은 동기화 대상이 아니라 기준이 되면 어긋난다.
+// $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아니면 건너뛴다.
+// list(relDir)=>string[]|null 로 ios 아래 앱 폴더 이름을 받는다(Pods 등 깊은 plist는 보지 않는다).
+export function versionFromReactNative({ read, list }) {
+  for (const dir of [...(list?.("ios") || [])].sort()) {
+    const m = String(read(`ios/${dir}/Info.plist`) || "").match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/);
+    const v = m && coreVersion(m[1]);
+    if (v) return v;
+  }
+  const m = String(read("android/app/build.gradle") || "").match(/versionName\s+"([^"]+)"/);
+  return m ? coreVersion(m[1]) : null;
+}
+
+// 버전 감지 — 순서대로 첫 성공. read(relpath)=>string|null 주입.
 // package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다.
 // hint: 폴백 경고 뒤에 붙일 "그럼 어떻게 고치나" 한 줄. 대화형과 CLI가 서로 다른 방법을
 // 안내해야 하므로 호출부가 정한다. 미지정 시 CLI 문구를 쓴다.
-export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint }) {
-  const pkg = readJson?.("package.json");
-  if (pkg?.version && VERSION_RE.test(pkg.version)) return pkg.version;
+// types: 주 타입(첫 항목)의 버전 파일을 먼저 읽는다. 릴리스 때 version_manager가 주 타입
+// 파일과 version.yml을 비교하므로, 다른 타입 버전을 잡으면 첫 릴리스에서 버전이 뛴다.
+export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hint, types = [] }) {
   const grab = (content, re) => {
     for (const line of (content || "").split("\n")) {
       const m = line.match(re);
-      if (m && VERSION_RE.test(m[1])) return m[1];
+      if (m) { const v = coreVersion(m[m.length - 1]); if (v) return v; }
     }
     return null;
   };
-  let v;
-  const gradleRe = /version\s*=\s*["']?(\d+\.\d+\.\d+)/;
-  // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
-  // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
-  if ((v = grab(read("build.gradle"), gradleRe))) return v;
-  if ((v = grab(read("build.gradle.kts"), gradleRe))) return v;
-  if ((v = versionFromPom(read("pom.xml")))) return v;
-  if ((v = grab(read("pubspec.yaml"), /^version:\s*(\d+\.\d+\.\d+)/))) return v;
-  if ((v = grab(read("pyproject.toml"), /version\s*=\s*["']?(\d+\.\d+\.\d+)/))) return v;
-  if (gitTag) { const t = String(gitTag).replace(/^v/, ""); if (VERSION_RE.test(t)) return t; }
+  // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
+  // 따옴표로 감싼 값만 본다 — 릴리스 때 동기화가 고칠 수 있는 형태가 이것뿐이다.
+  const gradleRe = /^\s*version\s*=\s*(["'])([^"'\n]*)\1/;
+  const sources = {
+    packageJson: () => coreVersion(readJson?.("package.json")?.version),
+    appJson: () => coreVersion(readJson?.("app.json")?.expo?.version),
+    // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
+    // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
+    gradle: () => grab(read("build.gradle"), gradleRe),
+    gradleKts: () => grab(read("build.gradle.kts"), gradleRe),
+    pom: () => versionFromPom(read("pom.xml")),
+    pubspec: () => grab(read("pubspec.yaml"), /^version:\s*([^\s#]+)/),
+    pyproject: () => versionFromPyproject(read("pyproject.toml")),
+    setupPy: () => versionFromSetupPy(read("setup.py")),
+    reactNative: () => versionFromReactNative({ read, list }),
+  };
+  const order = [
+    ...(typeInfo(types[0])?.versionSources || []),
+    "packageJson", "gradle", "gradleKts", "pom", "pubspec", "pyproject", "setupPy",
+  ];
+  for (const key of new Set(order)) {
+    const v = sources[key]();
+    if (v) return v;
+  }
+  if (gitTag) { const t = coreVersion(gitTag); if (t) return t; }
   const tail = hint ?? "--project-version으로 직접 지정하거나 version.yml을 확인하세요.";
   warn?.(`⚠️  버전을 자동 감지하지 못해 기본값 0.0.1을 사용합니다 — ${tail}`);
   return "0.0.1";
 }
 
-// Maven pom.xml의 프로젝트 버전. <parent> 블록 안의 버전은 스프링 부트 BOM 버전이라
-// 프로젝트 버전이 아니다 — 그 구간을 지운 뒤 첫 <version>을 읽는다.
+// pyproject.toml의 패키지 버전. [tool.*] 등 다른 섹션의 `version =`은 도구 설정이라
+// [project]·[tool.poetry] 섹션 안에서만 읽는다.
+export function versionFromPyproject(content) {
+  if (!content) return null;
+  let section = "";
+  for (const line of String(content).split(/\r?\n/)) {
+    const h = line.match(/^\s*\[+\s*([^\]]+?)\s*\]+\s*(?:#.*)?$/);
+    if (h) { section = h[1]; continue; }
+    if (section !== "project" && section !== "tool.poetry") continue;
+    const m = line.match(/^\s*version\s*=\s*["']([^"']+)["']/);
+    if (m) return coreVersion(m[1]);
+  }
+  return null;
+}
+
+// Maven pom.xml의 프로젝트 버전 — <project> 바로 아래의 <version>만 본다.
+// <parent>(스프링 부트 BOM)나 <dependencies> 안의 버전은 프로젝트 버전이 아니므로 깊이로 구분한다.
+// 프로젝트 버전이 없으면(부모에서 상속) null — 의존성 버전을 대신 고르지 않는다.
 export function versionFromPom(content) {
   if (!content) return null;
-  const body = String(content).replace(/<parent>[\s\S]*?<\/parent>/g, "");
-  const m = body.match(/<version>\s*(\d+\.\d+\.\d+)[^<]*<\/version>/);
-  return m ? m[1] : null;
+  const text = String(content);
+  const tokenRe = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<![^>]*>|<(\/?)([A-Za-z_][\w.:-]*)[^>]*?(\/?)>/g;
+  const stack = [];
+  let start = -1;
+  let m;
+  while ((m = tokenRe.exec(text))) {
+    const name = m[2];
+    if (!name) continue;
+    if (m[1]) {
+      if (start >= 0 && stack.length === 2 && stack[1] === "version") {
+        return coreVersion(text.slice(start, m.index));
+      }
+      stack.pop();
+      continue;
+    }
+    if (m[3]) continue;
+    stack.push(name);
+    if (stack.length === 2 && name === "version") start = tokenRe.lastIndex;
+  }
+  return null;
 }
 
+// 타입의 대표 마커 파일. 마커가 없는 타입(basic)·미지 타입은 package.json을 돌려준다.
 export function markerForType(type) {
-  return { flutter: "pubspec.yaml", "react-native-expo": "app.json", python: "pyproject.toml", spring: "build.gradle", go: "go.mod" }[type] || "package.json";
+  return typeInfo(type)?.markers[0] || "package.json";
 }
 
+// 대표 파일 외의 보조 마커 (예: Spring의 build.gradle.kts·pom.xml).
 export function extraMarkers(type) {
-  return { python: ["setup.py", "requirements.txt"], spring: ["build.gradle.kts", "pom.xml"] }[type] || [];
+  return typeInfo(type)?.markers.slice(1) || [];
 }
 
 // 그 타입을 감지하는 데 실제로 쓰인 파일. markerForType은 타입당 대표 파일 하나를
 // 고정 반환하므로, build.gradle.kts만 있는 레포에서도 "build.gradle 발견"이라고 출력돼
 // 같은 설치 로그 안에서 경로 확정 화면과 파일명이 어긋났다. has()로 실재하는 것을 고른다.
-// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다.
-export function resolveMarker(type, has) {
+// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다. 단 "근거"로 보여줄 때는(fallback:false)
+// 빈 문자열을 돌려준다 — 직접 고른 타입에 없는 파일을 근거로 붙이면 감지된 것처럼 보인다.
+export function resolveMarker(type, has, { fallback = true } = {}) {
   const candidates = [markerForType(type), ...extraMarkers(type)];
-  return candidates.find(has) ?? candidates[0];
+  return candidates.find(has) ?? (fallback ? candidates[0] : "");
 }
 
 // 빌드 JDK 감지 — 배포 워크플로우의 JAVA_VERSION 기본값이 21로 고정돼 있어
@@ -124,7 +205,9 @@ export function resolveMarkers(types = [], has) {
   const out = new Map();
   for (const t of types) {
     if (t === "basic") continue;
-    out.set(t, resolveMarker(t, has));
+    // 실제로 있는 파일만 근거로 삼는다 — 없으면 맵에서 빠져 화면·로그가 "직접 선택"으로 다룬다.
+    const found = resolveMarker(t, has, { fallback: false });
+    if (found) out.set(t, found);
   }
   return out;
 }
@@ -137,7 +220,8 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
   const tryFlutter = () => {
     const content = read("pubspec.yaml");
     if (content == null) return null;
-    const m = content.match(/^version:\s*\d+\.\d+\.\d+\+(\d+)/m);
+    // 1.2.3-rc.1+4처럼 prerelease가 있어도 +N은 빌드 번호다(릴리스 시 읽기와 같은 규칙).
+    const m = content.match(/^version:\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\+(\d+)/m);
     if (m) return parseInt(m[1], 10);
     warn?.("⚠️  pubspec.yaml에 빌드 번호(+N)가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
     return null;
@@ -160,10 +244,10 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
     warn?.("⚠️  app.json의 expo.android.versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
     return null;
   };
+  const readers = { pubspec: tryFlutter, androidGradle: tryReactNative, expoAppJson: tryExpo };
   for (const t of types) {
-    if (t === "flutter") return tryFlutter();
-    if (t === "react-native") return tryReactNative();
-    if (t === "react-native-expo") return tryExpo();
+    const source = typeInfo(t)?.buildNumberSource;
+    if (source) return readers[source]();
   }
   return null;
 }

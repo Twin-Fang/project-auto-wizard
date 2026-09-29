@@ -2,23 +2,47 @@
   "0.10.1": [
     {
       "severity": "warning",
+      "types": ["flutter"],
       "title": "Flutter SELFHOSTED·TEST-APK가 flutter build를 직접 실행",
       "message": "SELFHOSTED·TEST-APK가 fastlane build 대신 flutter build apk --release를 직접 실행하고 Ruby·fastlane 설치 스텝이 사라집니다. fastlane은 스토어 배포 3종(PLAYSTORE·IOS-TESTFLIGHT·IOS-TEST-TESTFLIGHT)에서만 사용합니다."
     },
     {
       "severity": "warning",
+      "types": ["flutter"],
       "title": "Flutter 환경변수 기본 방식이 dart-define으로 변경",
       "message": "신규 설치의 기본값이 dart-define(--dart-define-from-file)으로 바뀝니다. 기존 설치는 version.yml에 저장값이 없으면 dotenv(.env 생성)를 유지하며, 바꾸려면 마법사 '수정하기 > 환경변수 방식' 또는 --flutter-env-mode를 쓰세요."
     },
     {
       "severity": "warning",
+      "types": ["flutter"],
       "title": "Flutter 워크플로우가 FLUTTER_PROJECT_DIR 기준으로 동작",
       "message": "FIREBASE·SELFHOSTED·CI·TEST-APK·IOS-TEST-TESTFLIGHT도 PLAYSTORE처럼 Flutter 루트(FLUTTER_PROJECT_DIR)에서 동작합니다. Flutter가 하위 폴더에 있는 모노레포는 --paths flutter=<경로>로 지정하세요."
     },
     {
       "severity": "warning",
+      "types": ["flutter", "go", "next", "python", "react", "spring"],
       "title": "모노레포 CI required check는 ci-gate 하나만 등록",
       "message": "CI 워크플로우(Flutter·Go·Next·Python·React·Spring CI)는 항상 실행되고 변경이 없으면 job을 건너뜁니다. required check로 쓰려면 개별 job이 아닌 CI Gate(ci-gate) 하나만 등록하세요."
+    }
+  ],
+  "0.12.0": [
+    {
+      "severity": "warning",
+      "title": "AI 요약이 GitHub Copilot opt-in으로 바뀌어 기본으로 꺼짐",
+      "message": "GitHub Models 종료로 AI 요약 엔진이 GitHub Copilot CLI로 바뀌었고, AI Credits를 소비하므로 기본값이 꺼짐(copilot_ai: false)입니다. 업데이트 후 릴리스 노트·PR 요약은 규칙 기반으로 만들어집니다. 계속 쓰려면 --copilot으로 다시 설치하거나 version.yml의 copilot_ai를 true로 바꾼 뒤 다시 실행하세요."
+    }
+  ],
+  "0.12.1": [
+    {
+      "severity": "warning",
+      "types": ["spring"],
+      "title": "Spring nexus·GitHub Packages publish 옵션 제거",
+      "message": "PROJECT-SPRING-NEXUS-PUBLISH.yml·PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml을 더 이상 설치하지 않고, PROJECT-SPRING-NEXUS-CI.yml은 PROJECT-SPRING-CI.yml로 바뀌어 항상 설치됩니다. 업데이트하면 손대지 않은 이전 파일은 삭제되고 수정한 파일은 .bak으로 옮겨집니다. 계속 배포하려면 .bak을 직접 관리하는 워크플로우로 옮기세요."
+    },
+    {
+      "severity": "warning",
+      "title": "Secret 서버 백업 워크플로우(secret_backup 옵션) 제거",
+      "message": "PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml을 더 이상 설치하지 않습니다. 설치해 두었다면 업데이트 때 손대지 않은 파일은 삭제되고 수정한 파일은 .bak으로 옮겨집니다. 계속 쓰려면 .bak을 직접 관리하는 워크플로우로 옮기세요."
     }
   ]
 }

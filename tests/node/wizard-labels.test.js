@@ -102,3 +102,46 @@ test("loadWizardPrompts: returns null when neither exists", () => {
   const fakeFs = { existsSync: () => false, readFileSync: () => "" };
   assert.strictEqual(loadWizardPrompts("target", "payload", fakeFs), null);
 });
+
+test("loadWizardPrompts: 사용자 파일은 번들을 대체하지 않고 적은 키·필드만 덮어쓴다", () => {
+  const files = {
+    target: `PROJECT_NAME:\n  label: "내 라벨"\n_workflow_names:\n  SIMPLE-CICD: "내 배포"\n`,
+    payload: `PROJECT_NAME:\n  label: "번들 라벨"\n  help: "번들 도움말"\nSSH_AUTH_METHOD:\n  label: "SSH 인증 방식"\n_workflow_names:\n  SIMPLE-CICD: "단일 서버 배포"\n  PR-PREVIEW: "PR 프리뷰"\n`,
+  };
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: (p) => (String(p).startsWith("target") ? files.target : files.payload),
+  };
+  const result = loadWizardPrompts("target", "payload", fakeFs);
+  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "label"), "내 라벨");
+  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "help"), "번들 도움말", "적지 않은 필드는 번들 유지");
+  assert.strictEqual(wfField(result, "", "SSH_AUTH_METHOD", "label"), "SSH 인증 방식", "적지 않은 키는 번들 유지");
+  assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-SIMPLE-CICD.yaml"), "내 배포");
+  assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-PR-PREVIEW.yaml"), "PR 프리뷰");
+});
+
+// 번들 문구가 빠진 ask 키는 KEY 이름만 보인다 — 새 ask 키를 추가하면 라벨도 함께 추가해야 한다.
+test("번들 wizard-prompts.yml: 모든 @wizard ask 키에 label과 help가 있다", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { parseWizardLine } = await import("../../src/core/wizard-env.js");
+  const { resolvePayloadRoot } = await import("../../src/core/assets.js");
+  const payload = resolvePayloadRoot();
+  const prompts = parseWizardPrompts(readFileSync(join(payload, "config", "wizard-prompts.yml"), "utf8"));
+  const missing = [];
+  const walk = (dir, type) => {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) { walk(p, type ?? name); continue; }
+      for (const line of readFileSync(p, "utf8").split(/\r?\n/)) {
+        const w = parseWizardLine(line);
+        if (!w || w.action !== "ask") continue;
+        const label = wfField(prompts, type, w.key, "label");
+        const help = wfField(prompts, type, w.key, "help");
+        if (label === w.key || !help) missing.push(`${type}:${w.key} (${name})`);
+      }
+    }
+  };
+  walk(join(payload, "workflows"), null);
+  assert.deepStrictEqual([...new Set(missing)], []);
+});

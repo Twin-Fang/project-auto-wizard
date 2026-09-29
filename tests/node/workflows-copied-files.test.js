@@ -62,7 +62,7 @@ test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .t
     const templateResult = copyWorkflows(ctx, PAYLOAD, target, {
       decisions: new Map([["PROJECT-SPRING-CI.yml", "template"]]),
     });
-    // applyDecision()의 template 파일명 규칙: .yaml만 strip, .yml은 그대로 뒤에 .template.yaml이 붙는다(레거시 .sh 동일 동작).
+    // applyDecision()의 template 파일명 규칙: .yaml만 strip, .yml은 그대로 뒤에 .template.yaml이 붙는다.
     assert.ok(templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml.template.yaml"));
     assert.ok(!templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml"));
   } finally { rmSync(target, { recursive: true, force: true }); }

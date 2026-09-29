@@ -1,8 +1,8 @@
-// 마법사 전역 상태를 하나의 객체로 명시화 (bash 전역 변수군 대체)
-export const VALID_TYPES = [
-  "spring", "flutter", "next", "react",
-  "react-native", "react-native-expo", "node", "python", "basic", "go",
-];
+// 마법사 전역 상태를 하나의 객체로 명시화
+import { TYPE_IDS } from "./core/types.js";
+
+// --type 화이트리스트 — 타입 레지스트리(core/types.js)의 표시 순서 그대로.
+export const VALID_TYPES = TYPE_IDS;
 
 // --mode 화이트리스트 — 알 수 없는 값은 부수효과(브랜치 조회 등) 이전에 즉시 거부해야 한다.
 // purge는 --help/대화형 메뉴에 노출하지 않는 숨김 모드이지만 검증 대상에는 포함한다.

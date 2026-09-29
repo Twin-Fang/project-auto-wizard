@@ -1,4 +1,4 @@
-// 브랜치 구성 (DESIGN-SPEC §4 신규 질문 ①).
+// 브랜치 구성 — main/develop 브랜치와 pr-flow·trunk-based 모드.
 // on: push: branches: 는 YAML 정적 값 — 마법사가 릴리스/개발 브랜치를 물어(또는 플래그로 받아)
 // {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 플레이스홀더를 치환한다 (치환 자체는 branding.js).
 // main === develop 이면 trunk-based 모드 → RELEASE-PUBLISH 단독 설치.
@@ -24,6 +24,24 @@ export async function detectRemoteBranches(cwd, exec = defaultExec) {
     .filter((s) => s && !s.includes("->")) // "origin/HEAD -> origin/main" 제외
     .map((s) => s.replace(/^origin\//, ""))
     .filter((s, i, a) => a.indexOf(s) === i);
+}
+
+// 브랜치 이름 검증 — git check-ref-format --branch 규칙에 더해, 워크플로우 YAML·셸 명령에 그대로
+// 치환되는 값이라 공백·괄호·따옴표 같은 셸 특수문자도 거부한다. 빈 원격이 돌려주는 "(unknown)" 같은
+// 감지 실패 값이나 공백만 입력한 값이 트리거에 기록되면 워크플로우가 영영 돌지 않는다.
+export function isValidBranchName(name) {
+  if (typeof name !== "string" || name === "") return false;
+  if (/[\s~^:?*[\\\x00-\x1f\x7f()"'`$;&|<>!{}]/.test(name)) return false;
+  if (name.startsWith("-") || name.startsWith("/") || name.endsWith("/")) return false;
+  if (name.endsWith(".") || name.endsWith(".lock") || name === "@") return false;
+  if (name.includes("..") || name.includes("//") || name.includes("@{")) return false;
+  return !name.split("/").some((part) => part.startsWith("."));
+}
+
+// 원격에 브랜치가 하나도 없거나(빈 원격·origin 없음) develop 생성을 건너뛴 경우의 안내.
+// develop이 없으면 pr-flow 워크플로우가 트리거되지 않으므로 조용히 넘어가면 안 된다.
+export function developMissingNotice({ main, develop }) {
+  return `원격에 '${develop}' 브랜치가 없습니다 — 설치 파일을 커밋해 '${main}'을 push한 뒤 만들어 주세요: git push origin ${main}:${develop}`;
 }
 
 // 결정 (순수 함수): 플래그/답변 → 최종 구성.

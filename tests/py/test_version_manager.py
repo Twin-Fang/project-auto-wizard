@@ -53,8 +53,7 @@ class TestCore(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
     def test_increment_also_bumps_version_code(self):
-        # bash contract: increment = patch+1 AND version_code+1
-        # (version_manager.sh calls increment_version_code after update_all_versions)
+        # 계약: increment = patch+1 이면서 version_code+1
         run(["increment"], self.tmp)
         r = run(["get-code"], self.tmp)
         self.assertEqual(r.stdout.strip().splitlines()[-1], "2")
@@ -95,6 +94,49 @@ class TestCore(unittest.TestCase):
         self.assertEqual(data.count(b"\n"), data.count(b"\r\n"))
         self.assertGreater(data.count(b"\r\n"), 0)
         self.assertIn(b'version: "2.3.4"', data)
+
+
+class TestReadmeVersionLine(unittest.TestCase):
+    """버전 확정 커밋에 README 버전 줄이 함께 들어가야 태그 시점 README가 새 버전을 가리킨다."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        shutil.copytree(FIXTURES / "basic", self.tmp, dirs_exist_ok=True)
+        self.readme = Path(self.tmp) / "README.md"
+
+    def write(self, text):
+        with open(self.readme, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+
+    def read(self):
+        with open(self.readme, encoding="utf-8", newline="") as f:
+            return f.read()
+
+    def test_increment_rewrites_marked_line_with_date(self):
+        self.write("# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## 최신 버전 : v0.1.0 (2025-01-01)\n\n본문 v0.1.0\n")
+        self.assertEqual(run(["increment"], self.tmp).returncode, 0)
+        text = self.read()
+        self.assertRegex(text, r"## 최신 버전 : v0\.1\.1 \(\d{4}-\d{2}-\d{2}\)\n")
+        self.assertNotIn("2025-01-01", text)
+        self.assertIn("본문 v0.1.0", text, "마커 아래 한 줄만 고쳐야 한다")
+
+    def test_set_keeps_dateless_format_and_crlf(self):
+        self.write("<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\r\n## Version : v0.1.0\r\nx\r\n")
+        self.assertEqual(run(["set", "1.2.3"], self.tmp).returncode, 0)
+        self.assertEqual(self.read(), "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\r\n## Version : v1.2.3\r\nx\r\n")
+
+    def test_readme_without_marker_is_untouched(self):
+        original = "# my-app\n## Version : v0.1.0\n"
+        self.write(original)
+        self.assertEqual(run(["increment"], self.tmp).returncode, 0)
+        self.assertEqual(self.read(), original)
+
+    def test_get_does_not_touch_readme(self):
+        original = "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Version : v0.0.9\n"
+        self.write(original)
+        self.assertEqual(run(["get"], self.tmp).returncode, 0)
+        self.assertEqual(self.read(), original)
 
 
 class TestProjectTypesParsing(unittest.TestCase):

@@ -1,0 +1,67 @@
+---
+title: project-auto-wizard
+description: 명령 한 번으로 버전 관리, CHANGELOG, GitHub Release, CI/CD를 레포에 설치합니다.
+template: splash
+hero:
+  tagline: 명령 한 번으로 버전 관리, CHANGELOG, GitHub Release, CI/CD를 레포에 설치합니다. 설치되는 것은 전부 내 레포 안의 GitHub Actions입니다. API 키도, 외부 서비스도 필요 없습니다.
+  actions:
+    - text: 빠른 시작
+      link: start/quickstart/
+      icon: right-arrow
+    - text: 동작 방식
+      link: understand/how-it-works/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/Twin-Fang/project-auto-wizard
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import DemoVideo from '../../../components/DemoVideo.astro';
+
+<DemoVideo label="마법사로 Spring 프로젝트에 릴리스 자동화를 설치하는 화면" />
+
+## 바로 실행하기
+
+레포 루트에서 실행합니다 (Node.js 20.12 이상):
+
+```bash
+npx project-auto-wizard
+```
+
+프로젝트 타입을 감지하고 몇 가지를 물은 뒤 워크플로우 파일을 씁니다. CI나 스크립트에서는 비대화형으로 실행합니다:
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+```
+
+## 무엇이 설치되나
+
+<CardGrid>
+  <Card title="릴리스 PR 자동화" icon="rocket">
+    `develop → main` PR을 열면 커밋 타입으로 다음 버전을 정하고, 릴리스 노트를 쓰고, CHANGELOG를 갱신한 뒤 automerge합니다.
+  </Card>
+  <Card title="태그와 GitHub Release" icon="approve-check">
+    머지 후 `vX.Y.Z` 태그와 GitHub Release를 발행하고 README의 버전 줄을 갱신합니다.
+  </Card>
+  <Card title="스택별 CI/CD" icon="seti:pipeline">
+    Spring, Flutter, React, Next.js, Python, Go는 CI와 배포 워크플로우가 설치됩니다. 나머지 타입은 릴리스 자동화만 설치됩니다.
+  </Card>
+  <Card title="API 키 불필요" icon="padlock">
+    릴리스 노트는 기본적으로 규칙 기반입니다. GitHub Copilot이나 OpenAI 호환 API는 선택이며, 실패하면 규칙 기반으로 넘어갑니다.
+  </Card>
+  <Card title="내 레포의 파일" icon="document">
+    워크플로우와 표준 라이브러리만 쓰는 Python 스크립트가 `.github/`에 복사됩니다. 읽고 고쳐도 되고, 다시 실행해도 수정한 내용이 유지됩니다.
+  </Card>
+  <Card title="읽기 전용 점검" icon="magnifier">
+    `--mode status`는 설치 템플릿 대비 드리프트를, `--mode doctor`는 워크플로우가 의존하는 레포 설정을 점검합니다.
+  </Card>
+</CardGrid>
+
+## 다음으로 볼 문서
+
+- [빠른 시작](start/quickstart/) — 설치, 커밋, 첫 릴리스 PR까지
+- [릴리스 흐름](understand/release-flow/) — PR에서 GitHub Release까지 무슨 일이 일어나는지
+- [프로젝트 타입](project-types/common/) — 스택별 설치 워크플로우와 필요한 Secret
+- [CLI 옵션](reference/cli/) — 전체 플래그

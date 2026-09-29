@@ -33,17 +33,26 @@
 #   * true:  v1.0.0 (2025-08-16)
 #   * false: v1.0.0
 #
-# Note (safety-net path): on a direct push to {{MAIN_BRANCH}} this
-# workflow reads the pre-bump version — PROJECT-VERSION-CONTROL bumps
-# afterwards with a [skip ci] commit that does not re-trigger this
-# workflow, so the README stays one version behind until the next
-# release/push. Run this workflow manually (workflow_dispatch) to catch up.
+# Note: pushes made with GITHUB_TOKEN (a release PR merged without
+# WORKFLOW_PAT, the [skip ci] version commits of the safety net and of
+# trunk-based releases) never trigger this workflow. RELEASE-PUBLISH
+# therefore dispatches it right after publishing a release, so the
+# README always ends on the released version. Run it manually
+# (workflow_dispatch) to catch up at any other time.
+#
+# The version line under the AUTO-VERSION-SECTION marker is already
+# rewritten inside the release commit itself (version_manager.py
+# increment/set), so the release tag snapshot shows the released
+# version. This workflow still inserts a missing line/marker and
+# refreshes the date.
 
 name: README VERSION UPDATE
 
 env:
   # Whether to show the date next to the version (true/false)
   SHOW_DATE: true
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
 
 concurrency:
   group: readme-version-update

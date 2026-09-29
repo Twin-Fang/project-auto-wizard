@@ -1,0 +1,37 @@
+---
+// 데모 영상은 public/demo/에 있다. base 경로를 붙여야 Pages 하위 경로에서도 열린다.
+interface Props {
+  label: string;
+}
+const { label } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<figure class="demo-video">
+  <video
+    src={`${base}/demo/install.mp4`}
+    poster={`${base}/demo/install-poster.jpg`}
+    autoplay
+    muted
+    loop
+    playsinline
+    preload="metadata"
+    aria-label={label}
+    width="1200"
+    height="760"
+  ></video>
+</figure>
+
+<style>
+  .demo-video {
+    margin: 0;
+  }
+  .demo-video video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: #0d1117;
+  }
+</style>

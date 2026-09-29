@@ -120,9 +120,9 @@ test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 
     ].join("\n"),
   );
   try {
-    const asks = collectAsks(root, [], { resolvers: { repo: () => "claude-window-keeper" } });
-    assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
-    assert.strictEqual(asks.typeDefaults.get("common|VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+    const asks = collectAsks(root, [], { resolvers: { repo: () => "my-service" } });
+    assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/mnt/my-service");
+    assert.strictEqual(asks.typeDefaults.get("common|VOLUME_CONTAINER_PATH"), "/mnt/my-service");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -168,12 +168,16 @@ test("collectAsks: deployStyle이 'none'이면 server-deploy 폴더(PR 프리뷰
     "server-deploy 4개 파일(SIMPLE/NGINX/TRAEFIK/PR 프리뷰) 공통 ask 키 — 이게 없다는 것이 폴더 전체가 스캔에서 빠졌다는 증거다");
 });
 
-test("collectAsks: go 타입에서 deployStyle이 'none'이면 타입 루트 CD 전용 키는 스캔하지 않는다 (PR 프리뷰 전용 키는 남는다 — 별도 축, 알려진 잔여 범위)", () => {
+test("collectAsks: go 타입에서 deployStyle이 'none'이면 타입 루트의 CD·PR 프리뷰 키를 스캔하지 않는다", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"], { deployStyle: "none" });
   assert.ok(!asks.keys.includes("DEPLOY_PORT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
   assert.ok(!asks.keys.includes("ENABLE_VOLUME_MOUNT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
-  assert.ok(asks.keys.includes("SSH_AUTH_METHOD"),
-    "PR 프리뷰(go/python은 server-deploy 폴더가 없어 CD와 같은 위치에 있음)는 배포 방식과 무관하게 항상 설치되므로 이 키는 남는다");
+  assert.ok(!asks.keys.includes("SSH_AUTH_METHOD"), "PR 프리뷰도 설치하지 않으므로 그 키도 묻지 않는다");
+});
+
+test("collectAsks: go 타입에서 nginx를 골라도 단일 서버 배포 키는 스캔한다 (무중단 워크플로우가 없는 타입)", () => {
+  const asks = collectAsks(resolvePayloadRoot(), ["go"], { deployStyle: "nginx" });
+  assert.ok(asks.keys.includes("DEPLOY_PORT"));
 });
 
 test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는다 (ask만 수집, 이슈 #131)", () => {
@@ -259,4 +263,38 @@ test("promptEnvPlan: flutterStore를 collectAsks까지 전달해 답변 목록�
     const all = await promptEnvPlan({ payloadRoot: root, types: ["flutter"], force: true, log: () => {} });
     assert.strictEqual(all.answers.length, 4, "미지정(null)이면 현행 동작");
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("validateAskValue: 포트·SSH 인증 방식·JDK 버전 형식을 검증한다", async () => {
+  const { validateAskValue } = await import("../../src/ui/env-plan.js");
+  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "아무 값"]]) {
+    assert.strictEqual(validateAskValue(...ok), "", ok.join("="));
+  }
+  for (const bad of [["DEPLOY_PORT", 'key"#: x'], ["SSH_PORT", "0"], ["BLUE_PORT", "70000"], ["SSH_AUTH_METHOD", "pw"], ["JAVA_VERSION", "latest"]]) {
+    assert.notStrictEqual(validateAskValue(...bad), "", bad.join("="));
+  }
+});
+
+test("promptEnvPlan: 형식이 틀린 값은 받지 않고 다시 묻는다", async () => {
+  const answers = { DEPLOY_PORT: ['key"#: x', "9090"], SSH_AUTH_METHOD: ["pw", " key "] };
+  const io = {
+    select: async () => "some",
+    multiselect: async () => ["DEPLOY_PORT", "SSH_AUTH_METHOD"],
+    text: async () => answers[current].shift(),
+    confirm: async ({ initialValue }) => initialValue,
+  };
+  let current = "";
+  const logs = [];
+  const result = await promptEnvPlan({
+    payloadRoot: resolvePayloadRoot(), types: ["spring"], io, force: false, deployStyle: "simple",
+    // 입력 직전에 찍히는 필드 카드 제목으로 지금 묻는 키를 알아낸다.
+    log: (l = "") => {
+      logs.push(l);
+      if (/▸ \(\d+\/\d+\) 외부 노출 포트/.test(l)) current = "DEPLOY_PORT";
+      if (/▸ \(\d+\/\d+\) SSH 인증 방식/.test(l)) current = "SSH_AUTH_METHOD";
+    },
+  });
+  assert.strictEqual(result.values.get("DEPLOY_PORT"), "9090");
+  assert.strictEqual(result.values.get("SSH_AUTH_METHOD"), "key");
+  assert.ok(logs.some((l) => l.includes("1~65535")));
 });

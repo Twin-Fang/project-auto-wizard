@@ -1,6 +1,6 @@
 name: 버그 리포트
 description: 예상과 다르게 동작하는 부분을 신고합니다
-labels: ["bug"]
+labels: ["type: bug", "status: needs triage"]
 body:
   - type: textarea
     id: what-happened
