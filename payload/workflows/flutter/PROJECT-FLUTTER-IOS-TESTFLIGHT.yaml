@@ -160,8 +160,13 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && pod install)
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: 현재 버전 정보 가져오기
         id: current_version
@@ -305,8 +310,13 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && pod install)
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: Import Code-Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v2

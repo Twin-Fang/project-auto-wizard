@@ -399,8 +399,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          chmod +x gradlew
-          echo "✅ Gradle wrapper permissions set"
+          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            echo "✅ Gradle wrapper permissions set"
+          else
+            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v5

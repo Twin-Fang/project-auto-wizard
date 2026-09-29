@@ -434,8 +434,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          chmod +x gradlew
-          echo "✅ Gradle wrapper permissions set"
+          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            echo "✅ Gradle wrapper permissions set"
+          else
+            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+          fi
 
       # APK 빌드 (CI는 빌드 검증 목적이므로 서명 불필요한 debug 빌드 사용)
       - name: Build APK
@@ -563,9 +568,14 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install --repo-update || pod install
-          echo "✅ CocoaPods installed"
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && (pod install --repo-update || pod install))
+            echo "✅ CocoaPods installed"
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: Build iOS
         id: build

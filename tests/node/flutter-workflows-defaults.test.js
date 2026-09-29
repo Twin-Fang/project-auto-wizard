@@ -33,3 +33,24 @@ test("Flutter SDK 버전을 특정 버전에 고정하지 않고 stable 최신�
   }
   assert.strictEqual(setups, 12, "subosito/flutter-action 스텝 수");
 });
+
+test("gradlew·Podfile이 저장소에 없어도(기본 flutter create) 해당 스텝이 실패하지 않는다", () => {
+  let gradle = 0;
+  let pods = 0;
+  for (const f of FILES) {
+    const lines = read(f).split("\n");
+    lines.forEach((line, i) => {
+      const code = line.trim();
+      if (code === "chmod +x gradlew") {
+        gradle++;
+        assert.ok(lines.slice(Math.max(0, i - 3), i).some((l) => l.trim() === "if [ -f gradlew ]; then"), `${f}:${i + 1} gradlew 존재 확인 없이 chmod`);
+      }
+      if (/pod install/.test(code) && !code.startsWith("echo") && !code.startsWith("#")) {
+        pods++;
+        assert.ok(lines.slice(Math.max(0, i - 3), i).some((l) => l.trim() === "if [ -f ios/Podfile ]; then"), `${f}:${i + 1} Podfile 존재 확인 없이 pod install`);
+      }
+    });
+  }
+  assert.strictEqual(gradle, 3, "gradlew chmod 스텝 수");
+  assert.strictEqual(pods, 4, "pod install 스텝 수");
+});
