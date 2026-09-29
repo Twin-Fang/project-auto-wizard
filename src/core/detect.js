@@ -160,10 +160,11 @@ export function extraMarkers(type) {
 // 그 타입을 감지하는 데 실제로 쓰인 파일. markerForType은 타입당 대표 파일 하나를
 // 고정 반환하므로, build.gradle.kts만 있는 레포에서도 "build.gradle 발견"이라고 출력돼
 // 같은 설치 로그 안에서 경로 확정 화면과 파일명이 어긋났다. has()로 실재하는 것을 고른다.
-// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다.
-export function resolveMarker(type, has) {
+// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다. 단 "근거"로 보여줄 때는(fallback:false)
+// 빈 문자열을 돌려준다 — 직접 고른 타입에 없는 파일을 근거로 붙이면 감지된 것처럼 보인다.
+export function resolveMarker(type, has, { fallback = true } = {}) {
   const candidates = [markerForType(type), ...extraMarkers(type)];
-  return candidates.find(has) ?? candidates[0];
+  return candidates.find(has) ?? (fallback ? candidates[0] : "");
 }
 
 // 빌드 JDK 감지 — 배포 워크플로우의 JAVA_VERSION 기본값이 21로 고정돼 있어
@@ -200,7 +201,9 @@ export function resolveMarkers(types = [], has) {
   const out = new Map();
   for (const t of types) {
     if (t === "basic") continue;
-    out.set(t, resolveMarker(t, has));
+    // 실제로 있는 파일만 근거로 삼는다 — 없으면 맵에서 빠져 화면·로그가 "직접 선택"으로 다룬다.
+    const found = resolveMarker(t, has, { fallback: false });
+    if (found) out.set(t, found);
   }
   return out;
 }

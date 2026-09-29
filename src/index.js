@@ -27,7 +27,7 @@ import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { isPromptAbort } from "./ui/readline-engine.js";
 import { runInteractive } from "./commands/interactive.js";
-import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs } from "./core/logger.js";
+import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs, log } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
@@ -49,7 +49,8 @@ function utcNow(date = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   const d = `${date.getUTCFullYear()}-${p(date.getUTCMonth() + 1)}-${p(date.getUTCDate())}`;
   const t = `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}`;
-  return { now: `${d} ${t}`, today: d };
+  // ms: 로그 파일명이 같은 초의 연속 실행끼리 겹치지 않도록 쓴다 (now와 같은 시각에서 뽑는다).
+  return { now: `${d} ${t}`, today: d, ms: date.getUTCMilliseconds() };
 }
 
 // purge TTY 확인 — 실제 stdin에서 한 줄 입력을 받는다 (테스트는 promptRepoName 주입으로 대체).
@@ -83,17 +84,11 @@ async function runInner(argv, {
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
 
   // 시각은 여기서 한 번만 계산한다 — 로그 파일명과 설치 기록이 같은 값을 쓰도록.
-  const { now, today } = clock || utcNow();
+  const { now, today, ms } = clock || utcNow();
 
-  // dry-run은 "파일을 바꾸지 않는다"가 계약이므로 로그도 남기지 않는다.
-  // --version/--help는 이 지점 이전에 이미 반환되므로 자연히 제외된다.
-  const loggedAction = opts.dryRun ? null
-    : opts.mode === "uninstall" ? "uninstall"
-    : opts.mode === "purge" ? "purge"
-    : "install";
-  if (loggedAction) {
-    initLogger(cwd, { action: loggedAction, now, argv, templateVersion: readTemplateVersion() });
-  }
+  // 로그는 인자 검증과 모드별 게이트를 모두 통과한 "실제로 파일을 바꾸는" 실행만 남긴다.
+  // status/doctor(읽기 전용)·dry-run·거부된 실행은 대상 레포에 아무 파일도 만들지 않아야 한다.
+  const startLog = (action) => initLogger(cwd, { action, now, ms, argv, templateVersion: readTemplateVersion() });
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive
   if (opts.mode === "interactive") {
@@ -117,6 +112,8 @@ async function runInner(argv, {
     if (ignored.length) {
       console.error(`⚠️  대화형 모드에서는 ${ignored.join(", ")}를 사용하지 않습니다 — 질문에서 고르거나 --mode full --force와 함께 쓰세요.`);
     }
+    // 로그 파일은 첫 기록 때 생기므로 메뉴에서 status/doctor만 보고 나가면 아무것도 남지 않는다.
+    startLog("install");
     return await runInteractive(
       { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi },
       { cwd, payloadRoot: payload, clock },
@@ -178,6 +175,7 @@ async function runInner(argv, {
         return 1;
       }
     }
+    startLog("purge");
     const plan = planPurge(payload, cwd, keepFlags);
     printPurgePlan(plan, { dryRun: false });
     const result = executePurge(payload, cwd, keepFlags);
@@ -209,6 +207,7 @@ async function runInner(argv, {
       return 0;
     }
     if (opts.force) {
+      startLog("uninstall");
       const r = runUninstall({}, payload, cwd, safeSelection);
       const removed = [
         `워크플로우 ${r.workflows.length}개`, `스크립트 ${r.scripts.length}개`,
@@ -223,6 +222,7 @@ async function runInner(argv, {
       console.error("비대화형 환경에서는 --force 옵션이 필요합니다.");
       return 1;
     }
+    startLog("uninstall");
     // --purge-* 플래그는 체크리스트 초기 선택으로 반영한다(조용히 무시하지 않는다).
     await runUninstallFlow(payload, cwd, prompts, {
       readme: opts.purgeReadme, gitignore: opts.purgeGitignore, versionYml: opts.purgeVersion,
@@ -368,6 +368,7 @@ async function runInner(argv, {
     return 0;
   }
 
+  startLog("install");
   // opts.mode는 parseArgs()에서 화이트리스트 검증을 통과했고, interactive/purge/uninstall/status/doctor는
   // 전부 위에서 조기 반환했으므로 이 시점엔 full 하나로 보장된다 (default 분기 제거,
   // 부분 설치 모드 제거로 분기 자체가 사라졌다).
@@ -380,11 +381,14 @@ async function runInner(argv, {
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
+    optionalSecrets: result?.optionalSecrets ?? new Map(),
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
     storeCleanup: result?.storeCleanup ?? null,
     flutterApp: result?.flutterApp ?? null,
+    readme: result?.readme ?? null,
+    scripts: result?.scripts ?? null,
   });
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
   // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
@@ -414,6 +418,10 @@ export async function run(argv, opts = {}) {
       prompts.cancelMessage("중단했습니다 — 변경 없이 종료합니다.");
       return 130;
     }
+    // 이미 기록을 시작한 실행이 도중에 죽으면 헤더만 남은 로그로는 원인을 알 수 없다 — 사유를 남긴다.
+    if (currentLogPath()) log.fail("run", "error", e?.message || String(e));
+    // 사용자가 고칠 수 있는 실패(권한 등)는 스택트레이스 대신 읽을 수 있는 문구로 끝낸다.
+    if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   } finally {
     closeLogger();

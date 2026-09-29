@@ -12,7 +12,7 @@ import { planRemoval } from "../core/removal-plan.js";
 import { removeAppFiles, pruneInstallDirs } from "./uninstall.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
-import { log } from "../core/logger.js";
+import { logRemovals } from "../core/logger.js";
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 
@@ -84,17 +84,20 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
 export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const plan = planPurge(payloadRoot, targetRoot, keepFlags);
   const wfDir = join(targetRoot, PATHS.workflowsDir);
-  for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
-  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
-  removeAppFiles(targetRoot, plan.appFiles);
-  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
+  const done = [];
+  for (const name of plan.workflows) { remove(join(wfDir, name)); done.push(["remove", "workflow", name]); }
+  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); done.push(["remove", "script", name]); }
+  removeAppFiles(targetRoot, plan.appFiles, done);
+  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); done.push(["remove", "metadata", p]); }
   pruneInstallDirs(targetRoot, plan);
-  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
+  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); done.push(["remove", "version", PATHS.versionFile]); }
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
   const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
   const gitignore = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
-  if (gitignore) log.info("remove", "gitignore", ".gitignore 자동 추가 항목");
-  for (const f of plan.changelog) { remove(join(targetRoot, f)); log.info("remove", "changelog", f); }
+  if (gitignore) done.push(["remove", "gitignore", ".gitignore 자동 추가 항목"]);
+  for (const f of plan.changelog) { remove(join(targetRoot, f)); done.push(["remove", "changelog", f]); }
+  if (readmeSection) done.push(["remove", "readme", "README.md 버전 섹션"]);
+  logRemovals(targetRoot, done);
   return { ...plan, readmeSection, gitignore };
 }
 

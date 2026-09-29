@@ -4,18 +4,19 @@
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { writeText } from "../core/fsutil.js";
+import { writeText, findUnwritable } from "../core/fsutil.js";
+import { CliError } from "../cli/args.js";
 import { PATHS } from "../core/paths.js";
 import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
-import { addVersionSectionToReadme } from "../core/copy/readme.js";
+import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
 import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
-import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
+import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
 import { log, maskValue } from "../core/logger.js";
@@ -28,6 +29,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     force = true, now, today, templateVersion = "unknown",
     includeSemverAuto } = context;
 
+  // 아무것도 쓰기 전에 권한부터 확인한다 — 도중에 멈추면 반쯤 설치된 상태가 남는다.
+  const blocked = findUnwritable(targetRoot,
+    [".", PATHS.workflowsDir, PATHS.scriptsDir, ".github/.wizard"],
+    [PATHS.versionFile, "README.md", ".gitignore", ".github/.wizard/baseline.json"]);
+  if (blocked.length) {
+    throw new CliError(`쓰기 권한이 없어 설치를 시작하지 않았습니다 (아무 파일도 바꾸지 않았습니다):\n${blocked.map((p) => `  - ${p}`).join("\n")}\n권한을 확인한 뒤 다시 실행하세요.`);
+  }
+
   // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).
   // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
   // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다.
@@ -35,10 +44,13 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const [t, p] of paths) {
     const marker = existingMarkerInDir(t, join(targetRoot, p || "."));
     pathMarkers.set(t, marker);
-    log.info("detect", "type", `${t} (근거: ${marker || "직접 선택"})`);
+    // 파일이 실제로 없으면 사용자가 직접 고른 타입이다 — 대표 파일명을 근거로 적으면 감지된 것처럼 보인다.
+    const found = marker && existsSync(join(targetRoot, p || ".", marker));
+    log.info("detect", "type", `${t} (근거: ${found ? marker : "직접 선택"})`);
   }
   log.info("detect", "version", `${version}${context.versionSource ? ` (${context.versionSource})` : ""}`);
   log.info("detect", "branch", `${branch}${context.branches ? ` | main=${context.branches.main} develop=${context.branches.develop} mode=${context.branches.mode}` : ""}`);
+  logChoices(context, types);
   for (const a of context.envAnswers || []) {
     log.info("prompt", a.isDefault ? "default" : "answer", `${a.key}=${maskValue(a.key, a.value)}`);
   }
@@ -65,10 +77,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
 
   // 3. README 버전 섹션
-  addVersionSectionToReadme(version, targetRoot);
+  const readme = addVersionSectionToReadme(version, targetRoot);
+  log.info("readme", readme === "added" ? "append" : "skip", README_STATUS_LABEL[readme] || readme);
 
-  // 4. scripts (payload/scripts/*.py → .github/scripts/)
-  copyScripts(payloadRoot, targetRoot);
+  // 4. scripts (payload/scripts/*.py → .github/scripts/) — 항상 덮어쓰므로 사용자 수정이 사라진 사실도 남긴다.
+  const scripts = copyScripts(payloadRoot, targetRoot);
+  for (const { name, action } of scripts) {
+    log.info("script", action, `${PATHS.scriptsDir}/${name}${action === "overwrite" ? " (기존 내용과 달라 새 버전으로 덮어씀)" : ""}`);
+  }
 
   // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
   //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다.
@@ -105,7 +121,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
 
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
-  if (gitignoreUpdated) ensureGitignore(targetRoot);
+  if (gitignoreUpdated) {
+    const gi = ensureGitignore(targetRoot);
+    log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
+      gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : ".gitignore (이미 있는 항목)");
+  }
 
   // 7. baseline 기록 — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
   //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
@@ -129,14 +149,15 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   const managed = [...(wfCounters.baselineTargets || new Map()).keys()];
   const unresolved = scanUnsubstituted(wfDir, managed);
-  const secrets = narrowSecretsBySshAuth(
-    collectRequiredSecrets(wfDir, managed),
-    firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
-  );
+  // 기본값이 있거나 둘 중 하나면 되는 secret은 필수와 나눠 안내한다.
+  const secretSets = classifySecrets(wfDir, managed);
+  const secrets = narrowSecretsBySshAuth(secretSets.required, firstDeployValue(deployValues, "SSH_AUTH_METHOD"));
+  const optionalSecrets = secretSets.optional;
 
   // 9. 요약 — 파일 끝에 결과 블록을 붙인다. tail만 봐도 결과가 보이도록.
   for (const u of unresolved) log.warn("verify", "unresolved", `${u.filename}:${u.line} ${u.token}`);
   for (const [name, users] of secrets) log.info("verify", "secret", `${name} ← ${users.join(", ")}`);
+  for (const [name, users] of optionalSecrets) log.info("verify", "secret-opt", `${name} (선택) ← ${users.join(", ")}`);
   log.summary([
     ["설치", `${(wfCounters.copiedFiles || []).length}개 파일`],
     ["자동 갱신", `${(wfCounters.autoUpdated || []).length}개 (사용자 미수정)`],
@@ -148,7 +169,20 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts, optionalSecrets };
+}
+
+// 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도
+// 여기로 모이므로, 나중에 "왜 이렇게 설치됐나"를 로그만으로 따라갈 수 있다.
+function logChoices(context, types) {
+  if (context.deployStyle) log.info("option", "deploy", context.deployStyle);
+  if (context.includeSemverAuto != null) log.info("option", "semver", context.includeSemverAuto ? "on" : "off");
+  if (context.includeCopilotAi != null) log.info("option", "copilot", context.includeCopilotAi ? "on" : "off");
+  if (types.includes("flutter")) {
+    const stores = Array.isArray(context.flutterStore) ? (context.flutterStore.join(",") || "없음") : "미결정(둘 다)";
+    log.info("option", "flutter",
+      `env=${context.envMode || "-"} stores=${stores} android=${context.androidDeployMode || "-"} ios=${context.iosDeployMode || "-"}`);
+  }
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

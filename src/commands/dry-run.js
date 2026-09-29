@@ -9,6 +9,9 @@ import { planUninstall } from "./uninstall.js";
 import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
+import { planScripts } from "../core/copy/simple.js";
+import { planVersionSection } from "../core/copy/readme.js";
+import { BASELINE_PATH } from "../core/baseline.js";
 
 function versionYmlPreview(context, payloadRoot, targetRoot) {
   const { paths = new Map() } = context;
@@ -37,6 +40,10 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     // Flutter 스토어 배포 파일(Fastfile·ExportOptions.plist) — 이미 있는 파일은 덮어쓰지 않고 유지한다.
     flutterApp: planFlutterAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
+    // 실제 설치가 함께 바꾸는 파일 — 특히 기존 파일을 덮어쓰는 스크립트는 미리 보여줘야 한다.
+    scripts: planScripts(payloadRoot, targetRoot),
+    readme: planVersionSection(targetRoot),
+    baselineExists: existsSync(join(targetRoot, BASELINE_PATH)),
   };
 }
 
@@ -75,6 +82,23 @@ export function printDryRun(plan) {
       // dry-run은 프롬프트 없이 읽기 전용으로 동작하므로 @wizard ask 배포 설정 값을 계산할 수 없다.
       // spring 등 deploy 블록이 있는 타입은 실제 설치 결과와 미리보기가 다를 수 있음을 안내한다.
       lines.push("  (참고: 배포 설정 질문이 있는 타입(spring 등)은 deploy: 블록이 미리보기에 반영되지 않아 실제 설치와 다르게 보일 수 있습니다.)");
+    }
+    if (plan.scripts) {
+      const mark = { create: "+", overwrite: "~", unchanged: "=" };
+      const note = { create: "새로 생성", overwrite: "기존 파일을 새 버전으로 덮어씀 — 직접 고친 내용은 사라집니다", unchanged: "변경 없음" };
+      lines.push(`스크립트 (${PATHS.scriptsDir}/, ${plan.scripts.length}개 — 항상 새 버전으로 교체):`);
+      for (const s of plan.scripts) lines.push(`  ${mark[s.action]} ${s.name} (${note[s.action]})`);
+    }
+    if (plan.readme) {
+      lines.push({
+        added: "README.md: 끝에 버전 섹션이 추가될 예정",
+        "skip-no-readme": "README.md: 파일이 없어 버전 섹션을 추가하지 않음",
+        "skip-marker": "README.md: 이미 버전 섹션이 있어 변경 없음",
+        "skip-version-line": "README.md: 이미 버전 줄이 있어 변경 없음",
+      }[plan.readme] || `README.md: ${plan.readme}`);
+    }
+    if (plan.baselineExists !== undefined) {
+      lines.push(`${BASELINE_PATH}: ${plan.baselineExists ? "갱신될 예정" : "새로 생성될 예정"} (다음 업데이트의 비교 기준)`);
     }
   }
   lines.push("");

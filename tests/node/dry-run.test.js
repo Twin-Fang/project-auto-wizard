@@ -161,3 +161,44 @@ test("printDryRun: Flutter가 아니면 스토어 배포 파일 블록을 출력
   }
 });
 
+
+test("planDryRun/printDryRun: 스크립트 덮어쓰기·README 변경·baseline도 미리보기에 나온다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    writeFileSync(join(target, "README.md"), "# my-app\n");
+    mkdirSync(join(target, ".github", "scripts"), { recursive: true });
+    writeFileSync(join(target, ".github", "scripts", "version_manager.py"), "# my script edit\n");
+    const plan = planDryRun("full", baseContext(), resolvePayloadRoot(), target);
+    assert.strictEqual(plan.scripts.find((s) => s.name === "version_manager.py").action, "overwrite");
+    assert.strictEqual(plan.scripts.find((s) => s.name === "changelog_manager.py").action, "create");
+    assert.strictEqual(plan.readme, "added");
+    assert.strictEqual(plan.baselineExists, false);
+
+    const originalLog = console.log;
+    let output = "";
+    console.log = (msg) => { output += msg; };
+    try { printDryRun(plan); } finally { console.log = originalLog; }
+    assert.match(output, /~ version_manager\.py \(기존 파일을 새 버전으로 덮어씀/);
+    assert.match(output, /README\.md: 끝에 버전 섹션이 추가될 예정/);
+    assert.match(output, /baseline\.json: 새로 생성될 예정/);
+    // 미리보기는 아무것도 바꾸지 않는다
+    assert.strictEqual(readdirSync(join(target, ".github", "scripts")).length, 1);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planDryRun: 실제 설치 뒤에는 스크립트가 변경 없음, README는 이미 섹션 있음으로 나온다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    writeFileSync(join(target, "README.md"), "# my-app\n");
+    const ctx = baseContext();
+    runFull(ctx, resolvePayloadRoot(), target);
+    const plan = planDryRun("full", ctx, resolvePayloadRoot(), target);
+    assert.ok(plan.scripts.every((s) => s.action === "unchanged"));
+    assert.strictEqual(plan.readme, "skip-marker");
+    assert.strictEqual(plan.baselineExists, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

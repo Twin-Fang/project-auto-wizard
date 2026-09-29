@@ -6,7 +6,7 @@ import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../../src/core/verify.js";
+import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth, classifySecrets } from "../../src/core/verify.js";
 import { setEnvLine } from "../../src/core/wizard-env.js";
 import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
@@ -72,6 +72,55 @@ test("collectRequiredSecrets: 주석 안의 [선택] 예시 스텝은 필수 sec
   try {
     assert.strictEqual(collectRequiredSecrets(dir, ["A.yaml"]).size, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("classifySecrets: `A || B` 폴백 쌍은 한 항목으로 묶고, 기본값이 있는 secret은 선택으로 나눈다", () => {
+  const dir = wfDirWith({
+    "A.yaml": "e: ${{ secrets.ENV_FILE || secrets.ENV }}\np: ${{ secrets.PROJECT_DEPLOY_PORT || '3000' }}\nh: ${{ secrets.SERVER_HOST }}\n",
+    "B.yaml": "id: ${{ secrets.IOS_BUNDLE_ID || vars.IOS_BUNDLE_ID }}\n",
+  });
+  try {
+    const { required, optional } = classifySecrets(dir, ["A.yaml", "B.yaml"]);
+    assert.deepStrictEqual([...required.keys()], ["ENV_FILE 또는 ENV", "SERVER_HOST"], "ENV와 ENV_FILE을 따로 세면 안 된다");
+    assert.deepStrictEqual([...optional.keys()], ["IOS_BUNDLE_ID", "PROJECT_DEPLOY_PORT"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("classifySecrets: 머리 주석에 (선택)으로 적힌 secret은 필수에서 뺀다", () => {
+  const dir = wfDirWith({
+    "A.yaml": "# SECRETS_XCCONFIG (선택): Secrets.xcconfig 내용\n# ENV_FILE (선택): .env 파일 내용\n" +
+      "x: ${{ secrets.SECRETS_XCCONFIG }}\ne: ${{ secrets.ENV_FILE || secrets.ENV }}\n",
+  });
+  try {
+    const { required, optional } = classifySecrets(dir, ["A.yaml"]);
+    assert.strictEqual(required.size, 0);
+    assert.deepStrictEqual([...optional.keys()], ["ENV_FILE 또는 ENV", "SECRETS_XCCONFIG"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("classifySecrets: 다른 워크플로우에서 단독으로 필수인 이름은 필수로 남고 그 쌍은 뺀다", () => {
+  const dir = wfDirWith({
+    "A.yaml": "e: ${{ secrets.ENV_FILE || secrets.ENV }}\n",
+    "B.yaml": "e: ${{ secrets.ENV }}\n",
+  });
+  try {
+    const { required, optional } = classifySecrets(dir, ["A.yaml", "B.yaml"]);
+    assert.deepStrictEqual([...required.keys()], ["ENV"]);
+    assert.strictEqual(optional.size, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("classifySecrets: 실제 flutter·react 워크플로우에서 선택 항목과 폴백 쌍이 필수 개수를 부풀리지 않는다", () => {
+  for (const type of ["flutter", "react"]) {
+    const dir = join(resolvePayloadRoot(), "workflows", type);
+    const files = readdirSync(dir, { recursive: true }).filter((f) => /\.ya?ml$/.test(f));
+    const { required, optional } = classifySecrets(dir, files);
+    const names = [...required.keys()];
+    assert.ok(!names.includes("ENV") && !names.includes("ENV_FILE"), `${type}: ENV/ENV_FILE을 따로 세면 안 된다`);
+    assert.ok(!names.includes("PROJECT_DEPLOY_PORT") && !names.includes("SECRETS_XCCONFIG"), `${type}: 선택 항목이 필수에 섞였다`);
+    if (type === "react") assert.ok(optional.has("PROJECT_DEPLOY_PORT"));
+    if (type === "flutter") assert.ok(optional.has("SECRETS_XCCONFIG"));
+  }
 });
 
 test("narrowSecretsBySshAuth: 고른 인증 방식에 안 쓰이는 쪽을 목록에서 뺀다", () => {

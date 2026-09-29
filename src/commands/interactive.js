@@ -375,11 +375,14 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     answers: envAnswers,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
+    optionalSecrets: result?.optionalSecrets ?? new Map(),
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
     storeCleanup: result?.storeCleanup ?? null,
     flutterApp: result?.flutterApp ?? null,
+    readme: result?.readme ?? null,
+    scripts: result?.scripts ?? null,
   });
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;

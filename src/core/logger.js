@@ -6,7 +6,7 @@
 // 왜 로컬 전용인가: 상세도를 제약하지 않기 위해서다. 로그 디렉토리에 .gitignore를 직접
 // 두어 그 폴더만 추적에서 뺀다 — 루트 .gitignore는 건드리지 않는다.
 import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export const LOG_DIR = ".github/.wizard/logs";
 const KEEP = 20;              // 유지할 로그 파일 수
@@ -17,7 +17,7 @@ const GITIGNORE_BODY = "*\n!.gitignore\n";
 const SECRET_KEY_RE = /(PASSWORD|SECRET|TOKEN|KEY|CREDENTIAL)/i;
 const MASK = "***";
 
-let state = null; // { file, clock, startedAt, disabled }
+let state = null; // { targetRoot, name, header, file, rel, clock, startedAt, disabled }
 
 export function maskValue(key, value) {
   // SSH_AUTH_METHOD처럼 "방식"만 담는 키는 비밀이 아니다 — 이름에 KEY가 들어가도 마스킹하지 않는다.
@@ -32,8 +32,26 @@ export function stampFrom(now = "") {
   return `${m[1]}${m[2]}${m[3]}-${m[4]}${m[5]}${m[6]}`;
 }
 
-export function logFilename(now, action = "install") {
-  return `${stampFrom(now)}-${action}.log`;
+// 초 단위 이름만 쓰면 같은 초에 연달아 실행할 때 앞 실행의 로그를 덮어쓴다 — 밀리초를 붙인다.
+// 밀리초도 시각 순서라 이름 정렬이 곧 실행 순서라는 전제(rotate)는 그대로 유지된다.
+export function logFilename(now, action = "install", ms = 0) {
+  return `${stampFrom(now)}-${String(ms).padStart(3, "0")}-${action}.log`;
+}
+
+// 같은 이름이 이미 있으면(다른 프로세스가 같은 밀리초에 연 경우) -2, -3을 붙여 새로 만든다.
+// wx 플래그로 "없을 때만 생성"을 원자적으로 판정해 동시 실행끼리도 서로 덮어쓰지 않는다.
+function createUnique(dir, base, header) {
+  const stem = base.replace(/\.log$/, "");
+  for (let n = 1; n < 100; n++) {
+    const name = n === 1 ? base : `${stem}-${n}.log`;
+    try {
+      writeFileSync(join(dir, name), header, { flag: "wx" });
+      return name;
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
+  }
+  throw new Error(`로그 파일 이름이 모두 사용 중입니다: ${base}`);
 }
 
 // 최근 KEEP개만 남기고 오래된 것부터 지운다. 파일명이 시각 오름차순이라 이름 정렬로 충분하다.
@@ -45,31 +63,39 @@ function rotate(dir) {
   }
 }
 
+// 파일은 첫 기록 때 만든다 — 읽기 전용 모드(status/doctor)나 인자 검증에서 거부된 실행처럼
+// 아무것도 바꾸지 않은 실행이 대상 레포에 로그 폴더와 헤더만 있는 파일을 남기지 않도록.
 export function initLogger(targetRoot, opts = {}) {
-  const { action = "install", now = "", argv = [], templateVersion = "unknown", clock = () => new Date() } = opts;
+  const { action = "install", now = "", argv = [], templateVersion = "unknown", clock = () => new Date(),
+    ms = new Date().getUTCMilliseconds() } = opts;
+  // 시각은 UTC다 — 로컬 시간대로 읽으면 몇 시간 어긋나 보이므로 헤더에 밝혀 둔다.
+  const header =
+    `=== project-auto-wizard v${templateVersion} | ${action} | ${now} UTC ===\n` +
+    `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
+    `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
+    `target  : ${targetRoot}\n\n`;
+  const st = { targetRoot, name: logFilename(now, action, ms), header, file: "", rel: "", clock, startedAt: Date.now(), disabled: false };
+  state = st;
+  return { get path() { return st.rel; } };
+}
+
+// 첫 기록 직전에 로그 파일을 연다. 실패하면 이후 기록을 끈다.
+function open(st) {
   try {
-    const dir = join(targetRoot, LOG_DIR);
+    const dir = join(st.targetRoot, LOG_DIR);
     mkdirSync(dir, { recursive: true });
     // 사용자가 직접 둔 .gitignore가 있으면 존중한다.
     const gi = join(dir, ".gitignore");
     if (!existsSync(gi)) writeFileSync(gi, GITIGNORE_BODY);
     rotate(dir);
-
-    const rel = `${LOG_DIR}/${logFilename(now, action)}`;
-    const file = join(targetRoot, rel);
-    const header =
-      `=== project-auto-wizard v${templateVersion} | ${action} | ${now} ===\n` +
-      `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
-      `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
-      `target  : ${targetRoot}\n\n`;
-    writeFileSync(file, header);
-    state = { file, rel, clock, startedAt: Date.now(), disabled: false };
-    return { path: rel };
+    st.rel = `${LOG_DIR}/${createUnique(dir, st.name, st.header)}`;
+    st.file = join(st.targetRoot, st.rel);
+    return true;
   } catch (e) {
     // 로그를 못 남긴 것이 설치를 되돌릴 이유는 아니다 — 다만 조용히 삼키지는 않는다.
+    st.disabled = true;
     process.stderr.write(`[warn] 실행 로그를 시작하지 못했습니다: ${e.message}\n`);
-    state = null;
-    return null;
+    return false;
   }
 }
 
@@ -108,6 +134,7 @@ function hhmmss(date) {
 
 function write(level, scope, action, detail = "") {
   if (!state || state.disabled) return;
+  if (!state.file && !open(state)) return;
   try {
     const line = `${hhmmss(state.clock())} ${level}  ${String(scope).padEnd(SCOPE_W)}  ${String(action).padEnd(ACTION_W)}  ${detail}`.trimEnd();
     appendFileSync(state.file, line + "\n");
@@ -125,6 +152,7 @@ export const log = {
   // rows: Array<[label, value]> — 라벨 폭을 맞춰 정렬한다.
   summary(rows = []) {
     if (!state || state.disabled || !rows.length) return;
+    if (!state.file && !open(state)) return;
     // 한글은 터미널에서 2칸을 차지한다 — 문자 수로 맞추면 눈으로 볼 때 어긋난다.
     const w = Math.max(...rows.map(([k]) => dispWidth(k)));
     const body = rows.map(([k, v]) => `${k}${" ".repeat(w - dispWidth(k))} : ${v}`).join("\n");
@@ -135,6 +163,14 @@ export const log = {
     }
   },
 };
+
+// 로그 폴더(.github/.wizard)째 지울 수 있는 삭제 실행용. 지우기 전에 쓰면 기록이 함께 사라지며
+// ENOENT 경고가 나고, 지운 뒤에 쓰면 폴더를 되살려 완전 삭제 뒤에도 흔적이 남는다.
+// 그래서 기록을 모았다가 폴더가 남아 있을 때만 쓴다(지워졌다면 결과는 화면 출력으로 대신한다).
+export function logRemovals(targetRoot, entries = []) {
+  if (!existsSync(dirname(join(targetRoot, LOG_DIR)))) return;
+  for (const [scope, action, detail] of entries) write("INFO", scope, action, detail);
+}
 
 export function closeLogger() {
   state = null;
