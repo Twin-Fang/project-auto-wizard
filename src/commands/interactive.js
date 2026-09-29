@@ -15,7 +15,7 @@ import {
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows } from "../core/deploy-style.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, hasNonstopWorkflows } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
@@ -123,7 +123,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const hasServerDeploy = () => hasServerDeployWorkflows(payload, types);
   const askDeployStyle = async () => {
     if (isDeployStyle(deployStyle) || !hasServerDeploy()) return;
-    const picked = await io.selectDeployStyle();
+    const picked = await io.selectDeployStyle({ nonstop: hasNonstopWorkflows(payload, types) });
     deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
   };
 

@@ -17,7 +17,7 @@ import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
-import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
 import { log, maskValue } from "../core/logger.js";
 
@@ -102,7 +102,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     join(targetRoot, PATHS.workflowsDir),
     existsSync(join(targetRoot, PATHS.workflowsDir)) ? readdirSync(join(targetRoot, PATHS.workflowsDir)) : [],
     context.deployStyle || DEFAULT_DEPLOY_STYLE,
-    previousBaseline);
+    previousBaseline,
+    { available: payloadWorkflowNames(payloadRoot), justWritten: wfCounters.copiedFiles || [] });
   // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
   for (const f of [...cleanup.removed, ...cleanup.backedUp]) delete previousBaseline?.files?.[f];
 

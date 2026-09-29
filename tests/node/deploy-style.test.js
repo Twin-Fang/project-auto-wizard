@@ -186,12 +186,17 @@ test("version.yml의 deploy_style은 인라인 주석을 값으로 먹지 않는
   assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
 });
 
-test("deployFilter('none'): CD 워크플로우 3종을 모두 제외하고 PR 프리뷰·common은 통과시킨다", () => {
+test("deployFilter('none'): CD 3종과 PR 프리뷰, react·next 단일 CD까지 제외하고 CI·common은 통과시킨다", () => {
   const keep = deployFilter("none");
   assert.ok(!keep(SIMPLE));
   assert.ok(!keep(NGINX));
   assert.ok(!keep(TRAEFIK));
-  assert.ok(keep(PREVIEW), "PR 프리뷰는 deployFilter 자체로는 배제 대상이 아니다 (폴더째 제외는 Task 2가 배선)");
+  assert.ok(!keep(PREVIEW), "PR 프리뷰도 서버 배포라 함께 빠져야 한다");
+  assert.ok(!keep("PROJECT-PYTHON-PR-PREVIEW.yaml"));
+  assert.ok(!keep("PROJECT-REACT-CICD.yaml"));
+  assert.ok(!keep("PROJECT-NEXT-CICD.yaml"));
+  assert.ok(keep("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "스토어 배포는 서버 배포가 아니다");
+  assert.ok(keep("PROJECT-REACT-CI.yaml"));
   assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
@@ -204,21 +209,23 @@ test("'none' 추가가 기존 판별 로직을 건드리지 않는다 — isDepl
   assert.ok(!keepUnknown(TRAEFIK));
 });
 
-test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 이전 CD는 정리하고 PR 프리뷰는 남긴다", () => {
+test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 이전 CD와 PR 프리뷰를 함께 정리한다", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-cleanup-"));
   try {
     const simpleContent = "name: simple\n";
     const previewContent = "name: preview\n";
     writeFileSync(join(dir, SIMPLE), simpleContent);
     writeFileSync(join(dir, PREVIEW), previewContent);
-    const baseline = { files: { [SIMPLE]: { installed: sha256(simpleContent) } } };
+    const baseline = { files: {
+      [SIMPLE]: { installed: sha256(simpleContent) },
+      [PREVIEW]: { installed: sha256(previewContent) },
+    } };
 
     const result = cleanupOtherDeployWorkflows(dir, [SIMPLE, PREVIEW], "none", baseline);
 
-    assert.deepStrictEqual(result.removed, [SIMPLE]);
+    assert.deepStrictEqual(result.removed, [SIMPLE, PREVIEW]);
     assert.deepStrictEqual(result.backedUp, []);
-    assert.ok(!readdirSync(dir).includes(SIMPLE), "손대지 않은 이전 CD는 삭제된다");
-    assert.ok(readdirSync(dir).includes(PREVIEW), "PR 프리뷰는 CD가 아니므로 cleanup 대상이 아니다");
+    assert.deepStrictEqual(readdirSync(dir), [], "처음부터 none으로 설치한 결과와 같아야 한다");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -231,19 +238,16 @@ test("runFull: 'none'을 고르면 CD는 물론 PR 프리뷰까지 설치되지 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD는 정리되지만 이미 깔린 PR 프리뷰는 남는다", () => {
+test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD와 PR 프리뷰가 함께 정리된다 (신규 none 설치와 같은 결과)", () => {
   const target = springTarget();
   try {
     install(target, "simple");
-    const previewPath = join(target, ".github/workflows", PREVIEW);
-    const previewBefore = readFileSync(previewPath, "utf8");
     const r = install(target, "none");
-    assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
+    assert.deepStrictEqual(r.cleanup.removed.sort(), [PREVIEW, SIMPLE].sort());
+    assert.deepStrictEqual(r.cleanup.backedUp, []);
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files.sort(), [PREVIEW, SPRING_CI].sort(),
-      "PR 프리뷰는 CD가 아니라 cleanup 대상이 아니다 — 폴더 제외는 신규 설치 범위에만 적용되는 기존 제약");
-    assert.strictEqual(readFileSync(previewPath, "utf8"), previewBefore,
-      "server-deploy 폴더째 제외되므로 이미 깔린 PR 프리뷰는 재복사/재치환되지 않아 내용이 바이트 단위로 동일해야 한다");
+    assert.deepStrictEqual(files, [SPRING_CI]);
+    assert.ok(!r.secrets.has("SERVER_HOST"), "서버 배포 Secret을 더 요구하지 않아야 한다");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
@@ -252,8 +256,7 @@ test("runFull: go 타입에서 'none'을 고르면 타입 루트의 CD 파일도
   try {
     installGo(target, "none");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("GO"));
-    assert.deepStrictEqual(files.sort(), [GO_CI, GO_PREVIEW].sort(),
-      "CD(SIMPLE-CICD)만 빠지고 CI·PR 프리뷰는 그대로 설치돼야 한다");
+    assert.deepStrictEqual(files, [GO_CI], "CD(SIMPLE-CICD)와 PR 프리뷰가 빠지고 CI만 설치돼야 한다");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
@@ -262,10 +265,11 @@ test("runFull: go에서 simple로 설치 후 'none'으로 전환하면 CD가 .ba
   try {
     installGo(target, "simple");
     const r = installGo(target, "none");
-    assert.deepStrictEqual(r.cleanup.removed, [GO_SIMPLE],
+    assert.deepStrictEqual(r.cleanup.removed.sort(), [GO_PREVIEW, GO_SIMPLE].sort(),
       "타입 루트 CD도 재복사되지 않아야 baseline과 일치해 깔끔히 제거된다 — 재복사되면 매번 해시가 달라져 .bak으로 새는 회귀가 있었다");
     assert.deepStrictEqual(r.cleanup.backedUp, []);
     const files = readdirSync(join(target, ".github/workflows"));
     assert.ok(!files.includes(GO_SIMPLE) && !files.includes(`${GO_SIMPLE}.bak`));
+    assert.ok(!files.includes(GO_PREVIEW) && !files.includes(`${GO_PREVIEW}.bak`));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });

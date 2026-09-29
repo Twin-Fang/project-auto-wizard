@@ -8,7 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { inferInstalledStores } from "./core/installed-stores.js";
 import { PATHS } from "./core/paths.js";
@@ -357,6 +357,12 @@ async function runInner(argv, {
   });
 
   context.templateVersion = readTemplateVersion();
+
+  // 무중단(nginx·traefik) 워크플로우가 없는 타입은 단일 서버 배포로 설치한다 — 조용히 넘어가지 않게 알린다.
+  const fallbackTypes = fallbackStyleTypes(payload, types, context.deployStyle);
+  if (fallbackTypes.length) {
+    console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${context.deployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
+  }
 
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });

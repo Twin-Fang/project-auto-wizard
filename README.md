@@ -69,10 +69,11 @@ flutter.APP_ARTIFACT_NAME:
   - 서버 배포 워크플로우는 **서로 대체재**라 하나만 설치합니다. 대화형에서 고르면 그것만 깔리고 **`push` 트리거까지 켜진 채로** 설치됩니다. 비대화형은 `--deploy-style simple|nginx|traefik|none` (기본: `simple`).
   - 고른 방식은 `version.yml`에 기록되므로 다시 실행해도 묻지 않습니다. 방식을 바꾸면 **이전 워크플로우를 마법사가 정리합니다** — 손대지 않은 파일은 삭제하고, 수정한 파일은 `.bak`으로 옮겨 내용을 보존합니다. 남겨두면 배포가 두 번 돕니다.
   - PR 프리뷰는 배포 방식과 무관한 별개 축이라 선택과 관계없이 함께 설치됩니다 (단, `none`을 고르면 PR 프리뷰도 함께 제외됩니다 — 서버 배포 자체를 하지 않는 프로젝트를 위한 선택지입니다).
+  - 배포 방식은 서버 배포 워크플로우가 있는 모든 타입(spring·python·go·react·next)에 같은 규칙으로 적용됩니다. 무중단(nginx·traefik) 워크플로우는 spring에만 있어, 다른 타입은 단일 서버 배포로 설치되고 설치 화면에 그 사실을 알립니다. `none`은 모든 타입에서 CD와 PR 프리뷰를 함께 뺍니다.
 - **react/next**: CI와 CI+CD 분리 구성
 - **python**: CI(의존성 설치·pytest, Dockerfile이 있으면 Docker 빌드 검증) / PR 프리뷰 / SimpleCICD
 - **go**: CI(Dockerfile 불필요, go test/vet/build/lint) / PR 프리뷰 / SimpleCICD(Dockerfile 필요)
-- 서버 배포 워크플로우(SimpleCICD·무중단·React/Next CI+CD)와 PR 프리뷰는 체크아웃 직후 **필수 Secret과 Dockerfile을 먼저 점검**합니다. 빠진 것이 있으면 그 이름을 오류로 알려 주고 멈춥니다 — 서버에 배포하지 않는 프로젝트라면 해당 배포 워크플로우 파일을 지우세요 (Spring·Python·Go는 `--deploy-style none`으로 설치해도 됩니다).
+- 서버 배포 워크플로우(SimpleCICD·무중단·React/Next CI+CD)와 PR 프리뷰는 체크아웃 직후 **필수 Secret과 Dockerfile을 먼저 점검**합니다. 빠진 것이 있으면 그 이름을 오류로 알려 주고 멈춥니다 — 서버에 배포하지 않는 프로젝트라면 해당 배포 워크플로우 파일을 지우세요 (`--deploy-style none`으로 설치하면 모든 타입에서 빠집니다).
 
 <a id="flutter-store"></a>
 

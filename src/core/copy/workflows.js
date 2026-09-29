@@ -3,7 +3,9 @@
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
-import { deployFilter, isDeployWorkflow, activateDeployTrigger, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE } from "../deploy-style.js";
+import {
+  deployFilter, isDeployWorkflow, activateDeployTrigger, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE,
+} from "../deploy-style.js";
 import { storeWorkflowFilter } from "../flutter-options.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD } from "../paths.js";
@@ -40,13 +42,15 @@ export function readSavedDeployValues(targetRoot = ".") {
   return parseDeployBlock(readFileSync(p, "utf8"));
 }
 
-// 타입 루트 디렉토리에 거는 파일 필터 — "배포 안 함"의 CD 제외와 Flutter 스토어 대상 선택을 합성한다.
+// 타입 루트 디렉토리에 거는 파일 필터 — 배포 방식 필터와 Flutter 스토어 대상 선택을 합성한다.
 // copyWorkflowsForType·surveyWorkflows·planWorkflows가 같은 함수를 써야 설치·충돌 조사·status/dry-run이
 // 서로 다른 파일 집합을 보지 않는다. flutterStore가 배열이 아니면(null=미결정, 비대화형 기본) 스토어 필터는
 // 걸지 않는다. 필터가 없어도 항상 함수를 돌려준다 — processDir은 null을 받지 못한다.
-export function buildTypeRootFilter(type, deployStyle, flutterStore) {
+// go/python·react/next처럼 서버 배포 워크플로우가 타입 루트에 바로 있는 타입도 있어 배포 방식 필터를
+// 항상 건다. available(payload 파일명 집합)이 있어야 고른 방식이 없는 타입을 단일 서버 배포로 대체한다.
+export function buildTypeRootFilter(type, deployStyle, flutterStore, available = null) {
   const filters = [];
-  if (deployStyle === NO_DEPLOY_STYLE) filters.push(deployFilter(deployStyle));
+  if (deployStyle) filters.push(deployFilter(deployStyle, available));
   if (type === "flutter" && Array.isArray(flutterStore)) filters.push(storeWorkflowFilter(flutterStore));
   return (filename) => filters.every((keep) => keep(filename));
 }
@@ -203,7 +207,8 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
     type, projectPath: paths.get(type) || ".", repoName, resolvers, values: envValues, useDefaults: envUseDefaults,
     savedValues: saved.get(type) || null,
   });
-  const dirCtx = { srcText, baseline, decisions, restoreRemoved, baselineTargets };
+  const available = payloadWorkflowNames(payloadRoot);
+  const dirCtx = { srcText, baseline, decisions, restoreRemoved, baselineTargets, available };
 
   // (1) common — 타입별과 동일 규칙 (README 계약).
   //     trunk-based 모드는 VERSION-CONTROL·AUTO-CHANGELOG 미설치 (RELEASE-PUBLISH 단독).
@@ -304,7 +309,8 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
   const conflicts = []; // 엔진 처리 순서와 동일 (common → 타입 순회 → 직하위 → server-deploy)
   const removed = [];
 
-  const keepDeploy = deployFilter(deployStyle);
+  const available = payloadWorkflowNames(payloadRoot);
+  const keepDeploy = deployFilter(deployStyle, available);
   const collect = (srcDir, envOpts, type, skipFile = () => false, filter = null) => {
     const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline, filter);
     for (const f of c.changed) { if (!skipFile(f)) conflicts.push({ filename: f, type }); }
@@ -328,7 +334,7 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
     };
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) {
-      collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore));
+      collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore, available));
     }
     const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
@@ -360,8 +366,8 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
 
 function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
   const { deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
-  const keepDeploy = deployFilter(deployStyle);
-  const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore);
+  const keepDeploy = deployFilter(deployStyle, dirCtx.available);
+  const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore, dirCtx.available);
   const { srcText, baselineTargets } = dirCtx;
   const typeDir = join(projectTypesDir, type);
   const envOpts = envOptsFor(type);
@@ -369,9 +375,8 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   // 치환을 다시 걸면 사용자 수정본을 덮어쓰게 된다.
   const untouched = [];
 
-  // 타입별 워크플로우 (직하위). go/python처럼 CD 워크플로우가 server-deploy 없이 타입 루트에
-  // 바로 있는 타입도 있다 — "배포 안 함"일 때는 타입 루트에서도 CD 파일(SIMPLE-CICD 등)을
-  // 걸러야 한다. simple/nginx/traefik은 오늘과 동일하게 필터 없이 전부 복사한다.
+  // 타입별 워크플로우 (직하위). go/python·react/next처럼 서버 배포 워크플로우가 server-deploy 없이
+  // 타입 루트에 바로 있는 타입도 있어, 타입 루트에도 같은 배포 방식 필터를 건다.
   if (exists(typeDir)) {
     const c = processDir(typeDir, workflowsDir, envOpts, dirCtx, counters, keepTypeRoot);
     untouched.push(...c.unchanged, ...c.localOnly);
@@ -416,6 +421,7 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
   const saved = readSavedDeployValues(targetRoot);
+  const available = payloadWorkflowNames(payloadRoot);
   const branchMode = context.branches?.mode || "pr-flow";
   // upstreamOnly/localOnly/removed는 baseline이 있을 때만 채워진다.
   const plan = { newFiles: [], unchanged: [], changed: [], upstreamOnly: [], localOnly: [], removed: [] };
@@ -441,12 +447,12 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null };
     const typeDir = join(projectTypesDir, type);
     if (exists(typeDir)) {
-      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, buildTypeRootFilter(type, deployStyle, flutterStore)), type);
+      merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, buildTypeRootFilter(type, deployStyle, flutterStore, available)), type);
     }
 
     const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
-      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle)), type);
+      merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle, available)), type);
     }
   }
 

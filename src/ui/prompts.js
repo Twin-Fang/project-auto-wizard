@@ -99,20 +99,22 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
 // 배포 방식 선택. 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
 // 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
 // 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
-// "서버 배포 안 함"은 server-deploy 폴더 자체(PR 프리뷰 포함)를 제외한다 — 서버 배포를
+// "서버 배포 안 함"은 모든 타입에서 서버 배포 워크플로우(CD·PR 프리뷰)를 제외한다 — 서버 배포를
 // 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 선택지다.
-export async function selectDeployStyle() {
+// nonstop=false면(선택한 타입 어디에도 무중단 워크플로우가 없음) 고를 수 없는 무중단 선택지를 빼고 묻는다.
+export async function selectDeployStyle({ nonstop = true } = {}) {
   engine.note(
     "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
-    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 선택과 무관하게 함께 설치됩니다\n" +
-    "(단, server-deploy 폴더가 있는 타입(spring)은 \"서버 배포 안 함\"을 고르면 PR 프리뷰도 함께 제외됩니다).",
+    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 배포 방식과 함께 설치되고,\n" +
+    "\"서버 배포 안 함\"을 고르면 모든 타입에서 CD와 PR 프리뷰를 함께 제외합니다.\n" +
+    "무중단 배포는 spring에만 있습니다 — 다른 타입(python·go·react·next)은 단일 서버 배포로 설치됩니다.",
     "배포 방식",
   );
   return engine.select({
     message: "서버 배포는 어떤 방식으로 할까요?",
     options: [
-      ...DEPLOY_STYLES.map((s) => ({ value: s.value, label: s.label })),
-      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD 워크플로우/배포 설정을 생성하지 않음" },
+      ...DEPLOY_STYLES.filter((s) => nonstop || s.value === "simple").map((s) => ({ value: s.value, label: s.label })),
+      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD·PR 프리뷰 워크플로우와 배포 설정을 생성하지 않음" },
     ],
   });
 }

@@ -10,7 +10,7 @@ import { PAYLOAD } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
-import { deployFilter, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { deployFilter, payloadWorkflowNames, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { buildTypeRootFilter, readSavedDeployValues } from "../core/copy/workflows.js";
 import * as engine from "./readline-engine.js";
 
@@ -44,7 +44,8 @@ export function scopeString(usages = []) {
 export function collectAsks(payloadRoot, types = [], opts = {}) {
   const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null, saved = new Map() } = opts;
   // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
-  const keepDeploy = deployFilter(deployStyle);
+  const available = payloadWorkflowNames(payloadRoot);
+  const keepDeploy = deployFilter(deployStyle, available);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
   const keys = [];
   const defaults = new Map();
@@ -59,15 +60,11 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   for (const type of types) {
     const typeDir = join(baseDir, type);
     if (!exists(typeDir)) continue;
-    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + ("배포 안 함"이
-    // 아닐 때만) server-deploy. server-deploy가 있는 타입은 "none"일 때 그 폴더(PR 프리뷰
-    // 포함) 자체를 스캔에서 뺀다.
-    // go/python처럼 CD가 server-deploy 없이 타입 루트에 바로 있는 타입은, "배포 안 함"일 때
-    // 타입 루트 스캔에도 keepDeploy를 걸어야 CD 전용 ask 키(예: DEPLOY_PORT)가 걸러진다.
-    // PR 프리뷰 자체의 ask 키(SSH_AUTH_METHOD 등)는 이 필터로는 걸러지지 않는다 — PR 프리뷰는
-    // 배포 방식과 무관하게 항상 설치되는 별도 축이라 의도된 잔여 범위다.
+    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + ("배포 안 함"이 아닐 때만) server-deploy.
+    // go/python·react/next처럼 서버 배포 워크플로우가 타입 루트에 바로 있는 타입도 같은 배포 방식
+    // 필터로 거른다 — "배포 안 함"이면 CD·PR 프리뷰 전용 ask 키(DEPLOY_PORT, SSH_AUTH_METHOD 등)를 묻지 않는다.
     // Flutter는 선택 해제된 스토어 워크플로우(PLAYSTORE·TESTFLIGHT)도 같은 필터로 걸러 질문 범위가 설치 범위와 같다.
-    units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore)]);
+    units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore, available)]);
     if (deployStyle !== NO_DEPLOY_STYLE) {
       units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
     }
