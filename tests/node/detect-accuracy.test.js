@@ -68,6 +68,12 @@ test("versionFromPom: 프로젝트 버전이 <parent>보다 앞에 있어도 부
   assert.strictEqual(versionFromPom(pom), "9.9.9");
 });
 
+test("versionFromPom: 프로젝트 버전이 없으면 의존성 버전을 대신 고르지 않는다", () => {
+  const pom = `<project><parent><version>3.4.0</version></parent>
+  <dependencies><dependency><version>9.9.9</version></dependency></dependencies></project>`;
+  assert.strictEqual(versionFromPom(pom), null);
+});
+
 test("detectVersionFromFiles: 폴백 경고 문구는 호출부가 준 hint를 쓴다 (대화형/CLI 분기)", () => {
   const warned = [];
   detectVersionFromFiles({

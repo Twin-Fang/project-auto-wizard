@@ -68,6 +68,77 @@ class TestSyncSpringDependencyVersions(SyncTestCase):
         self.assertIn('compose_version = "1.5.0"', text)
 
 
+POM = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <!-- <version>0.0.0</version> -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.4.0</version>
+  </parent>
+  <groupId>com.example</groupId>
+  <artifactId>my-service</artifactId>
+  <version>1.4.0</version>
+  <dependencies>
+    <dependency>
+      <groupId>org.example</groupId>
+      <artifactId>lib</artifactId>
+      <version>1.4.0</version>
+    </dependency>
+  </dependencies>
+</project>
+"""
+
+CHILD_POM = """<project>
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>my-service</artifactId>
+    <version>1.4.0</version>
+  </parent>
+  <artifactId>my-service-api</artifactId>
+</project>
+"""
+
+
+class TestSyncMaven(SyncTestCase):
+    def make_maven(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").unlink()
+        (Path(tmp) / "pom.xml").write_text(POM, encoding="utf-8")
+        (Path(tmp) / "api").mkdir()
+        (Path(tmp) / "api" / "pom.xml").write_text(CHILD_POM, encoding="utf-8")
+        return tmp
+
+    def test_get_reads_project_version_from_pom(self):
+        tmp = self.make_maven()
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.0")
+
+    def test_increment_updates_only_project_version(self):
+        tmp = self.make_maven()
+        run(["set", "1.4.0"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.1")
+        text = (Path(tmp) / "pom.xml").read_text(encoding="utf-8")
+        self.assertIn("<artifactId>my-service</artifactId>\n  <version>1.4.1</version>", text)
+        # 부모 BOM·의존성·주석의 버전은 그대로
+        self.assertIn("<version>3.4.0</version>", text)
+        self.assertIn("<artifactId>lib</artifactId>\n      <version>1.4.0</version>", text)
+        self.assertIn("<!-- <version>0.0.0</version> -->", text)
+        child = (Path(tmp) / "api" / "pom.xml").read_text(encoding="utf-8")
+        self.assertIn("<version>1.4.1</version>", child)
+
+    def test_property_version_is_left_alone(self):
+        tmp = self.make_maven()
+        pom = Path(tmp) / "pom.xml"
+        pom.write_text(POM.replace("<version>1.4.0</version>\n  <dependencies>",
+                                   "<version>${revision}</version>\n  <dependencies>"), encoding="utf-8")
+        run(["set", "2.0.0"], tmp)
+        self.assertIn("<version>${revision}</version>", pom.read_text(encoding="utf-8"))
+
+
 class TestSyncFlutter(SyncTestCase):
     def test_sync_updates_pubspec_with_build_number(self):
         tmp = self.make_tmp("flutter")

@@ -80,13 +80,32 @@ export function versionFromPyproject(content) {
   return null;
 }
 
-// Maven pom.xml의 프로젝트 버전. <parent> 블록 안의 버전은 스프링 부트 BOM 버전이라
-// 프로젝트 버전이 아니다 — 그 구간을 지운 뒤 첫 <version>을 읽는다.
+// Maven pom.xml의 프로젝트 버전 — <project> 바로 아래의 <version>만 본다.
+// <parent>(스프링 부트 BOM)나 <dependencies> 안의 버전은 프로젝트 버전이 아니므로 깊이로 구분한다.
+// 프로젝트 버전이 없으면(부모에서 상속) null — 의존성 버전을 대신 고르지 않는다.
 export function versionFromPom(content) {
   if (!content) return null;
-  const body = String(content).replace(/<parent>[\s\S]*?<\/parent>/g, "");
-  const m = body.match(/<version>\s*(\d+\.\d+\.\d+)[^<]*<\/version>/);
-  return m ? m[1] : null;
+  const text = String(content);
+  const tokenRe = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<![^>]*>|<(\/?)([A-Za-z_][\w.:-]*)[^>]*?(\/?)>/g;
+  const stack = [];
+  let start = -1;
+  let m;
+  while ((m = tokenRe.exec(text))) {
+    const name = m[2];
+    if (!name) continue;
+    if (m[1]) {
+      if (start >= 0 && stack.length === 2 && stack[1] === "version") {
+        const v = text.slice(start, m.index).trim().match(/^(\d+\.\d+\.\d+)/);
+        return v ? v[1] : null;
+      }
+      stack.pop();
+      continue;
+    }
+    if (m[3]) continue;
+    stack.push(name);
+    if (stack.length === 2 && name === "version") start = tokenRe.lastIndex;
+  }
+  return null;
 }
 
 export function markerForType(type) {

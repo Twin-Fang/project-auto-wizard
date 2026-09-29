@@ -316,18 +316,97 @@ def _write_nested_scalar(key, value):
 # Project file sync (type-specific)
 # ===================================================================
 
-_GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])[^'"\n]*\2""", re.MULTILINE)
+_XML_TOKEN_RE = re.compile(
+    r'<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<![^>]*>|<(/?)([A-Za-z_][\w.:-]*)[^>]*?(/?)>',
+    re.DOTALL,
+)
+
+
+def _pom_text_span(text, path):
+    """루트(<project>) 기준 경로의 요소 텍스트 구간 (start, end). 없으면 None.
+    <parent>·<dependencies> 안의 <version>은 다른 아티팩트 버전이라 깊이로 구분한다."""
+    stack = []
+    start = None
+    target = list(path)
+    for m in _XML_TOKEN_RE.finditer(text):
+        name = m.group(2)
+        if not name:
+            continue  # 주석·CDATA·선언
+        if m.group(1):  # 닫는 태그
+            if start is not None and stack[1:] == target:
+                return start, m.start()
+            if stack:
+                stack.pop()
+            continue
+        if m.group(3):  # <tag/>
+            continue
+        stack.append(name)
+        if stack[1:] == target:
+            start = m.end()
+    return None
+
+
+def _pom_text(text, path):
+    span = _pom_text_span(text, path)
+    return text[span[0]:span[1]].strip() if span else None
+
+
+def _pom_replace(text, path, value):
+    span = _pom_text_span(text, path)
+    if not span:
+        return text, False
+    return text[:span[0]] + value + text[span[1]:], True
+
+
+def sync_maven(path_dir, new_version):
+    """pom.xml의 프로젝트 자신의 <version>만 바꾼다. 하위 모듈은 루트를 가리키는
+    <parent><version>(과 루트와 같던 자기 <version>)만 따라 올린다."""
+    root_pom = Path(path_dir) / "pom.xml"
+    if not root_pom.is_file():
+        return False
+    text = read_file(root_pom)
+    old_version = _pom_text(text, ["version"])
+    if old_version is None:
+        log(f"WARNING: spring: {root_pom} has no project <version> (inherited from parent?) — skipping")
+        return True
+    if "${" in old_version:
+        # ${revision} 같은 CI-friendly 버전은 프로퍼티 쪽에서 관리하므로 건드리지 않는다.
+        log(f"WARNING: spring: {root_pom} <version> is a property ({old_version}) — skipping")
+        return True
+    new_text, _ = _pom_replace(text, ["version"], new_version)
+    write_file(root_pom, new_text)
+    log(f"updated: {root_pom}")
+
+    root_artifact = _pom_text(text, ["artifactId"])
+    for child in sorted(Path(path_dir).glob("*/pom.xml")):
+        ctext = read_file(child)
+        if _pom_text(ctext, ["parent", "artifactId"]) != root_artifact:
+            continue
+        if _pom_text(ctext, ["parent", "version"]) != old_version:
+            continue
+        ctext, _ = _pom_replace(ctext, ["parent", "version"], new_version)
+        if _pom_text(ctext, ["version"]) == old_version:
+            ctext, _ = _pom_replace(ctext, ["version"], new_version)
+        write_file(child, ctext)
+        log(f"updated: {child}")
+    return True
+
+
+_GRADLE_VERSION_RE =re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])[^'"\n]*\2""", re.MULTILINE)
 
 
 def sync_spring(path_dir, new_version):
-    """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2)."""
+    """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2),
+    and pom.xml for Maven projects."""
     candidates = []
     for name in ("build.gradle", "build.gradle.kts"):
         for p in [Path(path_dir) / name] + list(Path(path_dir).glob("*/" + name)):
             if p.is_file():
                 candidates.append(p)
+    has_pom = sync_maven(path_dir, new_version)
     if not candidates:
-        log(f"WARNING: spring: no build.gradle(.kts) found under {path_dir} — skipping")
+        if not has_pom:
+            log(f"WARNING: spring: no build.gradle(.kts) or pom.xml found under {path_dir} — skipping")
         return
     for gradle_file in candidates:
         text = read_file(gradle_file)
@@ -472,6 +551,11 @@ def get_project_file_version(project_type):
                     if m:
                         version = m.group(1)
                     break
+            pom = Path(path_dir) / "pom.xml"
+            if version is None and pom.is_file():
+                pom_version = _pom_text(read_file(pom), ["version"])
+                if pom_version and SEMVER_RE.match(pom_version):
+                    version = pom_version
         elif project_type == "flutter":
             p = Path(path_dir) / "pubspec.yaml"
             if p.is_file():
