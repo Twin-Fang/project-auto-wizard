@@ -6,6 +6,14 @@ export const MARKER = "<!-- AUTO-VERSION-SECTION";
 // ## (최신 버전|최신버전|Version|버전) : vX.Y.Z (대소문자 무시)
 const VERSION_LINE_RE = /##\s*(최신\s*버전|최신버전|Version|버전)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 
+// 실행 로그용 설명 — 상태 코드만 남기면 나중에 로그를 읽는 사람이 의미를 다시 찾아봐야 한다.
+export const README_STATUS_LABEL = {
+  added: "README.md 끝에 버전 섹션 추가",
+  "skip-no-readme": "README.md가 없어 버전 섹션을 추가하지 않음",
+  "skip-marker": "이미 버전 섹션이 있어 그대로 둠",
+  "skip-version-line": "이미 버전 줄이 있어 그대로 둠",
+};
+
 // README.md 없으면 스킵. 마커 또는 버전 라인 있으면 스킵. 없으면 파일 끝에 append.
 // 반환: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
 export function addVersionSectionToReadme(version, targetRoot = ".") {

@@ -10,7 +10,7 @@ import { PATHS } from "../core/paths.js";
 import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
-import { addVersionSectionToReadme } from "../core/copy/readme.js";
+import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts } from "../core/copy/simple.js";
 import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
@@ -74,10 +74,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
 
   // 3. README 버전 섹션
-  addVersionSectionToReadme(version, targetRoot);
+  const readme = addVersionSectionToReadme(version, targetRoot);
+  log.info("readme", readme === "added" ? "append" : "skip", README_STATUS_LABEL[readme] || readme);
 
-  // 4. scripts (payload/scripts/*.py → .github/scripts/)
-  copyScripts(payloadRoot, targetRoot);
+  // 4. scripts (payload/scripts/*.py → .github/scripts/) — 항상 덮어쓰므로 사용자 수정이 사라진 사실도 남긴다.
+  const scripts = copyScripts(payloadRoot, targetRoot);
+  for (const { name, action } of scripts) {
+    log.info("script", action, `${PATHS.scriptsDir}/${name}${action === "overwrite" ? " (기존 내용과 달라 새 버전으로 덮어씀)" : ""}`);
+  }
 
   // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
   //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다.
@@ -114,7 +118,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
 
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
-  if (gitignoreUpdated) ensureGitignore(targetRoot);
+  if (gitignoreUpdated) {
+    const gi = ensureGitignore(targetRoot);
+    log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
+      gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : ".gitignore (이미 있는 항목)");
+  }
 
   // 7. baseline 기록 — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
   //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
@@ -157,7 +165,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

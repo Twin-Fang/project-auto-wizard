@@ -59,3 +59,40 @@ test("runFull: .md 설치 로그는 더 이상 생성되지 않는다", () => {
     assert.ok(!files.some((f) => f.endsWith(".md")), ".md 로그가 없어야 한다");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
+
+test("runFull: 스크립트 덮어쓰기와 README·.gitignore 결과가 파일별 결정으로 남는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-logdecide-"));
+  try {
+    mkdirSync(join(target, "src/main/resources"), { recursive: true });
+    writeFileSync(join(target, "src/main/resources/application.yaml"), "");
+    writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
+    writeFileSync(join(target, "README.md"), "# my-service\n");
+    // 사용자가 고친 스크립트 — 설치가 덮어쓴 사실이 로그에 남아야 한다
+    mkdirSync(join(target, ".github/scripts"), { recursive: true });
+    writeFileSync(join(target, ".github/scripts/version_manager.py"), "# my script edit\n");
+
+    resetLogger();
+    const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    const result = runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
+    closeLogger();
+
+    const body = readFileSync(join(target, r.path), "utf8");
+    assert.match(body, /INFO {2}script {4}overwrite {3}\.github\/scripts\/version_manager\.py \(기존 내용과 달라/, "덮어쓴 스크립트");
+    assert.match(body, /INFO {2}script {4}create {6}\.github\/scripts\/changelog_manager\.py/, "새로 만든 스크립트");
+    assert.match(body, /INFO {2}readme {4}append {6}README\.md 끝에 버전 섹션 추가/, "README 결과");
+    assert.strictEqual(result.readme, "added");
+    assert.strictEqual(result.scripts.find((s) => s.name === "version_manager.py").action, "overwrite");
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
+
+test("runFull: README.md가 없으면 추가하지 않았다는 사실이 로그에 남는다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-lognoreadme-"));
+  try {
+    writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
+    resetLogger();
+    const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
+    runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
+    closeLogger();
+    assert.match(readFileSync(join(target, r.path), "utf8"), /INFO {2}readme {4}skip {8}README\.md가 없어/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
