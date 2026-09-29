@@ -1,29 +1,24 @@
 // breaking-changes 확인 흐름 배선 (.sh check_breaking_changes L2506~2616 등가).
-// collectBreaking(순수 비교)은 breaking.js — 이 모듈은 로드(원격→clone본 폴백)·표시·확인 게이트.
+// collectBreaking(순수 비교)은 breaking.js — 이 모듈은 로드(패키지 번들본)·표시·확인 게이트.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { collectBreaking } from "./breaking.js";
 import { parseExisting } from "./version-yml.js";
 
-const BC_URL = "https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/payload/config/breaking-changes.json";
-
-// 원격 우선(3초 타임아웃) → 패키지 payload/config 번들본 폴백 → 둘 다 실패 시 null(조용히 스킵 — .sh 등가)
-export async function loadBreakingJson(payloadRoot) {
-  try {
-    const res = await fetch(BC_URL, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) return await res.json();
-  } catch { /* 원격 실패 — 폴백 */ }
+// 패키지에 동봉된 payload/config 번들본만 읽는다. 원격(main)을 읽으면 같은 패키지 버전이라도
+// 실행 시점마다 결과가 달라지고 설치 중 네트워크 요청이 생긴다. 읽기 실패 시 null(조용히 스킵).
+export function loadBreakingJson(payloadRoot) {
   try {
     const p = join(payloadRoot, "config", "breaking-changes.json");
     if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
-  } catch { /* 폴백 실패 — 스킵 */ }
+  } catch { /* 번들 읽기 실패 — 스킵 */ }
   return null;
 }
 
 // 반환: true=진행, false=사용자 취소.
 // opts:
 //   cwd             - 통합 대상 루트 (기존 version.yml에서 현재 템플릿 버전 읽음)
-//   payloadRoot     - 패키지 payload/ 루트 (번들 폴백용)
+//   payloadRoot     - 패키지 payload/ 루트 (번들 breaking-changes.json 위치)
 //   templateVersion - 설치하려는 템플릿 버전 (.sh의 DEFAULT_VERSION 고정 버그를 실버전으로 교정)
 //   askYesNo        - async(message, defaultYes)→bool. null이면 비대화형: 경고만 출력 후 진행
 //   loader          - 테스트 주입용 (기본 loadBreakingJson)

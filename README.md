@@ -124,11 +124,12 @@ flutter.APP_ARTIFACT_NAME:
 
 | 대상 | Secrets | Variables |
 |---|---|---|
-| 모든 Flutter 빌드 | `ENV_FILE` (없으면 `ENV`) | — |
-| Android 서명 (`PLAYSTORE`·`FIREBASE`·`TEST-APK`) | `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`(`TEST-APK`는 없으면 경고 후 debug 키로 서명), `GOOGLE_SERVICES_JSON`(선택) | — |
-| Play Store (`PLAYSTORE`) | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_PACKAGE_NAME` | `ANDROID_PACKAGE_NAME`(Secret이 없을 때 대신 사용), `ANDROID_DEPLOY_MODE`(선택) |
-| iOS (`IOS-TESTFLIGHT`·`IOS-TEST-TESTFLIGHT`) | `APP_STORE_CONNECT_API_KEY_BASE64`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`, `IOS_PROVISIONING_PROFILE_NAME`, `IOS_BUNDLE_ID`, `SECRETS_XCCONFIG`(선택) | `IOS_BUNDLE_ID`(Secret이 없을 때 대신 사용), `IOS_DEPLOY_MODE`(선택) |
-| Firebase 배포 (`FIREBASE`·`TEST-APK`) | `FIREBASE_SERVICE_ACCOUNT_JSON_BASE64` | — |
+| Flutter 빌드 공통 | `ENV_FILE` (없으면 `ENV`) — `PLAYSTORE`·`FIREBASE`·`SELFHOSTED`는 필수, CI·`TEST-APK`·iOS는 선택 | — |
+| Android 서명 (`PLAYSTORE`·`FIREBASE`·`TEST-APK`) | `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` (`TEST-APK`는 없으면 경고 후 debug 키로 서명) | — |
+| Firebase 설정 파일 (`PLAYSTORE`·`FIREBASE`·`TEST-APK`·`SELFHOSTED`) | `GOOGLE_SERVICES_JSON`(선택) | — |
+| Play Store (`PLAYSTORE`) | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_PACKAGE_NAME`(Secret 또는 Variable) | `ANDROID_PACKAGE_NAME`(Secret이 없을 때 대신 사용), `ANDROID_DEPLOY_MODE`(선택) |
+| iOS (`IOS-TESTFLIGHT`·`IOS-TEST-TESTFLIGHT`) | `APP_STORE_CONNECT_API_KEY_BASE64`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`, `IOS_PROVISIONING_PROFILE_NAME`, `IOS_BUNDLE_ID`(`IOS-TESTFLIGHT`만, Secret 또는 Variable), `SECRETS_XCCONFIG`(선택) | `IOS_BUNDLE_ID`(Secret이 없을 때 대신 사용), `IOS_DEPLOY_MODE`(선택) |
+| Firebase App Distribution (`FIREBASE`·`TEST-APK`) | `FIREBASE_SERVICE_ACCOUNT_JSON_BASE64` (`TEST-APK`는 선택 — 있을 때만 업로드) | — |
 | Selfhosted 배포 (`SELFHOSTED`) | `SERVER_HOST`, `SERVER_USER`, `SERVER_PASSWORD`, `DEBUG_KEYSTORE`(선택 — 없으면 빌드마다 새 debug 키로 서명) | — |
 
 `ANDROID_PACKAGE_NAME`은 `PLAYSTORE` 워크플로우가 fastlane에 패키지명으로 넘깁니다(`secrets` 우선, 없으면 `vars`). iOS의 `IOS_BUNDLE_ID`와 같은 플랫폼 접두사 규칙입니다.
@@ -155,11 +156,15 @@ flutter.APP_ARTIFACT_NAME:
 설치·업데이트·삭제를 실행할 때마다 `.github/.wizard/logs/<시각>-<동작>.log`에 실행 추적이 남습니다. 감지 근거, **파일별 처리 결정과 그 사유**, 치환된 값, 미치환 항목, 등록해야 하는 GitHub Secret이 시간순으로 기록되고, 파일 끝에 결과 요약이 붙습니다.
 
 ```
-07:46:01 INFO  detect    type        spring (근거: build.gradle)
-07:46:01 INFO  copy      write       PROJECT-SPRING-SIMPLE-CICD.yaml (new)
-07:46:01 INFO  copy      keep-local  PROJECT-COMMON-VERSION-CONTROL.yaml (업스트림 무변경, 사용자 수정본 유지)
-07:46:01 WARN  verify    unresolved  PROJECT-SPRING-PR-PREVIEW.yaml:43 __APPLICATION_YML_PATH__
+=== project-auto-wizard v0.12.2 | install | 2026-09-29 08:01:22 UTC ===
+...
+08:01:22.919 INFO  detect    type        spring (근거: build.gradle)
+08:01:22.921 INFO  copy      write       PROJECT-SPRING-SIMPLE-CICD.yaml (new)
+08:01:22.922 INFO  copy      keep-local  PROJECT-COMMON-VERSION-CONTROL.yaml (업스트림 무변경, 사용자 수정본 유지)
+08:01:22.948 WARN  verify    unresolved  PROJECT-SPRING-PR-PREVIEW.yaml:43 __APPLICATION_YML_PATH__
 ```
+
+시각은 UTC 기준이며 밀리초까지 기록합니다(파일명과 헤더도 UTC). 한국 시간과는 9시간 차이가 납니다.
 
 업데이트에서 "내가 고친 워크플로우가 유지됐는지 덮였는지"를 이 로그로 확인할 수 있습니다. 한 줄씩 즉시 기록하므로 도중에 중단되어도 직전까지의 흐름이 남습니다. 로그 기록에 실패해도 설치 자체는 정상 완료됩니다.
 
@@ -209,7 +214,7 @@ flowchart LR
 flowchart LR
     subgraph pr-flow ["pr-flow (기본)"]
         D1[develop push] --> PR[develop→main 릴리스 PR]
-        PR --> V["버전 확정 (patch+1)"]
+        PR --> V["버전 확정 (커밋 타입 기반 승격)"]
         V --> AI[릴리스 노트]
         AI --> CL[CHANGELOG.json/md 갱신]
         CL --> AM[automerge]
@@ -233,19 +238,21 @@ npx project-auto-wizard [옵션]
       --project-version V  초기 버전 (미지정 시 자동 감지)
       --paths "t=p,..."    모노레포 타입별 경로
       --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
-      --develop-branch B   개발 브랜치 (기본: develop)
+      --develop-branch B   개발 브랜치 (기본: develop). 릴리스 브랜치와 같으면 trunk-based 모드
       --deploy-style S     서버 배포 방식: simple | nginx | traefik | none (기본: simple)
       --flutter-env-mode M     Flutter 환경변수 방식: dart-define | dotenv (신규 기본: dart-define, 저장값 없는 기존 설치는 dotenv 유지)
-      --flutter-store CSV      Flutter 스토어 배포 대상: android,ios,none (미지정 시 둘 다 설치)
+      --flutter-store CSV      Flutter 스토어 배포 대상: android,ios | android | ios | none (미지정 시 둘 다 설치)
       --android-deploy-mode M  Play Store 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --ios-deploy-mode M      iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --semver-auto        커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함, --no-semver-auto로 끔)
       --copilot            Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비, --no-copilot으로 끔)
-      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌
+      --force              full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용)
+      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
       --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
       --purge-version       --mode uninstall --force 시 version.yml도 제거
-      --force              full/version/workflows/revert 실행에 필수 (전 질문 생략, CI용)
+  -v, --version            project-auto-wizard 버전 출력
+  -h, --help               도움말 표시
 ```
 
 ## 설치 상태 확인 · 진단 · 미리보기
@@ -257,7 +264,7 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 
 | 명령 | 내용 |
 |---|---|
-| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값(Flutter 프로젝트면 환경변수 방식·스토어 배포 대상·배포 모드 포함)과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
+| `--mode status` | 설치된 버전·타입·브랜치 모드·옵션값(`semver_auto`, `copilot_ai`, 서버 배포가 있는 타입이면 `deploy_style`, Flutter 프로젝트면 환경변수 방식·스토어 배포 대상·배포 모드)과, 설치 시점 대비 사용자가 직접 수정한 워크플로우 파일 목록을 보여줍니다. 현재 버전에 없는 이전 워크플로우가 남아 있으면 따로 표시하고, 설치 기록이 있으면 지금 업데이트했을 때 자동 적용·유지·충돌 건수도 보여줍니다. 네트워크 접근 없음(로컬 파일 비교만) |
 | `--mode doctor` | `version.yml` 설치 여부, `gh` CLI 설치/인증 상태, GitHub Actions workflow permissions, `WORKFLOW_PAT` secret 등록 여부, merge commit 허용 설정을 점검합니다. Flutter 프로젝트에서는 고른 스토어 플랫폼의 필수 파일(`Fastfile`, `ExportOptions.plist` 등)과 `ExportOptions.plist`의 플레이스홀더 잔존 여부도 점검합니다(로컬 파일만 확인, 스토어 시크릿 등록 여부는 점검하지 않음). `gh api` 호출을 사용하므로 네트워크 접근이 발생합니다(규칙 기반 점검 — AI 진단 아님) |
 
 `doctor`는 항목마다 **그 설정이 무엇을 담당하는지**를 라벨에 함께 표시하고, 문제가 있는 항목만 `현상 → 그대로 두면 무엇이 안 되는지 → 어디를 눌러 고치는지 → 문서 링크` 순으로 펼쳐 보여줍니다. 정상 항목은 한 줄로 압축됩니다. GitHub 설정 화면에 실제로 표시되는 문자열(`Read and write permissions` 등)은 화면에서 찾을 수 있도록 원문 그대로 출력합니다.
@@ -265,18 +272,20 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 ```
 ◆  환경 진단 — project-auto-wizard doctor
 
-  [✓] gh CLI — 레포 설정 조회용                    gh version 2.96.0
-  [✓] GitHub 로그인 — 레포 설정 조회 권한          인증됨
-  [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건  허용됨
+  [✓] 설치 상태 — 이 폴더의 마법사 설치 여부          version.yml 있음
+  [✓] gh CLI — 레포 설정 조회용                       gh version 2.96.0 (2026-09-01)
+  [✓] GitHub 로그인 — 레포 설정 조회 권한             인증됨
+  [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건    허용됨
 
   [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
       현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
+      직접 추가한 워크플로우에서 permissions를 생략했다면 이 기본값을 따르므로, 그때만 Read and write로 올리세요.
   [i] WORKFLOW_PAT — 자동 태그·Release 발행
       secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.
       속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).
       등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT
   [i] Copilot AI 요약 — AI 릴리스 노트 생성(선택)
-      기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).
+      꺼져 있습니다 (version.yml의 copilot_ai: false) — 켜려면 --copilot으로 다시 설치하거나 대화형 '수정하기 > Copilot AI 요약'을 쓰세요.
       켜면 GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.
       꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.
 
@@ -285,7 +294,7 @@ npx project-auto-wizard --mode doctor   # 환경 진단 (읽기 전용, 규칙 �
 
 > **드리프트 판정 기준**: `--mode status`는 설치된 워크플로우 파일이 "설치 시점 기본값 템플릿"과 바이트 단위로 일치하는지만 비교합니다 — 파일을 직접 편집했는지는 추적하지 않습니다. 대화형 설치에서 `@wizard ask` 질문(예: 배포 포트)에 기본값이 아닌 값으로 응답했다면, 파일을 전혀 수정하지 않았더라도 설치 직후부터 항상 "사용자가 수정한 워크플로우 파일"로 표시됩니다. 정상 동작이며, 파일을 직접 편집했는지 구분하려면 해당 값이 예상한 응답과 일치하는지 직접 확인하세요.
 
-`--dry-run`을 어떤 모드와도 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다(`full`/`version`/`workflows`/`revert` 전체 지원):
+`--dry-run`을 `full` 또는 `uninstall`과 함께 쓰면 실제로 파일을 바꾸지 않고 무엇이 바뀔지만 미리 보여줍니다. 파일을 쓰지 않으므로 `--force` 없이도 실행됩니다:
 
 ```bash
 npx project-auto-wizard --mode full --force --type node --dry-run
@@ -293,7 +302,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run
 
 ### 자동 semver 승격 (`--semver-auto`)
 
-기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, 표준 타입 뒤 `!` 브레이킹 마커(`feat!:`, `fix(api)!:` 등) 또는 본문의 `BREAKING CHANGE:` 푸터 → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 분류가 애매한 커밋은 AI 엔진 체인이 patch→minor 승격 여부를 판단합니다. 끄면 기존과 동일하게 항상 patch+1입니다. 타입은 대소문자를 가리지 않습니다. 커밋 본문은 줄 맨 앞에서 시작하는 `BREAKING CHANGE:` 푸터만 읽고 나머지 본문은 판정에 쓰지 않습니다.
+기본적으로 켜져 있습니다. 커밋 메시지 컨벤션(`feat:` → minor, 표준 타입 뒤 `!` 브레이킹 마커(`feat!:`, `fix(api)!:` 등) 또는 본문의 `BREAKING CHANGE:` 푸터 → major, 그 외 → patch)을 기반으로 다음 버전을 자동으로 계산합니다. 결과가 patch인데 컨벤션을 따르지 않는 커밋이 있으면, 사용자 지정 AI나 Copilot이 설정된 경우에 한해 AI가 patch→minor 승격 여부만 보조 판단합니다(major는 만들지 않음). AI가 꺼져 있으면(기본) 규칙 결과를 그대로 씁니다. 끄면 기존과 동일하게 항상 patch+1입니다. 타입은 대소문자를 가리지 않습니다. 커밋 본문은 줄 맨 앞에서 시작하는 `BREAKING CHANGE:` 푸터만 읽고 나머지 본문은 판정에 쓰지 않습니다.
 
 ```bash
 npx project-auto-wizard --semver-auto      # 기본값, 명시 지정도 가능
@@ -318,7 +327,7 @@ npx project-auto-wizard --no-semver-auto   # 항상 patch+1 (레거시 동작)
 
 ## 설계 원칙
 
-- **payload 단일 진실**: 마법사가 설치하는 모든 자산은 npm 패키지 동봉 `payload/` 하나에서 나옵니다. 템플릿 레포 clone 없음, 네트워크 접근 0, 설치 재현성 100%
+- **payload 단일 진실**: 마법사가 설치하는 모든 자산은 npm 패키지 동봉 `payload/` 하나에서 나옵니다. 템플릿 레포 clone이나 원격 다운로드가 없어 같은 패키지 버전이면 설치 결과가 같습니다. 마법사 자체는 네트워크 요청을 하지 않으며, 기본 브랜치 감지(`git remote show origin`)·develop 브랜치 push·`--mode doctor`의 `gh` 조회처럼 사용자 레포를 대상으로 한 git/gh 명령만 원격에 접속합니다([SECURITY.md](SECURITY.md))
 - **크로스플랫폼 무결점**: 마법사는 Node, 설치되는 스크립트는 전부 Python. bash/PowerShell 이중 유지·macOS bash 3.2 함정을 **설계로 제거**
 - **graceful degradation**: AI 실패 → 다음 엔진 → 규칙 fallback. 릴리스가 도구 때문에 막히는 일은 없습니다
 - **표준 존중**: GitHub 기본 라벨·Releases·Conventional Commits — 커스텀 발명 대신 생태계 표준 위에 구축
@@ -340,7 +349,7 @@ flowchart TB
 ## 개발
 
 ```bash
-npm test          # node --test + python unittest (node 222 + py 87)
+npm test          # node --test + python unittest
 npm run test:node
 npm run test:py
 ```

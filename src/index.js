@@ -1,6 +1,7 @@
 // project-auto-wizard CLI 진입 파이프라인 (.sh main + execute_integration 등가).
 // 감지 → payload 해석 → 모드 라우팅 → 통합 실행. 비대화형(--force) 우선.
-// 네트워크 접근 0 — 설치 자산은 전부 npm 패키지 동봉 payload/ (단일 진실).
+// 설치 자산은 전부 npm 패키지 동봉 payload/ (단일 진실). 자체 네트워크 요청은 없고,
+// 기본 브랜치 감지용 git 명령만 사용자 레포의 origin에 접속할 수 있다.
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
@@ -240,7 +241,7 @@ async function runInner(argv, {
     printDoctorReport(runDoctor(cwd));
     return 0;
   }
-  // 명시 모드(full/version/workflows)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
+  // 명시 모드(full)인데 --force 없으면 TTY 여부와 무관하게 즉시 거부한다
   // (TTY에서 확인 없이 즉시 설치되던 결함 수정).
   // --dry-run은 파일을 쓰지 않으므로 --force 게이트를 우회한다 (status/doctor와 동일한 안전성).
   if (!opts.force && !opts.dryRun) {

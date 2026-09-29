@@ -2,10 +2,11 @@
 // runBreakingCheck(loader 주입)으로 실제 collectBreaking(breaking.js) 조합 동작을 검증한다.
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runBreakingCheck } from "../../src/core/breaking-check.js";
+import { fileURLToPath } from "node:url";
+import { runBreakingCheck, loadBreakingJson } from "../../src/core/breaking-check.js";
 import { collectBreaking } from "../../src/core/breaking.js";
 
 function makeRepo(templateVersion) {
@@ -32,7 +33,7 @@ test("no version.yml -> proceeds without loading breaking json", async () => {
   }
 });
 
-test("loader returns null -> proceeds (network/bundle both failed)", async () => {
+test("loader returns null -> proceeds (bundle missing or unreadable)", async () => {
   const dir = makeRepo("0.1.0");
   try {
     const proceed = await runBreakingCheck({
@@ -225,4 +226,30 @@ test("runBreakingCheck: version.yml의 project_types로 고지를 거른다", as
   }
   assert.doesNotMatch(stderr, /Flutter SELFHOSTED/);
   assert.match(stderr, /ci-gate/);
+});
+
+// ── 번들본만 사용 ─────────────────────────────────────────
+test("loadBreakingJson: 네트워크를 쓰지 않고 패키지 번들본을 그대로 읽는다", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalled = false;
+  globalThis.fetch = async () => { fetchCalled = true; throw new Error("fetch를 호출하면 안 된다"); };
+  try {
+    const payloadRoot = fileURLToPath(new URL("../../payload", import.meta.url));
+    assert.deepStrictEqual(await loadBreakingJson(payloadRoot), BUNDLED);
+    assert.strictEqual(fetchCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("loadBreakingJson: 번들본이 없거나 깨졌으면 null", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-bc-payload-"));
+  try {
+    assert.strictEqual(loadBreakingJson(dir), null);
+    mkdirSync(join(dir, "config"));
+    writeFileSync(join(dir, "config", "breaking-changes.json"), "{ broken");
+    assert.strictEqual(loadBreakingJson(dir), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

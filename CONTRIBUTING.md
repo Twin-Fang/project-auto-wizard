@@ -16,7 +16,7 @@ Node.js 20.12 이상, Python 3(테스트 실행용)이 필요합니다.
 
 ```bash
 node bin/project-auto-wizard.js --help
-node bin/project-auto-wizard.js --mode full --force --type node
+node bin/project-auto-wizard.js --mode full --force --type node --dry-run   # 이 레포에서는 미리보기만
 ```
 
 ## 테스트
