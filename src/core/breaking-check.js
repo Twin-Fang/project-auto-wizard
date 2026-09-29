@@ -30,13 +30,13 @@ export async function loadBreakingJson(payloadRoot) {
 export async function runBreakingCheck({ cwd, payloadRoot, templateVersion, askYesNo = null, loader = loadBreakingJson }) {
   const vy = join(cwd, "version.yml");
   if (!existsSync(vy)) return true; // 신규 통합 — 비교 기준 없음
-  const { templateVersion: current } = parseExisting(readFileSync(vy, "utf8"));
+  const { templateVersion: current, types } = parseExisting(readFileSync(vy, "utf8"));
   if (!current) return true; // 템플릿 메타 없음(unknown) — .sh 동일하게 스킵
 
   const json = await loader(payloadRoot);
   if (!json) return true;
 
-  const { critical, warnings } = collectBreaking(json, current, templateVersion);
+  const { critical, warnings } = collectBreaking(json, current, templateVersion, types);
   if (critical.length === 0 && warnings.length === 0) return true;
 
   // 박스 표시 (.sh L2580~2603)
