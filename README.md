@@ -1,12 +1,14 @@
 <div align="center">
 
+**English** · [한국어](README.ko.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
+
 # project-auto-wizard
 
 **One command sets up versioning, CHANGELOG, GitHub Releases and CI/CD in your repo.**
 
 Everything it installs is plain GitHub Actions in your own repository. No API keys, no hosted service.
 
-[Docs](README.ko.md) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md) · [한국어](README.ko.md)
+[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -144,11 +146,11 @@ Several types can live in one repo (`--type spring,react`), and monorepo subfold
 
 <a id="flutter-store"></a>
 
-Flutter store deployment (Play Store, Firebase, TestFlight) setup is described in [the Korean documentation](README.ko.md#flutter-store).
+Flutter store deployment (Play Store, Firebase, TestFlight) setup is described in the [Flutter page of the docs site](https://twin-fang.github.io/project-auto-wizard/project-types/flutter/).
 
 ## Documentation
 
-The full documentation is currently in Korean: [README.ko.md](README.ko.md). An English docs site is planned. It covers:
+The full documentation is at [twin-fang.github.io/project-auto-wizard](https://twin-fang.github.io/project-auto-wizard/), in English and Korean. Simplified Chinese and Japanese cover the landing page and quickstart; other pages fall back to English. It covers:
 
 - every CLI option, `--mode status`, `--mode doctor`, `--dry-run` and `--mode uninstall`
 - Flutter store deployment, deploy modes, required secrets and `ExportOptions.plist`

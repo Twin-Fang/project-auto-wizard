@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { runDoctor, printDoctorReport, DOC } from "../../src/commands/doctor.js";
+import { runDoctor, printDoctorReport, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -178,14 +178,25 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
   }
 });
 
-// 출력에서 링크하는 README 앵커가 실제로 README에 존재해야 한다(링크 부패 방지).
-test("DOC 링크가 가리키는 앵커가 README에 실제로 존재한다", () => {
+// 출력에서 링크하는 문서 사이트 앵커가 실제 문서 소스에 존재해야 한다(링크 부패 방지).
+test("DOC 링크가 가리키는 앵커가 문서 사이트 소스에 실제로 존재한다", () => {
   for (const url of Object.values(DOC)) {
-    const [page, anchor] = url.split("#");
-    // blob URL이면 그 파일, 레포 루트 URL이면 README.md가 렌더된다.
-    const file = page.includes("/blob/") ? page.split("/blob/")[1].split("/").slice(1).join("/") : "README.md";
+    assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `문서 사이트 URL이 아닙니다: ${url}`);
+    const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
+    const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
+    const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
+    assert.ok(file, `${page}에 해당하는 문서 파일이 없습니다`);
+    assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page}에 #${anchor} 앵커가 없습니다`);
+  }
+});
+
+// 이미 배포된 CLI 버전이 README 앵커를 링크하므로 README에도 앵커를 남겨 둔다.
+test("이전 버전 CLI가 링크하는 README 앵커가 모든 README에 남아 있다", () => {
+  for (const file of ["README.md", "README.ko.md", "README.zh-CN.md", "README.ja.md"]) {
     const readme = readFileSync(join(REPO_ROOT, file), "utf8");
-    assert.ok(readme.includes(`<a id="${anchor}">`), `${file}에 #${anchor} 앵커가 없습니다`);
+    for (const anchor of ["post-install", "flutter-store"]) {
+      assert.ok(readme.includes(`<a id="${anchor}"></a>`), `${file}에 #${anchor} 앵커가 없습니다`);
+    }
   }
 });
 

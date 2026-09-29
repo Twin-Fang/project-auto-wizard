@@ -5,6 +5,8 @@ description: Flutter 앱의 CI, Android·iOS 배포, 환경변수 방식, 배포
 
 `pubspec.yaml`로 감지합니다. [릴리스 자동화](../common/) 위에 아래가 추가로 설치됩니다.
 
+<a id="flutter-store"></a>
+
 ## 설치되는 워크플로우
 
 | 워크플로우 | 설치 조건 | 트리거 | 하는 일 |

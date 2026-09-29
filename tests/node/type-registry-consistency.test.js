@@ -65,25 +65,27 @@ test("version.yml 템플릿의 타입별 동기화 파일 주석에 모든 타�
   assert.deepStrictEqual(sorted(listed), VALID);
 });
 
-test("README 지원 타입 표가 VALID_TYPES와 같다", () => {
-  const readme = readFileSync("README.md", "utf8");
-  const m = readme.match(/## Supported project types\n([\s\S]*?)\n## /);
-  assert.ok(m, "README에서 'Supported project types' 섹션을 찾지 못함");
-  // 표의 첫 칸(타입 이름)에 적힌 백틱 값만 모은다 — 다른 칸의 파일명은 제외
-  const listed = [];
-  for (const [, cell] of m[1].matchAll(/^\| ([^|]+) \|/gm)) {
-    for (const [, t] of cell.matchAll(/`([^`]+)`/g)) listed.push(t);
-  }
-  assert.deepStrictEqual(sorted(listed), VALID);
-});
+// 언어별 README의 '지원 프로젝트 타입' 섹션 제목 (다음 H2 직전까지가 표)
+const SUPPORTED_TYPES_HEADING = {
+  "README.md": "Supported project types",
+  "README.ko.md": "지원 프로젝트 타입",
+  "README.zh-CN.md": "支持的项目类型",
+  "README.ja.md": "対応するプロジェクトタイプ",
+};
 
-test("한국어 문서의 지원 프로젝트 타입 목록이 VALID_TYPES와 같다", () => {
-  const readme = readFileSync("README.ko.md", "utf8");
-  const m = readme.match(/### 지원 프로젝트 타입\n\n(.*)\n/);
-  assert.ok(m, "README.ko.md에서 '지원 프로젝트 타입' 섹션을 찾지 못함");
-  const listed = [...m[1].matchAll(/`([^`]+)`/g)].map((x) => x[1]);
-  assert.deepStrictEqual(sorted(listed), VALID);
-});
+for (const [file, heading] of Object.entries(SUPPORTED_TYPES_HEADING)) {
+  test(`${file} 지원 타입 표가 VALID_TYPES와 같다`, () => {
+    const readme = readFileSync(file, "utf8");
+    const m = readme.match(new RegExp(`## ${heading}\\n([\\s\\S]*?)\\n## `));
+    assert.ok(m, `${file}에서 '${heading}' 섹션을 찾지 못함`);
+    // 표의 첫 칸(타입 이름)에 적힌 백틱 값만 모은다 — 다른 칸의 파일명은 제외
+    const listed = [];
+    for (const [, cell] of m[1].matchAll(/^\| ([^|]+) \|/gm)) {
+      for (const [, t] of cell.matchAll(/`([^`]+)`/g)) listed.push(t);
+    }
+    assert.deepStrictEqual(sorted(listed), VALID);
+  });
+}
 
 test("version_manager.py TYPE_HANDLERS가 모든 타입을 다룬다", () => {
   const py = readFileSync("payload/scripts/version_manager.py", "utf8");

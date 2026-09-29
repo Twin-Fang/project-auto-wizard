@@ -22,7 +22,9 @@ function extractCommands(text) {
   return cmds;
 }
 
-for (const [name, text] of [["--help", HELP_TEXT], ["README.md", read("README.md")], ["README.ko.md", read("README.ko.md")], ["CONTRIBUTING.md", read("CONTRIBUTING.md")]]) {
+const README_FILES = ["README.md", "README.ko.md", "README.zh-CN.md", "README.ja.md"];
+
+for (const [name, text] of [["--help", HELP_TEXT], ...README_FILES.map((f) => [f, read(f)]), ["CONTRIBUTING.md", read("CONTRIBUTING.md")]]) {
   test(`${name}의 명령 예시는 모두 현재 파서로 해석된다`, () => {
     const cmds = extractCommands(text);
     assert.ok(cmds.length > 0, "예시를 하나 이상 찾아야 한다");
@@ -33,7 +35,7 @@ for (const [name, text] of [["--help", HELP_TEXT], ["README.md", read("README.md
 }
 
 test("문서와 도움말에 제거된 모드·옵션이 남아 있지 않다", () => {
-  const docs = { "--help": HELP_TEXT, "README.md": read("README.md"), "README.ko.md": read("README.ko.md"), "ROADMAP.md": read("ROADMAP.md") };
+  const docs = { "--help": HELP_TEXT, ...Object.fromEntries(README_FILES.map((f) => [f, read(f)])), "ROADMAP.md": read("ROADMAP.md") };
   for (const [name, text] of Object.entries(docs)) {
     for (const stale of ["--mode workflows", "--mode version", "--mode revert", "full/version/workflows", "--no-nexus", "--no-secret-backup"]) {
       assert.ok(!text.includes(stale), `${name}에 '${stale}'가 남아 있다`);

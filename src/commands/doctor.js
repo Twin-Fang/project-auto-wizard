@@ -20,14 +20,13 @@ import { inferInstalledStores } from "../core/installed-stores.js";
 
 const defaultExec = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
 
-// 실패 항목마다 붙이는 해결 가이드 링크. README에 심은 영문 HTML 앵커를 가리킨다 — 한글 헤딩
+// 해결 가이드 링크. 문서 사이트 페이지 안의 영문 HTML 앵커를 가리킨다 — 한글 헤딩
 // 자동 앵커는 URL 인코딩되어 터미널에서 알아볼 수 없게 깨진다.
-// 진단 출력이 한국어이고 상세 설명(Flutter 스토어 배포 등)이 한국어 문서에만 있어 README.ko.md를 가리킨다.
-const REPO_URL = "https://github.com/Twin-Fang/project-auto-wizard";
-const DOC_URL = `${REPO_URL}/blob/main/README.ko.md`;
+// 진단 출력이 한국어이므로 한국어 페이지(/ko/)로 연결한다.
+export const DOCS_SITE_URL = "https://twin-fang.github.io/project-auto-wizard";
 export const DOC = {
-  postInstall: `${DOC_URL}#post-install`,
-  flutterStore: `${DOC_URL}#flutter-store`,
+  postInstall: `${DOCS_SITE_URL}/ko/start/quickstart/#post-install`,
+  flutterStore: `${DOCS_SITE_URL}/ko/project-types/flutter/#flutter-store`,
 };
 
 export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
