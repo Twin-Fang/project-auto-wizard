@@ -1,0 +1,70 @@
+---
+title: クイックスタート
+description: リポジトリにリリース自動化を導入し、最初のリリースを出すまで。
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+GitHub のリモートがすでに設定されたリポジトリなら、5 分ほどで終わります。
+
+<Steps>
+
+1. リポジトリのルートで**ウィザードを実行**します（Node.js 20.12 以上）：
+
+   ```bash
+   npx project-auto-wizard
+   ```
+
+   マーカーファイル（`build.gradle`、`pubspec.yaml`、`package.json`、`go.mod` など）からプロジェクトタイプを検出し、ブランチ戦略、サーバーデプロイのあるタイプならデプロイ方式、セマンティックバージョンの自動昇格、Copilot で要約を作るかどうかを尋ねます。迷ったらデフォルトのままで構いません。選択はすべて `version.yml` に保存され、あとから変更できます。
+
+2. コミットする前に**設定を確認**します：
+
+   ```bash
+   npx project-auto-wizard --mode doctor
+   ```
+
+   `doctor` はワークフローが依存するリポジトリ設定（Workflow permissions、merge commit の許可、`WORKFLOW_PAT`）を確認し、どこで何を変えるべきかを示します。
+
+3. 生成されたファイルを**コミットして push** します — `.github/workflows/`、`.github/scripts/`、`version.yml`、README のバージョンセクション：
+
+   ```bash
+   git add .github version.yml README.md .gitignore
+   git commit -m "chore: add release automation"
+   git push
+   ```
+
+4. リリースする変更がたまったら、`develop` から `main` への**リリース PR を開きます**。`AUTO-CHANGELOG-CONTROL` ワークフローが次のバージョンを確定し、リリースノートを PR コメントとして投稿し、`CHANGELOG.md` / `CHANGELOG.json` を更新して自動マージを有効にします。
+
+5. **リリースを確認します。** マージ後、`RELEASE-PUBLISH` が `vX.Y.Z` タグを push し、GitHub Release を作成し、README のバージョン行を更新します。
+
+</Steps>
+
+<Aside>
+ウィザードのプロンプトとターミナル出力は現在韓国語のみです。フラグとファイル名はどの言語でも同じで、[CLI リファレンス](../../reference/cli/)にすべて載っています。
+</Aside>
+
+## 非対話インストール
+
+CI やスクリプトでは `--mode full --force` とタイプを渡します：
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+npx project-auto-wizard --mode full --force --type flutter --paths "flutter=app"
+npx project-auto-wizard --mode full --force --type node --dry-run   # プレビューのみ、ファイルは書き込まない
+```
+
+非対話モードで `--develop-branch` を渡さない場合は `develop` を使い、存在しなければ作成して push します。`--main-branch` と同じ値を渡すと trunk-based 戦略になります。
+
+## インストール後
+
+| 項目 | やること |
+|---|---|
+| Workflow permissions | 変更不要です。インストールされたワークフローは必要な権限をそれぞれ宣言しています。自分で追加したワークフローがデフォルト権限に依存する場合だけ、Settings → Actions → General → Workflow permissions を **Read and write permissions** にしてください。 |
+| Merge commit | リリース PR を自動マージするため、merge commit を許可してください。 |
+| `WORKFLOW_PAT`（任意） | なくても `GITHUB_TOKEN` のフォールバックがリリースブランチのデプロイまで引き継ぎます（最大 20 秒ほど遅れるだけです）。登録する場合は個人ではなく bot またはマシンアカウントで発行してください（scopes：`repo`、`workflow`）。 |
+| Copilot 要約（任意） | デフォルトはオフです。GitHub Copilot AI Credits を消費し、組織では “Allow use of Copilot CLI billed to the organization” ポリシーが必要です。 |
+| タイプ別の Secret | デプロイ用ワークフローには `DOCKERHUB_TOKEN` や `SERVER_HOST` などの Secret が必要です。必要なものはインストール完了時に表示されます。 |
+
+<Aside type="tip">
+デプロイに PAT は不要です。`GITHUB_TOKEN` でマージされたリリース PR は `on: push` ワークフローを起動できないため、`RELEASE-PUBLISH` がリリース発行後にリリースブランチのデプロイ用ワークフロー（サーバーデプロイ、ストアデプロイ）を `workflow_dispatch` で起動します。PAT や人がマージした場合は push イベントですでに実行されているため、再実行はしません。
+</Aside>

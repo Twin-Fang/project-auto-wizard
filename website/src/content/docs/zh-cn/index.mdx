@@ -1,0 +1,69 @@
+---
+title: project-auto-wizard
+description: 一条命令为仓库配置版本管理、CHANGELOG、GitHub Release 和 CI/CD。
+template: splash
+hero:
+  tagline: 一条命令为仓库配置版本管理、CHANGELOG、GitHub Release 和 CI/CD。安装的全部是你仓库里的 GitHub Actions，不需要 API Key，也不依赖外部服务。
+  actions:
+    - text: 快速开始
+      link: start/quickstart/
+      icon: right-arrow
+    - text: 工作原理
+      link: understand/how-it-works/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/Twin-Fang/project-auto-wizard
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import DemoVideo from '../../../components/DemoVideo.astro';
+
+<DemoVideo label="用向导为 Spring 项目安装发布自动化" />
+
+## 试一试
+
+在仓库根目录运行（需要 Node.js 20.12 或更高版本）：
+
+```bash
+npx project-auto-wizard
+```
+
+它会检测项目类型，询问几个问题，然后写入工作流文件。在 CI 或脚本中以非交互方式运行：
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+```
+
+## 安装内容
+
+<CardGrid>
+  <Card title="发布 PR 自动化" icon="rocket">
+    打开 `develop → main` 的 PR 后，根据提交类型确定下一个版本，生成发布说明，更新 CHANGELOG，并自动合并。
+  </Card>
+  <Card title="标签与 GitHub Release" icon="approve-check">
+    合并后发布 `vX.Y.Z` 标签和 GitHub Release，并更新 README 中的版本行。
+  </Card>
+  <Card title="按技术栈的 CI/CD" icon="seti:pipeline">
+    Spring、Flutter、React、Next.js、Python、Go 会安装 CI 和部署工作流。其他类型只安装发布自动化。
+  </Card>
+  <Card title="无需 API Key" icon="padlock">
+    发布说明默认基于规则生成。GitHub Copilot 或 OpenAI 兼容 API 是可选的，失败时回退到规则。
+  </Card>
+  <Card title="文件归你所有" icon="document">
+    工作流和只用标准库的 Python 脚本会复制到 `.github/`。可以阅读、修改；重新运行会保留你的修改。
+  </Card>
+  <Card title="只读检查" icon="magnifier">
+    `--mode status` 显示与安装模板的差异，`--mode doctor` 检查工作流依赖的仓库设置。
+  </Card>
+</CardGrid>
+
+## 接下来
+
+- [快速开始](start/quickstart/) — 安装、提交、打开第一个发布 PR
+- [发布流程](understand/release-flow/) — 从 PR 到 GitHub Release 之间发生了什么（英文）
+- [项目类型](project-types/common/) — 各技术栈安装的工作流和所需 Secret（英文）
+- [CLI 选项](reference/cli/) — 全部参数（英文）
+
+其余页面目前只有英文版本。

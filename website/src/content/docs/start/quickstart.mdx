@@ -1,0 +1,70 @@
+---
+title: Quickstart
+description: Install release automation into a repository and cut the first release.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This takes about five minutes on a repository that already has a GitHub remote.
+
+<Steps>
+
+1. **Run the wizard** in the repository root (Node.js 20.12 or later):
+
+   ```bash
+   npx project-auto-wizard
+   ```
+
+   It detects the project type from marker files (`build.gradle`, `pubspec.yaml`, `package.json`, `go.mod`, …), then asks about the branch strategy, the deploy style if your type has server deploys, automatic semver, and whether to use Copilot for summaries. Accept the defaults if you are unsure; every choice is saved in `version.yml` and can be changed later.
+
+2. **Check the result** before committing:
+
+   ```bash
+   npx project-auto-wizard --mode doctor
+   ```
+
+   `doctor` checks the repository settings the workflows depend on (workflow permissions, merge commits, `WORKFLOW_PAT`) and tells you what to change and where.
+
+3. **Commit and push** the generated files — `.github/workflows/`, `.github/scripts/`, `version.yml` and the README version section:
+
+   ```bash
+   git add .github version.yml README.md .gitignore
+   git commit -m "chore: add release automation"
+   git push
+   ```
+
+4. **Open a release PR** from `develop` to `main` once there is something to release. The `AUTO-CHANGELOG-CONTROL` workflow confirms the next version, posts the release notes as a PR comment, updates `CHANGELOG.md` / `CHANGELOG.json` and enables automerge.
+
+5. **Check the release.** After the merge, `RELEASE-PUBLISH` pushes the `vX.Y.Z` tag, creates the GitHub Release and updates the README version line.
+
+</Steps>
+
+<Aside>
+The wizard's prompts and terminal output are currently in Korean. The flags and file names are the same in every language, and the [CLI reference](../../reference/cli/) lists them in English.
+</Aside>
+
+## Non-interactive install
+
+For CI or scripts, pass `--mode full --force` and the types:
+
+```bash
+npx project-auto-wizard --mode full --force --type spring,react
+npx project-auto-wizard --mode full --force --type flutter --paths "flutter=app"
+npx project-auto-wizard --mode full --force --type node --dry-run   # preview only, writes nothing
+```
+
+Without `--develop-branch`, a non-interactive run uses `develop` and creates and pushes it if it does not exist. Pass the same value as `--main-branch` to use the trunk-based strategy instead. See [Branch strategies](../../understand/branch-strategies/).
+
+## After installing
+
+| Item | What to do |
+|---|---|
+| Workflow permissions | No change needed. The installed workflows declare their own permissions. Raise Settings → Actions → General → Workflow permissions to **Read and write permissions** only if your own workflows rely on the default. |
+| Merge commits | Allow merge commits so the release PR can automerge. |
+| `WORKFLOW_PAT` (optional) | Without it, a `GITHUB_TOKEN` fallback finishes the release, including the deploy workflows on the release branch, up to about 20 seconds later. If you add one, issue it from a bot or machine account, not a personal one (scopes: `repo`, `workflow`). |
+| Copilot summaries (optional) | Off by default. Uses GitHub Copilot AI Credits; organizations must allow Copilot CLI billed to the organization. See [Summary engine](../../understand/summary-engine/). |
+| Type secrets | Deploy workflows need secrets such as `DOCKERHUB_TOKEN` or `SERVER_HOST`. The install summary lists the ones your workflows need; each [project type page](../../project-types/common/) has the full table. |
+
+<Aside type="tip">
+No PAT is required for deploys to run. A release PR merged by `GITHUB_TOKEN` cannot wake `on: push` workflows, so `RELEASE-PUBLISH` dispatches the release-branch deploy workflows (server and store deploys) itself with `workflow_dispatch`. When a PAT or a person merged the PR, the push event already ran them and they are not dispatched again.
+</Aside>
