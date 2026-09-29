@@ -7,7 +7,7 @@ export const PATHS = {
   scriptsDir: ".github/scripts",
 };
 
-// payload/ 내부 레이아웃 (payload 단일 진실 — DESIGN-SPEC §3)
+// payload/ 내부 레이아웃 (payload 단일 진실)
 export const PAYLOAD = {
   workflowsDir: "workflows",   // payload/workflows/{common,spring,flutter,...}
   scriptsDir: "scripts",       // payload/scripts/*.py

@@ -4,7 +4,7 @@ import {
   ENV_MODES, DEPLOY_MODES, DEFAULT_ENV_MODE, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS, formatStoreList,
 } from "./flutter-options.js";
 
-// version.yml 파싱·생성 (.sh create_version_yml 등가, 전체 재생성 전략).
+// version.yml 파싱·생성 (전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
 // 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
 
@@ -43,7 +43,7 @@ const FLUTTER_OPTION_KEYS = {
   android_deploy_mode: "androidDeployMode", ios_deploy_mode: "iosDeployMode",
 };
 
-// metadata.template.options 상태머신 파싱 (.sh read_template_options L2361~2416 등가).
+// metadata.template.options 상태머신 파싱.
 // 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
 //         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
@@ -52,7 +52,7 @@ export function parseTemplateOptions(content) {
     semverAuto: null, copilotAi: null, deployStyle: null,
     envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
   };
-  // 값 정규화: 따옴표 제거 + 트림 (.sh tr -d '"' | tr -d "'" | xargs 등가)
+  // 값 정규화: 따옴표 제거 + 트림
   // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
   // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
   const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
@@ -80,16 +80,16 @@ export function parseTemplateOptions(content) {
         if (v === "false") out.copilotAi = false;
         continue;
       }
-      // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료 (.sh L2404~2408)
+      // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료
       if (/^\s{0,4}[a-z_]+:/.test(line)) { inOptions = false; inTemplate = false; }
     }
-    // 최상위 키 → template 섹션 종료 (.sh L2411~2415)
+    // 최상위 키 → template 섹션 종료
     if (inTemplate && /^[a-z_]+:/.test(line)) { inTemplate = false; inOptions = false; }
   }
   return out;
 }
 
-// 기존 version.yml에서 값 추출 (.sh grep/sed 등가, 주석 라인 오탐 방지).
+// 기존 version.yml에서 값 추출 (라인 기반, 주석 라인 오탐 방지).
 export function parseExisting(content) {
   const text = String(content || "");
   const line = (re) => {

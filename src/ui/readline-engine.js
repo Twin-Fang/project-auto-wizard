@@ -1,7 +1,7 @@
 // node:readline 기반 대화형 프롬프트 엔진 (@clack/prompts 대체).
 // WHY: @clack/prompts 1.7.0 이 Windows TTY 콘솔에서 Enter(return) 키를 처리하지 못하고
-//   멈추는 버그가 있다(실측 확정). node:readline 의 keypress 이벤트는 Windows에서 정상 동작한다.
-//   .sh/.ps1 이 자체 메뉴를 구현한 것과 동일한 접근. 외부 의존성 0 → 내부망에서도 안전.
+//   멈추는 버그가 있다. node:readline 의 keypress 이벤트는 Windows에서 정상 동작한다.
+//   메뉴를 직접 구현하면 외부 의존성 0 → 내부망에서도 안전.
 //
 // 계약: ESC는 CANCEL 심볼 반환(호출부가 "기본값/머무르기"로 해석). 각 함수 async.
 //       Ctrl+C·Ctrl+D·stdin 종료는 중단 — PromptAbortError로 reject해 어느 질문에서든 즉시 빠져나간다.

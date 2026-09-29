@@ -1,4 +1,4 @@
-// project-auto-wizard CLI 진입 파이프라인 (.sh main + execute_integration 등가).
+// project-auto-wizard CLI 진입 파이프라인.
 // 감지 → payload 해석 → 모드 라우팅 → 통합 실행. 비대화형(--force) 우선.
 // 설치 자산은 전부 npm 패키지 동봉 payload/ (단일 진실). 자체 네트워크 요청은 없고,
 // 기본 브랜치 감지용 git 명령만 사용자 레포의 origin에 접속할 수 있다.
@@ -140,7 +140,7 @@ async function runInner(argv, {
     const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
     if (opts.dryRun) {
       printPurgePlan(planPurge(payload, cwd, keepFlags), { dryRun: true });
-      // develop 브랜치 삭제는 plan에 포함되지 않으므로(§6 — git 상태는 실행 시점에만
+      // develop 브랜치 삭제는 plan에 포함되지 않으므로(git 상태는 실행 시점에만
       // 판단 가능) 별도로 예고하지 않으면 dry-run 미리보기가 유일한 파괴적 동작을 사용자에게 숨기게 된다.
       if (opts.deleteDevelopBranch) {
         const developBranch = existing?.branches?.develop || "develop";
@@ -250,7 +250,7 @@ async function runInner(argv, {
     return 1;
   }
 
-  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실 (.sh SSoT)
+  // 기존 version.yml 로드 — version/version_code/project_paths 보존의 단일 진실
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
@@ -271,7 +271,7 @@ async function runInner(argv, {
     hint: "다르면 --main-branch로 지정하세요.",
   });
   const repoName = detectRepoName(cwd);
-  // 경로 확정 (.sh resolve_project_paths 비대화형 경로 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
+  // 경로 확정 (비대화형 — --paths 우선 → 저장값 → 후보 1개 자동 → 에러)
   let paths;
   try {
     paths = await resolveProjectPaths({
@@ -288,7 +288,7 @@ async function runInner(argv, {
   // 경로 확정 뒤에 감지해야 모노레포 하위 폴더의 버전·빌드 번호를 읽는다.
   const version = (existing?.version) || opts.version
     || detectVersion(cwd, { types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지 (.sh L2208~2221)
+  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
@@ -338,7 +338,7 @@ async function runInner(argv, {
     // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
     ...resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
     repoName,
-    // 실 resolver 4종 (.sh resolve_token 등가)
+    // @wizard ask/auto 토큰 값을 계산하는 resolver
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
@@ -366,7 +366,7 @@ async function runInner(argv, {
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });
 
-  // Breaking Changes 게이트 (.sh execute_integration L4415~4420 등가 — 비대화형은 경고 후 진행)
+  // Breaking Changes 게이트 (비대화형은 경고 후 진행)
   const proceed = await runBreakingCheck({ cwd, payloadRoot: payload, templateVersion: context.templateVersion });
   if (!proceed) return 0;
 
@@ -381,7 +381,7 @@ async function runInner(argv, {
   // 부분 설치 모드 제거로 분기 자체가 사라졌다).
   const result = runFull(context, payload, cwd);
 
-  // 완료 요약 (.sh print_summary — CLI 모드에서도 출력)
+  // 완료 요약 (CLI 모드에서도 출력)
   printSummary({
     mode: opts.mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],

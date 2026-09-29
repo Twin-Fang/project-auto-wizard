@@ -14,7 +14,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 // 실제로 만들어내는 부산물만 gitignore 대상으로 삼는다.
 const REQUIRED_ENTRIES = ["*.bak", "*.template.yaml"];
 
-// .sh normalize_gitignore_entry: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
+// 항목 정규화: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
 export function normalizeGitignoreEntry(entry) {
   let e = String(entry);
   e = e.replace(/#.*$/, "");        // 주석 제거

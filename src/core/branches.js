@@ -1,4 +1,4 @@
-// 브랜치 구성 (DESIGN-SPEC §4 신규 질문 ①).
+// 브랜치 구성 — main/develop 브랜치와 pr-flow·trunk-based 모드.
 // on: push: branches: 는 YAML 정적 값 — 마법사가 릴리스/개발 브랜치를 물어(또는 플래그로 받아)
 // {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 플레이스홀더를 치환한다 (치환 자체는 branding.js).
 // main === develop 이면 trunk-based 모드 → RELEASE-PUBLISH 단독 설치.

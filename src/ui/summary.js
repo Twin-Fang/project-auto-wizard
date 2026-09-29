@@ -1,4 +1,4 @@
-// 완료 요약 출력 (.sh print_summary 등가). 전부 stderr.
+// 완료 요약 출력. 전부 stderr.
 // ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated?, readme?, scripts? }
 import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
@@ -41,7 +41,7 @@ export function printSummary(ctx) {
     if (gitignoreUpdated) err("  ✅ .gitignore 백업 파일 제외 항목 (*.bak/*.template.yaml)");
   }
 
-  // 브랜치 모드 + 릴리스 요약 엔진 안내 (DESIGN-SPEC §4~5)
+  // 브랜치 모드 + 릴리스 요약 엔진 안내
   if (branches) {
     err("");
     err("브랜치 구성:");

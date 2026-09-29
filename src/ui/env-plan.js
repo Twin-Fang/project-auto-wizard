@@ -1,7 +1,4 @@
-// @wizard env 계획 질문 UI (.sh wf_scope_string/wf_collect_asks/_wf_print_field_card/
-// _wf_prefill_all/_wf_prefill_interactive/wf_prompt_env_plan 등가).
-// 실측 기준: template_integrator.sh 3059~3085(scope), 3087~3143(collect), 3152~3169(card),
-//           3220~3280(prompt 본체 wf_prompt_env_plan).
+// @wizard env 계획 질문 UI — ask 키 수집, 필드 카드 출력, 전부 기본값/일부만 변경 선택.
 // io 주입식 — 테스트는 {select, multiselect, text} 스텁을 넘긴다. 기본은 readline-engine 실물.
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
@@ -16,10 +13,10 @@ import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
 
-// 진행 안내는 stderr로 출력 (.sh print_to_user가 >&2인 것과 동일 — stdout 파이프 오염 방지).
+// 진행 안내는 stderr로 출력 (stdout 파이프 오염 방지).
 const defaultLog = (s = "") => stderr.write(s + "\n");
 
-// 사용처 문자열 조립 (.sh wf_scope_string 등가).
+// 사용처 문자열 조립.
 // usages: [{type, workflowName}] — 타입이 여러 개면 타입만 "t1·t2", 하나면 "타입 name1·name2".
 export function scopeString(usages = []) {
   const types = []; const names = [];
@@ -31,10 +28,10 @@ export function scopeString(usages = []) {
   return `${types.join("·")} ${names.join("·")}`.trim();
 }
 
-// ask KEY 수집 (.sh wf_collect_asks 등가) — 실제 설치되는 워크플로우와 같은 소스를 스캔한다.
+// ask KEY 수집 — 실제 설치되는 워크플로우와 같은 소스를 스캔한다.
 // payloadRoot: 패키지 payload/ 루트. types: 설치 대상 타입 목록.
 // opts:
-//   resolvers    - @접두 기본값(@repo 등) 해석용 (.sh는 수집 시점에 resolve_token — 동일)
+//   resolvers    - @접두 기본값(@repo 등) 해석용 (수집 시점에 해석)
 //   flutterStore - Flutter 스토어 대상(string[]|null). 배열이면 선택 해제된 스토어 워크플로우는 스캔에서 제외 (null=현행)
 //   prompts      - wizard-labels 파싱 객체 (워크플로우 표시명용, null이면 확장자 제거 폴백)
 //   saved        - Map<type, Map<key,value>>: version.yml deploy 블록 저장값. 있으면 그 값을 기본값으로 보여준다
@@ -80,7 +77,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
       for (const line of content.split(/\r?\n/)) {
         const p = parseWizardLine(line);
         if (!p || p.action !== "ask") continue;
-        // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴 (.sh _type_default 등가)
+        // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴
         const rawDefault = p.arg.startsWith("@")
           ? resolveToken(p.arg.slice(1), type, resolvers)
           : p.arg;
@@ -102,7 +99,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   return { keys, defaults, typeDefaults, usages };
 }
 
-// KEY가 처음 등장한 type (.sh _wf_first_type_for — 라벨 조회 시 타입 오버라이드 우선순위용)
+// KEY가 처음 등장한 type — 라벨 조회 시 타입 오버라이드 우선순위용
 function firstTypeFor(usages, key) {
   return usages.get(key)?.[0]?.type ?? "";
 }
@@ -124,7 +121,7 @@ function buildAnswers(prompts, asks, values, useDefaults) {
   });
 }
 
-// KEY 1개를 'label·사용처·설명·예시·기본값' 카드로 출력 (.sh _wf_print_field_card 등가).
+// KEY 1개를 'label·사용처·설명·예시·기본값' 카드로 출력.
 // info: { default, usages } — idx/tot 있으면 "(i/t)" 진행 표시. log 주입 가능(테스트 무음화).
 export function printFieldCard(prompts, key, info, idx = null, tot = null, log = defaultLog) {
   const t = info.usages?.[0]?.type ?? "";
@@ -165,8 +162,8 @@ export function validateAskValue(key, value) {
   return "";
 }
 
-// 지정 KEY들을 하나씩 입력받아 values에 기록 (.sh _wf_prefill_interactive 등가).
-// 빈 입력(Enter)/ESC → KEY 공통 기본값 유지 (.sh safe_read || _in="" 등가).
+// 지정 KEY들을 하나씩 입력받아 values에 기록.
+// 빈 입력(Enter)/ESC → KEY 공통 기본값 유지.
 async function promptEach(io, prompts, asks, todoKeys, values, log) {
   const tot = todoKeys.length;
   if (tot === 0) return;
@@ -200,15 +197,15 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
   }
 }
 
-// 배포 env 설정 계획 (.sh wf_prompt_env_plan 등가).
+// 배포 env 설정 계획.
 // 반환: { values: Map<key,value>, useDefaults: boolean, answers: [{key,label,value,isDefault,scope}] }
-//  - useDefaults=true  → 호출부는 substituteEnv에 그대로 넘기면 타입별 기본값 경로(.sh _wf_prefill_all 등가)
+//  - useDefaults=true  → 호출부는 substituteEnv에 그대로 넘기면 타입별 기본값 경로
 //  - useDefaults=false → values에 담긴 키만 사용자 확정값으로 치환, 나머지는 기본값
 //    (⚠️ substituteEnv는 useDefaults=false일 때만 values를 참조하므로 이 플래그를 반드시 함께 전달)
 // 인자:
 //   payloadRoot/types/resolvers/flutterStore — collectAsks와 동일 의미
 //   targetRoot — wizard-prompts.yml 1차 탐색 위치(기본 ".")
-//   force      — true면 질문 없이 전부 기본값 (.sh FORCE_MODE 등가)
+//   force      — true면 질문 없이 전부 기본값
 //   io         — {select, multiselect, text} 주입 (기본 readline-engine). 테스트 스텁 지점.
 //   log        — 카드·안내 출력 함수 주입 (기본 stderr)
 export async function promptEnvPlan({
@@ -220,10 +217,10 @@ export async function promptEnvPlan({
   const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts, saved });
   const defaults = asks.defaults;
 
-  // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)
+  // 수집 키 0개 → 질문 자체가 없음
   if (asks.keys.length === 0) return { values: new Map(), useDefaults: true, answers: [] };
 
-  // 비대화형: force 또는 (io 미주입 && 비TTY) → 전부 기본값 (.sh FORCE_MODE/TTY_AVAILABLE 분기 등가)
+  // 비대화형: force 또는 (io 미주입 && 비TTY) → 전부 기본값
   // io가 주입돼 있으면(테스트/상위 마법사) TTY 여부와 무관하게 대화형으로 진행한다.
   const interactive = !force && (io != null || stdin.isTTY);
   if (!interactive) {
@@ -233,7 +230,7 @@ export async function promptEnvPlan({
 
   const ui = io ?? engine;
 
-  // 기본값 미리보기 카드 전체 출력 (.sh 3237~3251)
+  // 기본값 미리보기 카드 전체 출력
   log("");
   log("▶ 워크플로우 환경설정을 채웁니다");
   log("");
@@ -254,21 +251,21 @@ export async function promptEnvPlan({
       { value: "some", label: "③ 몇 개만 골라서 바꾸기 (고른 것만 입력 · 나머지는 기본값)" },
     ],
   });
-  // ESC/취소 → 전부 기본값 (.sh `if [ "$_rc" -ne 0 ]` 등가)
+  // ESC/취소 → 전부 기본값
   if (choice === CANCEL || choice == null || choice === "all") {
     const values = new Map(defaults);
     return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
 
   // 사용자가 확정한 키만 values에 담는다 — substituteEnv(useDefaults:false)가
-  // values에 없는 키는 타입별 기본값으로 채우므로 .sh(_wf_prefill_all 후 덮어쓰기)와 등가.
+  // values에 없는 키는 타입별 기본값으로 채운다(기본값 위에 답한 값만 덮어쓰는 것과 같다).
   const values = new Map();
   if (choice === "each") {
     await promptEach(ui, prompts, asks, asks.keys, values, log);
     return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };
   }
 
-  // some: 바꿀 항목만 멀티선택 → 고른 것만 입력 (.sh 3266~3277)
+  // some: 바꿀 항목만 멀티선택 → 고른 것만 입력
   const options = asks.keys.map((key) => ({
     value: key,
     label: `${wfField(prompts, firstTypeFor(asks.usages, key), key, "label")}  (기본: ${defaults.get(key)})`,
@@ -278,12 +275,12 @@ export async function promptEnvPlan({
     options,
     initialValues: [],
   });
-  // ESC/빈 선택 → 전부 기본값 (.sh: _wf_prefill_all만 수행)
+  // ESC/빈 선택 → 전부 기본값
   if (selected === CANCEL || !Array.isArray(selected) || selected.length === 0) {
     const values = new Map(defaults);
     return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
-  // 수집 키 순서 유지 + WF_ASK_KEYS 멤버만 인정 (.sh _wf_prefill_interactive 필터 등가)
+  // 수집 키 순서 유지 + 수집된 키만 인정
   const todo = asks.keys.filter((k) => selected.includes(k));
   await promptEach(ui, prompts, asks, todo, values, log);
   return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };

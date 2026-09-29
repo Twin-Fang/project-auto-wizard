@@ -1,6 +1,5 @@
 // 첫 화면 상태 표시 층 — 감지 로그 · 분석 카드 · 신규/업데이트 판별
-// (Breaking Changes 박스는 core/breaking-check.js가 담당.
-//  원본의 IDE Skills 상태는 project-auto-wizard 스코프 제외 — Agent Skills 미포함)
+// (Breaking Changes 박스는 core/breaking-check.js가 담당)
 import { A, paint } from "./ansi.js";
 import { DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
@@ -8,7 +7,7 @@ const GUT = paint("│", A.gray);
 const HEAD = paint("◆", A.cyan);
 const OK = paint("✓", A.green);
 
-// 감지 로그 (.ps1 감지 진행 표시 등가)
+// 감지 로그 — 무엇을 근거로 어떤 타입을 감지했는지
 // markers: Map<type, 실제 발견 파일>.
 // warnings: 감지 도중 나온 경고. 감지 함수를 먼저 호출한 뒤 박스를 그리는 구조라 경고가
 //           박스 위로 새어나가 앞선 질문에 대한 경고처럼 보였다 — 박스 안에서 출력한다.
@@ -28,7 +27,7 @@ export function printDetectionLog({ types = [], version = "", branch = "", marke
   out(`${GUT}\n`);
 }
 
-// 프로젝트 분석 개요 카드 (.ps1 Print-ProjectAnalysis 등가+)
+// 프로젝트 분석 개요 카드
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
   paths = new Map(), showOptional = false,
   flutter = null, envModeDefault = "", options = null },

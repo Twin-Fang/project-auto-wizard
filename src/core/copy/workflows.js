@@ -1,5 +1,4 @@
-// 워크플로우 복사 엔진 (.sh copy_workflows + _copy_workflows_for_type 등가).
-// 실측: template_integrator.sh 3398~3815.
+// 워크플로우 복사 엔진 — common → 타입별 → server-deploy 순으로 분류·복사·치환한다.
 // 대화형 3지선(기존 파일 충돌)은 copyWorkflowsInteractive(async)가 결정 Map을 만들어
 // 동기 엔진(copyWorkflows)에 hooks.decisions로 전달한다 — 기존 시그니처·force 동작 무변경.
 import { join, basename } from "node:path";
@@ -27,7 +26,7 @@ export function makeSrcText(branches, deployStyle = DEFAULT_DEPLOY_STYLE) {
   };
 }
 
-// trunk-based 모드에서 설치하지 않는 common 워크플로우 (DESIGN-SPEC §4 설치 매트릭스).
+// trunk-based 모드에서 설치하지 않는 common 워크플로우.
 // 릴리스 PR 흐름이 없으므로 RELEASE-PUBLISH 하나가 bump→changelog→tag→Release를 흡수한다.
 const TRUNK_BASED_EXCLUDED = new Set([
   "PROJECT-COMMON-VERSION-CONTROL.yaml",
@@ -55,7 +54,7 @@ export function buildTypeRootFilter(type, deployStyle, flutterStore, available =
   return (filename) => filters.every((keep) => keep(filename));
 }
 
-// 한 파일에 env 치환을 적용해 대상 파일을 갱신 (.sh configure_workflow_env 등가).
+// 한 파일에 env 치환을 적용해 대상 파일을 갱신.
 // values/useDefaults: env 계획(promptEnvPlan) 결과 — 미지정이면 기본값 경로(현행 force 동작).
 function configureEnv(targetPath, { type, projectPath = ".", repoName = "", resolvers = {}, collectAsks = null, values = new Map(), useDefaults = true, savedValues = null }) {
   const content = readFileSync(targetPath, "utf8");
@@ -171,7 +170,7 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
   return c;
 }
 
-// copy_workflows 본체 (동기 — 기존 호출부 무변경).
+// 복사 엔진 본체 (동기 — 기존 호출부 무변경).
 // context: { types:[], paths:Map, force, repoName, resolvers,
 //            envValues?:Map<key,value>, envUseDefaults?:boolean }  ← env 계획(promptEnvPlan) 결과 주입점
 //            flutterStore?:string[]|null }  ← Flutter 스토어 대상 (null=필터 없음, 배열=선택된 플랫폼만)
@@ -260,13 +259,13 @@ export function computeBaselineEntries(baselineTargets, workflowsDir, srcText, s
   return entries;
 }
 
-// changed(기존에 있고 내용이 바뀐) 파일 1개를 결정에 따라 처리 (.sh 3440~3508 3지선 case 등가).
+// changed(기존에 있고 내용이 바뀐) 파일 1개를 결정에 따라 처리.
 // 'skip'(기본): 기존 유지. 'backup': 기존→.bak 후 교체. 'template': 기존 유지 + 새 버전을 .template.yaml로.
 function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcText) {
   const src = join(srcDir, filename);
   const dst = join(workflowsDir, filename);
   if (decision === "backup") {
-    // .sh O) mv → cp: 기존을 .bak으로 백업 후 새 버전으로 교체
+    // 기존을 .bak으로 백업 후 새 버전으로 교체
     renameSync(dst, dst + ".bak");
     writeText(dst, srcText(src));
     counters.copied++;
@@ -276,15 +275,15 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     return;
   }
   if (decision === "template") {
-    // .sh T) `${filename%.yaml}.template.yaml` — .yaml만 strip (.yml은 그대로 뒤에 붙음, .sh 동일)
+    // `${이름}.template.yaml` — .yaml만 떼고 붙인다 (.yml은 그대로 뒤에 붙는다)
     const templateName = (filename.endsWith(".yaml") ? filename.slice(0, -".yaml".length) : filename) + ".template.yaml";
-    writeText(join(workflowsDir, templateName), srcText(src)); // 기존 .template.yaml 덮어씀(.sh rm -f + cp 등가)
+    writeText(join(workflowsDir, templateName), srcText(src)); // 기존 .template.yaml 덮어씀
     counters.templateAdded++;
     counters.copiedFiles.push(templateName);
     log.info("copy", "template", `${filename} 유지 + ${templateName} 생성 (사용자 결정)`);
     return;
   }
-  counters.skipped++; // 'skip'/미지정/ESC → 기존 유지 (.sh S)·force 기본)
+  counters.skipped++; // 'skip'/미지정/ESC → 기존 유지 (force 기본)
   // 결정이 없으면 사용자가 고른 게 아니라 --force 기본값이다 — 로그가 사실과 달라지지 않게 구분한다.
   log.info("copy", "skip", decision
     ? `${filename} (사용자 결정: 기존 유지, 업스트림 변경 미반영)`

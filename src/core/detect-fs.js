@@ -1,4 +1,4 @@
-// 실 파일시스템 프로젝트 감지 (.sh detect_* 실행부 등가).
+// 실 파일시스템 프로젝트 감지.
 // detect.js 순수 함수를 fs/git으로 구동한다.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
@@ -70,7 +70,7 @@ function findSubdirProjects(root, maxDepth = 2) {
   return found.sort((a, b) => a.dir.localeCompare(b.dir));
 }
 
-// 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.
+// 버전 감지 — 타입별 버전 파일을 순서대로 읽는다.
 // hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
 // 모노레포(--paths)는 버전 파일이 타입 폴더 안에 있다 — 루트만 보면 0.0.1/1로 초기화된다.
 // 주 타입 폴더 → 나머지 타입 폴더 → 루트 순으로 찾는다.
@@ -164,7 +164,7 @@ export function detectRepoName(root) {
   return basename(root);
 }
 
-// Spring application*.yml 탐색 (.sh resolve_spring_app_yml_dir/path L2767~2780 등가)
+// Spring application*.yml 탐색
 // find {base} -path "*/src/main/resources/application*.yml" | head -1 의 fs 재귀 구현.
 // 반환: root 기준 상대경로 (예: "server/src/main/resources/application.yml") 또는 "".
 //
@@ -217,7 +217,7 @@ export function findSpringResourcesDir(root, base = ".") {
   return base === "." ? "src/main/resources" : `${base}/src/main/resources`;
 }
 
-// 실 resolver 세트 생성 (.sh resolve_token 4종 등가) — index/interactive 공용.
+// @wizard 토큰 resolver 세트 생성 — index/interactive 공용.
 // paths: Map<type, path> (모노레포 경로).
 // flutterOptions: resolveFlutterOptions 결과 또는 같은 필드를 가진 context. null이면 Flutter 토큰이
 //   빈 값이라 템플릿 기본값(dart-define, store_only)이 그대로 남는다.

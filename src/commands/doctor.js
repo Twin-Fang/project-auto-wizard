@@ -1,5 +1,4 @@
 // doctor 명령 — 로컬 환경 진단(읽기 전용, 규칙 기반). gh CLI에 위임해 원격 상태를 점검한다.
-// AI 진단은 포함하지 않는다(스펙 §4에서 검토 후 기각 — 복잡도 대비 이득 낮음).
 //
 // 출력 설계 — `flutter doctor` 패턴을 차용한다.
 //   ① 항목 라벨에 purpose("무엇을 위한 설정인지")를 병기한다. `WORKFLOW_PAT`만 보고는 그게
@@ -21,8 +20,7 @@ import { inferInstalledStores } from "../core/installed-stores.js";
 
 const defaultExec = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
 
-// 해결 가이드 링크 (스펙 2026-07-25-osscontest-scope-design.md §3.3② "각 실패 항목에 대한
-// 해결 가이드 링크(README 앵커)"). README에 심은 영문 HTML 앵커를 가리킨다 — 한글 헤딩
+// 실패 항목마다 붙이는 해결 가이드 링크. README에 심은 영문 HTML 앵커를 가리킨다 — 한글 헤딩
 // 자동 앵커는 URL 인코딩되어 터미널에서 알아볼 수 없게 깨진다.
 // 진단 출력이 한국어이고 상세 설명(Flutter 스토어 배포 등)이 한국어 문서에만 있어 README.ko.md를 가리킨다.
 const REPO_URL = "https://github.com/Twin-Fang/project-auto-wizard";

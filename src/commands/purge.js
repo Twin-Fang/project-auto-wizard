@@ -1,7 +1,7 @@
 // purge 모드 — planRemoval이 판별하는 전부(워크플로우·스크립트) + version.yml·README
 // AUTO-VERSION-SECTION 블록·.gitignore 자동 추가 항목·릴리스 워크플로우가 만든 CHANGELOG를
 // 추가로 제거해 설치 이전 상태로 완전히 되돌린다. 마법사가 만들지 않은 파일은 지우지 않는다.
-// 개발·테스트 전용 숨김 모드 — DESIGN-SPEC purge #6.
+// 개발·테스트 전용 숨김 모드.
 // develop 브랜치 삭제는 파일 삭제와 성격이 달라(실행 시점 git 상태 판단 필요) 여기 plan에는
 // 포함하지 않고 index.js의 purge 분기에서 직접 처리한다.
 import { join } from "node:path";
@@ -83,8 +83,7 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
 // planRemoval 결과를 그대로 지우지 않는 이유: 그 목록은 항상 전체라서
 // --keep-* 로 선택적 카테고리만 보존하는 요구사항과 맞지 않는다.
 // readmeSection은 plan의 판정을 그대로 되돌려주지 않고
-// removeVersionSectionFromReadme()의 실제 반환값("removed"인지)을 반영한다 — 스펙 §6이
-// "반환값은 실제 삭제 결과를 반영"하라고 명시하기 때문에, plan과 실제 제거 조건이
+// removeVersionSectionFromReadme()의 실제 반환값("removed"인지)을 반영한다 — plan과 실제 제거 조건이
 // 이론상 어긋나는 경우에도 printPurgeResult가 거짓으로 "제거됨"을 보고하지 않는다.
 export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const plan = planPurge(payloadRoot, targetRoot, keepFlags);
@@ -107,7 +106,7 @@ export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
 }
 
 // 삭제 후 실제 제거된 목록 출력 — printPurgePlan과 완전히 동일한 형태(파일명 나열)로
-// 맞춘다 (개수만 출력하면 스펙 §5-6의 "제거된 목록 재출력" 요구를 충족하지 못함).
+// 맞춘다 (개수만 출력하면 무엇이 지워졌는지 확인할 수 없다).
 export function printPurgeResult(result) {
   const lines = ["", "제거됨:", ""];
   lines.push(`워크플로우 (${result.workflows.length}개):`);
