@@ -114,7 +114,7 @@ Use it if:
 Skip it if:
 
 - a single package already releases fine with release-please or semantic-release
-- the release itself must publish to a package registry (add your own workflow on the Release event, as this repo does for npm)
+- the release itself must publish to a package registry (add your own workflow on the Release event, as this repo does for npm; this needs `WORKFLOW_PAT`, because releases created with `GITHUB_TOKEN` don't trigger other workflows)
 - your packages need independent versions
 - the repository is not on GitHub
 
@@ -139,8 +139,12 @@ Several types can live in one repo (`--type spring,react`), and monorepo subfold
 |---|---|
 | Workflow permissions | The installed workflows declare their own permissions. Set Settings → Actions → General → Workflow permissions to **Read and write permissions** only if your own workflows rely on the default |
 | Merge commits | Allow merge commits so the release PR can automerge |
-| `WORKFLOW_PAT` (optional) | Without it, a `GITHUB_TOKEN` fallback finishes the release, including the deploy workflows on the release branch, about 20 seconds later. If you add one, issue it from a bot or machine account (scopes: `repo`, `workflow`) |
+| `WORKFLOW_PAT` (optional) | Without it, a `GITHUB_TOKEN` fallback finishes the release, including the deploy workflows on the release branch, about 20 seconds later. Required only if you add your own workflows triggered by the Release event. Issue it from a bot or machine account (scopes: `repo`, `workflow`) |
 | Copilot summaries (optional) | Off by default. Uses Copilot AI Credits; organizations must allow Copilot CLI billed to the organization |
+
+<a id="flutter-store"></a>
+
+Flutter store deployment (Play Store, Firebase, TestFlight) setup is described in [the Korean documentation](README.ko.md#flutter-store).
 
 ## Documentation
 
