@@ -161,11 +161,18 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
     });
   }
 
+  // 실제 설정값을 보여준다 — 켜 둔 사용자에게 "꺼져 있다"고 안내하면 현재 상태를 오해하게 된다.
+  const copilotAi = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options.copilotAi : null;
+  const copilotState = copilotAi === true
+    ? "켜져 있습니다 (version.yml의 copilot_ai: true)."
+    : copilotAi === false
+      ? "꺼져 있습니다 (version.yml의 copilot_ai: false) — 켜려면 --copilot으로 다시 설치하거나 대화형 '수정하기 > Copilot AI 요약'을 쓰세요."
+      : "기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).";
   add({
     name: "Copilot AI 요약", label: "Copilot AI 요약", purpose: "AI 릴리스 노트 생성(선택)", status: "INFO",
     note: [
-      "기본은 꺼져 있습니다 (version.yml의 copilot_ai: false).",
-      "켜면 GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.",
+      copilotState,
+      `${copilotAi === true ? "" : "켜면 "}GitHub Copilot AI Credits가 소비됩니다 — 조직은 'Allow use of Copilot CLI billed to the organization' 정책이 필요합니다.`,
       "꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.",
     ],
   });

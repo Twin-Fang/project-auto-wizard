@@ -420,3 +420,19 @@ test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owne
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("runDoctor: Copilot 안내는 version.yml의 실제 copilot_ai 값을 보여준다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    const noteFor = (yml) => {
+      writeFileSync(join(dir, "version.yml"), yml);
+      return runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }).find((r) => r.name === "Copilot AI 요약").note.join("\n");
+    };
+    const opts = (v) => `version: "1.0.0"\nmetadata:\n  template:\n    options:\n      copilot_ai: ${v}\n`;
+    assert.match(noteFor(opts("true")), /켜져 있습니다 \(version\.yml의 copilot_ai: true\)/);
+    assert.match(noteFor(opts("false")), /꺼져 있습니다 \(version\.yml의 copilot_ai: false\)/);
+    assert.match(noteFor('version: "1.0.0"\n'), /기본은 꺼져 있습니다/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
