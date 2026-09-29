@@ -99,20 +99,25 @@ def format_date_yyyymmdd(dt):
     return dt.strftime("%Y%m%d")
 
 
-_NON_ALNUM_KO_RE = re.compile(r"[^a-zA-Z0-9가-힣]")
+# 유니코드 문자·숫자는 모두 살린다. 한글·영문만 남기면 일본어 등 다른 언어 제목이
+# 통째로 사라져 브랜치명이 `_`로 끝나고 커밋 제목이 비었다.
+_NON_WORD_RE = re.compile(r"[\W_]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
+# 이모지·기호만 있는 제목처럼 정규화 결과가 비었을 때 쓰는 이름
+FALLBACK_TITLE = "issue"
 
 
 def normalize_title(title):
-    normalized = _NON_ALNUM_KO_RE.sub("_", title)
+    normalized = _NON_WORD_RE.sub("_", unicodedata.normalize("NFC", title))
     normalized = _MULTI_UNDERSCORE_RE.sub("_", normalized)
     return normalized.strip("_")
 
 
 def create_branch_name(issue_title, issue_number, date_yyyymmdd, branch_prefix, max_branch_length):
-    normalized_title = normalize_title(issue_title)
+    normalized_title = normalize_title(issue_title) or FALLBACK_TITLE
     base = f"{date_yyyymmdd}_#{issue_number}_{normalized_title}"
-    limited_base = base[:max_branch_length] if max_branch_length > 0 else base
+    # 절단 지점이 구분자면 `_`로 끝나지 않게 정리한다.
+    limited_base = base[:max_branch_length].rstrip("_") if max_branch_length > 0 else base
     return f"{branch_prefix}{limited_base}"
 
 
@@ -127,7 +132,7 @@ def render_commit_message(template, issue_title, issue_url, issue_number, branch
 
 
 def normalize_all(title, issue_url, issue_number, date_yyyymmdd, branch_prefix, max_branch_length, commit_template):
-    normalized_title = normalize_title(title)
+    normalized_title = normalize_title(title) or FALLBACK_TITLE
     branch_name = create_branch_name(title, issue_number, date_yyyymmdd, branch_prefix, max_branch_length)
     commit_message = render_commit_message(
         commit_template, normalized_title, issue_url, issue_number, branch_name, date_yyyymmdd,

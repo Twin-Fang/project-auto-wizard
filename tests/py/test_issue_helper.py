@@ -161,6 +161,33 @@ class TestNormalizeAll(unittest.TestCase):
         )
 
 
+class TestNonKoreanEnglishTitles(unittest.TestCase):
+    def normalize(self, title):
+        return issue_helper.normalize_all(
+            issue_helper.extract_issue_title(title), "https://github.com/o/r/issues/12", "12",
+            "20260925", "", 100, "${issueTitle} : feat : {설명} ${issueUrl}",
+        )
+
+    def test_japanese_title_is_kept(self):
+        branch, commit = self.normalize("日本語のタイトル")
+        self.assertEqual(branch, "20260925_#12_日本語のタイトル")
+        self.assertTrue(commit.startswith("日本語のタイトル : feat : "))
+
+    def test_accented_letters_are_kept(self):
+        branch, _ = self.normalize("Café menu")
+        self.assertEqual(branch, "20260925_#12_Café_menu")
+
+    def test_emoji_or_blank_title_uses_fallback_name(self):
+        for title in ("🎉🎉🎉", "   ", "!!!"):
+            branch, commit = self.normalize(title)
+            self.assertEqual(branch, "20260925_#12_issue", title)
+            self.assertTrue(commit.startswith("issue : feat : "), title)
+
+    def test_truncation_does_not_end_with_separator(self):
+        name = issue_helper.create_branch_name("ab cd", "12", "20260925", "", len("20260925_#12_ab_"))
+        self.assertEqual(name, "20260925_#12_ab")
+
+
 class TestUpsertIssueLinksInBody(unittest.TestCase):
     def test_empty_issue_numbers_returns_unchanged(self):
         body, changed = issue_helper.upsert_issue_links_in_body("기존 본문", [], False)
