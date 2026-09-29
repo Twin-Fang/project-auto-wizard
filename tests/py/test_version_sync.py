@@ -13,7 +13,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def run(args, cwd):
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8")
 
 
 class SyncTestCase(unittest.TestCase):
@@ -345,6 +345,98 @@ class TestSyncMissingTargetFile(SyncTestCase):
         r = run(["sync"], tmp)
         self.assertEqual(r.returncode, 0)
         self.assertFalse((Path(tmp) / "pyproject.toml").exists())
+
+
+
+def last_line(r):
+    return r.stdout.strip().splitlines()[-1]
+
+
+class TestVersionSuffixesAndSources(SyncTestCase):
+    """설치 시 감지와 같은 규칙으로 읽고, 올린 뒤에도 파일이 유효한지 확인한다."""
+
+    def test_gradle_snapshot_is_read_as_core_and_kept_on_increment(self):
+        tmp = self.make_tmp("spring")
+        gradle = Path(tmp) / "build.gradle"
+        gradle.write_text("group = 'com.example'\nversion = '1.2.0-SNAPSHOT'\n", encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "1.2.0")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(last_line(r), "1.2.1")
+        self.assertIn("version = '1.2.1-SNAPSHOT'", gradle.read_text(encoding="utf-8"))
+        self.assertIn('version: "1.2.1"', (Path(tmp) / "version.yml").read_text(encoding="utf-8"))
+
+    def test_pom_snapshot_is_kept_on_increment(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").unlink()
+        pom = Path(tmp) / "pom.xml"
+        pom.write_text("<project>\n  <artifactId>my-service</artifactId>\n"
+                       "  <version>0.0.1-SNAPSHOT</version>\n</project>\n", encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(last_line(r), "0.0.2")
+        self.assertIn("<version>0.0.2-SNAPSHOT</version>", pom.read_text(encoding="utf-8"))
+
+    def test_gradle_without_version_falls_through_to_kts(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").write_text("allprojects {\n    repositories { mavenCentral() }\n}\n",
+                                                encoding="utf-8")
+        kts = Path(tmp) / "build.gradle.kts"
+        kts.write_text('version = "4.5.6"\n', encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "4.5.6")
+        run(["increment"], tmp)
+        self.assertIn('version = "4.5.7"', kts.read_text(encoding="utf-8"))
+
+    def test_flutter_prerelease_is_read_as_core_with_build_number(self):
+        tmp = self.make_tmp("flutter")
+        pubspec = Path(tmp) / "pubspec.yaml"
+        text = pubspec.read_text(encoding="utf-8")
+        pubspec.write_text(re.sub(r"^version: .*$", "version: 1.2.3-rc.1+4", text, flags=re.M), encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "1.2.3")
+        self.assertEqual(last_line(run(["get-code"], tmp)), "4")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # 프리릴리스 표식은 그 버전 전용이라 새 버전에는 붙이지 않는다.
+        self.assertIn("version: 1.2.4+5", pubspec.read_text(encoding="utf-8"))
+
+    def test_package_json_prerelease_is_read_as_core(self):
+        tmp = self.make_tmp("react")
+        pkg = Path(tmp) / "package.json"
+        data = json.loads(pkg.read_text(encoding="utf-8"))
+        data["version"] = "2.0.0-beta.1"
+        pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "2.0.0")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(pkg.read_text(encoding="utf-8"))["version"], "2.0.1")
+
+    def test_react_native_skips_non_semver_native_values(self):
+        tmp = self.make_tmp("react-native")
+        run(["set", "0.3.0"], tmp)
+        plist = Path(tmp) / "ios" / "App" / "Info.plist"
+        plist.write_text(re.sub(r"(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*",
+                                r"\g<1>$(MARKETING_VERSION)", plist.read_text(encoding="utf-8")),
+                         encoding="utf-8")
+        gradle = Path(tmp) / "android" / "app" / "build.gradle"
+        gradle.write_text(re.sub(r'versionName\s+"[^"]*"', 'versionName "1.0"', gradle.read_text(encoding="utf-8")),
+                          encoding="utf-8")
+        # 네이티브 파일에 x.y.z가 없으면 version.yml 값을 쓴다 (설치 때는 package.json 값이 들어가 있다).
+        self.assertEqual(last_line(run(["get"], tmp)), "0.3.0")
+        self.assertIn('versionName "0.3.0"', gradle.read_text(encoding="utf-8"))
+
+    def test_setup_py_version_is_read_and_updated(self):
+        tmp = self.make_tmp("python-proj")
+        (Path(tmp) / "pyproject.toml").unlink()
+        setup_py = Path(tmp) / "setup.py"
+        setup_py.write_text('from setuptools import setup\n\n'
+                            'setup(name="my-service", version="0.2.0", python_requires=">=3.9")\n',
+                            encoding="utf-8")
+        self.assertEqual(last_line(run(["get"], tmp)), "0.2.0")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = setup_py.read_text(encoding="utf-8")
+        self.assertIn('version="0.2.1"', text)
+        self.assertIn('python_requires=">=3.9"', text)
 
 
 if __name__ == "__main__":

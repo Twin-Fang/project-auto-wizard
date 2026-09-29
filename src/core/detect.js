@@ -36,8 +36,9 @@ export function detectTypesFromMarkers({ has, read }) {
   return types.length ? [...new Set(types)] : [FALLBACK_TYPE];
 }
 
-// 1.2.3-rc.1·1.2.3+7 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
+// 1.2.3-rc.1·1.2.3+7·1.2.0-SNAPSHOT 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
 // version.yml은 x.y.z만 받으므로 감지 실패(0.0.1)로 떨어지는 것보다 코어가 정확하다.
+// 릴리스 시 읽기(payload/scripts/version_manager.py core_version)와 같은 규칙이어야 설치 직후 값이 유지된다.
 function coreVersion(v) {
   const m = String(v ?? "").trim().match(/^v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.+-]*)?$/);
   return m ? m[1] : null;
@@ -50,22 +51,37 @@ export function versionFromSetupPy(content) {
   return m ? coreVersion(m[1]) : null;
 }
 
+// React Native 앱 버전 — 릴리스 때 version_manager가 쓰는 파일(ios/<앱>/Info.plist,
+// android/app/build.gradle)에서 읽는다. package.json version은 동기화 대상이 아니라 기준이 되면 어긋난다.
+// $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아니면 건너뛴다.
+// list(relDir)=>string[]|null 로 ios 아래 앱 폴더 이름을 받는다(Pods 등 깊은 plist는 보지 않는다).
+export function versionFromReactNative({ read, list }) {
+  for (const dir of [...(list?.("ios") || [])].sort()) {
+    const m = String(read(`ios/${dir}/Info.plist`) || "").match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/);
+    const v = m && coreVersion(m[1]);
+    if (v) return v;
+  }
+  const m = String(read("android/app/build.gradle") || "").match(/versionName\s+"([^"]+)"/);
+  return m ? coreVersion(m[1]) : null;
+}
+
 // 버전 감지 (동작명세 §3.3) — 순서대로 첫 성공. read(relpath)=>string|null 주입.
 // package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다.
 // hint: 폴백 경고 뒤에 붙일 "그럼 어떻게 고치나" 한 줄. 대화형과 CLI가 서로 다른 방법을
 // 안내해야 하므로 호출부가 정한다. 미지정 시 CLI 문구를 쓴다.
 // types: 주 타입(첫 항목)의 버전 파일을 먼저 읽는다. 릴리스 때 version_manager가 주 타입
 // 파일과 version.yml을 비교하므로, 다른 타입 버전을 잡으면 첫 릴리스에서 버전이 뛴다.
-export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types = [] }) {
+export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hint, types = [] }) {
   const grab = (content, re) => {
     for (const line of (content || "").split("\n")) {
       const m = line.match(re);
-      if (m) { const v = coreVersion(m[1]); if (v) return v; }
+      if (m) { const v = coreVersion(m[m.length - 1]); if (v) return v; }
     }
     return null;
   };
   // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
-  const gradleRe = /^\s*version\s*=\s*["']?([^"'\s]+)/;
+  // 따옴표로 감싼 값만 본다 — 릴리스 때 동기화가 고칠 수 있는 형태가 이것뿐이다.
+  const gradleRe = /^\s*version\s*=\s*(["'])([^"'\n]*)\1/;
   const sources = {
     packageJson: () => coreVersion(readJson?.("package.json")?.version),
     appJson: () => coreVersion(readJson?.("app.json")?.expo?.version),
@@ -74,9 +90,10 @@ export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint, typ
     gradle: () => grab(read("build.gradle"), gradleRe),
     gradleKts: () => grab(read("build.gradle.kts"), gradleRe),
     pom: () => versionFromPom(read("pom.xml")),
-    pubspec: () => grab(read("pubspec.yaml"), /^version:\s*(\S+)/),
+    pubspec: () => grab(read("pubspec.yaml"), /^version:\s*([^\s#]+)/),
     pyproject: () => versionFromPyproject(read("pyproject.toml")),
     setupPy: () => versionFromSetupPy(read("setup.py")),
+    reactNative: () => versionFromReactNative({ read, list }),
   };
   const order = [
     ...(typeInfo(types[0])?.versionSources || []),
@@ -203,7 +220,8 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
   const tryFlutter = () => {
     const content = read("pubspec.yaml");
     if (content == null) return null;
-    const m = content.match(/^version:\s*\d+\.\d+\.\d+\+(\d+)/m);
+    // 1.2.3-rc.1+4처럼 prerelease가 있어도 +N은 빌드 번호다(릴리스 시 읽기와 같은 규칙).
+    const m = content.match(/^version:\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\+(\d+)/m);
     if (m) return parseInt(m[1], 10);
     warn?.("⚠️  pubspec.yaml에 빌드 번호(+N)가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
     return null;
