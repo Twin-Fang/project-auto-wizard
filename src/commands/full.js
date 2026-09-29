@@ -12,12 +12,12 @@ import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
 import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy/workflows.js";
 import { copyScripts, removeScriptBytecode } from "../core/copy/simple.js";
-import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
+import { copyTypeAppFiles } from "../core/copy/app-files.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
-import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
+import { hooksFor } from "../core/types.js";
 import { findStaleWorkflows, cleanupStaleWorkflows } from "../core/removal-plan.js";
 import { log, maskValue } from "../core/logger.js";
 
@@ -62,9 +62,9 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 1-1. Flutter 앱 파일(fastlane·ExportOptions) — 사용자가 값을 채워 쓰는 파일이라 없을 때만 만든다.
   //      워크플로우 복사가 끝난 뒤에 실행한다(워크플로우가 이 파일들을 전제로 돈다).
-  const flutterApp = copyFlutterAppFiles(context, payloadRoot, targetRoot);
-  for (const f of flutterApp.created) log.info("flutter-app", "create", f);
-  for (const f of flutterApp.kept) log.info("flutter-app", "keep", `${f} (기존 파일 유지)`);
+  const flutterApp = copyTypeAppFiles(context, payloadRoot, targetRoot, (tag, action, f) => {
+    log.info(tag, action, action === "keep" ? `${f} (기존 파일 유지)` : f);
+  });
 
   // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다.
   const vyPath = join(targetRoot, PATHS.versionFile);
@@ -188,9 +188,12 @@ export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { j
   const cleanup = cleanupOtherDeployWorkflows(workflowsDir, listDir(),
     context.deployStyle || DEFAULT_DEPLOY_STYLE, baseline,
     { available: payloadWorkflowNames(payloadRoot), justWritten, dryRun });
-  const storeCleanup = Array.isArray(context.flutterStore) && (context.types || []).includes("flutter")
-    ? cleanupDeselectedStoreWorkflows(workflowsDir, listDir(), context.flutterStore, baseline, { dryRun })
-    : { removed: [], backedUp: [] };
+  const storeCleanup = { removed: [], backedUp: [] };
+  for (const { hook } of hooksFor(context.types || [], "cleanupWorkflows")) {
+    const r = hook(workflowsDir, listDir(), context, baseline, { dryRun });
+    storeCleanup.removed.push(...r.removed);
+    storeCleanup.backedUp.push(...r.backedUp);
+  }
   const staleCleanup = cleanupStaleWorkflows(targetRoot, findStaleWorkflows(payloadRoot, targetRoot, baseline), baseline, { dryRun });
   return { cleanup, storeCleanup, staleCleanup };
 }

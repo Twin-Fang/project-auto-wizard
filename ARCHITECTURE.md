@@ -27,10 +27,11 @@ src/
     wizard-env.js            @wizard marker engine (line based, no YAML re-serialization)
     wizard-labels.js         payload/config/wizard-prompts.yml parser (question labels)
     copy/                    installers: workflows.js, simple.js (scripts), readme.js,
-                             gitignore.js, flutter-app.js
+                             gitignore.js, app-files.js (type hooks), flutter-app.js
     baseline.js              .github/.wizard/baseline.json — 3-way update base
     deploy-style.js          server deploy style filter (simple / nginx / traefik / none)
     flutter-options.js       Flutter env mode, store targets, store deploy modes
+    flutter-hooks.js         Flutter's type hooks (workflow filter, cleanup, app files, status, doctor) wired in types.js
     removal-plan.js          what counts as "installed by the wizard" (uninstall, purge, stale cleanup)
     version-yml.js           version.yml render/parse
     verify.js                post-install checks (unsubstituted tokens, required secrets)
