@@ -62,7 +62,8 @@ export async function editMenu({ showFlutter = false, showOptions = false } = {}
   return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter, showOptions }) });
 }
 
-const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
+// 대화형 타입 선택지 — CLI 검증 목록(VALID_TYPES)과 어긋나지 않는지 테스트가 대조한다.
+export const ALL_TYPES = ["spring", "flutter", "next", "react", "react-native", "react-native-expo", "node", "python", "basic", "go"];
 
 // 타입 멀티선택.
 export async function selectTypes(current = []) {
