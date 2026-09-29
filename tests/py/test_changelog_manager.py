@@ -17,8 +17,10 @@ from changelog_manager import filter_release_issue_numbers  # noqa: E402
 
 
 def run(args, cwd):
+    # Windows 기본 코드페이지(cp1252)로 디코딩하면 한글 출력에서 깨진다
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8", env=env)
 
 
 class TestExportMdFallback(unittest.TestCase):
@@ -48,9 +50,10 @@ class TestUpdateFromSummaryIdempotence(unittest.TestCase):
 
     def update(self, version, summary="## [x]\n\n### ✨ 기능\n- 새 기능\n"):
         (Path(self.tmp) / "pr_body.md").write_text(summary, encoding="utf-8")
-        env = {**os.environ, "VERSION": version, "PROJECT_TYPES": "node", "TODAY": "2026-01-01"}
+        env = {**os.environ, "VERSION": version, "PROJECT_TYPES": "node", "TODAY": "2026-01-01",
+               "PYTHONIOENCODING": "utf-8"}
         return subprocess.run([sys.executable, str(SCRIPT), "update-from-summary"],
-                              cwd=self.tmp, capture_output=True, text=True, env=env)
+                              cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", env=env)
 
     def releases(self):
         data = json.loads((Path(self.tmp) / "CHANGELOG.json").read_text(encoding="utf-8"))
