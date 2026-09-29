@@ -69,7 +69,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       # 서명·업로드 Secret이 없으면 빌드를 한참 진행한 뒤에야 실패하므로, 빠진 이름을 먼저 모두 알려 주고 멈춘다
@@ -96,7 +96,7 @@ jobs:
           echo "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다"
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       - name: Prepare env file
         env:
@@ -225,11 +225,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       - name: Download project files
         uses: actions/download-artifact@v8
@@ -584,7 +584,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Setup Google Play Service Account

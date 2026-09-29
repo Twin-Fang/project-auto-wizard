@@ -287,7 +287,7 @@ jobs:
 # 현재 설정: {{MAIN_BRANCH}} 브랜치에 push할 때 자동 배포
 #
 # 브랜치별 포트:
-# - main: 3000 (PROJECT_DEPLOY_PORT secret으로 변경 가능)
+# - {{MAIN_BRANCH}}: 3000 (PROJECT_DEPLOY_PORT secret으로 변경 가능)
 #
 # 필요한 Secrets:
 # - REACT_ENV_FILE, DOCKERHUB_*, SERVER_* (필수)
