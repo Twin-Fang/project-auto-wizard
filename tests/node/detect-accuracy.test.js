@@ -10,7 +10,7 @@ import {
   detectVersionFromFiles, versionFromPom, detectJdkFromFiles, resolveMarker, resolveMarkers,
   detectTypesFromMarkers, markerForType, versionFromPyproject,
 } from "../../src/core/detect.js";
-import { findSpringAppYml, makeResolvers } from "../../src/core/detect-fs.js";
+import { findSpringAppYml, makeResolvers, detectVersion } from "../../src/core/detect-fs.js";
 
 const readFrom = (files) => (rel) => (rel in files ? files[rel] : null);
 
@@ -74,6 +74,38 @@ test("detectVersionFromFiles: prerelease 버전은 x.y.z 코어로 감지한다"
   assert.strictEqual(v, "2.0.0");
   assert.strictEqual(warned.length, 0);
   assert.strictEqual(detectVersionFromFiles({ read: () => null, readJson: () => null, gitTag: "v1.2.3-beta.1" }), "1.2.3");
+});
+
+test("detectVersionFromFiles: react-native는 릴리스 때 쓰는 네이티브 파일 버전을 package.json보다 먼저 읽는다", () => {
+  const root = fixture({
+    "package.json": JSON.stringify({ version: "1.0.0", dependencies: { "react-native": "0.74.0" } }),
+    "ios/MyApp/Info.plist": "<dict><key>CFBundleShortVersionString</key>\n<string>$(MARKETING_VERSION)</string></dict>",
+    "ios/Pods/Target Support Files/Lib/Info.plist": "<dict><key>CFBundleShortVersionString</key><string>9.9.9</string></dict>",
+    "android/app/build.gradle": 'android { defaultConfig { versionName "1.0.3" } }',
+  });
+  try {
+    // $(MARKETING_VERSION)은 건너뛰고, 의존성(Pods) 깊은 곳의 plist는 보지 않는다.
+    assert.strictEqual(detectVersion(root, { types: ["react-native"], warn: () => {} }), "1.0.3");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("detectVersionFromFiles: react-native 네이티브 파일에 x.y.z가 없으면 package.json으로 폴백한다", () => {
+  const root = fixture({
+    "package.json": JSON.stringify({ version: "0.4.0", dependencies: { "react-native": "0.74.0" } }),
+    "ios/MyApp/Info.plist": "<dict><key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string></dict>",
+    "android/app/build.gradle": 'android { defaultConfig { versionName "1.0" } }',
+  });
+  try {
+    assert.strictEqual(detectVersion(root, { types: ["react-native"], warn: () => {} }), "0.4.0");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("detectVersionFromFiles: Gradle -SNAPSHOT 버전은 x.y.z 코어로 감지한다", () => {
+  const v = detectVersionFromFiles({
+    read: readFrom({ "build.gradle": "version = '1.2.0-SNAPSHOT'\n" }), readJson: () => null,
+    gitTag: "", warn: () => {}, types: ["spring"],
+  });
+  assert.strictEqual(v, "1.2.0");
 });
 
 test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 버전은 쓰지 않는다", () => {

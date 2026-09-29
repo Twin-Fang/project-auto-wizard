@@ -45,7 +45,8 @@ export const TYPES = [
     id: "react-native",
     markers: ["package.json"],
     detectBy: "package", packageDep: "react-native", detectOrder: 2,
-    versionSources: ["packageJson"],
+    // 릴리스 때 동기화하는 네이티브 파일이 기준이고, 거기서 못 읽을 때만 package.json을 본다.
+    versionSources: ["reactNative", "packageJson"],
     buildNumberSource: "androidGradle",
   },
   {

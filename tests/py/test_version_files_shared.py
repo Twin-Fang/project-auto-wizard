@@ -27,12 +27,6 @@ CASES = json.loads((ROOT / "expected.json").read_text(encoding="utf-8"))["cases"
 FALLBACK = "not-from-project-file"
 
 
-def expected_for(case, lang):
-    merged = dict(case)
-    merged.update((case.get("knownDifference") or {}).get(lang) or {})
-    return merged
-
-
 class TestSharedVersionFiles(unittest.TestCase):
     def test_case_dirs_match_expected(self):
         dirs = sorted(p.name for p in ROOT.iterdir() if p.is_dir())
@@ -59,11 +53,10 @@ class TestSharedVersionFiles(unittest.TestCase):
         finally:
             os.chdir(cwd)
 
-        want = expected_for(case, "python")
-        self.assertEqual(None if version == FALLBACK else version, want["version"])
+        self.assertEqual(None if version == FALLBACK else version, case["version"])
         # Python은 빌드 번호를 pubspec.yaml에서만 읽는다.
         if case["type"] == "flutter":
-            self.assertEqual(build_number, want["buildNumber"])
+            self.assertEqual(build_number, case["buildNumber"])
 
 
 if __name__ == "__main__":

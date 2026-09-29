@@ -74,29 +74,46 @@ function findSubdirProjects(root, maxDepth = 2) {
 // hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
 // 모노레포(--paths)는 버전 파일이 타입 폴더 안에 있다 — 루트만 보면 0.0.1/1로 초기화된다.
 // 주 타입 폴더 → 나머지 타입 폴더 → 루트 순으로 찾는다.
-function readFromProject(root, types = [], paths = null) {
-  const read = readFile(root);
+function projectBases(types = [], paths = null) {
   const bases = [];
   for (const t of types) {
     const p = paths?.get?.(t);
     if (p && p !== "." && !bases.includes(p)) bases.push(p);
   }
-  if (!bases.length) return read;
-  bases.push(".");
+  return bases.length ? [...bases, "."] : ["."];
+}
+
+// 첫 번째로 결과가 있는 기준 폴더의 값을 쓴다 — read와 list가 같은 폴더 우선순위를 따른다.
+function firstFromBases(bases, fn) {
   return (rel) => {
     for (const b of bases) {
-      const c = read(b === "." ? rel : `${b}/${rel}`);
+      const c = fn(b === "." ? rel : `${b}/${rel}`);
       if (c != null) return c;
     }
     return null;
   };
 }
 
+function readFromProject(root, types = [], paths = null) {
+  return firstFromBases(projectBases(types, paths), readFile(root));
+}
+
+// 하위 폴더 이름 목록 (React Native의 ios/<앱>/Info.plist 탐색용). 폴더가 없으면 null.
+function listFromProject(root, types = [], paths = null) {
+  const listDirs = (rel) => {
+    try {
+      return readdirSync(join(root, rel), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch { return null; }
+  };
+  return firstFromBases(projectBases(types, paths), listDirs);
+}
+
 export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [], paths = null } = {}) {
   const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
+  const list = listFromProject(root, types, paths);
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
-  return detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types });
+  return detectVersionFromFiles({ read, readJson, list, gitTag, warn, hint, types });
 }
 
 // 타입별 실제 마커 파일 — 감지 로그·설치 로그가 같은 근거 파일을 인용하도록.

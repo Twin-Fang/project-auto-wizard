@@ -46,6 +46,26 @@ class VersionSyncError(Exception):
     """version.yml·프로젝트 파일에 버전을 쓰지 못했다 — exit 1로 알린다."""
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
+# 프로젝트 파일 버전 해석 규칙 — 설치 시 감지(src/core/detect.js coreVersion)와 같아야 한다.
+# version.yml은 x.y.z만 저장·증가시키므로 파일의 1.2.3-rc.1·1.2.3+4·1.2.0-SNAPSHOT은 코어 x.y.z로 읽는다.
+# 다르게 읽으면 설치 직후 version.yml 값과 첫 릴리스 때 읽은 값이 어긋난다.
+_CORE_VERSION_RE = re.compile(r"^v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.+-]*)?$")
+
+# Gradle·Maven의 -SNAPSHOT은 특정 버전의 프리릴리스가 아니라 "개발 중 빌드" 표식이다(배포 저장소 선택,
+# 산출물 이름에 쓰인다). 그래서 버전을 올려도 떼지 않고 새 버전 뒤에 그대로 붙인다.
+# rc.1·beta.1 같은 프리릴리스는 그 버전 전용 표식이라 새 x.y.z로 릴리스할 때 버린다.
+SNAPSHOT_SUFFIX = "-SNAPSHOT"
+
+
+def core_version(value):
+    """x.y.z[-pre][+build] → x.y.z. 버전 형식이 아니면 None."""
+    m = _CORE_VERSION_RE.match(str(value or "").strip())
+    return m.group(1) if m else None
+
+
+def _keep_snapshot(old_value, new_version):
+    return new_version + SNAPSHOT_SUFFIX if str(old_value).endswith(SNAPSHOT_SUFFIX) else new_version
+
 
 def log(message):
     """Non-value logging output, written to stderr (mirroring the bash
@@ -396,7 +416,8 @@ def sync_maven(path_dir, new_version):
         # ${revision} 같은 CI-friendly 버전은 프로퍼티 쪽에서 관리하므로 건드리지 않는다.
         log(f"WARNING: spring: {root_pom} <version> is a property ({old_version}) — skipping")
         return True
-    new_text, _ = _pom_replace(text, ["version"], new_version)
+    new_full = _keep_snapshot(old_version, new_version)
+    new_text, _ = _pom_replace(text, ["version"], new_full)
     write_file(root_pom, new_text)
     log(f"updated: {root_pom}")
 
@@ -407,15 +428,15 @@ def sync_maven(path_dir, new_version):
             continue
         if _pom_text(ctext, ["parent", "version"]) != old_version:
             continue
-        ctext, _ = _pom_replace(ctext, ["parent", "version"], new_version)
+        ctext, _ = _pom_replace(ctext, ["parent", "version"], new_full)
         if _pom_text(ctext, ["version"]) == old_version:
-            ctext, _ = _pom_replace(ctext, ["version"], new_version)
+            ctext, _ = _pom_replace(ctext, ["version"], new_full)
         write_file(child, ctext)
         log(f"updated: {child}")
     return True
 
 
-_GRADLE_VERSION_RE =re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])[^'"\n]*\2""", re.MULTILINE)
+_GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*)\2""", re.MULTILINE)
 
 
 def sync_spring(path_dir, new_version):
@@ -436,7 +457,7 @@ def sync_spring(path_dir, new_version):
         # 줄 시작의 `version =`만 프로젝트 버전이다. 앵커가 없으면 kotlin_version 같은
         # 의존성 버전 변수까지 함께 바뀌어 빌드가 깨진다.
         new_text, count = _GRADLE_VERSION_RE.subn(
-            lambda m: f"{m.group(1)}{m.group(2)}{new_version}{m.group(2)}", text,
+            lambda m: f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}", text,
         )
         if count == 0:
             log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
@@ -533,19 +554,37 @@ def _pyproject_version_span(text):
     return None
 
 
+# setup(version="x.y.z"). python_requires·python_version 같은 다른 키는 앞 글자로 거른다.
+_SETUP_PY_VERSION_RE = re.compile(r"""(?<![\w.])version\s*=\s*(['"])([^'"]+)\1""")
+
+
+def _python_version_spans(path_dir):
+    """버전을 읽고 쓰는 파일과 값 구간 목록. 읽을 때는 앞쪽(pyproject.toml → setup.py)이 우선이다.
+    setup.py만 쓰는 프로젝트도 설치 때 버전을 읽으므로, 릴리스 때도 같은 파일을 읽고 써야 한다."""
+    spans = []
+    pyproject = Path(path_dir) / "pyproject.toml"
+    if pyproject.is_file():
+        span = _pyproject_version_span(read_file(pyproject))
+        if span:
+            spans.append((pyproject, span))
+    setup_py = Path(path_dir) / "setup.py"
+    if setup_py.is_file():
+        m = _SETUP_PY_VERSION_RE.search(read_file(setup_py))
+        if m:
+            spans.append((setup_py, (m.start(2), m.end(2))))
+    return spans
+
+
 def sync_python(path_dir, new_version):
-    target = Path(path_dir) / "pyproject.toml"
-    if not target.is_file():
-        log(f"WARNING: python: {target} not found — skipping")
-        return
-    text = read_file(target)
-    span = _pyproject_version_span(text)
-    if span is None:
+    spans = _python_version_spans(path_dir)
+    if not spans:
         # dynamic = ["version"] 등 버전을 파일에 두지 않는 구성은 쓸 곳이 없다.
-        log(f"WARNING: python: no version in [project]/[tool.poetry] of {target} — skipping")
+        log(f"WARNING: python: no version in pyproject.toml [project]/[tool.poetry] or setup.py under {path_dir} — skipping")
         return
-    write_file(target, text[:span[0]] + new_version + text[span[1]:])
-    log(f"updated: {target}")
+    for target, (start, end) in spans:
+        text = read_file(target)
+        write_file(target, text[:start] + new_version + text[end:])
+        log(f"updated: {target}")
 
 
 def sync_react_native(path_dir, new_version):
@@ -649,21 +688,18 @@ def update_all_versions(new_version):
 # ===================================================================
 
 def _read_spring(path_dir):
-    version = None
+    # build.gradle에 버전이 없으면(allprojects 설정만 있는 경우 등) build.gradle.kts → pom.xml 순으로 이어 본다.
     for name in ("build.gradle", "build.gradle.kts"):
         p = Path(path_dir) / name
         if p.is_file():
-            text = p.read_text(encoding="utf-8")
-            m = re.search(r"^\s*version\s*=\s*['\"](\d+\.\d+\.\d+)['\"]", text, re.MULTILINE)
-            if m:
-                version = m.group(1)
-            break
+            for m in _GRADLE_VERSION_RE.finditer(read_file(p)):
+                version = core_version(m.group(3))
+                if version:
+                    return version
     pom = Path(path_dir) / "pom.xml"
-    if version is None and pom.is_file():
-        pom_version = _pom_text(read_file(pom), ["version"])
-        if pom_version and SEMVER_RE.match(pom_version):
-            version = pom_version
-    return version
+    if pom.is_file():
+        return core_version(_pom_text(read_file(pom), ["version"]))
+    return None
 
 
 def _read_flutter(path_dir):
@@ -672,7 +708,7 @@ def _read_flutter(path_dir):
         text = p.read_text(encoding="utf-8")
         m = re.search(r'^version:\s*([^\s#]+)', text, re.MULTILINE)
         if m:
-            return m.group(1).split("+")[0]
+            return core_version(m.group(1))
     return None
 
 
@@ -680,26 +716,27 @@ def _read_package_json(path_dir):
     p = Path(path_dir) / "package.json"
     if p.is_file():
         data = json.loads(p.read_text(encoding="utf-8"))
-        return data.get("version")
+        return core_version(data.get("version"))
     return None
 
 
 def _read_react_native(path_dir):
+    """릴리스 때 쓰는 파일(ios/<앱>/Info.plist, android/app/build.gradle)에서 읽는다.
+    package.json version은 동기화하지 않으므로 기준으로 삼으면 매 릴리스마다 어긋난다.
+    $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아닌 값은 건너뛴다."""
     ios_dir = Path(path_dir) / "ios"
-    plist = None
     if ios_dir.is_dir():
-        plists = list(ios_dir.rglob("Info.plist"))
-        plist = plists[0] if plists else None
-    if plist is not None:
-        text = plist.read_text(encoding="utf-8")
-        m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', text)
-        return m.group(1) if m else None
+        # rglob 첫 결과는 파일시스템 순서라 Pods·테스트 타깃 plist가 걸릴 수 있다 — 앱 폴더 한 단계만, 이름순.
+        for plist in sorted(ios_dir.glob("*/Info.plist")):
+            m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', read_file(plist))
+            version = core_version(m.group(1)) if m else None
+            if version:
+                return version
     gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
     if gradle_file.is_file():
-        text = gradle_file.read_text(encoding="utf-8")
-        m = re.search(r'versionName\s+"([^"]+)"', text)
+        m = re.search(r'versionName\s+"([^"]+)"', read_file(gradle_file))
         if m:
-            return m.group(1)
+            return core_version(m.group(1))
     return None
 
 
@@ -707,17 +744,15 @@ def _read_expo(path_dir):
     p = Path(path_dir) / "app.json"
     if p.is_file():
         data = json.loads(p.read_text(encoding="utf-8"))
-        return (data.get("expo") or {}).get("version")
+        return core_version((data.get("expo") or {}).get("version"))
     return None
 
 
 def _read_python(path_dir):
-    p = Path(path_dir) / "pyproject.toml"
-    if p.is_file():
-        text = read_file(p)
-        span = _pyproject_version_span(text)
-        if span and SEMVER_RE.match(text[span[0]:span[1]]):
-            return text[span[0]:span[1]]
+    for target, (start, end) in _python_version_spans(path_dir):
+        version = core_version(read_file(target)[start:end])
+        if version:
+            return version
     return None
 
 
