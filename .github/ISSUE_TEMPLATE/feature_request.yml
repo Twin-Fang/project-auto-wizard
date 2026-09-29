@@ -1,6 +1,6 @@
 name: 기능 제안
 description: 새로운 기능이나 개선 사항을 제안합니다
-labels: ["enhancement"]
+labels: ["type: enhancement", "status: needs triage"]
 body:
   - type: textarea
     id: problem
