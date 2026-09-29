@@ -98,11 +98,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       # 인증서 import·빌드 전에 설정 누락을 한 번에 알려 준다 — 없으면 macOS 러너에서 한참 빌드한 뒤에야 엉뚱한 단계에서 실패한다
       - name: 배포 설정 사전 검증
@@ -270,11 +270,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -436,7 +436,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Setup App Store Connect API Key

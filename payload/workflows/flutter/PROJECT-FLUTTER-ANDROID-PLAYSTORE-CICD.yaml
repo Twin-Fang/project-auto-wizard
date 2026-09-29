@@ -69,11 +69,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       - name: Prepare env file
         env:
@@ -202,11 +202,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Pull latest changes
-        run: git pull origin main
+        run: git pull origin {{MAIN_BRANCH}}
 
       - name: Download project files
         uses: actions/download-artifact@v8
@@ -561,7 +561,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
       - name: Setup Google Play Service Account
