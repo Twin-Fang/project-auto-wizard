@@ -8,7 +8,7 @@ import {
 } from "../deploy-style.js";
 import { storeWorkflowFilter } from "../flutter-options.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { PATHS, PAYLOAD } from "../paths.js";
+import { PATHS, PAYLOAD, typeWorkflowDirs } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
 import { substituteEnv } from "../wizard-env.js";
 import { substitute } from "../branding.js";
@@ -233,7 +233,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   // (2~4) 타입별
   for (const type of types) {
     const asks = new Map();
-    copyWorkflowsForType(type, projectTypesDir, workflowsDir, { ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
+    copyWorkflowsForType(type, payloadRoot, workflowsDir, { ...context, deployStyle, envOptsFor, collectAsks: asks, dirCtx }, counters);
     if (asks.size) deployValues.set(type, asks);
   }
 
@@ -332,11 +332,10 @@ export function surveyWorkflows(context, payloadRoot, targetRoot = ".") {
       type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null,
       values: context.envValues || new Map(), useDefaults: context.envUseDefaults !== false,
     };
-    const typeDir = join(projectTypesDir, type);
+    const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
     if (exists(typeDir)) {
       collect(typeDir, envOpts, type, () => false, buildTypeRootFilter(type, deployStyle, flutterStore, available));
     }
-    const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
       collect(serverDeployDir, envOpts, type, () => false, keepDeploy);
     }
@@ -364,12 +363,12 @@ export async function copyWorkflowsInteractive(context, payloadRoot, targetRoot 
   return copyWorkflows(context, payloadRoot, targetRoot, { decisions });
 }
 
-function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters) {
+function copyWorkflowsForType(type, payloadRoot, workflowsDir, ctx, counters) {
   const { deployStyle = "", flutterStore = null, envOptsFor, collectAsks = null, dirCtx } = ctx;
   const keepDeploy = deployFilter(deployStyle, dirCtx.available);
   const keepTypeRoot = buildTypeRootFilter(type, deployStyle, flutterStore, dirCtx.available);
   const { srcText, baselineTargets } = dirCtx;
-  const typeDir = join(projectTypesDir, type);
+  const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
   const envOpts = envOptsFor(type);
   // env 치환에서 제외할 파일 — 손대지 않기로 한 것들(unchanged/localOnly/유지된 삭제분)에
   // 치환을 다시 걸면 사용자 수정본을 덮어쓰게 된다.
@@ -383,7 +382,6 @@ function copyWorkflowsForType(type, projectTypesDir, workflowsDir, ctx, counters
   }
 
   // server-deploy
-  const serverDeployDir = join(typeDir, "server-deploy");
   // "배포 안 함"이면 폴더째 제외 (복사 안 함)
   if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
     const c = processDir(serverDeployDir, workflowsDir, envOpts, dirCtx, counters, keepDeploy);
@@ -445,12 +443,11 @@ export function planWorkflows(context, payloadRoot, targetRoot = ".") {
 
   for (const type of types) {
     const envOpts = { type, projectPath: paths.get(type) || ".", repoName, resolvers, savedValues: saved.get(type) || null };
-    const typeDir = join(projectTypesDir, type);
+    const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
     if (exists(typeDir)) {
       merge(classify(typeDir, workflowsDir, envOpts, srcText, baseline, buildTypeRootFilter(type, deployStyle, flutterStore, available)), type);
     }
 
-    const serverDeployDir = join(typeDir, "server-deploy");
     if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
       merge(classify(serverDeployDir, workflowsDir, envOpts, srcText, baseline, deployFilter(deployStyle, available)), type);
     }

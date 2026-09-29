@@ -1,4 +1,6 @@
 // 경로 상수 — 설치 대상(사용자 레포) 경로 + payload 내부 레이아웃.
+import { join } from "node:path";
+
 export const PATHS = {
   versionFile: "version.yml",
   workflowsDir: ".github/workflows",
@@ -11,6 +13,13 @@ export const PAYLOAD = {
   scriptsDir: "scripts",       // payload/scripts/*.py
   configDir: "config",         // payload/config/wizard-prompts.yml 등 (마법사 런타임용)
 };
+
+// 타입 하나의 워크플로우 원본 폴더 [타입 직하위, server-deploy 하위] — 존재 여부는 호출부가 확인한다.
+// 설치·충돌 조사·미리보기·배포 방식 판정이 같은 폴더 구성을 봐야 결과가 서로 어긋나지 않는다.
+export function typeWorkflowDirs(payloadRoot, type) {
+  const typeDir = join(payloadRoot, PAYLOAD.workflowsDir, type);
+  return [typeDir, join(typeDir, "server-deploy")];
+}
 
 export const WORKFLOW_PREFIX = "PROJECT";
 export const WORKFLOW_COMMON_PREFIX = "PROJECT-COMMON";

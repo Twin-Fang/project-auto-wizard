@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { stdin, stderr } from "node:process";
-import { PAYLOAD } from "../core/paths.js";
+import { PAYLOAD, typeWorkflowDirs } from "../core/paths.js";
 import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
@@ -58,7 +58,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const commonDir = join(baseDir, "common");
   if (exists(commonDir)) units.push(["common", commonDir, null]);
   for (const type of types) {
-    const typeDir = join(baseDir, type);
+    const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
     if (!exists(typeDir)) continue;
     // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + ("배포 안 함"이 아닐 때만) server-deploy.
     // go/python·react/next처럼 서버 배포 워크플로우가 타입 루트에 바로 있는 타입도 같은 배포 방식
@@ -66,7 +66,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
     // Flutter는 선택 해제된 스토어 워크플로우(PLAYSTORE·TESTFLIGHT)도 같은 필터로 걸러 질문 범위가 설치 범위와 같다.
     units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore, available)]);
     if (deployStyle !== NO_DEPLOY_STYLE) {
-      units.push([type, join(typeDir, "server-deploy"), keepDeploy]);
+      units.push([type, serverDeployDir, keepDeploy]);
     }
   }
 
