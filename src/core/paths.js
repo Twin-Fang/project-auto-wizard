@@ -24,7 +24,7 @@ export function typeWorkflowDirs(payloadRoot, type) {
 export const WORKFLOW_PREFIX = "PROJECT";
 export const WORKFLOW_COMMON_PREFIX = "PROJECT-COMMON";
 
-// 경로 정규화 (.sh resolve_project_paths §3.4): 앞뒤 공백·\→/·끝 /·앞 ./ 제거, 빈값→"."
+// 경로 정규화: 앞뒤 공백·\→/·끝 /·앞 ./ 제거, 빈값→"."
 export function normalizePath(p) {
   let s = String(p).trim();
   s = s.replace(/\\/g, "/");

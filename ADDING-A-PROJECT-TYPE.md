@@ -88,8 +88,10 @@ Install-time (Node, `detect.js`) and release-time (Python) both parse the same f
 share fixtures: add a case folder under `tests/fixtures/version-files/<case>/` with the sample
 file, and an entry in `tests/fixtures/version-files/expected.json` (`type`, `version`,
 `buildNumber`). `tests/node/version-files-shared.test.js` and `tests/py/test_version_files_shared.py`
-both run every case. If the two parsers intentionally read a value differently, declare it under
-`knownDifference` rather than loosening the case.
+both run every case, so the two sides must agree: the version in the file is read as its core
+`x.y.z` (`1.2.3-rc.1`, `1.2.3+4` and `1.2.0-SNAPSHOT` all read as their core), and a
+`-SNAPSHOT` suffix is preserved when the release bumps the file. A `null` version means the file has
+no usable version (Node falls back to `0.0.1` with a warning, Python to the `version.yml` value).
 
 ## 4. Question text — `payload/config/wizard-prompts.yml`
 

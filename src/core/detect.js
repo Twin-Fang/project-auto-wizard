@@ -23,7 +23,7 @@ export function classifyPackageJson(pkgOrRaw) {
   return classifyPackageText(raw);
 }
 
-// 마커 스캔 (동작명세 §3.1). has(relpath)=>bool 주입. node는 다른 타입 있으면 미추가.
+// 마커 스캔. has(relpath)=>bool 주입. node는 다른 타입 있으면 미추가.
 // read(relpath)=>string|null 로 package.json 원문을 받아 classifyPackageText에 넘긴다.
 export function detectTypesFromMarkers({ has, read }) {
   const types = [];
@@ -65,7 +65,7 @@ export function versionFromReactNative({ read, list }) {
   return m ? coreVersion(m[1]) : null;
 }
 
-// 버전 감지 (동작명세 §3.3) — 순서대로 첫 성공. read(relpath)=>string|null 주입.
+// 버전 감지 — 순서대로 첫 성공. read(relpath)=>string|null 주입.
 // package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다.
 // hint: 폴백 경고 뒤에 붙일 "그럼 어떻게 고치나" 한 줄. 대화형과 CLI가 서로 다른 방법을
 // 안내해야 하므로 호출부가 정한다. 미지정 시 CLI 문구를 쓴다.

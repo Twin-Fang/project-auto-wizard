@@ -11,7 +11,7 @@ bin/project-auto-wizard.js   entry point — calls run() from src/index.js
 src/
   index.js                   argv → mode routing; non-interactive install pipeline (runInner)
   context.js                 install context object + VALID_TYPES
-  cli/                       argument parsing (args.js, CliError) and --help text
+  cli/                       argument parsing (args.js) and --help text
   commands/                  one module per mode
     interactive.js           interactive wizard (default when run with no args on a TTY)
     full.js                  runFull — the install executor shared by both entry paths
@@ -19,7 +19,10 @@ src/
   core/                      pure-ish logic, no prompts (I/O is injected)
     types.js                 project type registry (see "Project types" below)
     detect.js / detect-fs.js type, version, build number, branch, repo name detection; @wizard resolvers
+    paths.js                 PATHS/PAYLOAD constants, typeWorkflowDirs(payloadRoot, type), path normalization
+    errors.js                CliError (user-fixable failures; cli/args.js re-exports it)
     paths-resolve.js         per-type project paths (monorepo)
+    release-options.js       semver_auto / copilot_ai rules shared by CLI and interactive (pickReleaseOptions, resolveReleaseOptions)
     branches.js              main/develop branch config (pr-flow vs trunk-based)
     wizard-env.js            @wizard marker engine (line based, no YAML re-serialization)
     wizard-labels.js         payload/config/wizard-prompts.yml parser (question labels)
@@ -45,8 +48,10 @@ tests/node, tests/py         test suites (see "Tests")
 ```
 
 Dependency direction is `commands → core`, `commands → ui`, and `ui → core`. `core` never
-imports `ui`; prompts are passed in as `io` so the same logic runs in tests. (One known exception:
-`core/paths-resolve.js` imports path helpers and `CliError` from `cli/args.js`.)
+imports `ui` or `cli`; prompts are passed in as `io` so the same logic runs in tests. Shared pieces
+that both sides need (`CliError`, path normalization) live in `core/errors.js` and `core/paths.js`.
+When code needs the payload folders of a type (`payload/workflows/<type>/` and its `server-deploy/`),
+use `typeWorkflowDirs` instead of joining paths by hand.
 
 The CLI itself is Node (zero runtime dependencies). Everything that runs later inside the
 user's GitHub Actions is Python stdlib, so the installed side has no bash/PowerShell split.

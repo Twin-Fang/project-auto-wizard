@@ -765,7 +765,7 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
 
 # ------------------------ ai-summary 엔진 체인 ------------------------
 
-# Copilot Free/Student 계정은 모델명 지정이 거부되고 auto 모델 선택만 허용된다 (#153).
+# Copilot Free/Student 계정은 모델명 지정이 거부되고 auto 모델 선택만 허용된다.
 _COPILOT_MODEL = "auto"
 _COPILOT_TIMEOUT_SECONDS = 90
 
