@@ -77,7 +77,8 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
 
   const remote = exec("git", ["-C", cwd, "remote", "get-url", "origin"]);
   const url = remote.status === 0 ? (remote.stdout || "").trim() : "";
-  const match = url.match(/github\.com[:/]([^/]+)\/([^/.]+?)(\.git)?$/);
+  // 레포 이름에는 점이 올 수 있다(user.github.io, next.js) — 끝의 .git만 떼어낸다.
+  const match = url.match(/github\.com[:/]([^/]+)\/([^/]+?)(\.git)?\/?$/);
   if (!match) {
     add({
       name: "GitHub 원격", purpose: "점검 대상 레포 식별", status: "WARN",

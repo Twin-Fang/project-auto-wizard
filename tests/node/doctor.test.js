@@ -400,3 +400,23 @@ test("runDoctor: Flutter가 아닌 프로젝트는 저장된 스토어 옵션이
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owner/repo를 인식한다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    for (const [url, expected] of [
+      ["https://github.com/vercel/next.js.git\n", "repos/vercel/next.js"],
+      ["git@github.com:someone/someone.github.io.git\n", "repos/someone/someone.github.io"],
+      ["https://github.com/vercel/next.js\n", "repos/vercel/next.js"],
+    ]) {
+      const calls = [];
+      const base = fakeExec([...ALL_OK_EXEC.filter(([p]) => p !== "git -C"), ["git -C", { status: 0, stdout: url, stderr: "" }]]);
+      const exec = (cmd, args) => { calls.push([cmd, ...args].join(" ")); return base(cmd, args); };
+      const results = runDoctor(dir, { exec });
+      assert.ok(!results.some((r) => r.name === "GitHub 원격"), `${url.trim()}를 인식해야 한다`);
+      assert.ok(calls.some((c) => c.includes(`${expected}/actions/permissions/workflow`)), `${url.trim()} → ${expected}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
