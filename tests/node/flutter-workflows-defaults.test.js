@@ -86,16 +86,39 @@ test("빈 서명·자격증명 Secret을 성공처럼 넘기지 않는다", () =
     assert.ok(!/echo "\$\{\{ secrets\.[A-Z_]+ \}\}" \| base64/.test(text), `${f}: Secret을 검사 없이 디코딩합니다`);
     assert.ok(!text.includes("${{ secrets.GOOGLE_SERVICES_JSON }}\n          EOF"), `${f}: 빈 google-services.json을 만들 수 있습니다`);
   }
-  for (const f of ["PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml", "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml", "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"]) {
+  // 스토어 배포는 스토어에 등록된 키와 달라지면 안 되므로 빈 서명 Secret이면 실패한다
+  for (const f of ["PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml", "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml"]) {
     const text = read(f);
     const start = text.indexOf("- name: Setup Release Keystore");
     const step = text.slice(start, text.indexOf("\n      - name: ", start));
     assert.ok(step.includes("for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do"), `${f}: 서명 Secret 검사 누락`);
+    assert.ok(step.includes("::error::서명 Secret이 비어 있습니다"), `${f}: 빈 서명 Secret으로 실패하지 않습니다`);
     assert.ok(step.indexOf("exit 1") < step.indexOf("✅ Release Keystore 생성 완료"), `${f}: 검사 전에 성공 메시지를 냅니다`);
   }
   const selfhosted = read("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml");
   assert.ok(selfhosted.includes('if [ -z "$DEBUG_KEYSTORE" ]; then'), "SELFHOSTED: DEBUG_KEYSTORE 검사 누락");
-  assert.ok(selfhosted.includes("# DEBUG_KEYSTORE:"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
+  assert.ok(selfhosted.includes("# DEBUG_KEYSTORE (선택):"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
+});
+
+test("테스트·내부 배포 빌드는 서명 Secret이 없으면 경고 후 기본 debug 서명으로 진행한다", () => {
+  const cases = [
+    ["PROJECT-FLUTTER-ANDROID-TEST-APK.yaml", "Setup Release Keystore", "Create key.properties", "release", "mode=debug"],
+    ["PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml", "Setup Debug Keystore", "Setup Keystore and key.properties", "keystore", "mode=default"],
+  ];
+  for (const [f, signingStep, propsStep, mode, fallback] of cases) {
+    const text = read(f);
+    const start = text.indexOf(`- name: ${signingStep}\n        id: signing\n`);
+    assert.ok(start !== -1, `${f}: 서명 스텝에 id: signing이 없습니다`);
+    const step = text.slice(start, text.indexOf("\n      - name: ", start));
+    // 비어 있으면 실패 대신 경고 + debug 서명
+    assert.ok(step.includes("::warning::"), `${f}: 빈 Secret 경고가 없습니다`);
+    assert.ok(!step.includes("::error::서명 Secret이 비어"), `${f}: 빈 Secret으로 실패합니다`);
+    assert.ok(step.indexOf(fallback) < step.indexOf("exit 0"), `${f}: 폴백 후 종료가 없습니다`);
+    // 깨진 값은 base64 디코딩이 실패하며 중단된다 (|| 로 삼키지 않음)
+    assert.ok(/printf '%s' "\$\w+" \| base64 -d > \S+\n/.test(step), `${f}: 디코딩 실패를 삼킵니다`);
+    // keystore를 만들지 못했으면 key.properties도 만들지 않는다 (빈 설정이 프로젝트 기본 서명을 덮지 않게)
+    assert.ok(text.includes(`- name: ${propsStep}\n        if: steps.signing.outputs.mode == '${mode}'\n`), `${f}: key.properties 생성 조건 누락`);
+  }
 });
 
 test("수동 실행(workflow_dispatch) 배포 모드 기본값이 설치 시 선택한 모드를 따른다", async () => {
