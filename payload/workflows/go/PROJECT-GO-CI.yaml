@@ -53,6 +53,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
+    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_PATH }}
 
     steps:
       - name: 코드 체크아웃
@@ -62,7 +66,8 @@ jobs:
       - name: Go 설정
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ env.PROJECT_PATH }}/go.mod
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/go.sum
           cache: true
 
       - name: go build 검증
@@ -80,6 +85,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+          working-directory: ${{ env.PROJECT_PATH }}
 
       - name: 빌드 검증 완료
         run: |

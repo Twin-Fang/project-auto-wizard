@@ -28,9 +28,11 @@ name: PROJECT-GO-PR-PREVIEW
 env:
   # 프로젝트 고유 식별자 (컨테이너명, 이미지명, 도메인에 사용)
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
 
   # Docker 설정
-  DOCKERFILE_PATH: './Dockerfile'
+  DOCKERFILE_PATH: './Dockerfile'  # PROJECT_PATH 기준 상대 경로
   INTERNAL_PORT: '8080'
 
   # 볼륨 마운트 설정 (프로젝트별 수정 필요, 빈값이면 마운트 안함)
@@ -229,6 +231,7 @@ jobs:
 
       # [영역 2] 환경변수 파일 생성
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         run: |
           cat << 'EOF' > .env
           ${{ secrets.ENV_FILE }}
@@ -247,8 +250,8 @@ jobs:
       - name: Docker 이미지 빌드 & Push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
           cache-from: type=gha
@@ -795,6 +798,7 @@ jobs:
 
       # [영역 2] 환경변수 파일 생성
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.check_branch.outputs.exists == 'true'
         run: |
           cat << 'EOF' > .env
@@ -817,8 +821,8 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
           cache-from: type=gha
@@ -1506,6 +1510,7 @@ jobs:
           ref: ${{ needs.check-command.outputs.custom_branch }}
 
       - name: "[필수] .env 파일 생성"
+        working-directory: ${{ env.PROJECT_PATH }}
         if: steps.branch_info.outputs.branch_exists == 'true'
         run: |
           cat << 'EOF' > .env
@@ -1539,8 +1544,8 @@ jobs:
         if: steps.branch_info.outputs.branch_exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ steps.container.outputs.suffix }}
           cache-from: type=gha

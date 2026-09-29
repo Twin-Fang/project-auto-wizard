@@ -32,6 +32,8 @@ on:
 env:
   # 프로젝트 고유 식별자
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
 
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8080
 
@@ -89,6 +91,7 @@ jobs:
           df -h
 
       - name: .env 파일 생성
+        working-directory: ${{ env.PROJECT_PATH }}
         run: |
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
@@ -107,8 +110,8 @@ jobs:
       - name: Docker 이미지 빌드 및 푸시
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
           # GitHub Actions 캐시 사용 (로컬 디스크 공간 절약)

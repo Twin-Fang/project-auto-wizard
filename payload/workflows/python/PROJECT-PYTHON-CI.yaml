@@ -50,6 +50,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
+    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_PATH }}
 
     steps:
       - name: 코드 체크아웃
@@ -68,8 +72,8 @@ jobs:
       - name: Docker 이미지 빌드 검증
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/Dockerfile
           push: false  # 푸시하지 않음 (빌드 검증만)
           tags: ${{ env.PROJECT_NAME }}:build-check
           cache-from: type=gha

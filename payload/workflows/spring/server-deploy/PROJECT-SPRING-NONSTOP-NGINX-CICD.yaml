@@ -70,6 +70,8 @@ on:
 env:
   # 프로젝트 설정 - 실제 프로젝트명으로 변경하세요
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
   SERVICE_DOMAIN: "__SERVICE_DOMAIN__"  # @wizard ask:example.com
 
   # Spring Boot 설정
@@ -79,7 +81,7 @@ env:
 
   # 경로 설정
   APPLICATION_YML_DIR: "__APPLICATION_YML_DIR__"  # @wizard auto:spring-app-yml-dir
-  DOCKERFILE_PATH: "./Dockerfile"
+  DOCKERFILE_PATH: "./Dockerfile"  # PROJECT_PATH 기준 상대 경로
 
   # 포트 및 컨테이너 설정
   # BLUE/GREEN은 서버에서 번갈아 뜨는 두 컨테이너의 호스트 포트다 — 다른 서비스와 겹치면 배포가 실패한다.
@@ -134,6 +136,7 @@ jobs:
           cache: 'gradle'
 
       - name: Gradle Wrapper 실행권한 부여
+        working-directory: ${{ env.PROJECT_PATH }}
         run: chmod +x gradlew
 
       - name: application-prod.yml 생성
@@ -145,6 +148,7 @@ jobs:
           echo "✅ application-prod.yml 파일 생성 완료 (${{ env.APPLICATION_YML_DIR }})"
 
       - name: Build with Gradle
+        working-directory: ${{ env.PROJECT_PATH }}
         run: ./gradlew clean build -x test ${{ env.GRADLE_OPTS }}
 
       - name: Docker 빌드환경 설정
@@ -167,8 +171,8 @@ jobs:
       - name: Docker 이미지 빌드 및 푸시
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
           cache-from: type=local,src=/tmp/.buildx-cache
