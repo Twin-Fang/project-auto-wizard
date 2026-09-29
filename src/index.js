@@ -429,7 +429,7 @@ export async function run(argv, opts = {}) {
     // Ctrl+C/EOF는 어느 질문에서든 즉시 중단한다 — 설치 파일을 쓰기 전에 빠져나오고, 셸 관례대로 130을 돌려준다.
     if (isPromptAbort(e)) {
       prompts.cancelMessage("중단했습니다 — 변경 없이 종료합니다.");
-      return 130;
+      return e.signal === "SIGTERM" ? 143 : 130;
     }
     // 이미 기록을 시작한 실행이 도중에 죽으면 헤더만 남은 로그로는 원인을 알 수 없다 — 사유를 남긴다.
     if (currentLogPath()) log.fail("run", "error", e?.message || String(e));

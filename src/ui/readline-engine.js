@@ -13,16 +13,27 @@ export const CANCEL = Symbol("cancel");
 
 // 사용자 중단(Ctrl+C 등). ESC와 달리 기본값으로 진행하면 안 되므로 반환값이 아니라 예외로 전파한다 —
 // 호출부마다 CANCEL 해석이 달라 일부는 기본값으로 설치를 강행하거나 같은 화면을 무한히 다시 그렸다.
+// signal: 외부 신호로 중단된 경우 그 신호명("SIGINT"·"SIGTERM") — 종료 코드를 셸 관례(128+번호)에 맞춘다.
 export class PromptAbortError extends Error {
-  constructor() {
+  constructor(signal = null) {
     super("사용자가 중단했습니다.");
     this.name = "PromptAbortError";
+    this.signal = signal;
   }
 }
 export const isPromptAbort = (e) => e instanceof PromptAbortError;
 
 // raw mode에서는 Ctrl+C가 SIGINT가 아니라 keypress로 들어온다. Ctrl+D도 raw mode에선 EOF가 아니다.
 const isAbortKey = (key) => key.ctrl && (key.name === "c" || key.name === "d");
+
+// 외부 신호(kill -INT·kill -TERM)는 keypress가 아니라 프로세스 신호로 온다. 리스너가 없으면 Node가 곧바로
+// 종료해 커서 숨김과 raw mode가 복구되지 않는다 — 입력 대기 중에는 키보드 Ctrl+C와 같은 중단 경로로 돌린다.
+const TERM_SIGNALS = ["SIGINT", "SIGTERM"];
+function onTermSignal(fn) {
+  const handlers = TERM_SIGNALS.map((sig) => [sig, () => fn(sig)]);
+  for (const [sig, h] of handlers) process.on(sig, h);
+  return () => { for (const [sig, h] of handlers) process.removeListener(sig, h); };
+}
 
 // ── ANSI 헬퍼 (picocolors 대체 — 의존성 0) ───────────────────────────
 const ESC = "\x1b[";
@@ -36,8 +47,23 @@ const c = {
 const isDumb = () => process.env.TERM === "dumb";
 const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY && !isDumb();
 const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
-const hideCursor = () => { if (!isDumb()) stdout.write(`${ESC}?25l`); };
-const showCursor = () => { if (!isDumb()) stdout.write(`${ESC}?25h`); };
+// 커서를 숨긴 채 프로세스가 끝나면(예외·process.exit 등) 터미널 커서가 사라진 채로 남는다 — 종료 시점에 한 번 더 복구한다.
+let cursorHidden = false;
+let exitGuard = false;
+const hideCursor = () => {
+  if (isDumb()) return;
+  stdout.write(`${ESC}?25l`);
+  cursorHidden = true;
+  if (!exitGuard) {
+    exitGuard = true;
+    process.once("exit", () => { if (cursorHidden) stdout.write(`${ESC}?25h`); });
+  }
+};
+const showCursor = () => {
+  if (isDumb()) return;
+  stdout.write(`${ESC}?25h`);
+  cursorHidden = false;
+};
 
 // 심볼 (clack 톤 유지)
 const S_ACTIVE = paint("●", c.green);
@@ -84,10 +110,16 @@ function keySession(renderFn, onKey) {
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
       stdin.removeListener("end", onEnd);
+      offSignal();
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       showCursor();
     };
+    const offSignal = onTermSignal((sig) => {
+      cleanup();
+      stdout.write("\n");
+      reject(new PromptAbortError(sig));
+    });
 
     // stdin 종료(EOF, SSH 연결 끊김 등) — 더 이상 입력이 올 수 없으므로 중단한다.
     // CANCEL로 돌려주면 "머무르기"로 해석하는 화면에서 다시 묻다가 영원히 대기한다.
@@ -247,10 +279,15 @@ export async function text({ message, defaultValue = "" }) {
     const cleanup = () => {
       stdin.removeListener("keypress", handler);
       stdin.removeListener("end", onEnd);
+      offSignal();
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       stdout.write("\n");
     };
+    const offSignal = onTermSignal((sig) => {
+      cleanup();
+      reject(new PromptAbortError(sig));
+    });
 
     // stdin 종료(EOF) — 더 이상 입력이 올 수 없으므로 중단한다.
     const onEnd = () => {
