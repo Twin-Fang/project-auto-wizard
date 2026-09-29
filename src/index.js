@@ -417,6 +417,8 @@ export async function run(argv, opts = {}) {
     }
     // 이미 기록을 시작한 실행이 도중에 죽으면 헤더만 남은 로그로는 원인을 알 수 없다 — 사유를 남긴다.
     if (currentLogPath()) log.fail("run", "error", e?.message || String(e));
+    // 사용자가 고칠 수 있는 실패(권한 등)는 스택트레이스 대신 읽을 수 있는 문구로 끝낸다.
+    if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   } finally {
     closeLogger();

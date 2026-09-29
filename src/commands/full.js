@@ -4,7 +4,8 @@
 // (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { writeText } from "../core/fsutil.js";
+import { writeText, findUnwritable } from "../core/fsutil.js";
+import { CliError } from "../cli/args.js";
 import { PATHS } from "../core/paths.js";
 import { renderVersionYml, parseExisting } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
@@ -27,6 +28,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     force = true, now, today, templateVersion = "unknown",
     includeSemverAuto } = context;
+
+  // 아무것도 쓰기 전에 권한부터 확인한다 — 도중에 멈추면 반쯤 설치된 상태가 남는다.
+  const blocked = findUnwritable(targetRoot,
+    [".", PATHS.workflowsDir, PATHS.scriptsDir, ".github/.wizard"],
+    [PATHS.versionFile, "README.md", ".gitignore", ".github/.wizard/baseline.json"]);
+  if (blocked.length) {
+    throw new CliError(`쓰기 권한이 없어 설치를 시작하지 않았습니다 (아무 파일도 바꾸지 않았습니다):\n${blocked.map((p) => `  - ${p}`).join("\n")}\n권한을 확인한 뒤 다시 실행하세요.`);
+  }
 
   // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).
   // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
