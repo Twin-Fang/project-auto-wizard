@@ -69,14 +69,27 @@ usual path.
 
 ## 3. Release-time version sync — `payload/scripts/version_manager.py`
 
-At release time Python writes the new version back into the project files. Add the type to both
-dispatchers:
+At release time Python reads and writes the version in the project files through the
+`TYPE_HANDLERS` table. Add one entry:
 
-- `sync_for_type` — write the version (use `pass` if the type has no version field, like `go`).
-- `get_project_file_version` — read it back for the sync check (skip if there is nothing to read;
-  it then falls back to `version.yml`).
+```python
+"rust": TypeHandler(read=_read_rust, sync=lambda d, v, _code: sync_rust(d, v)),
+```
+
+- `read(path_dir)` returns the version found in the project file, or `None` (then the sync check
+  falls back to `version.yml`).
+- `sync(path_dir, new_version, version_code_getter)` writes the new version. Only types with a
+  build number call `version_code_getter()`.
+- A type with no version file (like `go` and `basic`) uses `TypeHandler(read=_read_none, sync=_sync_none)`.
 
 Then run `npm run sync:dogfood` so `.github/scripts/version_manager.py` matches.
+
+Install-time (Node, `detect.js`) and release-time (Python) both parse the same files, so they
+share fixtures: add a case folder under `tests/fixtures/version-files/<case>/` with the sample
+file, and an entry in `tests/fixtures/version-files/expected.json` (`type`, `version`,
+`buildNumber`). `tests/node/version-files-shared.test.js` and `tests/py/test_version_files_shared.py`
+both run every case. If the two parsers intentionally read a value differently, declare it under
+`knownDifference` rather than loosening the case.
 
 ## 4. Question text — `payload/config/wizard-prompts.yml`
 
@@ -85,12 +98,16 @@ Only needed when the type's workflows introduce new `ask` keys, need a type-spec
 
 ## 5. Docs and templates
 
-These must list every type (checked by the consistency test):
+These must list every type (checked by `tests/node/type-registry-consistency.test.js`):
 
 - `payload/version.yml.template` — "Supported project types" and "Synced files per type" comments
-- `README.md` — the "지원 프로젝트 타입" list
+- `README.md` — the "Supported project types" table
+- `README.ko.md` — the "지원 프로젝트 타입" list
 
-Also describe the type's workflows in the README "타입별 워크플로우 구성" section if it has any.
+Also document the type on the docs site: add `website/src/content/docs/project-types/<id>.md`
+(model it on `go.md`), register it in the `project-types/...` sidebar list in
+`website/astro.config.mjs`, and add the Korean page under `website/src/content/docs/ko/project-types/` if you
+can. Types that only get release automation share `release-only.md` — list the type there instead.
 
 Optionally add a type-specific note in `src/ui/summary.js` (install summary) and a
 `payload/config/breaking-changes.json` entry if the change affects existing installs.
@@ -104,7 +121,8 @@ Optionally add a type-specific note in `src/ui/summary.js` (install summary) and
 - Workflow contracts that use a fixed type list: add the type to `TYPES` in
   `tests/node/type-workflows-project-path.test.js` and, for a CI workflow, to `CI_TARGETS` in
   `tests/node/ci-gate-payload.test.js`.
-- Python: cases in `tests/py/test_version_manager.py` / `test_version_sync.py` for the new sync branch.
+- Version files: the shared fixture case from step 3, plus cases in `tests/py/test_version_manager.py` / `test_version_sync.py` for the write path.
+- Run `tests/node/type-registry-consistency.test.js` first — it lists everything that must mention the new type.
 
 Finish with:
 
