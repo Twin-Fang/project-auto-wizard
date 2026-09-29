@@ -23,7 +23,8 @@ Usage:
 
 Contract:
     - The LAST line printed to stdout is always the value (callers do `| tail -n 1`).
-    - Exit 0 on success; exit 1 on validation failure or missing version.yml.
+    - Exit 0 on success; exit 1 on validation failure, missing version.yml,
+      or when a version could not be written (e.g. invalid package.json).
 """
 
 import argparse
@@ -35,6 +36,10 @@ import sys
 from pathlib import Path
 
 VERSION_YML = "version.yml"
+
+
+class VersionSyncError(Exception):
+    """version.yml·프로젝트 파일에 버전을 쓰지 못했다 — exit 1로 알린다."""
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -283,7 +288,18 @@ def get_higher_version(v1, v2):
 
 
 def update_version_yml(new_version):
-    write_scalar_key("version", new_version)
+    if not write_scalar_key("version", new_version):
+        # 키가 없으면 아무것도 쓰지 않은 채 성공처럼 끝나 매번 같은 버전이 나왔다.
+        log("WARNING: version field missing in version.yml, adding it")
+        text = read_text()
+        line = f'version: "{new_version}"\n'
+        if re.search(r'^version_code:', text, re.MULTILINE):
+            new_text = re.sub(r'^(?=version_code:)', lambda _m: line, text, count=1, flags=re.MULTILINE)
+        else:
+            new_text = text.rstrip("\n") + "\n" + line
+        write_text(new_text)
+    if read_scalar_key("version") != new_version:
+        raise VersionSyncError(f"failed to write version {new_version} to version.yml")
     today = datetime.date.today().isoformat()
     user = os.environ.get("GITHUB_ACTOR", "")
     if not user:
@@ -471,8 +487,8 @@ def sync_json_version(target, new_version, key_path):
     try:
         data = json.loads(read_file(target))
     except json.JSONDecodeError as e:
-        log(f"WARNING: {target} invalid JSON ({e}) — skipping")
-        return
+        # 건너뛰고 성공으로 끝내면 태그·version.yml과 패키지 버전이 조용히 어긋난다.
+        raise VersionSyncError(f"{target} is not valid JSON ({e}) — cannot write version")
     node = data
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
@@ -481,14 +497,36 @@ def sync_json_version(target, new_version, key_path):
     log(f"updated: {target}")
 
 
+_TOML_HEADER_RE = re.compile(r'^[ \t]*\[+[ \t]*([^\]\n]+?)[ \t]*\]+[ \t]*(?:#.*)?$', re.MULTILINE)
+_TOML_VERSION_RE = re.compile(r'^[ \t]*version[ \t]*=[ \t]*([\'"])([^\'"\n]*)\1', re.MULTILINE)
+
+
+def _pyproject_version_span(text):
+    """[project] 또는 [tool.poetry] 섹션의 version 값 구간. [tool.*] 등 다른 섹션의
+    `version =`은 도구 설정이라 패키지 버전으로 쓰지 않는다."""
+    headers = list(_TOML_HEADER_RE.finditer(text))
+    for i, h in enumerate(headers):
+        if h.group(1) not in ("project", "tool.poetry"):
+            continue
+        end = headers[i + 1].start() if i + 1 < len(headers) else len(text)
+        m = _TOML_VERSION_RE.search(text, h.end(), end)
+        if m:
+            return m.start(2), m.end(2)
+    return None
+
+
 def sync_python(path_dir, new_version):
     target = Path(path_dir) / "pyproject.toml"
     if not target.is_file():
         log(f"WARNING: python: {target} not found — skipping")
         return
     text = read_file(target)
-    new_text = re.sub(r'^version\s*=\s*"[^"]*"', f'version = "{new_version}"', text, count=1, flags=re.MULTILINE)
-    write_file(target, new_text)
+    span = _pyproject_version_span(text)
+    if span is None:
+        # dynamic = ["version"] 등 버전을 파일에 두지 않는 구성은 쓸 곳이 없다.
+        log(f"WARNING: python: no version in [project]/[tool.poetry] of {target} — skipping")
+        return
+    write_file(target, text[:span[0]] + new_version + text[span[1]:])
     log(f"updated: {target}")
 
 
@@ -551,8 +589,16 @@ def sync_all_project_files(new_version):
         # No silent fallback: an unreadable project_types used to degrade to
         # "basic" and skip every sync without a word.
         raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
+    errors = []
     for t in types:
-        sync_for_type(t, new_version, get_reconciled_version_code)
+        # 한 타입이 실패해도 나머지는 맞춰 두고, 실패는 끝에서 모아 종료 코드로 알린다.
+        try:
+            sync_for_type(t, new_version, get_reconciled_version_code)
+        except VersionSyncError as e:
+            log(f"ERROR: {t}: {e}")
+            errors.append(t)
+    if errors:
+        raise VersionSyncError(f"project file sync failed for: {', '.join(errors)}")
 
 
 def update_all_versions(new_version):
@@ -620,10 +666,10 @@ def get_project_file_version(project_type):
         elif project_type == "python":
             p = Path(path_dir) / "pyproject.toml"
             if p.is_file():
-                text = p.read_text(encoding="utf-8")
-                m = re.search(r'^version\s*=\s*"(\d+\.\d+\.\d+)"', text, re.MULTILINE)
-                if m:
-                    version = m.group(1)
+                text = read_file(p)
+                span = _pyproject_version_span(text)
+                if span and SEMVER_RE.match(text[span[0]:span[1]]):
+                    version = text[span[0]:span[1]]
     except Exception as e:
         log(f"WARNING: failed reading project file for {project_type}: {e}")
         version = None
@@ -758,7 +804,11 @@ def main(argv=None):
         "sync": cmd_sync,
     }
     handler = handlers[args.command]
-    return handler(args)
+    try:
+        return handler(args)
+    except VersionSyncError as e:
+        log(f"ERROR: {e}")
+        return 1
 
 
 if __name__ == "__main__":

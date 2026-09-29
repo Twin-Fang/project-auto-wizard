@@ -211,6 +211,47 @@ class TestSyncPython(SyncTestCase):
         self.assertIn('version = "1.2.3"', text)
 
 
+class TestSyncFailuresAreReported(SyncTestCase):
+    def test_missing_version_key_is_added_on_increment(self):
+        tmp = self.make_tmp("basic")
+        yml = Path(tmp) / "version.yml"
+        text = yml.read_text(encoding="utf-8")
+        yml.write_text(re.sub(r"^version: .*\n", "", text, flags=re.M), encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.0.1")
+        self.assertIn('version: "0.0.1"', yml.read_text(encoding="utf-8"))
+        r = run(["increment"], tmp)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.0.2")
+
+    def test_invalid_package_json_fails_with_nonzero_exit(self):
+        tmp = self.make_tmp("react")
+        (Path(tmp) / "package.json").write_text('{ "name": "my-app", "version": "0.5.0", }', encoding="utf-8")
+        r = run(["increment"], tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("ERROR", r.stderr)
+
+    def test_single_quoted_pyproject_version_is_updated(self):
+        tmp = self.make_tmp("python-proj")
+        (Path(tmp) / "pyproject.toml").write_text("[project]\nname = 'my-app'\nversion = '0.9.10'\n",
+                                                  encoding="utf-8")
+        run(["set", "0.9.10"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version = '0.9.11'", (Path(tmp) / "pyproject.toml").read_text(encoding="utf-8"))
+
+    def test_pyproject_tool_section_version_is_not_the_package_version(self):
+        tmp = self.make_tmp("python-proj")
+        toml = '[project]\nname = "my-app"\ndynamic = ["version"]\n\n[tool.other]\nversion = "9.9.9"\n'
+        (Path(tmp) / "pyproject.toml").write_text(toml, encoding="utf-8")
+        run(["set", "0.1.0"], tmp)
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "0.1.0")
+        self.assertNotIn("updated:", r.stderr)
+        self.assertEqual((Path(tmp) / "pyproject.toml").read_text(encoding="utf-8"), toml)
+
+
 class TestSyncReactNative(SyncTestCase):
     def test_sync_updates_plist_and_gradle(self):
         tmp = self.make_tmp("react-native")
