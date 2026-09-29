@@ -277,13 +277,18 @@ _TIER2_BUCKET_MAP = {
     'docs': 'docs',
     'refactor': 'refactor',
     'test': 'test',
-    'perf': 'chore',
+    'perf': 'perf',
     'style': 'chore',
     'build': 'chore',
     'ci': 'chore',
 }
 
-_FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
+_FALLBACK_BUCKET_KEYS = ('breaking', 'feat', 'fix', 'perf', 'chore', 'docs', 'refactor', 'test', 'deps', 'changes', 'wip')
+
+# 의존성 갱신(Dependabot·Renovate 등)과 작업 중 커밋은 일반 변경사항과 섞이면 노트가 흐려진다.
+_DEPS_SCOPE_RE = re.compile(r'^\(deps(?:-dev)?\)$', re.IGNORECASE)
+_DEPS_FREEFORM_RE = re.compile(r'^Bump \S+ from \S+ to \S+', re.IGNORECASE)
+_WIP_RE = re.compile(r'^\[?wip\b', re.IGNORECASE)
 
 # 승격 폭 판단 전용 — 표준 타입 뒤 `!` 마커와 본문 푸터 `BREAKING CHANGE:`가 breaking 신호.
 # `hotfix!:`·`WIP!:`처럼 표준 타입이 아닌 단어의 `!`는 되돌리기 어려운 major를 만들므로 인정하지 않는다.
@@ -307,8 +312,9 @@ def classify_commits(lines: list[str]) -> dict:
 
     1단계: 제목 컨벤션 — "제목 : type : 내용 [URL]"
     2단계: Conventional Commits — "type(scope)!: 내용"
-           (perf/style/build/ci → chore 버킷으로 매핑)
-    3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식)
+           (style/build/ci → chore, chore(deps)/build(deps) → deps 버킷)
+    3단계: 위 두 형식에 매칭되지 않으면 "changes" 버킷 (자유 형식, Bump… → deps, WIP → wip)
+    `!` 마커·BREAKING CHANGE 푸터는 "breaking" 버킷으로 모은다.
 
     제외 대상 (매칭 전에 걸러냄): [skip ci] 포함 줄, "Merge "로 시작하는 줄, 빈 줄.
     """
@@ -322,7 +328,10 @@ def classify_commits(lines: list[str]) -> dict:
             continue
         if line.startswith('Merge '):
             continue
-        if _BREAKING_FOOTER_RE.match(line):
+        footer = _BREAKING_FOOTER_RE.match(line)
+        if footer:
+            if footer.group(1).strip():
+                classified['breaking'].append(footer.group(1).strip())
             continue
 
         # 1단계가 2단계보다 먼저다 — 트레이드오프: "제목 : feat : 내용" 형식은
@@ -336,27 +345,43 @@ def classify_commits(lines: list[str]) -> dict:
             desc = tier1.group(4).strip()
             # 커밋 말미의 이슈 URL은 릴리즈 노트 렌더링에서 노이즈 — 제거.
             desc = _TRAILING_URL_RE.sub('', desc).strip()
-            classified[commit_type].append(f"{title} — {desc}")
+            # breaking 커밋은 major 승격의 근거라 별도 섹션에 드러낸다.
+            bucket = 'breaking' if tier1.group(3) else commit_type
+            classified[bucket].append(f"{title} — {desc}")
             continue
 
         tier2 = _TIER2_RE.match(line)
         if tier2:
-            commit_type, _scope, desc = tier2.group(1).lower(), tier2.group(2), tier2.group(4)
-            bucket = _TIER2_BUCKET_MAP[commit_type]
+            commit_type, scope, desc = tier2.group(1).lower(), tier2.group(2), tier2.group(4)
+            if tier2.group(3):
+                bucket = 'breaking'
+            elif commit_type in ('chore', 'build') and scope and _DEPS_SCOPE_RE.match(scope):
+                bucket = 'deps'
+            else:
+                bucket = _TIER2_BUCKET_MAP[commit_type]
             classified[bucket].append(desc.strip())
             continue
 
-        classified['changes'].append(line)
+        if _DEPS_FREEFORM_RE.match(line):
+            classified['deps'].append(line)
+        elif _WIP_RE.match(line):
+            classified['wip'].append(line)
+        else:
+            classified['changes'].append(line)
 
     return classified
 
 
 _FALLBACK_SECTION_TITLES = {
+    'breaking': '### ⚠️ 호환성 깨짐',
     'feat': '### ✨ 기능',
     'fix': '### 🐛 수정',
+    'perf': '### ⚡ 성능',
     'docs': '### 📝 문서',
     'refactor': '### ♻️ 리팩토링',
     'test': '### ✅ 테스트',
+    'deps': '### 📦 의존성',
+    'wip': '### 🚧 작업 중',
 }
 
 
@@ -364,14 +389,17 @@ def render_fallback_md(classified: dict, version: str) -> str:
     """분류된 커밋 딕셔너리를 마크다운 릴리즈 노트로 렌더링."""
     lines: list[str] = [f"## [{version}]", ""]
 
-    for bucket_key in ('feat', 'fix', 'docs', 'refactor', 'test'):
+    def add_section(bucket_key):
         items = classified.get(bucket_key) or []
         if not items:
-            continue
+            return
         lines.append(_FALLBACK_SECTION_TITLES[bucket_key])
         for item in items:
             lines.append(f"- {item}")
         lines.append("")
+
+    for bucket_key in ('breaking', 'feat', 'fix', 'perf', 'docs', 'refactor', 'test', 'deps'):
+        add_section(bucket_key)
 
     chore_items = list(classified.get('chore') or [])
     changes_items = list(classified.get('changes') or [])
@@ -381,6 +409,8 @@ def render_fallback_md(classified: dict, version: str) -> str:
         for item in merged:
             lines.append(f"- {item}")
         lines.append("")
+
+    add_section('wip')
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -809,7 +839,9 @@ def _build_ai_prompt(commit_lines: list[str], pr_title: str | None, version: str
         "아래 커밋 목록을 바탕으로 한국어 릴리즈 요약을 작성해줘.",
         f"출력 형식: 첫 줄은 '## [{version}]' 헤더로 시작하고,",
         "해당 항목이 있는 섹션만 다음 이름으로 작성해줘:",
-        "'### ✨ 기능', '### 🐛 수정', '### 📝 문서', '### ♻️ 리팩토링', '### ✅ 테스트', '### 🔧 변경사항'.",
+        "'### ⚠️ 호환성 깨짐', '### ✨ 기능', '### 🐛 수정', '### ⚡ 성능', '### 📝 문서', '### ♻️ 리팩토링',",
+        "'### ✅ 테스트', '### 📦 의존성', '### 🔧 변경사항', '### 🚧 작업 중'.",
+        "타입 뒤에 '!'가 붙었거나 BREAKING CHANGE인 커밋은 반드시 '### ⚠️ 호환성 깨짐'에 넣어줘.",
         "각 항목은 '- '로 시작하는 불릿으로 작성해줘.",
     ]
     if pr_title:
