@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 데모 녹화 전용: `npx project-auto-wizard`를 이 저장소의 CLI로 연결한다.
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+shift
+exec node "$REPO_ROOT/bin/project-auto-wizard.js" "$@"
