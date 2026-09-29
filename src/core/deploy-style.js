@@ -2,8 +2,9 @@
 // Nginx 무중단과 Traefik 무중단을 동시에 쓰는 경우는 없으므로 하나만 설치한다.
 // 고른 것은 push 트리거까지 켜서 설치한다 — 설치했는데 안 도는 상태를 만들지 않는다.
 import { join } from "node:path";
-import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { sha256 } from "./baseline.js";
+import { PAYLOAD } from "./paths.js";
 
 // 파일명 접미사로 식별한다 — 타입 접두사(PROJECT-SPRING- 등)는 타입마다 다르기 때문.
 export const DEPLOY_STYLES = [
@@ -24,6 +25,14 @@ export const isDeployStyle = (v) => v === NO_DEPLOY_STYLE || DEPLOY_STYLES.some(
 
 // 이 파일이 CD 본체인가 (= 택1 대상인가). PR 프리뷰는 배포 방식과 직교하는 축이라 제외한다.
 export const isDeployWorkflow = (filename) => DEPLOY_STYLES.some((s) => filename.endsWith(s.suffix));
+
+// 선택한 타입 중 서버 배포(CD) 워크플로우를 가진 타입이 있는가 — payload 파일로 판정한다.
+// 없으면(node·flutter·react 등) 배포 방식은 설치 결과에 아무 영향이 없으므로 묻지도 기록하지도 않는다.
+export function hasServerDeployWorkflows(payloadRoot, types = []) {
+  const base = join(payloadRoot, PAYLOAD.workflowsDir);
+  return types.some((type) => [join(base, type), join(base, type, "server-deploy")]
+    .some((dir) => existsSync(dir) && readdirSync(dir).some(isDeployWorkflow)));
+}
 
 // 모르는 값은 기본값으로 수렴시킨다. 빈 접미사를 돌려주면 endsWith("")가 항상 참이라
 // "전부 통과"가 되어, 잘못된 값이 조용히 CD 전부 설치로 새어나간다.

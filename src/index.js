@@ -8,7 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { inferInstalledStores } from "./core/installed-stores.js";
 import { PATHS } from "./core/paths.js";
@@ -331,7 +331,8 @@ async function runInner(argv, {
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
-    deployStyle: opts.deployStyle
+    // 서버 배포 워크플로우가 없는 타입은 배포 방식이 설치에 영향이 없으므로 기록하지 않는다(null).
+    deployStyle: !hasServerDeployWorkflows(payload, types) ? null : opts.deployStyle
       || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
     previousTemplateVersion: existing?.templateVersion || "",
     envMode: flutterOptions.envMode,

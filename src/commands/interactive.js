@@ -15,7 +15,7 @@ import {
 import { promptEnvPlan } from "../ui/env-plan.js";
 import { surveyWorkflows } from "../core/copy/workflows.js";
 import { createContext, VALID_TYPES } from "../context.js";
-import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows } from "../core/deploy-style.js";
 import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
@@ -116,6 +116,14 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const askFlutterOptions = async () => {
     if (types.includes("flutter")) flutter = await askUnsetFlutterOptions(io, flutter, flutterAsk);
   };
+  // 서버 배포 방식 — 서버 배포(CD) 워크플로우가 있는 타입(spring·go·python 등)일 때만 묻는다.
+  // 그 외 타입에는 설치 결과에 영향이 없는 질문이라 묻지도 기록하지도 않는다.
+  const hasServerDeploy = () => hasServerDeployWorkflows(payload, types);
+  const askDeployStyle = async () => {
+    if (isDeployStyle(deployStyle) || !hasServerDeploy()) return;
+    const picked = await io.selectDeployStyle();
+    deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
+  };
 
   // 감지 로그. markers = 실제로 존재를 확인한 파일.
   let markers = detectMarkers(cwd, types);
@@ -138,11 +146,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   // 배포 방식·Flutter 옵션·semver/Copilot 질문 — 선택 항목을 묻는 경우(showOptional)만
   if (showOptional) {
-    // 서버 배포 방식.
-    if (!isDeployStyle(deployStyle)) {
-      const picked = await io.selectDeployStyle();
-      deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
-    }
+    await askDeployStyle();
 
     // Flutter 옵션 — 환경변수 방식 → 스토어 배포 대상 → 플랫폼별 배포 모드.
     await askFlutterOptions();
@@ -223,7 +227,11 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }
 
   // 편집 루프에서 뒤늦게 flutter 타입이 추가된 경우에도 옵션을 확정한다 — 이미 정해진 값은 다시 묻지 않는다.
-  if (showOptional) await askFlutterOptions();
+  // 서버 배포 타입이 뒤늦게 추가된 경우도 같다.
+  if (showOptional) {
+    await askDeployStyle();
+    await askFlutterOptions();
+  }
   // 질문이 나오지 않은 경우(비 full 모드 등)도 동작 보존 기본값으로 채워 워크플로우 치환이 어긋나지 않게 한다.
   const flutterOptions = {
     envMode: flutter.envMode || flutterAsk.envModeDefault,
@@ -305,7 +313,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     repoName, templateVersion, resolvers, envValues, envUseDefaults, now, today,
     // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
-    deployStyle: deployStyle || DEFAULT_DEPLOY_STYLE,
+    deployStyle: hasServerDeploy() ? (deployStyle || DEFAULT_DEPLOY_STYLE) : null,
     envMode: flutterOptions.envMode, flutterStore: flutterOptions.stores,
     androidDeployMode: flutterOptions.androidDeployMode, iosDeployMode: flutterOptions.iosDeployMode,
     previousTemplateVersion: existing?.templateVersion || "",
