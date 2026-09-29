@@ -14,3 +14,19 @@ export const PAYLOAD = {
 
 export const WORKFLOW_PREFIX = "PROJECT";
 export const WORKFLOW_COMMON_PREFIX = "PROJECT-COMMON";
+
+// 경로 정규화 (.sh resolve_project_paths §3.4): 앞뒤 공백·\→/·끝 /·앞 ./ 제거, 빈값→"."
+export function normalizePath(p) {
+  let s = String(p).trim();
+  s = s.replace(/\\/g, "/");
+  s = s.replace(/\/+$/, "");   // 끝 /
+  s = s.replace(/^\.\//, "");  // 앞 ./
+  return s === "" ? "." : s;
+}
+
+// 정규화된 경로가 레포 안(상대경로, '..' 없음)인가. 레포 밖을 가리키면 설치 파일(fastlane 등)이
+// 옆 레포에 만들어지고 워크플로우 paths 필터도 동작하지 않는다.
+export function isRepoRelativePath(p) {
+  if (/^\//.test(p) || /^[A-Za-z]:/.test(p)) return false;
+  return !p.split("/").includes("..");
+}
