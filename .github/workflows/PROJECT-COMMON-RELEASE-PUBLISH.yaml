@@ -29,6 +29,11 @@
 # GitHub generate-notes API (contributors/compare links), then
 # gh release create, then a workflow_dispatch of README-VERSION-UPDATE
 # (bot-token pushes never wake it, so the README would stay behind).
+# pr-flow only: when the release PR was merged by the bot token (no
+# WORKFLOW_PAT), the merge push woke none of the main deploy
+# workflows either, so every installed workflow with a main push
+# trigger and workflow_dispatch is dispatched too. A PAT or human merge
+# already fired the push event, so those are left alone (no double deploy).
 #
 # Release-confirm pattern: "chore(release):" — keep in sync with
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-VERSION-CONTROL.
@@ -56,8 +61,10 @@ on:
 
 permissions:
   contents: write
-  # README-VERSION-UPDATE를 workflow_dispatch로 깨운다
+  # README-VERSION-UPDATE·배포 워크플로우를 workflow_dispatch로 깨운다
   actions: write
+  # 릴리스 PR을 누가 병합했는지 읽어 배포를 다시 깨울지 정한다
+  pull-requests: read
   copilot-requests: write
 
 env:
@@ -424,3 +431,180 @@ jobs:
           else
             echo "::notice::README-VERSION-UPDATE 워크플로우를 깨우지 못했습니다 (삭제했거나 비활성화됨) — README 버전 갱신을 건너뜁니다"
           fi
+
+      - name: Trigger deploy workflows
+        # 봇 토큰(GITHUB_TOKEN)이 병합한 릴리스 PR의 push는 main의 배포 워크플로우(on: push)를
+        # 깨우지 못한다 — PAT 없는 기본 설치에서 서버·스토어 배포가 한 번도 돌지 않는다.
+        # 그런 병합일 때만 배포 워크플로우를 workflow_dispatch로 직접 깨운다. PAT·사람이 병합했다면
+        # push 이벤트로 이미 실행됐으므로 다시 깨우지 않는다 (중복 배포 방지).
+        # 대상: 마법사가 설치한 워크플로우 중 push.branches에 main가 있고 workflow_dispatch가
+        # 있는 것. 모노레포 paths 필터는 push와 같은 범위(병합 커밋의 변경 파일)로 평가한다.
+        if: >-
+          steps.gate.outputs.proceed == 'true' &&
+          steps.version.outputs.release_exists != 'true' &&
+          steps.mode.outputs.mode == 'pr-flow'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT != '' }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MAIN_BRANCH: "main"
+        run: |
+          # 이 버전의 릴리스 PR 병합 커밋 — 안전망 bump·수동 재발행처럼 병합이 아닌 릴리스는
+          # 사람의 push가 이미 배포를 깨웠으므로 건너뛴다.
+          MERGE_LINE=$(git log --first-parent --pretty='%H %s' -n 100 | grep -m1 -F " chore(release): v${RELEASE_VERSION} (PR #" || true)
+          if [ -z "$MERGE_LINE" ]; then
+            echo "v${RELEASE_VERSION}은 릴리스 PR 병합으로 들어온 릴리스가 아닙니다 — 배포는 push 이벤트가 맡습니다"
+            exit 0
+          fi
+          MERGE_SHA=${MERGE_LINE%% *}
+          PR_NUMBER=$(printf '%s\n' "$MERGE_LINE" | sed -n 's/.*(PR #\([0-9][0-9]*\)).*/\1/p')
+
+          # 병합 주체로 push 이벤트가 떴는지 판정한다. 조회에 실패하면 PAT 등록 여부로 대신 판단한다.
+          MERGED_BY=""
+          if [ -n "$PR_NUMBER" ]; then
+            MERGED_BY=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.merged_by.login // ""' 2>/dev/null || true)
+          fi
+          case "$MERGED_BY" in
+            github-actions*) echo "PR #${PR_NUMBER}을 봇 토큰이 병합했습니다 — push 이벤트가 배포를 깨우지 못했습니다" ;;
+            "")
+              if [ "$HAS_WORKFLOW_PAT" = "true" ]; then
+                echo "병합 주체를 확인하지 못했고 WORKFLOW_PAT이 있습니다 — push 이벤트가 배포를 실행했다고 보고 건너뜁니다"
+                exit 0
+              fi
+              echo "병합 주체를 확인하지 못했고 WORKFLOW_PAT이 없습니다 — 봇 토큰 병합으로 봅니다"
+              ;;
+            *)
+              echo "PR #${PR_NUMBER}을 ${MERGED_BY}이(가) 병합했습니다 — push 이벤트가 배포를 이미 실행했으므로 건너뜁니다"
+              exit 0
+              ;;
+          esac
+
+          CHANGED_FILES="${RUNNER_TEMP:-/tmp}/release_changed_files.txt"
+          git diff --name-only "${MERGE_SHA}^1" "$MERGE_SHA" > "$CHANGED_FILES" || rm -f "$CHANGED_FILES"
+          export CHANGED_FILES
+
+          # 명령 치환 안의 heredoc은 따옴표 해석이 어긋나므로 파일로 먼저 쓴다
+          FIND_DEPLOY="${RUNNER_TEMP:-/tmp}/find_deploy_workflows.py"
+          cat > "$FIND_DEPLOY" <<'PY'
+          import os, re
+
+          MARKER = "project-auto-wizard:managed-workflow"
+          BRANCH = os.environ["MAIN_BRANCH"]
+          CHANGED = None
+          if os.path.exists(os.environ.get("CHANGED_FILES", "")):
+              with open(os.environ["CHANGED_FILES"], encoding="utf-8") as f:
+                  CHANGED = [l.strip() for l in f if l.strip()]
+
+          # YAML 라이브러리 없이 on 블록만 읽는다 — 러너 파이썬에 PyYAML이 있다고 가정하지 않는다.
+          def strip_comment(s):
+              q = None
+              for i, c in enumerate(s):
+                  if q:
+                      q = None if c == q else q
+                  elif c in "\"'":
+                      q = c
+                  elif c == "#" and (i == 0 or s[i - 1] in " \t"):
+                      return s[:i].rstrip()
+              return s.rstrip()
+
+          def unquote(v):
+              v = v.strip()
+              return v[1:-1] if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'" else v
+
+          # GitHub 필터 문법: ** 는 / 포함 전부, * 와 ? 는 / 를 넘지 않는다. ! 는 뒤 패턴이 앞을 뒤집는다.
+          def glob_re(p):
+              out, i = "", 0
+              while i < len(p):
+                  if p.startswith("**", i):
+                      out, i = out + ".*", i + 2
+                  elif p[i] in "*?":
+                      out, i = out + ("[^/]*" if p[i] == "*" else "[^/]"), i + 1
+                  else:
+                      out, i = out + re.escape(p[i]), i + 1
+              return re.compile(out + r"\Z")
+
+          def matches(pats, value):
+              hit = False
+              for p in pats:
+                  neg = p.startswith("!")
+                  if glob_re(p[1:] if neg else p).match(value):
+                      hit = not neg
+              return hit
+
+          def mapping(lines):
+              if not lines:
+                  return {}
+              base = min(i for i, _ in lines)
+              res = {}
+              for n, (ind, text) in enumerate(lines):
+                  m = re.match(r"""^["']?([\w-]+)["']?\s*:(?:\s+(.*))?$""", text)
+                  if ind != base or text.startswith("- ") or not m:
+                      continue
+                  sub = []
+                  for ind2, text2 in lines[n + 1:]:
+                      if ind2 < ind or (ind2 == ind and not text2.startswith("- ")):
+                          break
+                      sub.append((ind2, text2))
+                  res[m.group(1)] = (m.group(2) or "", sub)
+              return res
+
+          def items(entry):
+              inline, sub = entry
+              if inline.startswith("["):
+                  return [unquote(x) for x in inline.strip("[]").split(",") if x.strip()]
+              if inline:
+                  return [unquote(inline)]
+              return [unquote(t[2:]) for _, t in sub if t.startswith("- ")]
+
+          def is_target(path):
+              with open(path, encoding="utf-8") as f:
+                  raw = f.read()
+              if MARKER not in raw:
+                  return False
+              lines = []
+              for l in raw.splitlines():
+                  s = strip_comment(l)
+                  if s.strip():
+                      lines.append((len(s) - len(s.lstrip()), s.strip()))
+              on = mapping(lines).get("on")
+              events = mapping(on[1]) if on else {}
+              push = events.get("push")
+              if "workflow_dispatch" not in events or not push:
+                  return False
+              f = mapping(push[1])
+              if "branches" not in f or not matches(items(f["branches"]), BRANCH):
+                  return False
+              if CHANGED is not None:
+                  if "paths" in f and not any(matches(items(f["paths"]), c) for c in CHANGED):
+                      return False
+                  if "paths-ignore" in f and all(matches(items(f["paths-ignore"]), c) for c in CHANGED):
+                      return False
+              return True
+
+          root = ".github/workflows"
+          for name in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+              # 공통 워크플로우(릴리스·README·안전망)는 배포가 아니고, 필요한 것은 각자 따로 깨운다
+              if name.startswith("PROJECT-COMMON-") or not re.search(r"\.ya?ml$", name):
+                  continue
+              if is_target(os.path.join(root, name)):
+                  print(name)
+          PY
+          TARGETS=$(python3 "$FIND_DEPLOY")
+
+          if [ -z "$TARGETS" ]; then
+            echo "main push로 도는 배포 워크플로우가 없습니다 — 건너뜁니다"
+            exit 0
+          fi
+
+          FAILED=0
+          for WF in $TARGETS; do
+            # 입력 없이 실행하면 workflow_dispatch 입력 기본값(설치 때 고른 배포 모드 등)을 쓴다
+            if gh workflow run "$WF" --ref main; then
+              echo "$WF workflow_dispatch 트리거 요청 완료"
+            else
+              FAILED=1
+              echo "::warning::$WF 배포 워크플로우를 깨우지 못했습니다 — Actions 탭에서 Run workflow로 직접 실행하세요"
+            fi
+          done
+          exit "$FAILED"

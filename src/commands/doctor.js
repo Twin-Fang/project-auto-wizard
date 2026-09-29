@@ -130,7 +130,7 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
       // 파이프라인을 끝까지 이어가므로, 없는 장애를 경고로 띄우지 않는다.
       name: "WORKFLOW_PAT secret", label: "WORKFLOW_PAT", purpose: "자동 태그·Release 발행", status: "INFO",
       note: [
-        "secret이 없어도 폴백이 자동으로 이어받아 태그·Release까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
+        "secret이 없어도 폴백이 자동으로 이어받아 태그·Release 발행과 main 배포 워크플로우 실행까지 진행됩니다 — 실제 병합 후 최대 ~20초 정도 더 걸릴 뿐입니다.",
         "속도를 더 원한다면 PAT을 등록할 수 있습니다 — 반드시 개인 계정이 아닌 조직 bot/machine 계정으로 발급하세요 (scopes: repo, workflow).",
         "등록: 레포 Settings → Secrets and variables → Actions → New repository secret · 이름은 WORKFLOW_PAT",
       ],
