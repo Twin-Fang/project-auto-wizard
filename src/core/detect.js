@@ -1,13 +1,19 @@
-// package.json 내용 분류 (.sh classify_package_json 등가) — 원본 파일 텍스트에 대한
-// grep 부분문자열 매칭. dependencies 파싱이 아니라 raw 텍스트 검사여야 등가.
-// 입력은 package.json의 원문 문자열(raw). 순서 중요.
+// package.json 분류 — 의존성 "키"를 정확히 비교한다. 원문 부분문자열로 보면 export 스크립트나
+// exponential-backoff가 expo로, react-native-web을 쓰는 웹앱이 react-native로, keywords의 "next"가
+// next로 오감지된다. 입력은 package.json 원문 문자열(raw). 순서 중요.
 export function classifyPackageText(raw) {
-  const s = String(raw || "");
-  if (s.includes("@react-native") || s.includes("react-native")) {
-    return s.includes("expo") ? "react-native-expo" : "react-native";
+  let pkg;
+  try { pkg = JSON.parse(String(raw || "")); } catch { return "node"; }
+  if (!pkg || typeof pkg !== "object") return "node";
+  const deps = new Set();
+  for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
+    const d = pkg[field];
+    if (d && typeof d === "object") for (const k of Object.keys(d)) deps.add(k);
   }
-  if (s.includes('"next"')) return "next";
-  if (s.includes('"react"')) return "react";
+  if (deps.has("expo")) return "react-native-expo";
+  if (deps.has("react-native")) return "react-native";
+  if (deps.has("next")) return "next";
+  if (deps.has("react")) return "react";
   return "node";
 }
 
@@ -142,8 +148,13 @@ export function markerForType(type) {
   return { flutter: "pubspec.yaml", "react-native-expo": "app.json", python: "pyproject.toml", spring: "build.gradle", go: "go.mod" }[type] || "package.json";
 }
 
+// Expo는 최신 create-expo-app 템플릿처럼 app.json 없이 app.config.ts/js만 쓸 수 있다.
+// 구성 파일이 아예 없어도 expo 의존성이 있는 package.json이 곧 근거다.
 export function extraMarkers(type) {
-  return { python: ["setup.py", "requirements.txt"], spring: ["build.gradle.kts", "pom.xml"] }[type] || [];
+  return {
+    python: ["setup.py", "requirements.txt"], spring: ["build.gradle.kts", "pom.xml"],
+    "react-native-expo": ["app.config.ts", "app.config.js", "package.json"],
+  }[type] || [];
 }
 
 // 그 타입을 감지하는 데 실제로 쓰인 파일. markerForType은 타입당 대표 파일 하나를

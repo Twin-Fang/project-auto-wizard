@@ -76,7 +76,7 @@ export function findTypePathCandidates(root, type) {
     flutter: ["pubspec.yaml"],
     react: ["package.json"], next: ["package.json"], node: ["package.json"],
     "react-native": ["package.json"],
-    "react-native-expo": ["app.json"],
+    "react-native-expo": ["app.json", "app.config.ts", "app.config.js", "package.json"],
     python: ["pyproject.toml", "setup.py", "requirements.txt"],
     spring: ["build.gradle", "build.gradle.kts", "pom.xml"],
     go: ["go.mod"],
