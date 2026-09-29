@@ -15,10 +15,10 @@
 //
 // 이 파일은 원래 src/commands/revert.js였다. revert 모드는 uninstall의 부분집합이라 제거됐고
 //, 판별 로직만 남아 commands가 아닌 core로 옮겨졌다.
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { PATHS, PAYLOAD } from "./paths.js";
-import { BASELINE_DIR, BASELINE_PATH, readBaseline } from "./baseline.js";
+import { BASELINE_DIR, BASELINE_PATH, readBaseline, appFileHash } from "./baseline.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
@@ -66,6 +66,7 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
   const removedWf = new Set();
   const removedScripts = [];
   const wfDir = join(targetRoot, PATHS.workflowsDir);
+  const baseline = readBaseline(targetRoot);
   if (existsSync(wfDir)) {
     // (a) 현재 payload와 파일명이 일치하는 것 — 마커 유무 무관(기존 설치 회귀 방지).
     for (const name of payloadWorkflowNames(payloadRoot)) {
@@ -76,7 +77,6 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
       if (existsSync(p + ".bak")) removedWf.add(name + ".bak");
     }
     // (b) 관리 마커로 시작하는 것 — payload에서 이름이 바뀌거나 삭제된 파일도 인식.
-    const baseline = readBaseline(targetRoot);
     const recorded = baseline ? new Set(Object.keys(baseline.files)) : null;
     for (const name of markedWorkflowNames(wfDir)) {
       if (isInstalledName(name, recorded)) removedWf.add(name);
@@ -85,8 +85,15 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
   for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);
   }
+  // Flutter 앱 파일(Fastfile 등)은 마법사가 새로 만들었고 내용이 그대로인 것만 — 값을 채워 넣은 파일은 사용자 것이다.
+  const appFiles = [];
+  for (const [rel, hash] of Object.entries(baseline?.appFiles || {})) {
+    if (rel.split(/[\\/]/).includes("..") || isAbsolute(rel)) continue; // 레포 밖 경로는 신뢰하지 않는다
+    const p = join(targetRoot, rel);
+    if (existsSync(p) && appFileHash(readFileSync(p, "utf8")) === hash) appFiles.push(rel);
+  }
   // baseline은 마법사가 만든 내부 상태 파일이다 — 설치물을 지우면 함께 사라져야 한다.
   // 남겨두면 다음 설치가 "예전에 깔았다가 사용자가 지운 파일"로 오인해 전부 removed로 분류한다.
-  const baseline = existsSync(join(targetRoot, BASELINE_PATH)) ? [BASELINE_DIR] : [];
-  return { workflows: [...removedWf], scripts: removedScripts, baseline };
+  const baselineDirs = existsSync(join(targetRoot, BASELINE_PATH)) ? [BASELINE_DIR] : [];
+  return { workflows: [...removedWf], scripts: removedScripts, appFiles, baseline: baselineDirs };
 }

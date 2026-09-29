@@ -212,6 +212,7 @@ async function runInner(argv, {
       const r = runUninstall({}, payload, cwd, safeSelection);
       const removed = [
         `워크플로우 ${r.workflows.length}개`, `스크립트 ${r.scripts.length}개`,
+        r.appFiles.length > 0 && `Flutter 앱 파일 ${r.appFiles.length}개`,
         r.readme && "README 버전 섹션",
         r.gitignore && ".gitignore 자동 추가 항목", r.versionYml && "version.yml",
       ].filter(Boolean).join(", ");

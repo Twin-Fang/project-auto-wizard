@@ -92,7 +92,7 @@ flutter.APP_ARTIFACT_NAME:
 - Android를 고르면: `ANDROID-PLAYSTORE-CICD` + `android/fastlane/Fastfile.playstore`
 - iOS를 고르면: `IOS-TESTFLIGHT` + `IOS-TEST-TESTFLIGHT` + `ios/fastlane/Fastfile` + `ios/ExportOptions.plist`
 - fastlane은 위 스토어 배포 워크플로우에서만 씁니다. `SELFHOSTED`와 `TEST-APK`는 `flutter build apk --release`를 직접 실행하며 Ruby·fastlane을 설치하지 않습니다.
-- `Fastfile`과 `ExportOptions.plist`는 **Flutter 루트 기준**으로(모노레포는 `--paths flutter=app`이면 `app/` 아래) **없을 때만 생성**합니다. 이미 있으면 덮어쓰지 않고 설치 요약과 `--dry-run`에 "기존 파일 유지"로 표시하며, `--mode uninstall`도 이 파일들은 건드리지 않습니다(사용자 소유 파일).
+- `Fastfile`과 `ExportOptions.plist`는 **Flutter 루트 기준**으로(모노레포는 `--paths flutter=app`이면 `app/` 아래) **없을 때만 생성**합니다. 이미 있으면 덮어쓰지 않고 설치 요약과 `--dry-run`에 "기존 파일 유지"로 표시합니다. `--mode uninstall`은 마법사가 새로 만들었고 내용을 바꾸지 않은 파일만 지우며, 값을 채워 넣었거나 원래 있던 파일은 남깁니다.
 - 스토어 대상을 해제하고 다시 실행하면 배포 방식을 바꿀 때와 같은 규칙으로 정리합니다 — 손대지 않은 워크플로우는 삭제하고, 수정한 것은 `.bak`으로 옮겨 보존합니다. `Fastfile`·`ExportOptions.plist`는 삭제하지 않습니다.
 
 **환경변수 방식**

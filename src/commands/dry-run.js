@@ -48,6 +48,7 @@ export function printDryRun(plan) {
     for (const f of u.workflows) lines.push(`  - ${f}`);
     lines.push(`제거될 스크립트 (${u.scripts.length}개):`);
     for (const f of u.scripts) lines.push(`  - ${f}`);
+    for (const f of u.appFiles || []) lines.push(`제거될 Flutter 앱 파일: ${f}`);
     if (u.readme) lines.push("제거될 항목: README.md 버전 섹션 (AUTO-VERSION-SECTION)");
     if (u.gitignore) lines.push("제거될 항목: .gitignore 자동 추가 항목");
     if (u.versionYml) lines.push("제거될 파일: version.yml");

@@ -1,8 +1,8 @@
 // uninstall 모드 — 마법사가 설치한 파일(planRemoval 판별분)에 더해 README/.gitignore/version.yml까지
 // 선택적으로 제거한다. 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in.
 // core/removal-plan.js는 읽기 전용으로만 재사용한다(아무것도 지우지 않는 순수 함수).
-import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { join, posix } from "node:path";
+import { existsSync, readdirSync, rmdirSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRemoval } from "../core/removal-plan.js";
@@ -11,13 +11,38 @@ import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../cor
 import { CANCEL } from "../ui/prompts.js";
 import { log } from "../core/logger.js";
 
+// 파일을 지운 뒤 비게 된 상위 폴더를 레포 루트 직전까지 정리한다(마법사가 만든 fastlane/ 등).
+// 비어 있지 않은 폴더를 만나면 멈추므로 사용자 파일이 남은 폴더는 건드리지 않는다.
+export function pruneEmptyDirs(targetRoot, relDir) {
+  let rel = relDir;
+  while (rel && rel !== "." && rel !== "/") {
+    const abs = join(targetRoot, rel);
+    try {
+      if (readdirSync(abs).length) break;
+      rmdirSync(abs);
+    } catch { break; }
+    rel = posix.dirname(rel);
+  }
+}
+
+// Flutter 앱 파일 제거 — 미수정분만 plan에 들어오므로 그대로 지우고 빈 폴더를 정리한다.
+export function removeAppFiles(targetRoot, appFiles) {
+  for (const rel of appFiles) {
+    remove(join(targetRoot, rel));
+    pruneEmptyDirs(targetRoot, posix.dirname(rel));
+    log.info("remove", "flutter-app", rel);
+  }
+}
+
 // selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
 // 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
 export function planUninstall(payloadRoot, targetRoot, selection) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
     workflows: selection.workflows ? removalPlan.workflows : [],
-    // baseline은 워크플로우 해시 기록 — 워크플로우를 지우면 함께 사라져야 한다
+    // baseline은 워크플로우 해시 기록 — 워크플로우를 지우면 함께 사라져야 한다.
+    // Flutter 앱 파일의 생성 기록도 baseline에만 있으므로 같은 항목으로 묶는다.
+    appFiles: selection.workflows ? removalPlan.appFiles : [],
     baseline: selection.workflows ? removalPlan.baseline : [],
     scripts: selection.scripts ? removalPlan.scripts : [],
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
@@ -32,6 +57,7 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
   for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
+  removeAppFiles(targetRoot, plan.appFiles);
   for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
   // removeVersionSectionFromReadme/removeAutoAddedEntriesFromGitignore는 plan이 "제거 대상"으로
   // 판단했더라도 실제로는 안전하게 포기(skip-*)할 수 있다 — 반환 상태를 그대로 신뢰하지 않고
@@ -47,7 +73,8 @@ export function runUninstall(context, payloadRoot, targetRoot, selection) {
 const ITEM_DEFS = [
   // .github/.wizard 에는 baseline.json과 설치 로그(.wizard/logs)가 함께 들어 있다 —
   // 워크플로우를 지우면 함께 사라지므로 라벨에 명시한다.
-  { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml) + 설치 기록 (.github/.wizard)" },
+  // Flutter 앱 파일은 마법사가 만들고 사용자가 수정하지 않은 것만 함께 지운다.
+  { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml) + 설치 기록 (.github/.wizard) + 수정하지 않은 Flutter 앱 파일" },
   { key: "scripts", label: "스크립트 (.github/scripts/*.py)" },
   { key: "readme", label: "README.md 버전 섹션 (AUTO-VERSION-SECTION)" },
   { key: "gitignore", label: ".gitignore 자동 추가 항목" },
@@ -87,6 +114,7 @@ function summarizeResult(result) {
   const lines = [];
   if (result.workflows.length) lines.push(`워크플로우 ${result.workflows.length}개 제거`);
   if (result.scripts.length) lines.push(`스크립트 ${result.scripts.length}개 제거`);
+  if (result.appFiles?.length) lines.push(`Flutter 앱 파일 ${result.appFiles.length}개 제거`);
   if (result.readme) lines.push("README.md 버전 섹션 제거");
   if (result.gitignore) lines.push(".gitignore 자동 추가 항목 제거");
   if (result.versionYml) lines.push("version.yml 제거");

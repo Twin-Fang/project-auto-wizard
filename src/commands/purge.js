@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
 import { planRemoval } from "../core/removal-plan.js";
+import { removeAppFiles } from "./uninstall.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { log } from "../core/logger.js";
 
@@ -19,6 +20,8 @@ export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
     workflows: keepFlags.workflows ? [] : removalPlan.workflows,
+    // Flutter 앱 파일의 생성 기록은 baseline에 있으므로 baseline과 같은 플래그를 따른다.
+    appFiles: keepFlags.workflows ? [] : removalPlan.appFiles,
     baseline: keepFlags.workflows ? [] : removalPlan.baseline,
     scripts: keepFlags.scripts ? [] : removalPlan.scripts,
     versionYml: !keepFlags.versionYml && existsSync(join(targetRoot, PATHS.versionFile)),
@@ -38,6 +41,7 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
   for (const f of plan.workflows) lines.push(`  - ${f}`);
   lines.push(`스크립트 (${plan.scripts.length}개):`);
   for (const f of plan.scripts) lines.push(`  - ${f}`);
+  for (const f of plan.appFiles || []) lines.push(`Flutter 앱 파일: ${f}`);
   if (plan.versionYml) lines.push("파일: version.yml");
   if (plan.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of plan.changelog) lines.push(`파일: ${f}`);
@@ -57,6 +61,7 @@ export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   for (const name of plan.workflows) { remove(join(wfDir, name)); log.info("remove", "workflow", name); }
   for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); log.info("remove", "script", name); }
+  removeAppFiles(targetRoot, plan.appFiles);
   for (const p of plan.baseline || []) { remove(join(targetRoot, p)); log.info("remove", "metadata", p); }
   if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); log.info("remove", "version", PATHS.versionFile); }
   const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
@@ -72,6 +77,7 @@ export function printPurgeResult(result) {
   for (const f of result.workflows) lines.push(`  - ${f}`);
   lines.push(`스크립트 (${result.scripts.length}개):`);
   for (const f of result.scripts) lines.push(`  - ${f}`);
+  for (const f of result.appFiles || []) lines.push(`Flutter 앱 파일: ${f}`);
   if (result.versionYml) lines.push("파일: version.yml");
   if (result.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   for (const f of result.changelog) lines.push(`파일: ${f}`);
