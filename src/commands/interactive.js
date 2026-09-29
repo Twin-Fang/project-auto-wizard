@@ -28,6 +28,9 @@ import { runDoctor, printDoctorReport } from "./doctor.js";
 import { currentLogPath, hasLegacyMdLogs } from "../core/logger.js";
 
 const CANCEL = prompts.CANCEL;
+
+const SEMVER_AUTO_QUESTION = "자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)";
+const COPILOT_AI_QUESTION = "Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)";
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
 
 // io 기본값 = 실제 prompts. 테스트는 스텁 io 주입.
@@ -89,9 +92,10 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
   });
   const repoName = detectRepoName(cwd);
-  // 선택 워크플로우 초기값: version.yml 저장 옵션 (.sh read_template_options L2361 등가)
-  let includeSemverAuto = existing?.options?.semverAuto ?? null;
-  let includeCopilotAi = existing?.options?.copilotAi ?? null;
+  // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션 (.sh read_template_options L2361 등가)
+  // 플래그로 정한 값은 질문을 생략한다 — 비대화형과 같은 우선순위.
+  let includeSemverAuto = baseCtx?.includeSemverAuto ?? existing?.options?.semverAuto ?? null;
+  let includeCopilotAi = baseCtx?.includeCopilotAi ?? existing?.options?.copilotAi ?? null;
   // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
   let deployStyle = isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : "";
   const showOptional = mode === "full";
@@ -145,13 +149,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
     // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
     if (mode === "full" && includeSemverAuto === null) {
-      const y2 = await io.askYesNo("자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)", true);
+      const y2 = await io.askYesNo(SEMVER_AUTO_QUESTION, true);
       includeSemverAuto = y2 === true;
     }
 
     // Copilot AI 요약 — AI Credits를 소비하므로 opt-in(기본 No). 저장값 있으면 재질문 생략.
     if (mode === "full" && includeCopilotAi === null) {
-      const y3 = await io.askYesNo("Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)", false);
+      const y3 = await io.askYesNo(COPILOT_AI_QUESTION, false);
       includeCopilotAi = y3 === true;
     }
   }
@@ -160,6 +164,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // 완전 신규 설치만 true(기존 설계) 유지 — CLI 경로(index.js)와 동일한 안전 정책.
   includeSemverAuto = includeSemverAuto === null ? (existing ? false : true) : includeSemverAuto !== false;
   includeCopilotAi = includeCopilotAi === true;
+  const showOptionToggles = mode === "full";
 
   // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
   let paths = new Map();
@@ -167,9 +172,15 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   while (!confirmed) {
     // 프로젝트 분석 개요 카드. 스텁엔 없음 → note 폴백.
     if (io.analysisCard) {
-      io.analysisCard({ mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault });
+      io.analysisCard({
+        mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault,
+        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+      });
     } else {
-      io.note?.(summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault }), "프로젝트 분석 결과");
+      io.note?.(summarize({
+        mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault,
+        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+      }), "프로젝트 분석 결과");
     }
     const choice = await io.confirmProjectMenu();
     if (choice === "cancel") { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
@@ -178,7 +189,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // edit 루프
     let editing = true;
     while (editing) {
-      const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter") });
+      const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter"), showOptions: showOptionToggles });
       if (isCancel(what) || what === "done") { editing = false; break; }
       if (what === "type") {
         const t = await io.selectTypes(types);
@@ -197,6 +208,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
         }
       } else if (what === "branch") {
         branch = await askBranchName(io, "기본 브랜치", branch, isCancel);
+      } else if (what === "semverAuto") {
+        // 저장값이 있으면 처음 질문을 건너뛰므로, 한 번 정한 값을 바꿀 수 있는 곳은 여기뿐이다.
+        const y = await io.askYesNo(SEMVER_AUTO_QUESTION, includeSemverAuto);
+        if (typeof y === "boolean") includeSemverAuto = y;
+      } else if (what === "copilotAi") {
+        const y = await io.askYesNo(COPILOT_AI_QUESTION, includeCopilotAi);
+        if (typeof y === "boolean") includeCopilotAi = y;
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
@@ -388,7 +406,7 @@ async function askBranchName(io, message, def, isCancel) {
   }
 }
 
-function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault }) {
+function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault, options = null }) {
   const lines = [
     `통합 모드 : ${modeLabel(mode)}`,
     `프로젝트 타입 : ${types.join(", ")}${types.length > 1 ? " (멀티)" : ""}`,
@@ -403,6 +421,10 @@ function summarize({ mode, types, version, branch, showOptional, flutter, envMod
       lines.push(`스토어 배포 대상 : ${stores.length ? stores.join(", ") : "없음"}`);
       lines.push(`배포 모드 : ${modeParts.length ? modeParts.join(" ") : "없음"}`);
     }
+  }
+  if (options) {
+    lines.push(`자동 버전 승격 : ${options.semverAuto ? "켜짐" : "꺼짐"}`);
+    lines.push(`Copilot AI 요약 : ${options.copilotAi ? "켜짐" : "꺼짐"}`);
   }
   return lines.join("\n");
 }

@@ -104,7 +104,21 @@ async function runInner(argv, {
       console.error("대화형 입력이 불가능한 환경입니다. --mode <full|uninstall> 와 --force 를 지정하세요.");
       return 1;
     }
-    return await runInteractive({}, { cwd, payloadRoot: payload, clock });
+    // 켜고 끄기 옵션은 대화형에서도 반영한다(해당 질문 생략). 나머지 설치 플래그는 대화형 질문이 정하므로
+    // 조용히 무시하지 않고 알린다.
+    const ignored = [
+      [opts.types.length, "--type"], [opts.version, "--project-version"], [opts.pathsCsv, "--paths"],
+      [opts.mainBranch, "--main-branch"], [opts.developBranch, "--develop-branch"], [opts.deployStyle, "--deploy-style"],
+      [opts.flutterEnvMode, "--flutter-env-mode"], [opts.flutterStore, "--flutter-store"],
+      [opts.androidDeployMode, "--android-deploy-mode"], [opts.iosDeployMode, "--ios-deploy-mode"],
+    ].filter(([v]) => v).map(([, flag]) => flag);
+    if (ignored.length) {
+      console.error(`⚠️  대화형 모드에서는 ${ignored.join(", ")}를 사용하지 않습니다 — 질문에서 고르거나 --mode full --force와 함께 쓰세요.`);
+    }
+    return await runInteractive(
+      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi },
+      { cwd, payloadRoot: payload, clock },
+    );
   }
 
   // purge 모드 — 마법사가 만든 모든 산출물을 지워 설치 이전 상태로 완전히 되돌린다.
