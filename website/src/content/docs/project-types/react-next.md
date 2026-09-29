@@ -35,7 +35,8 @@ CI needs no deploy secrets.
 | `DOCKERHUB_TOKEN` | — | required | Docker Hub access token |
 | `SERVER_HOST` | — | required | Deploy server address |
 | `SERVER_USER` | — | required | SSH user |
-| `SERVER_PASSWORD` | — | required | SSH password |
+| `SERVER_PASSWORD` | — | when `SSH_AUTH_METHOD=password` (default) | SSH password |
+| `SSH_KEY` | — | when `SSH_AUTH_METHOD=key` | Private key (`.pem` contents) |
 | `PROJECT_DEPLOY_PORT` | — | optional | Host port, default `3000` |
 
 The CI/CD workflow checks the required secrets and the `Dockerfile` right after checkout and stops with an error naming what is missing. If you do not deploy to a server, delete the CI/CD file or install with `--deploy-style none`.

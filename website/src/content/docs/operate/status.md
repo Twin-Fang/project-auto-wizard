@@ -7,7 +7,7 @@ description: Check what is installed and which workflow files drifted from the i
 npx project-auto-wizard --mode status
 ```
 
-Read-only. No network access: it only compares local files.
+Read-only. It compares local files. Only when an older `version.yml` has no saved branches does it look up the default branch, which may run `git remote show origin`.
 
 It shows:
 

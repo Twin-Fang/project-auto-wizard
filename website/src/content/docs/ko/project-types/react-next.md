@@ -35,7 +35,8 @@ CI에는 배포 Secret이 필요 없습니다.
 | `DOCKERHUB_TOKEN` | — | 필수 | Docker Hub 액세스 토큰 |
 | `SERVER_HOST` | — | 필수 | 배포 서버 주소 |
 | `SERVER_USER` | — | 필수 | SSH 사용자명 |
-| `SERVER_PASSWORD` | — | 필수 | SSH 비밀번호 |
+| `SERVER_PASSWORD` | — | `SSH_AUTH_METHOD=password`일 때 (기본) | SSH 비밀번호 |
+| `SSH_KEY` | — | `SSH_AUTH_METHOD=key`일 때 | 개인키(`.pem` 내용) |
 | `PROJECT_DEPLOY_PORT` | — | 선택 | 호스트 포트, 기본 `3000` |
 
 CI/CD 워크플로우는 체크아웃 직후 필수 Secret과 `Dockerfile`을 점검하고, 빠진 것을 오류로 알려 주고 멈춥니다. 서버에 배포하지 않는다면 CI/CD 파일을 지우거나 `--deploy-style none`으로 설치하세요.

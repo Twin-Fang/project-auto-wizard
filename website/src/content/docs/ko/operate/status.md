@@ -7,7 +7,7 @@ description: 설치 상태와 설치 템플릿 대비 바뀐 워크플로우 파
 npx project-auto-wizard --mode status
 ```
 
-읽기 전용입니다. 네트워크에 접근하지 않고 로컬 파일만 비교합니다.
+읽기 전용입니다. 로컬 파일을 비교합니다. 브랜치 정보가 없는 옛 `version.yml`일 때만 기본 브랜치를 알아내려고 `git remote show origin`을 실행할 수 있습니다.
 
 보여 주는 내용:
 
