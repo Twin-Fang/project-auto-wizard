@@ -14,7 +14,7 @@ import { copyWorkflows, computeBaselineEntries, makeSrcText } from "../core/copy
 import { copyScripts } from "../core/copy/simple.js";
 import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
-import { readBaseline, writeBaseline } from "../core/baseline.js";
+import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
@@ -119,6 +119,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       join(targetRoot, PATHS.workflowsDir),
       makeSrcText(context.branches || null, context.deployStyle || "")),
     previous: previousBaseline,
+    // 새로 만든 Flutter 앱 파일만 기록한다 — 기존 사용자 파일(kept)은 완전 삭제 대상이 아니다.
+    appFiles: new Map(flutterApp.created.map((rel) => [rel, appFileHash(readFileSync(join(targetRoot, rel), "utf8"))])),
   });
 
   // 8. 설치 후 검증 — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.

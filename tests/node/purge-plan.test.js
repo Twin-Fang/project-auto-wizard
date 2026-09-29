@@ -9,6 +9,10 @@ import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { planPurge, executePurge, printPurgeResult } from "../../src/commands/purge.js";
 
+// changelog_manager.py가 만드는 형태 — purge는 이 구조의 CHANGELOG만 지운다
+const GEN_JSON = JSON.stringify({ metadata: { currentVersion: "1.0.0" }, releases: [] });
+const GEN_MD = "# Changelog\n\n**현재 버전:** 1.0.0  \n**마지막 업데이트:** 2026-07-28  \n\n---\n\n";
+
 function installFixture() {
   const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
   writeFileSync(join(target, "README.md"), "# Test Repo\n");
@@ -41,8 +45,8 @@ test("planPurge: lists workflows/scripts + version.yml + readme section, deletes
 test("planPurge: detects CHANGELOG.json/.md when present at root", () => {
   const target = installFixture();
   try {
-    writeFileSync(join(target, "CHANGELOG.json"), "{}");
-    writeFileSync(join(target, "CHANGELOG.md"), "# Changelog\n");
+    writeFileSync(join(target, "CHANGELOG.json"), GEN_JSON);
+    writeFileSync(join(target, "CHANGELOG.md"), GEN_MD);
     const plan = planPurge(resolvePayloadRoot(), target);
     assert.deepStrictEqual(plan.changelog.sort(), ["CHANGELOG.json", "CHANGELOG.md"]);
   } finally {
@@ -158,7 +162,7 @@ test("executePurge: --keep-scripts preserves .github/scripts/*.py while removing
 test("executePurge: --keep-changelog preserves CHANGELOG files while removing the rest", () => {
   const target = installFixture();
   try {
-    writeFileSync(join(target, "CHANGELOG.json"), "{}");
+    writeFileSync(join(target, "CHANGELOG.json"), GEN_JSON);
     executePurge(resolvePayloadRoot(), target, { changelog: true });
     assert.ok(existsSync(join(target, "CHANGELOG.json")));
     assert.ok(!existsSync(join(target, "version.yml")));
@@ -170,8 +174,8 @@ test("executePurge: --keep-changelog preserves CHANGELOG files while removing th
 test("executePurge: deletes CHANGELOG.json/.md when present and not kept", () => {
   const target = installFixture();
   try {
-    writeFileSync(join(target, "CHANGELOG.json"), "{}");
-    writeFileSync(join(target, "CHANGELOG.md"), "# Changelog\n");
+    writeFileSync(join(target, "CHANGELOG.json"), GEN_JSON);
+    writeFileSync(join(target, "CHANGELOG.md"), GEN_MD);
     const result = executePurge(resolvePayloadRoot(), target);
     assert.ok(!existsSync(join(target, "CHANGELOG.json")));
     assert.ok(!existsSync(join(target, "CHANGELOG.md")));
@@ -200,4 +204,44 @@ test("printPurgeResult: lists removed filenames, not just counts (M3)", () => {
 
 test("printPurgeResult: does not throw on an empty result", () => {
   printPurgeResult({ workflows: [], scripts: [], versionYml: false, readmeSection: false, changelog: [] });
+});
+
+test("planPurge: 마법사가 만들지 않은 사용자 CHANGELOG.md는 지우지 않는다", () => {
+  const target = installFixture();
+  try {
+    writeFileSync(join(target, "CHANGELOG.md"), "# my changelog\n");
+    const plan = planPurge(resolvePayloadRoot(), target);
+    assert.deepStrictEqual(plan.changelog, []);
+    executePurge(resolvePayloadRoot(), target);
+    assert.strictEqual(readFile(join(target, "CHANGELOG.md"), "utf8"), "# my changelog\n");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planPurge: 생성된 CHANGELOG.json이 있으면 재생성된 CHANGELOG.md도 함께 지운다", () => {
+  const target = installFixture();
+  try {
+    writeFileSync(join(target, "CHANGELOG.json"), GEN_JSON);
+    writeFileSync(join(target, "CHANGELOG.md"), "# Changelog\r\n\r\n## [1.0.0]\r\n");
+    assert.deepStrictEqual(planPurge(resolvePayloadRoot(), target).changelog.sort(), ["CHANGELOG.json", "CHANGELOG.md"]);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("executePurge: 마법사가 .gitignore에 추가한 블록을 제거해 원래 내용으로 되돌린다", async () => {
+  const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
+  const target = installFixture();
+  try {
+    writeFileSync(join(target, ".gitignore"), "node_modules/\n");
+    ensureGitignore(target);
+    const plan = planPurge(resolvePayloadRoot(), target);
+    assert.strictEqual(plan.gitignore, true);
+    const result = executePurge(resolvePayloadRoot(), target);
+    assert.strictEqual(result.gitignore, true);
+    assert.strictEqual(readFile(join(target, ".gitignore"), "utf8"), "node_modules/\n");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
 });

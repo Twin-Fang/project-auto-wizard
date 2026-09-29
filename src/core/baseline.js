@@ -26,6 +26,12 @@ export function sha256(text) {
   return "sha256:" + createHash("sha256").update(String(text), "utf8").digest("hex");
 }
 
+// Flutter 앱 파일(Fastfile·ExportOptions.plist) 해시 — 체크아웃 줄바꿈(autocrlf)만 달라진 파일을
+// "사용자가 수정했다"로 보지 않도록 LF로 맞춘 뒤 해시한다.
+export function appFileHash(text) {
+  return sha256(String(text).replace(/\r\n/g, "\n"));
+}
+
 // 없거나 깨졌으면 null — 호출부는 "base 미상"으로 폴백한다(조용히 빈 baseline을 쓰지 않는다.
 // 빈 baseline은 "기록이 없다"가 아니라 "전부 삭제됐다"로 오해될 수 있다).
 export function readBaseline(targetRoot = ".") {
@@ -41,8 +47,10 @@ export function readBaseline(targetRoot = ".") {
 }
 
 // entries: Map<filename, {installed?:string|null, rendered:string}>
+// appFiles: Map<레포 기준 상대경로, appFileHash> — 이번에 새로 만든 Flutter 앱 파일. 완전 삭제가
+//   "마법사가 만들었고 사용자가 손대지 않은 파일"만 지우는 근거다. files는 워크플로우 파일명 키라 섞지 않는다.
 // 기존 baseline은 병합 대상이다 — 이번 실행에서 건드리지 않은 파일의 기준점을 잃지 않는다.
-export function writeBaseline(targetRoot, { templateVersion, installedAt, entries, previous = null }) {
+export function writeBaseline(targetRoot, { templateVersion, installedAt, entries, previous = null, appFiles = new Map() }) {
   const files = { ...(previous?.files || {}) };
   for (const [filename, entry] of entries) {
     const prev = files[filename] || {};
@@ -52,10 +60,12 @@ export function writeBaseline(targetRoot, { templateVersion, installedAt, entrie
       rendered: entry.rendered,
     };
   }
+  const apps = { ...(previous?.appFiles || {}), ...Object.fromEntries(appFiles) };
   const out = {
     templateVersion: templateVersion || "unknown",
     installedAt: installedAt || "",
     files,
+    ...(Object.keys(apps).length ? { appFiles: apps } : {}),
   };
   writeText(join(targetRoot, BASELINE_PATH), JSON.stringify(out, null, 2) + "\n");
   return out;

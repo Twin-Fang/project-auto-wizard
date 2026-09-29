@@ -76,7 +76,7 @@ export function findTypePathCandidates(root, type) {
     flutter: ["pubspec.yaml"],
     react: ["package.json"], next: ["package.json"], node: ["package.json"],
     "react-native": ["package.json"],
-    "react-native-expo": ["app.json"],
+    "react-native-expo": ["app.json", "app.config.ts", "app.config.js", "package.json"],
     python: ["pyproject.toml", "setup.py", "requirements.txt"],
     spring: ["build.gradle", "build.gradle.kts", "pom.xml"],
     go: ["go.mod"],
@@ -148,6 +148,11 @@ export async function resolveProjectPaths({
         throw new CliError(`--paths로 지정한 경로가 존재하지 않습니다: '${t}=${p}'`);
       }
       say(`  ${t} → ${p} (--paths 지정)`);
+      // 막지는 않는다(마커 없이 쓰는 구성도 있다) — 오타로 엉뚱한 폴더를 준 경우를 알린다.
+      const pm = existingMarkerInDir(t, join(root, p));
+      if (pm && !existsSync(join(root, p, pm))) {
+        say(`  ⚠️ ${p}에 ${t} 프로젝트 파일(${pm})이 없습니다 — 경로가 맞는지 확인하세요.`);
+      }
       continue;
     }
 
