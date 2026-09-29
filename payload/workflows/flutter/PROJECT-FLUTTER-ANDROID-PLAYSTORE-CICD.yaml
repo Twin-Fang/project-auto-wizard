@@ -72,6 +72,29 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      # 서명·업로드 Secret이 없으면 빌드를 한참 진행한 뒤에야 실패하므로, 빠진 이름을 먼저 모두 알려 주고 멈춘다
+      # GOOGLE_SERVICES_JSON은 선택이라 점검하지 않는다
+      - name: 배포 사전 점검 (Secret)
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
+        run: |
+          MISSING=""
+          for NAME in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # 패키지명은 Secret 대신 Variable로 등록해도 된다
+          [ -n "$ANDROID_PACKAGE_NAME" ] || MISSING="$MISSING ANDROID_PACKAGE_NAME(Secret 또는 Variable)"
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다"
+
       - name: Pull latest changes
         run: git pull origin main
 

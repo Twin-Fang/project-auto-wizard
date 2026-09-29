@@ -52,6 +52,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 업로드 Secret이 없으면 빌드를 다 마친 뒤 SMB 업로드에서야 실패하므로, 빠진 이름을 먼저 알려 주고 멈춘다
+      # 배포 job과 같은 조건 — 배포하지 않는 브랜치의 수동 실행은 빌드만 한다
+      # DEBUG_KEYSTORE·GOOGLE_SERVICES_JSON은 선택이라 점검하지 않는다
+      - name: 배포 사전 점검 (Secret)
+        if: github.ref == 'refs/heads/{{MAIN_BRANCH}}'
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          MISSING=""
+          for NAME in SERVER_HOST SERVER_USER SERVER_PASSWORD; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다"
+
       - name: List repository contents
         run: |
           echo "Repository checked out"
