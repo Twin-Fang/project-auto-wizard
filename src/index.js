@@ -22,7 +22,7 @@ import {
 } from "./core/branches.js";
 import { printBannerCompact } from "./ui/banner.js";
 import { printSummary } from "./ui/summary.js";
-import { runFull } from "./commands/full.js";
+import { runFull, postInstallNotices } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { isPromptAbort } from "./ui/readline-engine.js";
@@ -392,6 +392,7 @@ async function runInner(argv, {
     readme: result?.readme ?? null,
     scripts: result?.scripts ?? null,
   });
+  for (const n of postInstallNotices(result)) console.error(n.startsWith(" ") ? n : `⚠️  ${n}`);
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
   // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
   // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다.

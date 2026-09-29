@@ -7,7 +7,7 @@ import assert from "node:assert";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runFull } from "../../src/commands/full.js";
+import { runFull, postInstallNotices } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { makeResolvers } from "../../src/core/detect-fs.js";
@@ -127,4 +127,30 @@ test("재실행에서 값을 새로 답하면 사용자 미수정 파일과 depl
     assert.match(vy, /DEPLOY_PORT: "7070"/);
     assert.match(vy, /SSH_AUTH_METHOD: "password"/, "새로 답하지 않은 값은 저장값을 유지한다");
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("--force 충돌 스킵 파일은 다음 실행에서도 충돌로 남는다 (업스트림 무변경으로 오분류 금지)", () => {
+  const dir = springRepo();
+  const payload = mkdtempSync(join(tmpdir(), "paw-rerun-payload-"));
+  try {
+    cpSync(PAYLOAD, payload, { recursive: true });
+    runFull(ctx(dir), payload, dir);
+    const CI = "PROJECT-SPRING-CI.yml";
+    const wf = join(dir, WF, CI);
+    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# my edit\n");
+    const tpl = join(payload, "workflows", "spring", CI);
+    writeFileSync(tpl, readFileSync(tpl, "utf8") + "\n# upstream change\n");
+
+    const first = runFull(ctx(dir), payload, dir);
+    assert.deepStrictEqual(first.workflows.conflictKept, [CI]);
+    assert.match(postInstallNotices(first).join("\n"), /충돌 1개/);
+
+    const second = runFull(ctx(dir), payload, dir);
+    assert.deepStrictEqual(second.workflows.conflictKept, [CI], "두 번째 실행에서도 충돌이어야 한다");
+    assert.ok(!second.workflows.keptLocal.includes(CI), "업스트림 무변경(localOnly)으로 분류되면 안 된다");
+    assert.match(readFileSync(wf, "utf8"), /# my edit/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(payload, { recursive: true, force: true });
+  }
 });

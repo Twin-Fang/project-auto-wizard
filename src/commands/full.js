@@ -191,6 +191,17 @@ function logChoices(context, types) {
   }
 }
 
+// 완료 요약과 별도로 알려야 하는 사실 — 비대화형 실행이 조용히 넘어가면 사용자는 업데이트를 다 받았다고 믿는다.
+export function postInstallNotices(result) {
+  const lines = [];
+  const kept = result?.workflows?.conflictKept || [];
+  if (kept.length) {
+    lines.push(`충돌 ${kept.length}개 — 기존 파일을 유지했습니다 (업스트림 변경 미반영): ${kept.join(", ")}`);
+    lines.push("   파일마다 고르려면 대화형(npx project-auto-wizard)으로 다시 실행하세요.");
+  }
+  return lines;
+}
+
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
 function firstDeployValue(deployValues, key) {
   for (const [, asks] of deployValues) {

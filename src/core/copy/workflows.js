@@ -118,7 +118,7 @@ function classify(srcDir, workflowsDir, envOpts, srcText, baseline = null, filte
 function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () => true) {
   const { srcText, baseline, decisions, restoreRemoved, baselineTargets } = ctx;
   const c = classify(srcDir, workflowsDir, envOpts, srcText, baseline);
-  const track = (f, wrote) => baselineTargets.set(f, { srcPath: join(srcDir, f), envOpts, wrote });
+  const track = (f, wrote, keepRendered = false) => baselineTargets.set(f, { srcPath: join(srcDir, f), envOpts, wrote, keepRendered });
   const write = (f) => { writeText(join(workflowsDir, f), srcText(join(srcDir, f))); counters.copied++; counters.copiedFiles.push(f); track(f, true); };
 
   for (const f of c.unchanged.filter(filter)) {
@@ -158,7 +158,11 @@ function processDir(srcDir, workflowsDir, envOpts, ctx, counters, filter = () =>
     const decision = decisions.get(f);
     applyDecision(decision, srcDir, workflowsDir, f, counters, srcText);
     // 'backup'만 대상 파일 자체를 새로 쓴다. 'template'은 다른 파일명이고 'skip'은 기존 유지.
-    track(f, decision === "backup");
+    // skip은 업스트림 변경을 받지 않은 것이라 rendered를 예전 값으로 둔다 — 새 값으로 바꾸면 다음 실행에서
+    // "업스트림 무변경"으로 분류되어 그 변경을 영영 받을 수 없다.
+    const kept = decision !== "backup" && decision !== "template";
+    if (kept) counters.conflictKept.push(f);
+    track(f, decision === "backup", kept);
   }
   return c;
 }
@@ -188,6 +192,7 @@ export function copyWorkflows(context, payloadRoot, targetRoot = ".", hooks = {}
   counters.keptLocal = [];      // 질문 없이 사용자 수정본을 유지한 파일 (업스트림 무변경)
   counters.removedKept = [];    // 사용자가 지웠고 되살리지 않은 파일
   counters.restoredFiles = [];  // 사용자가 지웠지만 복원하기로 한 파일
+  counters.conflictKept = [];   // 양쪽이 다 바뀌어 기존 파일을 유지한 파일 (업스트림 변경 미반영)
   const deployStyle = context.deployStyle || DEFAULT_DEPLOY_STYLE;
   const srcText = makeSrcText(context.branches || null, deployStyle);
   const baseline = readBaseline(targetRoot);
@@ -241,7 +246,8 @@ export function computeBaselineEntries(baselineTargets, workflowsDir, srcText, s
     const dst = join(workflowsDir, filename);
     if (!existsSync(dst)) continue;
     const envOpts = savedDeploy ? { ...info.envOpts, savedValues: savedDeploy.get(info.envOpts.type) || null } : info.envOpts;
-    const rendered = sha256(renderVirtual(srcText(info.srcPath), envOpts));
+    // keepRendered: 충돌로 기존 파일을 유지함 — 예전 rendered를 그대로 두도록 null로 넘긴다(writeBaseline이 병합).
+    const rendered = info.keepRendered ? null : sha256(renderVirtual(srcText(info.srcPath), envOpts));
     // installed는 이번에 우리가 쓴 파일에만 채운다. 사용자 수정본을 installed로 기록하면
     // "우리가 쓴 것"이라고 거짓말하는 셈이고, 다음 업데이트에서 그 파일이 조용히 덮인다.
     entries.set(filename, { installed: info.wrote ? sha256(readFileSync(dst, "utf8")) : null, rendered });
@@ -274,7 +280,10 @@ function applyDecision(decision, srcDir, workflowsDir, filename, counters, srcTe
     return;
   }
   counters.skipped++; // 'skip'/미지정/ESC → 기존 유지 (.sh S)·force 기본)
-  log.info("copy", "skip", `${filename} (사용자 결정: 기존 유지)`);
+  // 결정이 없으면 사용자가 고른 게 아니라 --force 기본값이다 — 로그가 사실과 달라지지 않게 구분한다.
+  log.info("copy", "skip", decision
+    ? `${filename} (사용자 결정: 기존 유지, 업스트림 변경 미반영)`
+    : `${filename} (--force 기본값: 기존 유지, 업스트림 변경 미반영)`);
 }
 
 // 대화형 사전 조사 — 사람이 답해야 하는 것만 뽑는다.
