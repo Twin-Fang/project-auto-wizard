@@ -78,6 +78,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const detectWarnings = [];
   let types = detectTypes(cwd);
   let version = (existing?.version) || detectVersion(cwd, {
+    types,
     warn: (m) => detectWarnings.push(m),
     hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
   });

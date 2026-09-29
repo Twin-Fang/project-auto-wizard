@@ -29,11 +29,11 @@ export function detectTypes(root) {
 
 // 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.
 // hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
-export function detectVersion(root, { warn = (m) => console.error(m), hint } = {}) {
+export function detectVersion(root, { warn = (m) => console.error(m), hint, types = [] } = {}) {
   const read = readFile(root);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   const gitTag = gitOut(root, ["describe", "--tags", "--abbrev=0"]);
-  return detectVersionFromFiles({ read, readJson, gitTag, warn, hint });
+  return detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types });
 }
 
 // 타입별 실제 마커 파일 — 감지 로그·설치 로그가 같은 근거 파일을 인용하도록.

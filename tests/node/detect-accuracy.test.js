@@ -49,6 +49,33 @@ test("versionFromPyproject: [tool.*] 섹션의 version은 무시하고 [project]
   assert.strictEqual(versionFromPyproject('[project]\ndynamic = ["version"]\n[tool.other]\nversion = "9.9.9"\n'), null);
 });
 
+test("detectVersionFromFiles: 멀티타입이면 주 타입(첫 항목)의 버전 파일을 먼저 읽는다", () => {
+  const files = { "build.gradle": "version = '1.0.0'\n" };
+  const readJson = (rel) => (rel === "package.json" ? { version: "3.0.0" } : null);
+  const opts = { read: readFrom(files), readJson, gitTag: "", warn: () => {} };
+  assert.strictEqual(detectVersionFromFiles({ ...opts, types: ["spring", "react"] }), "1.0.0");
+  assert.strictEqual(detectVersionFromFiles({ ...opts, types: ["react", "spring"] }), "3.0.0");
+});
+
+test("detectVersionFromFiles: setup.py의 version을 읽는다", () => {
+  const v = detectVersionFromFiles({
+    read: readFrom({ "setup.py": 'setup(\n  name="my-app",\n  python_version="3.11.0",\n  version="1.0.0",\n)\n' }),
+    readJson: () => null, gitTag: "", warn: () => {}, types: ["python"],
+  });
+  assert.strictEqual(v, "1.0.0");
+});
+
+test("detectVersionFromFiles: prerelease 버전은 x.y.z 코어로 감지한다", () => {
+  const warned = [];
+  const v = detectVersionFromFiles({
+    read: () => null, readJson: (rel) => (rel === "package.json" ? { version: "2.0.0-rc.1" } : null),
+    gitTag: "", warn: (m) => warned.push(m),
+  });
+  assert.strictEqual(v, "2.0.0");
+  assert.strictEqual(warned.length, 0);
+  assert.strictEqual(detectVersionFromFiles({ read: () => null, readJson: () => null, gitTag: "v1.2.3-beta.1" }), "1.2.3");
+});
+
 test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 버전은 쓰지 않는다", () => {
   const pom = `<project>
   <parent>

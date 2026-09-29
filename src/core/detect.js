@@ -33,33 +33,64 @@ export function detectTypesFromMarkers({ has, read }) {
   return types.length ? [...new Set(types)] : ["basic"];
 }
 
-const VERSION_RE = /^\d+\.\d+\.\d+$/;
+// 1.2.3-rc.1·1.2.3+7 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
+// version.yml은 x.y.z만 받으므로 감지 실패(0.0.1)로 떨어지는 것보다 코어가 정확하다.
+function coreVersion(v) {
+  const m = String(v ?? "").trim().match(/^v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.+-]*)?$/);
+  return m ? m[1] : null;
+}
+
+// setup.py의 setup(version="x.y.z"). python_version 같은 다른 키는 단어 경계로 거른다.
+export function versionFromSetupPy(content) {
+  if (!content) return null;
+  const m = String(content).match(/(?<![\w.])version\s*=\s*["']([^"']+)["']/);
+  return m ? coreVersion(m[1]) : null;
+}
 
 // 버전 감지 (동작명세 §3.3) — 순서대로 첫 성공. read(relpath)=>string|null 주입.
 // package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다.
 // hint: 폴백 경고 뒤에 붙일 "그럼 어떻게 고치나" 한 줄. 대화형과 CLI가 서로 다른 방법을
 // 안내해야 하므로 호출부가 정한다. 미지정 시 CLI 문구를 쓴다.
-export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint }) {
-  const pkg = readJson?.("package.json");
-  if (pkg?.version && VERSION_RE.test(pkg.version)) return pkg.version;
+// types: 주 타입(첫 항목)의 버전 파일을 먼저 읽는다. 릴리스 때 version_manager가 주 타입
+// 파일과 version.yml을 비교하므로, 다른 타입 버전을 잡으면 첫 릴리스에서 버전이 뛴다.
+export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint, types = [] }) {
   const grab = (content, re) => {
     for (const line of (content || "").split("\n")) {
       const m = line.match(re);
-      if (m && VERSION_RE.test(m[1])) return m[1];
+      if (m) { const v = coreVersion(m[1]); if (v) return v; }
     }
     return null;
   };
-  let v;
   // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
-  const gradleRe = /^\s*version\s*=\s*["']?(\d+\.\d+\.\d+)/;
-  // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
-  // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
-  if ((v = grab(read("build.gradle"), gradleRe))) return v;
-  if ((v = grab(read("build.gradle.kts"), gradleRe))) return v;
-  if ((v = versionFromPom(read("pom.xml")))) return v;
-  if ((v = grab(read("pubspec.yaml"), /^version:\s*(\d+\.\d+\.\d+)/))) return v;
-  if ((v = versionFromPyproject(read("pyproject.toml")))) return v;
-  if (gitTag) { const t = String(gitTag).replace(/^v/, ""); if (VERSION_RE.test(t)) return t; }
+  const gradleRe = /^\s*version\s*=\s*["']?([^"'\s]+)/;
+  const sources = {
+    packageJson: () => coreVersion(readJson?.("package.json")?.version),
+    appJson: () => coreVersion(readJson?.("app.json")?.expo?.version),
+    // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
+    // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
+    gradle: () => grab(read("build.gradle"), gradleRe),
+    gradleKts: () => grab(read("build.gradle.kts"), gradleRe),
+    pom: () => versionFromPom(read("pom.xml")),
+    pubspec: () => grab(read("pubspec.yaml"), /^version:\s*(\S+)/),
+    pyproject: () => versionFromPyproject(read("pyproject.toml")),
+    setupPy: () => versionFromSetupPy(read("setup.py")),
+  };
+  const byType = {
+    spring: ["gradle", "gradleKts", "pom"],
+    flutter: ["pubspec"],
+    python: ["pyproject", "setupPy"],
+    "react-native-expo": ["appJson", "packageJson"],
+    react: ["packageJson"], next: ["packageJson"], node: ["packageJson"], "react-native": ["packageJson"],
+  };
+  const order = [
+    ...(byType[types[0]] || []),
+    "packageJson", "gradle", "gradleKts", "pom", "pubspec", "pyproject", "setupPy",
+  ];
+  for (const key of new Set(order)) {
+    const v = sources[key]();
+    if (v) return v;
+  }
+  if (gitTag) { const t = coreVersion(gitTag); if (t) return t; }
   const tail = hint ?? "--project-version으로 직접 지정하거나 version.yml을 확인하세요.";
   warn?.(`⚠️  버전을 자동 감지하지 못해 기본값 0.0.1을 사용합니다 — ${tail}`);
   return "0.0.1";
@@ -74,8 +105,8 @@ export function versionFromPyproject(content) {
     const h = line.match(/^\s*\[+\s*([^\]]+?)\s*\]+\s*(?:#.*)?$/);
     if (h) { section = h[1]; continue; }
     if (section !== "project" && section !== "tool.poetry") continue;
-    const m = line.match(/^\s*version\s*=\s*["'](\d+\.\d+\.\d+)/);
-    if (m) return m[1];
+    const m = line.match(/^\s*version\s*=\s*["']([^"']+)["']/);
+    if (m) return coreVersion(m[1]);
   }
   return null;
 }
@@ -95,8 +126,7 @@ export function versionFromPom(content) {
     if (!name) continue;
     if (m[1]) {
       if (start >= 0 && stack.length === 2 && stack[1] === "version") {
-        const v = text.slice(start, m.index).trim().match(/^(\d+\.\d+\.\d+)/);
-        return v ? v[1] : null;
+        return coreVersion(text.slice(start, m.index));
       }
       stack.pop();
       continue;
