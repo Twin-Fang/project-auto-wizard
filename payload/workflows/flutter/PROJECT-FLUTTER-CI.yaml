@@ -25,7 +25,7 @@
 # ANALYZE_ONLY    : true면 analyze만 실행, 빌드 스킵 (기본: false)
 # ENABLE_ANDROID  : Android 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
 # ENABLE_IOS      : iOS 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
-# FLUTTER_VERSION : Flutter SDK 버전
+# FLUTTER_VERSION : Flutter SDK 버전 (빈 값 = stable 최신)
 # JAVA_VERSION    : Java 버전 (Android 빌드용)
 # XCODE_VERSION   : Xcode 버전 (iOS 빌드용)
 # ENV_FILE_PATH   : dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 기본값: .env)
@@ -84,7 +84,9 @@ env:
   ENABLE_IOS: "true"        # iOS 빌드 활성화 (true/false)
 
   # 프로젝트별 설정
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
   ENV_FILE_PATH: ".env"     # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 커스터마이징 가능)
@@ -112,6 +114,10 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
+          # push는 이번 push로 들어온 커밋만 비교한다(직전 커밋 github.event.before 기준).
+          # 비워 두면 기본 브랜치와의 누적 diff로 판정해 skip이 사실상 동작하지 않는다.
+          # 새 브랜치 첫 push(before가 0으로만 채워짐)나 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 비교).
+          base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
@@ -288,6 +294,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -383,6 +390,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -430,8 +438,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          chmod +x gradlew
-          echo "✅ Gradle wrapper permissions set"
+          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            echo "✅ Gradle wrapper permissions set"
+          else
+            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+          fi
 
       # APK 빌드 (CI는 빌드 검증 목적이므로 서명 불필요한 debug 빌드 사용)
       - name: Build APK
@@ -527,6 +540,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -558,9 +572,14 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install --repo-update || pod install
-          echo "✅ CocoaPods installed"
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && (pod install --repo-update || pod install))
+            echo "✅ CocoaPods installed"
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: Build iOS
         id: build

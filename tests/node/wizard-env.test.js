@@ -256,3 +256,13 @@ test("makeResolvers: 기존 resolver(repo, flutter-root)는 그대로 동작한�
   assert.strictEqual(resolveToken("repo", "flutter", r), "my-repo");
   assert.strictEqual(resolveToken("flutter-root", "flutter", r), "app");
 });
+
+// workflow_dispatch 입력 기본값(`default:`)도 설치 시 선택값을 따라야 수동 실행이 설정과 어긋나지 않는다.
+test("substituteEnv: 소문자 키(dispatch 입력 default)의 auto 마커도 치환한다", () => {
+  const src = ['        default: "store_only"  # @wizard auto:android-deploy-mode', '        type: choice'].join("\n");
+  assert.deepStrictEqual(parseWizardLine(src.split("\n")[0]), {
+    indent: "        ", key: "default", action: "auto", arg: "android-deploy-mode",
+  });
+  const out = substituteEnv(src, { resolvers: { "android-deploy-mode": () => "store_prepare" } });
+  assert.strictEqual(out, ['        default: "store_prepare"', '        type: choice'].join("\n"));
+});

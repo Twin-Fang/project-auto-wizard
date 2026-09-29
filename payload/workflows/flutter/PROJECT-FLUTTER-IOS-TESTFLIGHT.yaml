@@ -52,7 +52,7 @@ on:
       deploy_mode:
         description: "배포 모드 (store_only=TestFlight까지 / store_prepare=ASC 제출직전 / store_submit=심사 자동제출)"
         required: false
-        default: "store_only"
+        default: "store_only"  # @wizard auto:ios-deploy-mode
         type: choice
         options:
           - store_only
@@ -64,7 +64,9 @@ env:
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
   # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
 
@@ -102,6 +104,41 @@ jobs:
       - name: Pull latest changes
         run: git pull origin main
 
+      # 인증서 import·빌드 전에 설정 누락을 한 번에 알려 준다 — 없으면 macOS 러너에서 한참 빌드한 뒤에야 엉뚱한 단계에서 실패한다
+      - name: 배포 설정 사전 검증
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          FAILED=0
+          MISSING=""
+          for name in APPLE_CERTIFICATE_BASE64 APPLE_PROVISIONING_PROFILE_BASE64 IOS_PROVISIONING_PROFILE_NAME \
+                      APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_BASE64; do
+            [ -n "${!name}" ] || MISSING="$MISSING $name"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::필수 GitHub Secret이 비어 있습니다:$MISSING (워크플로우 상단 주석 참고)"
+            FAILED=1
+          fi
+          if [ ! -f ios/ExportOptions.plist ]; then
+            echo "::error::ios/ExportOptions.plist가 없습니다 — 저장소에 추가(커밋)하세요."
+            FAILED=1
+          elif grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist; then
+            echo "::error::ios/ExportOptions.plist에 채워지지 않은 플레이스홀더가 남아 있습니다 — 팀 ID·번들 ID·프로비저닝 프로파일 이름으로 바꿔 커밋하세요."
+            grep -En '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist
+            FAILED=1
+          fi
+          if [ ! -f ios/fastlane/Fastfile ]; then
+            echo "::error::ios/fastlane/Fastfile이 없습니다 — 저장소에 추가(커밋)하세요."
+            FAILED=1
+          fi
+          [ "$FAILED" -eq 0 ] || exit 1
+          echo "✅ 배포 설정 확인 완료"
+
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
 
@@ -132,6 +169,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -157,8 +195,13 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && pod install)
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: 현재 버전 정보 가져오기
         id: current_version
@@ -276,6 +319,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -301,8 +345,13 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          gem install cocoapods
-          cd ios && pod install
+          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          if [ -f ios/Podfile ]; then
+            gem install cocoapods
+            (cd ios && pod install)
+          else
+            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+          fi
 
       - name: Import Code-Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v2

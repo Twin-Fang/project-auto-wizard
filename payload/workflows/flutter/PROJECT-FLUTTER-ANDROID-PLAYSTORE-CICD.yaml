@@ -10,7 +10,7 @@
 # RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
 # RELEASE_KEY_ALIAS: key alias
 # RELEASE_KEY_PASSWORD: key 비밀번호
-# GOOGLE_SERVICES_JSON: Firebase google-services.json
+# GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
 # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Play Console 서비스 계정 (base64)
 # ANDROID_PACKAGE_NAME: 앱 패키지명 (Secret 우선, 없으면 Variable) — fastlane에 PACKAGE_NAME으로 전달
 
@@ -25,7 +25,7 @@ on:
       deploy_mode:
         description: "배포 모드 (store_only=internal까지 / store_prepare=production draft / store_submit=심사 자동등록)"
         required: false
-        default: "store_only"
+        default: "store_only"  # @wizard auto:android-deploy-mode
         type: choice
         options:
           - store_only
@@ -37,7 +37,9 @@ env:
   # 프로젝트 이름
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
   # Flutter/Java 버전
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   PROJECT_TYPE: "flutter"
   # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등.
@@ -90,6 +92,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -227,9 +230,27 @@ jobs:
           fi
 
       - name: Setup Release Keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          # 빈 Secret으로 빈 keystore를 만들면 어떤 키로 서명됐는지 알 수 없거나 뒤 단계에서 엉뚱한 오류로 끝난다
+          MISSING=""
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || MISSING="$MISSING $name"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::서명 Secret이 비어 있습니다:$MISSING (워크플로우 상단 주석 참고)"
+            exit 1
+          fi
           mkdir -p android/app/keystore
-          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore/key.jks
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/app/keystore/key.jks
+          if [ ! -s android/app/keystore/key.jks ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64를 디코딩한 keystore가 비어 있습니다"
+            exit 1
+          fi
           echo "✅ Release Keystore 생성 완료"
           ls -la android/app/keystore/
 
@@ -242,18 +263,24 @@ jobs:
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
           echo "✅ key.properties 생성 완료"
-          cat android/key.properties
 
-      - name: Create Google-services.json
+      # google-services.json 생성 (선택) — 비어 있으면 빈 파일을 만들지 않는다
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          cat << 'EOF' > android/app/google-services.json
-          ${{ secrets.GOOGLE_SERVICES_JSON }}
-          EOF
-          echo "✅ Google-services.json 생성 완료"
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            mkdir -p android/app
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "✅ google-services.json created"
+          else
+            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
@@ -538,9 +565,15 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Google Play Service Account
+        env:
+          SERVICE_ACCOUNT_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
+          if [ -z "$SERVICE_ACCOUNT_BASE64" ]; then
+            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 Secret이 비어 있습니다"
+            exit 1
+          fi
           mkdir -p ~/.config/gcloud
-          echo "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > ~/.config/gcloud/service-account.json
+          printf '%s' "$SERVICE_ACCOUNT_BASE64" | base64 --decode > ~/.config/gcloud/service-account.json
           echo "✅ Service Account JSON 설정 완료"
 
       - name: Download AAB artifact

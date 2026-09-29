@@ -6,10 +6,7 @@
 #
 # 필수 GitHub Secrets
 # ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
-# RELEASE_KEYSTORE_BASE64: 서명용 keystore (base64)
-# RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
-# RELEASE_KEY_ALIAS: key alias
-# RELEASE_KEY_PASSWORD: key 비밀번호
+# DEBUG_KEYSTORE (선택): 서명용 keystore (base64, 비밀번호 android · alias androiddebugkey) — 없으면 빌드마다 새 debug 키로 서명
 # GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
 # SERVER_HOST: 서버 호스트(SMB 접속 주소)
 # SERVER_USER: SMB 사용자명
@@ -27,7 +24,9 @@ on:
 env:
   # 프로젝트 이름 (APK 파일명, 아티팩트명, 히스토리 파일명에 사용)
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
-  FLUTTER_VERSION: "3.35.5"
+  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
+  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
@@ -58,14 +57,25 @@ jobs:
           echo "Repository checked out"
           ls -la
 
-      # Debug Keystore 설정 (디버깅 용도 유지)
+      # Debug Keystore 설정 — 이 워크플로우는 DEBUG_KEYSTORE(비밀번호 android, alias androiddebugkey)로 서명한다
       - name: Setup Debug Keystore
+        id: signing
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
+          # 내부 배포용이라 Secret이 없어도 빌드는 진행한다 — 러너가 새로 만든 debug 키로 서명되므로
+          # 빌드마다 서명이 달라져 기존 설치본 위에 업데이트할 수 없다는 점을 경고로 남긴다.
+          if [ -z "$DEBUG_KEYSTORE" ]; then
+            echo "::warning::DEBUG_KEYSTORE Secret이 비어 있어 러너 기본 debug 키로 서명합니다 (빌드마다 서명이 달라집니다)"
+            echo "mode=default" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 값이 있는데 깨진 keystore는 조용히 넘기지 않고 여기서 실패한다
           mkdir -p ~/.android
-          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ~/.android/debug.keystore || echo "Base64 decoding failed"
-          echo "Debug Keystore created (for debugging)"
-          ls -la ~/.android/
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || echo "Keytool failed"
+          printf '%s' "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore
+          keytool -list -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+          echo "mode=keystore" >> "$GITHUB_OUTPUT"
+          echo "Debug Keystore created (DEBUG_KEYSTORE로 서명)"
 
       # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
       - name: Prepare env file
@@ -83,9 +93,11 @@ jobs:
           fi
 
       - name: Setup Keystore and key.properties
+        if: steps.signing.outputs.mode == 'keystore'
         run: |
           mkdir -p android/app/keystore
-          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > android/app/keystore/key.jks || echo "Base64 decoding failed"
+          # 앞 단계에서 검증한 keystore를 그대로 쓴다
+          cp ~/.android/debug.keystore android/app/keystore/key.jks
           echo "Keystore created from DEBUG_KEYSTORE"
           ls -la android/app/keystore
           echo "storeFile=app/keystore/key.jks" > android/key.properties
@@ -95,20 +107,25 @@ jobs:
           echo "key.properties created"
           ls -la android/
 
-      - name: Create Google-services.json
+      # google-services.json 생성 (선택) — 비어 있으면 빈 파일을 만들지 않는다
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          cat << 'EOF' > android/app/google-services.json
-          ${{ secrets.GOOGLE_SERVICES_JSON }}
-          EOF
-          echo "✅ Google-services.json 생성 완료"
-          ls -la android/app/
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            mkdir -p android/app
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "✅ google-services.json created"
+          else
+            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}
 
       - name: Verify Flutter version
         run: |
@@ -144,8 +161,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          chmod +x gradlew
-          echo "Gradle wrapper permissions set"
+          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            echo "Gradle wrapper permissions set"
+          else
+            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v5
