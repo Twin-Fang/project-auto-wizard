@@ -19,13 +19,55 @@ function gitOut(root, args) {
 }
 
 // 타입 감지 — version.yml의 project_types 최우선(source of truth), 없으면 마커 스캔.
-export function detectTypes(root) {
+// paths: --paths로 받은 Map<type,path>. 모노레포는 루트에 마커가 없으므로 사용자가 적은 타입을 쓴다.
+// warn: 루트에 마커가 없어 basic으로 떨어질 때 하위 폴더에서 찾은 프로젝트를 알린다.
+export function detectTypes(root, { paths = new Map(), warn } = {}) {
   const vy = join(root, "version.yml");
   if (existsSync(vy)) {
     const { types } = parseExisting(readFileSync(vy, "utf8"));
     if (types.length) return types; // basic 포함, 명시돼 있으면 그대로
   }
-  return detectTypesFromMarkers({ has: hasFile(root), read: readFile(root) });
+  const fromRoot = detectTypesFromMarkers({ has: hasFile(root), read: readFile(root) });
+  if (paths.size) {
+    // --paths 순서가 주 타입을 정한다. 루트 package.json의 node는 다른 타입이 있으면 빼는
+    // 마커 스캔 규칙과 맞춘다.
+    const merged = [...new Set([...paths.keys(), ...fromRoot])].filter((t) => t !== "basic");
+    const types = merged.length > 1 ? merged.filter((t) => t !== "node" || paths.has("node")) : merged;
+    return types.length ? types : ["basic"];
+  }
+  if (fromRoot.length === 1 && fromRoot[0] === "basic" && warn) {
+    const found = findSubdirProjects(root);
+    if (found.length) {
+      const firstDir = new Map();
+      for (const { dir, types } of found) for (const t of types) if (!firstDir.has(t)) firstDir.set(t, dir);
+      const list = found.map(({ dir, types }) => `${dir}(${types.join(", ")})`).join(", ");
+      const hint = [...firstDir].map(([t, d]) => `${t}=${d}`).join(",");
+      warn(`⚠️  루트에서 프로젝트 파일을 찾지 못해 basic으로 설치합니다. 하위 폴더에서 발견: ${list}\n` +
+        `   모노레포라면 --paths "${hint}"로 다시 실행하세요.`);
+    }
+  }
+  return fromRoot;
+}
+
+// 루트 아래 2단계까지 프로젝트 마커가 있는 폴더를 찾는다 (모노레포 안내용).
+// 빌드 산출물·의존성·네이티브 폴더는 오탐만 늘리므로 들어가지 않고, 찾은 폴더의 하위도 보지 않는다.
+const SUBDIR_PRUNE = new Set(["node_modules", "build", "dist", "android", "ios", "venv", "__pycache__"]);
+function findSubdirProjects(root, maxDepth = 2) {
+  const found = [];
+  const walk = (rel, depth) => {
+    let entries;
+    try { entries = readdirSync(join(root, rel), { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith(".") || SUBDIR_PRUNE.has(e.name)) continue;
+      const childRel = rel ? `${rel}/${e.name}` : e.name;
+      const dir = join(root, childRel);
+      const types = detectTypesFromMarkers({ has: hasFile(dir), read: readFile(dir) });
+      if (types[0] !== "basic") found.push({ dir: childRel, types });
+      else if (depth + 1 < maxDepth) walk(childRel, depth + 1);
+    }
+  };
+  walk("", 0);
+  return found.sort((a, b) => a.dir.localeCompare(b.dir));
 }
 
 // 버전 감지 — .sh detect_version 순서. jq는 package.json 파싱에 쓰인 적이 없어 게이트를 제거했다.

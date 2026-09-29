@@ -249,7 +249,16 @@ async function runInner(argv, {
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
   // 감지 (CLI 인자 우선, 없으면 자동 감지 — version.yml 우선 규칙은 detectTypes/detectVersion 내부)
-  const types = opts.types.length ? opts.types : detectTypes(cwd);
+  // --paths만 주고 --type을 생략한 모노레포도 그 타입으로 설치되도록 감지에 넘긴다.
+  let cliPaths;
+  try {
+    cliPaths = parsePathsCsv(opts.pathsCsv);
+  } catch (e) {
+    if (e instanceof CliError) { console.error(e.message); return 1; }
+    throw e;
+  }
+  const types = opts.types.length ? opts.types
+    : detectTypes(cwd, { paths: cliPaths, warn: (m) => console.error(m) });
   // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
   // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   const detectWarnings = [];
@@ -265,7 +274,7 @@ async function runInner(argv, {
   let paths;
   try {
     paths = await resolveProjectPaths({
-      root: cwd, types, paths: parsePathsCsv(opts.pathsCsv),
+      root: cwd, types, paths: cliPaths,
       existingPaths: existing?.paths ?? new Map(), force: true, tty: false, io: {},
     });
   } catch (e) {
