@@ -16,7 +16,7 @@ import { copyScripts } from "../core/copy/simple.js";
 import { copyFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { ensureGitignore } from "../core/copy/gitignore.js";
 import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
-import { scanUnsubstituted, collectRequiredSecrets, narrowSecretsBySshAuth } from "../core/verify.js";
+import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
 import { log, maskValue } from "../core/logger.js";
@@ -146,14 +146,15 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   const managed = [...(wfCounters.baselineTargets || new Map()).keys()];
   const unresolved = scanUnsubstituted(wfDir, managed);
-  const secrets = narrowSecretsBySshAuth(
-    collectRequiredSecrets(wfDir, managed),
-    firstDeployValue(deployValues, "SSH_AUTH_METHOD"),
-  );
+  // 기본값이 있거나 둘 중 하나면 되는 secret은 필수와 나눠 안내한다.
+  const secretSets = classifySecrets(wfDir, managed);
+  const secrets = narrowSecretsBySshAuth(secretSets.required, firstDeployValue(deployValues, "SSH_AUTH_METHOD"));
+  const optionalSecrets = secretSets.optional;
 
   // 9. 요약 — 파일 끝에 결과 블록을 붙인다. tail만 봐도 결과가 보이도록.
   for (const u of unresolved) log.warn("verify", "unresolved", `${u.filename}:${u.line} ${u.token}`);
   for (const [name, users] of secrets) log.info("verify", "secret", `${name} ← ${users.join(", ")}`);
+  for (const [name, users] of optionalSecrets) log.info("verify", "secret-opt", `${name} (선택) ← ${users.join(", ")}`);
   log.summary([
     ["설치", `${(wfCounters.copiedFiles || []).length}개 파일`],
     ["자동 갱신", `${(wfCounters.autoUpdated || []).length}개 (사용자 미수정)`],
@@ -165,7 +166,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts, optionalSecrets };
 }
 
 // deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.

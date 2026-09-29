@@ -81,3 +81,20 @@ test("run(): README.md가 있으면 버전 섹션 추가를 알리고, 고친 �
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("run(): 필요 Secret 목록은 폴백 쌍을 하나로 세고 선택 Secret은 따로 보여준다", async () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-summary-secrets-"));
+  writeFileSync(join(target, "package.json"), '{"name":"my-app","version":"1.0.0","dependencies":{"react":"18"}}\n');
+  try {
+    const output = await captureStderr(async () => {
+      assert.strictEqual(await run(["--mode", "full", "--force", "--type", "react"], { cwd: target }), 0);
+    });
+    const required = output.slice(output.indexOf("GitHub Secret을 등록해야"), output.indexOf("선택 Secret"));
+    assert.match(required, /ENV_FILE 또는 ENV \(둘 중 하나\)/);
+    assert.doesNotMatch(required, /→ ENV /, "ENV를 따로 필수로 세면 안 된다");
+    assert.doesNotMatch(required, /PROJECT_DEPLOY_PORT/, "기본값이 있는 포트는 필수가 아니다");
+    assert.match(output, /선택 Secret[^\n]*\n\s+· PROJECT_DEPLOY_PORT/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

@@ -2,6 +2,7 @@
 // ctx: { mode, types:[], version, copiedFiles:[], branches?, gitignoreUpdated?, readme?, scripts? }
 import { WORKFLOW_PREFIX, WORKFLOW_COMMON_PREFIX } from "../core/paths.js";
 import { paint, A, colorEnabled } from "./ansi.js";
+import { EITHER_SEP } from "../core/verify.js";
 
 const SEPARATOR = "────────────────────────────────────────";
 
@@ -10,7 +11,7 @@ export function printSummary(ctx) {
     // pr-flow인데 원격에 develop을 만들지 못한 경우 — 구성 줄만 보면 이미 준비된 것처럼 보이므로 따로 알린다.
     developMissing = false,
     // 설치 후 검증·기록
-    answers = [], unresolved = [], secrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
+    answers = [], unresolved = [], secrets = new Map(), optionalSecrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
     // Flutter 스토어 배포 — 앱 파일 생성/유지와 스토어 선택 해제 정리 결과
     flutterApp = null, storeCleanup = null,
     // 이번 실행의 실제 결과 — README 버전 섹션 처리 상태(addVersionSectionToReadme 반환값)와 스크립트별 결과.
@@ -167,11 +168,21 @@ export function printSummary(ctx) {
 
   // 설치된 워크플로우가 실제로 요구하는 Secret — 종전에는 하나도 안내되지 않아
   // "설치 성공"인데 배포는 돌지 않는 상태로 끝났다.
+  // "A 또는 B"는 둘 중 하나만 등록하면 되는 폴백 쌍이라 한 항목으로 센다.
   if (secrets.size) {
     err(`  ${num()} 아래 GitHub Secret을 등록해야 배포 워크플로우가 동작합니다 (${secrets.size}개)`);
     err("     → Settings > Secrets and variables > Actions");
     for (const [name, users] of secrets) {
-      err(`     → ${paint(name, A.bold, enabled)}  ${paint(users.join(", "), A.dim, enabled)}`);
+      const either = name.includes(EITHER_SEP) ? paint(" (둘 중 하나)", A.dim, enabled) : "";
+      err(`     → ${paint(name, A.bold, enabled)}${either}  ${paint(users.join(", "), A.dim, enabled)}`);
+    }
+    err("");
+  }
+  // 기본값이 있거나 없어도 동작하는 secret — 필수 개수에 섞지 않고 따로 알린다.
+  if (optionalSecrets.size) {
+    err(`  ${paint("ℹ️", A.dim, enabled)}  선택 Secret (없어도 동작합니다 — 필요할 때 등록, ${optionalSecrets.size}개)`);
+    for (const [name, users] of optionalSecrets) {
+      err(`     · ${name}  ${paint(users.join(", "), A.dim, enabled)}`);
     }
     err("");
   }

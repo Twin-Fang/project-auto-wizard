@@ -381,6 +381,7 @@ async function runInner(argv, {
     gitignoreUpdated: result?.gitignoreUpdated === true,
     unresolved: result?.unresolved ?? [],
     secrets: result?.secrets ?? new Map(),
+    optionalSecrets: result?.optionalSecrets ?? new Map(),
     logPath: currentLogPath(),
     legacyMdLogs: hasLegacyMdLogs(cwd),
     cleanup: result?.cleanup ?? null,
