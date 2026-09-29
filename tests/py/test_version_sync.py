@@ -79,6 +79,17 @@ class TestSyncSpringIndentedVersion(SyncTestCase):
         self.assertIn("    version = '20.11.0'", text)
         self.assertIn("    version = '2.3.5'", text)
 
+    def test_url_slashes_in_string_do_not_break_block_tracking(self):
+        tmp, gradle = self._gradle(
+            "allprojects {\n    repositories {\n        maven { url 'https://jitpack.io' }\n    }\n"
+            "    version = '2.3.4'\n}\n\nnode {\n    version = '20.11.0'\n}\n")
+        self.assertEqual(last_line(run(["get"], tmp)), "2.3.4")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = gradle.read_text(encoding="utf-8")
+        self.assertIn("    version = '2.3.5'", text)
+        self.assertIn("    version = '20.11.0'", text)
+
     def test_only_plugin_block_version_is_not_synced(self):
         tmp, gradle = self._gradle("node {\n    version = '20.11.0'\n}\n")
         run(["set", "1.2.3"], tmp)

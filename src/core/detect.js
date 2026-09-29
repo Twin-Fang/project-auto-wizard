@@ -85,6 +85,21 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
   // 들여쓰지 않은 `version =`을 우선하고, 없을 때만 allprojects/subprojects 블록 안의 들여쓴 줄을 쓴다.
   // `node { version = '20.11.0' }` 같은 플러그인 설정 블록이 프로젝트 버전으로 읽히면 첫 릴리스에서 버전이 뛴다.
   // 릴리스 때의 version_manager.py와 같은 규칙이어야 한다.
+  // 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다 — url 'https://…'의 `//`나 문자열 속 중괄호가
+  // 블록 깊이 계산을 흐트러뜨리지 않게 한다. version_manager.py와 같은 규칙이어야 한다.
+  const gradleCode = (line) => {
+    let out = "", quote = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quote) {
+        if (ch === "\\" && i + 1 < line.length) { out += "  "; i++; continue; }
+        if (ch === quote) { quote = ""; out += ch; } else out += " ";
+      } else if (ch === "'" || ch === '"') { quote = ch; out += ch; }
+      else if (line.startsWith("//", i)) break;
+      else out += ch;
+    }
+    return out;
+  };
   const gradleVersion = (content) => {
     const top = [], shared = [], stack = [];
     for (const line of (content || "").split("\n")) {
@@ -93,7 +108,7 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
         if (m[1] === "") top.push(m[3]);
         else if (stack.some((b) => b === "allprojects" || b === "subprojects")) shared.push(m[3]);
       }
-      const code = line.split("//")[0];
+      const code = gradleCode(line);
       const name = code.match(/(\w+)\s*\{[^{}]*$/)?.[1] ?? "";
       for (const ch of code) {
         if (ch === "{") stack.push(name);

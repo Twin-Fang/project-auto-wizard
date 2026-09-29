@@ -439,6 +439,29 @@ _GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*
 _GRADLE_SHARED_BLOCKS = ("allprojects", "subprojects")
 
 
+def _gradle_code(line):
+    """한 줄에서 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다. url 'https://…'의 `//`나
+    문자열 속 중괄호가 블록 깊이 계산을 흐트러뜨리지 않게 한다. detect.js와 같은 규칙."""
+    out, quote, i = [], "", 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\" and i + 1 < len(line):
+                out.append("  "); i += 2; continue
+            if ch == quote:
+                quote = ""; out.append(ch)
+            else:
+                out.append(" ")
+        elif ch in "'\"":
+            quote = ch; out.append(ch)
+        elif line.startswith("//", i):
+            break
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _gradle_version_matches(text):
     """프로젝트 버전 줄의 match 목록. 읽기와 동기화가 이 한 곳을 공유해 같은 줄만 다룬다.
 
@@ -456,7 +479,7 @@ def _gradle_version_matches(text):
                 top.append(m)
             elif any(b in _GRADLE_SHARED_BLOCKS for b in stack):
                 shared.append(m)
-        code = line.split("//", 1)[0]
+        code = _gradle_code(line)
         name = re.search(r"(\w+)\s*\{[^{}]*$", code)
         for ch in code:
             if ch == "{":
