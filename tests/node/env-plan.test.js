@@ -260,3 +260,37 @@ test("promptEnvPlan: flutterStore를 collectAsks까지 전달해 답변 목록�
     assert.strictEqual(all.answers.length, 4, "미지정(null)이면 현행 동작");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("validateAskValue: 포트·SSH 인증 방식·JDK 버전 형식을 검증한다", async () => {
+  const { validateAskValue } = await import("../../src/ui/env-plan.js");
+  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "아무 값"]]) {
+    assert.strictEqual(validateAskValue(...ok), "", ok.join("="));
+  }
+  for (const bad of [["DEPLOY_PORT", 'key"#: x'], ["SSH_PORT", "0"], ["BLUE_PORT", "70000"], ["SSH_AUTH_METHOD", "pw"], ["JAVA_VERSION", "latest"]]) {
+    assert.notStrictEqual(validateAskValue(...bad), "", bad.join("="));
+  }
+});
+
+test("promptEnvPlan: 형식이 틀린 값은 받지 않고 다시 묻는다", async () => {
+  const answers = { DEPLOY_PORT: ['key"#: x', "9090"], SSH_AUTH_METHOD: ["pw", " key "] };
+  const io = {
+    select: async () => "some",
+    multiselect: async () => ["DEPLOY_PORT", "SSH_AUTH_METHOD"],
+    text: async () => answers[current].shift(),
+    confirm: async ({ initialValue }) => initialValue,
+  };
+  let current = "";
+  const logs = [];
+  const result = await promptEnvPlan({
+    payloadRoot: resolvePayloadRoot(), types: ["spring"], io, force: false, deployStyle: "simple",
+    // 입력 직전에 찍히는 필드 카드 제목으로 지금 묻는 키를 알아낸다.
+    log: (l = "") => {
+      logs.push(l);
+      if (/▸ \(\d+\/\d+\) 외부 노출 포트/.test(l)) current = "DEPLOY_PORT";
+      if (/▸ \(\d+\/\d+\) SSH 인증 방식/.test(l)) current = "SSH_AUTH_METHOD";
+    },
+  });
+  assert.strictEqual(result.values.get("DEPLOY_PORT"), "9090");
+  assert.strictEqual(result.values.get("SSH_AUTH_METHOD"), "key");
+  assert.ok(logs.some((l) => l.includes("1~65535")));
+});
