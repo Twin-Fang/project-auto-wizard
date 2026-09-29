@@ -114,6 +114,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
   for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (현재 버전에 없는 이전 워크플로우 정리)`);
   for (const f of staleCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
+  const cleanupCount = (key) => [cleanup, storeCleanup, staleCleanup].reduce((n, r) => n + r[key].length, 0);
 
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0
     || staleCleanup.backedUp.length > 0;
@@ -163,6 +164,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["유지", `${(wfCounters.keptLocal || []).length}개 (사용자 수정본)`],
     ["변경 없음", `${(wfCounters.unchangedFiles || []).length}개`],
     ["백업 교체", `${wfCounters.backupAdded || 0}개 (.bak 생성)`],
+    // 배포 방식 변경·스토어 해제·옛 워크플로우 정리도 파일을 지우거나 .bak으로 옮긴다 — 충돌 백업과 따로 센다.
+    ["정리", `삭제 ${cleanupCount("removed")}개, .bak 이동 ${cleanupCount("backedUp")}개`],
     ["미치환", `${unresolved.length}건${unresolved.length ? "  ← 조치 필요" : ""}`],
     ["필요 Secret", `${secrets.size}개`],
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
