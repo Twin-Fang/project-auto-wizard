@@ -54,3 +54,25 @@ test("gradlew·Podfile이 저장소에 없어도(기본 flutter create) 해당 �
   assert.strictEqual(gradle, 3, "gradlew chmod 스텝 수");
   assert.strictEqual(pods, 4, "pod install 스텝 수");
 });
+
+test("iOS TestFlight 2종은 준비 job 초반에 Secret·ExportOptions 플레이스홀더·Fastfile을 먼저 검사한다", () => {
+  for (const [f, job] of [["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml", "prepare-build"], ["PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml", "prepare-test-build"]]) {
+    const text = read(f);
+    const jobStart = text.indexOf(`\n  ${job}:\n`);
+    const preflight = text.indexOf("- name: 배포 설정 사전 검증", jobStart);
+    assert.ok(jobStart !== -1 && preflight !== -1, `${f}: 사전 검증 스텝이 없습니다`);
+    // 같은 job 안, 인증서 import·Flutter 설치보다 앞이어야 기본 상태에서 안내 메시지에 도달한다
+    const nextJob = text.slice(jobStart + 1).search(/\n  [a-z][\w-]*:\n/) + jobStart + 1;
+    assert.ok(preflight < nextJob, `${f}: 사전 검증이 ${job} 밖에 있습니다`);
+    assert.ok(preflight < text.indexOf("- name: Import Code-Signing Certificates"), `${f}: 인증서 import보다 뒤`);
+    assert.ok(preflight < text.indexOf("uses: subosito/flutter-action@v2"), `${f}: Flutter 설치보다 뒤`);
+    const step = text.slice(preflight, text.indexOf("\n      - name: ", preflight + 1));
+    for (const secret of ["APPLE_CERTIFICATE_BASE64", "APPLE_PROVISIONING_PROFILE_BASE64", "IOS_PROVISIONING_PROFILE_NAME",
+      "APP_STORE_CONNECT_API_KEY_ID", "APP_STORE_CONNECT_ISSUER_ID", "APP_STORE_CONNECT_API_KEY_BASE64"]) {
+      assert.ok(step.includes(`${secret}: \${{ secrets.${secret} }}`), `${f}: ${secret} 검사 누락`);
+    }
+    assert.ok(step.includes("grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist"), `${f}: 플레이스홀더 검사 누락`);
+    assert.ok(step.includes("ios/fastlane/Fastfile"), `${f}: Fastfile 검사 누락`);
+    assert.ok(step.includes("exit 1"), `${f}: 누락 시 중단하지 않습니다`);
+  }
+});
