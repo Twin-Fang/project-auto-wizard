@@ -20,7 +20,7 @@ import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS } from "../core/flutter-options.js";
 import { inferInstalledStores } from "../core/installed-stores.js";
 import { savedFlutterState, askUnsetFlutterOptions, editFlutterOption, FLUTTER_EDIT_ITEMS } from "./interactive-flutter.js";
-import { runFull } from "./full.js";
+import { runFull, postInstallNotices } from "./full.js";
 import { runUninstallFlow } from "./uninstall.js";
 import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
@@ -390,6 +390,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     readme: result?.readme ?? null,
     scripts: result?.scripts ?? null,
   });
+  const notices = postInstallNotices(result, { interactive: true });
+  if (notices.length) io.note?.(notices.join("\n"), "이전 워크플로우 정리");
   io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
   return 0;
 }

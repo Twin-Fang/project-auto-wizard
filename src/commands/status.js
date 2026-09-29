@@ -7,6 +7,8 @@ import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/dete
 import { PATHS } from "../core/paths.js";
 import { resolveFlutterOptions } from "../core/flutter-options.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { findStaleWorkflows } from "../core/removal-plan.js";
+import { readBaseline } from "../core/baseline.js";
 
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 상태를 확인할 대상 레포.
 export function runStatus(payloadRoot, targetRoot = ".") {
@@ -34,6 +36,8 @@ export function runStatus(payloadRoot, targetRoot = ".") {
     deployStyle: isDeployStyle(existing.options.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE,
   };
   const plan = planWorkflows(context, payloadRoot, targetRoot);
+  // 현재 버전에 없는 옛 워크플로우 — 다음 업데이트에서 정리된다. 그 전까지는 옛 트리거로 계속 돈다.
+  const stale = findStaleWorkflows(payloadRoot, targetRoot, readBaseline(targetRoot));
 
   return {
     installed: true,
@@ -53,6 +57,7 @@ export function runStatus(payloadRoot, targetRoot = ".") {
       conflicts: plan.changed.map((f) => f.filename),          // 양쪽 변경 — 검토 필요
       removed: plan.removed.map((f) => f.filename),            // 내가 지웠고 복원하지 않음
     },
+    staleFiles: stale,
   };
 }
 
@@ -80,6 +85,11 @@ export function printStatus(status) {
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);
   } else {
     lines.push("", "모든 워크플로우 파일이 설치 시점 기본값과 동일합니다 (수정 없음).");
+  }
+
+  if (status.staleFiles?.length) {
+    lines.push("", `현재 버전에 없는 이전 워크플로우 (${status.staleFiles.length}개 — 다음 업데이트에서 정리됨):`);
+    for (const f of status.staleFiles) lines.push(`  - ${f}`);
   }
 
   // 업데이트하면 무슨 일이 일어나는지. baseline이 없는 설치는 전부 0이라 출력하지 않는다.

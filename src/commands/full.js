@@ -19,6 +19,7 @@ import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { cleanupDeselectedStoreWorkflows } from "../core/flutter-options.js";
+import { findStaleWorkflows, cleanupStaleWorkflows } from "../core/removal-plan.js";
 import { log, maskValue } from "../core/logger.js";
 
 // context: { version, types, paths:Map, branch, versionCode,
@@ -126,7 +127,14 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (선택 해제된 스토어 워크플로우 정리)`);
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
 
-  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0;
+  // 6-2. payload에서 이름이 바뀌거나 빠진 옛 워크플로우 정리 — 규칙은 6과 같다(미수정 삭제, 수정본 .bak).
+  const staleCleanup = cleanupStaleWorkflows(targetRoot, findStaleWorkflows(payloadRoot, targetRoot, previousBaseline), previousBaseline);
+  for (const f of [...staleCleanup.removed, ...staleCleanup.backedUp]) delete previousBaseline?.files?.[f];
+  for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (현재 버전에 없는 이전 워크플로우 정리)`);
+  for (const f of staleCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
+
+  const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0
+    || staleCleanup.backedUp.length > 0;
   if (gitignoreUpdated) {
     const gi = ensureGitignore(targetRoot);
     log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
@@ -176,7 +184,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
   ]);
 
-  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, flutterApp, readme, scripts, optionalSecrets };
+  return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, optionalSecrets };
 }
 
 // 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도
@@ -193,9 +201,16 @@ function logChoices(context, types) {
 }
 
 // 완료 요약과 별도로 알려야 하는 사실 — 비대화형 실행이 조용히 넘어가면 사용자는 업데이트를 다 받았다고 믿는다.
-export function postInstallNotices(result) {
+// interactive: 대화형은 충돌을 사용자가 직접 골랐으므로 충돌 안내를 빼고 정리 결과만 알린다.
+export function postInstallNotices(result, { interactive = false } = {}) {
   const lines = [];
-  const kept = result?.workflows?.conflictKept || [];
+  const stale = result?.staleCleanup || { removed: [], backedUp: [] };
+  if (stale.removed.length || stale.backedUp.length) {
+    lines.push("현재 버전에 없는 이전 워크플로우를 정리했습니다 (이름이 바뀌었거나 제거된 파일):");
+    for (const f of stale.removed) lines.push(`   • ${f} — 삭제 (손대지 않은 파일)`);
+    for (const f of stale.backedUp) lines.push(`   • ${f} → ${f}.bak — 수정하신 내용이 있어 백업`);
+  }
+  const kept = interactive ? [] : result?.workflows?.conflictKept || [];
   if (kept.length) {
     lines.push(`충돌 ${kept.length}개 — 기존 파일을 유지했습니다 (업스트림 변경 미반영): ${kept.join(", ")}`);
     lines.push("   파일마다 고르려면 대화형(npx project-auto-wizard)으로 다시 실행하세요.");
