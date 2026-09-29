@@ -1,6 +1,7 @@
 // 대화형 프롬프트 래핑 (.sh interactive_menu/choose_menu/ask_* 등가).
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
-// 취소(ESC/Ctrl+C)는 각 함수가 CANCEL 심볼을 반환 → 호출부가 정상 종료(exit 0) 처리.
+// ESC는 각 함수가 CANCEL 심볼을 반환 → 호출부가 기본값/머무르기로 해석한다.
+// Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";

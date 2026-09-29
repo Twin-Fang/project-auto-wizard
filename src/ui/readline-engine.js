@@ -3,11 +3,25 @@
 //   멈추는 버그가 있다(실측 확정). node:readline 의 keypress 이벤트는 Windows에서 정상 동작한다.
 //   .sh/.ps1 이 자체 메뉴를 구현한 것과 동일한 접근. 외부 의존성 0 → 내부망에서도 안전.
 //
-// 계약: 취소(ESC/Ctrl+C)는 CANCEL 심볼 반환. 각 함수 async.
+// 계약: ESC는 CANCEL 심볼 반환(호출부가 "기본값/머무르기"로 해석). 각 함수 async.
+//       Ctrl+C·Ctrl+D·stdin 종료는 중단 — PromptAbortError로 reject해 어느 질문에서든 즉시 빠져나간다.
 import { emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
 
 export const CANCEL = Symbol("cancel");
+
+// 사용자 중단(Ctrl+C 등). ESC와 달리 기본값으로 진행하면 안 되므로 반환값이 아니라 예외로 전파한다 —
+// 호출부마다 CANCEL 해석이 달라 일부는 기본값으로 설치를 강행하거나 같은 화면을 무한히 다시 그렸다.
+export class PromptAbortError extends Error {
+  constructor() {
+    super("사용자가 중단했습니다.");
+    this.name = "PromptAbortError";
+  }
+}
+export const isPromptAbort = (e) => e instanceof PromptAbortError;
+
+// raw mode에서는 Ctrl+C가 SIGINT가 아니라 keypress로 들어온다. Ctrl+D도 raw mode에선 EOF가 아니다.
+const isAbortKey = (key) => key.ctrl && (key.name === "c" || key.name === "d");
 
 // ── ANSI 헬퍼 (picocolors 대체 — 의존성 0) ───────────────────────────
 const ESC = "\x1b[";
@@ -49,7 +63,7 @@ function makeRenderer() {
 // raw keypress 세션 공통 래퍼. onKey(str,key) → true 반환 시 종료.
 // 반환값은 finalize()가 만든다. 취소 시 CANCEL.
 function keySession(renderFn, onKey) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const wasRaw = stdin.isTTY ? stdin.isRaw : false;
     emitKeypressEvents(stdin);
     if (stdin.isTTY) stdin.setRawMode(true);
@@ -64,16 +78,22 @@ function keySession(renderFn, onKey) {
       showCursor();
     };
 
-    // stdin 종료(EOF/Ctrl+D, SSH 연결 끊김 등) — 취소(ESC/Ctrl+C)와 동일하게 처리해 무한 대기를 방지한다.
+    // stdin 종료(EOF, SSH 연결 끊김 등) — 더 이상 입력이 올 수 없으므로 중단한다.
+    // CANCEL로 돌려주면 "머무르기"로 해석하는 화면에서 다시 묻다가 영원히 대기한다.
     const onEnd = () => {
       cleanup();
-      resolve(CANCEL);
+      reject(new PromptAbortError());
     };
 
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
-      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") {
+      if (isAbortKey(key)) {
+        cleanup();
+        stdout.write("\n");
+        reject(new PromptAbortError());
+        return;
+      }
+      if (key.name === "escape") {
         cleanup();
         resolve(CANCEL);
         return;
@@ -190,7 +210,7 @@ export async function multiselect({ message, options, initialValues = [], requir
 // 반환: 입력 문자열(빈 입력 시 defaultValue) 또는 CANCEL.
 export async function text({ message, defaultValue = "" }) {
   if (!stdin.isTTY) return defaultValue;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const wasRaw = stdin.isTTY ? stdin.isRaw : false;
     emitKeypressEvents(stdin);
     if (stdin.isTTY) stdin.setRawMode(true);
@@ -211,16 +231,16 @@ export async function text({ message, defaultValue = "" }) {
       stdout.write("\n");
     };
 
-    // stdin 종료(EOF/Ctrl+D) — 취소와 동일하게 처리해 무한 대기를 방지한다.
+    // stdin 종료(EOF) — 더 이상 입력이 올 수 없으므로 중단한다.
     const onEnd = () => {
       cleanup();
-      resolve(CANCEL);
+      reject(new PromptAbortError());
     };
 
     const handler = (str, key) => {
       key = key || {};
-      // 취소: Ctrl+C / Ctrl+D / ESC (raw mode에서는 Ctrl+D가 stdin "end"가 아니라 일반 keypress로 들어온다)
-      if ((key.ctrl && (key.name === "c" || key.name === "d")) || key.name === "escape") { cleanup(); resolve(CANCEL); return; }
+      if (isAbortKey(key)) { cleanup(); reject(new PromptAbortError()); return; }
+      if (key.name === "escape") { cleanup(); resolve(CANCEL); return; }
       if (key.name === "return" || key.name === "enter") {
         cleanup();
         resolve(buf.length ? buf : defaultValue);

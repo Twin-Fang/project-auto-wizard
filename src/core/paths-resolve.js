@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
 import { normalizePath, CliError } from "../cli/args.js";
 
-// 취소(ESC/Ctrl+C)는 CANCEL 심볼 — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
+// 취소(ESC)는 CANCEL 심볼(Ctrl+C는 엔진이 예외로 중단시킨다) — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
 const isCancel = (v) => typeof v === "symbol";
 
 // 타입의 대표 마커 파일명 (.sh marker_for_type L1220~1229 등가).

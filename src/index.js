@@ -21,6 +21,7 @@ import { printSummary } from "./ui/summary.js";
 import { runFull } from "./commands/full.js";
 import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
+import { isPromptAbort } from "./ui/readline-engine.js";
 import { runInteractive } from "./commands/interactive.js";
 import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
@@ -359,6 +360,13 @@ async function runInner(argv, {
 export async function run(argv, opts = {}) {
   try {
     return await runInner(argv, opts);
+  } catch (e) {
+    // Ctrl+C/EOF는 어느 질문에서든 즉시 중단한다 — 설치 파일을 쓰기 전에 빠져나오고, 셸 관례대로 130을 돌려준다.
+    if (isPromptAbort(e)) {
+      prompts.cancelMessage("중단했습니다 — 변경 없이 종료합니다.");
+      return 130;
+    }
+    throw e;
   } finally {
     closeLogger();
   }
