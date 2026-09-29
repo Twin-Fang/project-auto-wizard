@@ -120,9 +120,9 @@ test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 
     ].join("\n"),
   );
   try {
-    const asks = collectAsks(root, [], { resolvers: { repo: () => "claude-window-keeper" } });
-    assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
-    assert.strictEqual(asks.typeDefaults.get("common|VOLUME_CONTAINER_PATH"), "/mnt/claude-window-keeper");
+    const asks = collectAsks(root, [], { resolvers: { repo: () => "my-service" } });
+    assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/mnt/my-service");
+    assert.strictEqual(asks.typeDefaults.get("common|VOLUME_CONTAINER_PATH"), "/mnt/my-service");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
