@@ -6,7 +6,7 @@ import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { planFlutterAppFiles } from "../core/copy/flutter-app.js";
 import { planUninstall } from "./uninstall.js";
-import { renderVersionYml, parseExisting } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { planScripts } from "../core/copy/simple.js";
@@ -28,7 +28,8 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   const wouldBe = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), {
     pathMarkers, extraTopLevel,
   });
-  return { existed: existingRaw !== null, changed: existingRaw !== wouldBe };
+  // 실제 설치와 같은 기준으로 비교한다 — 시각 줄만 다르면 설치도 파일을 다시 쓰지 않는다.
+  return { existed: existingRaw !== null, changed: existingRaw === null || !sameIgnoringTimestamps(existingRaw, wouldBe) };
 }
 
 // mode: "full" | "uninstall". 읽기 전용 — 아무 파일도 쓰지 않는다.

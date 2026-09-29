@@ -66,6 +66,30 @@ test("printDryRun() warns that version.yml preview may be inaccurate for deploy-
   }
 });
 
+test("planDryRun('full', ...) 시각만 다른 재실행이면 version.yml 변경 없음으로 본다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    runFull(baseContext(), resolvePayloadRoot(), target);
+    // 다른 시각·날짜로 미리보기 — 실제 설치는 이 경우 파일을 다시 쓰지 않는다.
+    const later = baseContext({ now: "2026-08-15 12:34:56", today: "2026-08-15" });
+    const plan = planDryRun("full", later, resolvePayloadRoot(), target);
+    assert.strictEqual(plan.versionYml.changed, false);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("planDryRun('full', ...) 시각 외 값이 달라지면 version.yml 변경으로 본다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    runFull(baseContext(), resolvePayloadRoot(), target);
+    const plan = planDryRun("full", baseContext({ version: "2.0.0", now: "2026-08-15 12:34:56", today: "2026-08-15" }), resolvePayloadRoot(), target);
+    assert.strictEqual(plan.versionYml.changed, true);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test("planDryRun('full', ...) with semver_auto:false preserved -> versionYml unchanged", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
