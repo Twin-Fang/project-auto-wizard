@@ -54,7 +54,8 @@ test("interactive: go 프로젝트는 배포 방식을 묻고 기록한다", asy
     const asked = [];
     assert.strictEqual(await runInteractive({}, { cwd: dir, io: stubIo(asked) }), 0);
     assert.strictEqual(asked.length, 1);
-    assert.match(readFileSync(join(dir, "version.yml"), "utf8"), /deploy_style: "nginx"/);
+    // go에는 nginx 무중단 워크플로우가 없어 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    assert.match(readFileSync(join(dir, "version.yml"), "utf8"), /deploy_style: "simple"/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -9,7 +9,7 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes } from "./core/deploy-style.js";
+import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes, effectiveDeployStyle } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { inferInstalledStores } from "./core/installed-stores.js";
 import { PATHS } from "./core/paths.js";
@@ -364,6 +364,8 @@ async function runInner(argv, {
   if (fallbackTypes.length) {
     console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${context.deployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
   }
+  // 안내는 고른 값으로 하되, 기록은 실제로 설치되는 방식으로 한다.
+  context.deployStyle = effectiveDeployStyle(payload, types, context.deployStyle);
 
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });
