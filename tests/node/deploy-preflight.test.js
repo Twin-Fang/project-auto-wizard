@@ -14,8 +14,8 @@ const STEP = "- name: 배포 사전 점검 (Secret·Dockerfile)";
 const CASES = [
   ["go/PROJECT-GO-SIMPLE-CICD.yaml", 1, true],
   ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", 1, true],
-  ["react/PROJECT-REACT-CICD.yaml", 1, false],
-  ["next/PROJECT-NEXT-CICD.yaml", 1, false],
+  ["react/PROJECT-REACT-CICD.yaml", 1, true],
+  ["next/PROJECT-NEXT-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", 1, true],
@@ -48,5 +48,23 @@ for (const [file, count, sshAware] of CASES) {
     assert.match(block, /::error title=Dockerfile 없음::/);
     assert.match(block, /working-directory: \$\{\{ env\.PROJECT_PATH \}\}/);
     assert.match(block, /exit 1/);
+  });
+}
+
+// 같은 SSH 서버 배포인데 타입마다 접속 설정이 다르면 키 인증 전용 서버(AWS EC2 등)에 일부 타입만 배포되지 않는다
+for (const [file, , sshAware] of CASES) {
+  if (!sshAware) continue;
+  test(`${file}: SSH 인증 방식(password|key)과 SSH 포트를 설정으로 받는다`, () => {
+    const text = readFileSync(join(WORKFLOWS_DIR, file), "utf8");
+    assert.match(text, /^  SSH_AUTH_METHOD: "password"  # @wizard ask:password$/m);
+    assert.match(text, /^  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022$/m);
+    const actions = text.split("uses: appleboy/ssh-action@").slice(1).map((s) => s.slice(0, s.indexOf("script:")));
+    assert.ok(actions.length > 0, "SSH 배포 스텝 없음");
+    for (const block of actions) {
+      assert.ok(block.includes("key: ${{ secrets.SSH_KEY }}"), "SSH 키 인증 누락");
+      assert.ok(block.includes("port: ${{ env.SSH_PORT }}"), "SSH 포트가 고정값입니다");
+    }
+    assert.match(text, /if \[ "\$\{SSH_AUTH_METHOD:-password\}" = "key" \]; then\n\s+\[ -n "\$SSH_KEY" \] \|\| MISSING="\$MISSING SSH_KEY"/,
+      "사전 점검이 인증 방식에 맞는 Secret을 확인해야 한다");
   });
 }
