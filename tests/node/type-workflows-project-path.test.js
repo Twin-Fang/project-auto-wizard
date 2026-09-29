@@ -102,3 +102,24 @@ test("Go·Python 배포/프리뷰의 .env는 PROJECT_PATH 안에 만든다 (Dock
     for (const b of blocks) assert.ok(b.includes(WD), `${file}: '${name}' working-directory 누락`);
   }
 });
+
+test("모노레포에서 서버 배포·프리뷰의 이미지·컨테이너 이름에 타입 접미사가 붙는다 (타입끼리 덮어쓰지 않는다)", () => {
+  const cases = {
+    go: ["go/PROJECT-GO-PR-PREVIEW.yaml", "go/PROJECT-GO-SIMPLE-CICD.yaml"],
+    python: ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", "python/PROJECT-PYTHON-SIMPLE-CICD.yaml"],
+    spring: [
+      "spring/server-deploy/PROJECT-SPRING-PR-PREVIEW.yaml",
+      "spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml",
+      "spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml",
+      "spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml",
+    ],
+  };
+  for (const [type, files] of Object.entries(cases)) {
+    const expr = `\${{ env.PROJECT_PATH != '.' && format('{0}-${type}', env.PROJECT_NAME) || env.PROJECT_NAME }}`;
+    for (const file of files) {
+      const text = read(file);
+      assert.ok(!text.includes("${{ env.PROJECT_NAME }}"), `${file}: 접미사 없는 PROJECT_NAME 참조가 남아 있습니다`);
+      assert.ok(text.includes(expr), `${file}: 타입 접미사 표현식 누락`);
+    }
+  }
+});

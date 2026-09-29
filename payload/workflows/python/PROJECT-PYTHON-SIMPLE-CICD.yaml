@@ -29,6 +29,8 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
   # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
   PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-python'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-python)
 
   # 포트 설정
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8000
@@ -147,7 +149,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ github.ref_name }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ github.ref_name }}
           # GitHub Actions 캐시 사용 (로컬 디스크 공간 절약)
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -201,7 +203,7 @@ jobs:
 
             BRANCH=${{ github.ref_name }}
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
             # 포트 및 컨테이너명 설정
             PORT=${{ env.DEPLOY_PORT }}

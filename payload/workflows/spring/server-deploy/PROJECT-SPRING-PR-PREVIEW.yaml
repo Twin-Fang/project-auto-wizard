@@ -29,6 +29,8 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
   # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
   PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-spring'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-spring)
 
   # Spring Boot 빌드 설정 (프로젝트별 수정 필요)
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
@@ -376,7 +378,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -446,7 +448,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${PR_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -575,7 +577,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -644,7 +646,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -1061,7 +1063,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -1136,7 +1138,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             ISSUE_NUMBER=${{ needs.get-branch-from-issue.outputs.issue_number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${ISSUE_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${ISSUE_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${ISSUE_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -1267,7 +1269,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -1337,7 +1339,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
             const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -1460,7 +1462,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ steps.pr_number.outputs.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
 
@@ -1488,7 +1490,7 @@ jobs:
         with:
           script: |
             const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             const body = [
               '## 🗑️ Preview 환경 삭제 완료!',
@@ -1531,7 +1533,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1561,7 +1563,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
@@ -1570,7 +1572,7 @@ jobs:
         with:
           script: |
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
@@ -1769,7 +1771,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
@@ -1836,7 +1838,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
             const buildDuration = '${{ steps.build.outputs.duration }}';
@@ -1880,7 +1882,7 @@ jobs:
         run: |
           DOCKER_START=$(date +%s)
           CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
-          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
+          IMAGE_TAG="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}:${CONTAINER_SUFFIX}"
           docker build -t $IMAGE_TAG -f "${{ env.DOCKERFILE_PATH }}" .
           docker push $IMAGE_TAG
           DOCKER_END=$(date +%s)
@@ -1895,7 +1897,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
             const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
@@ -1939,7 +1941,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
             IMAGE_TAG="${{ steps.docker.outputs.image_tag }}"
@@ -1997,7 +1999,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const sha = '${{ steps.commit.outputs.sha }}';
@@ -2062,7 +2064,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -2177,7 +2179,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 
@@ -2199,7 +2201,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const containerName = `${projectName}-${containerSuffix}`;
@@ -2270,7 +2272,7 @@ jobs:
           script: |
             export PATH=$PATH:/usr/local/bin
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_SUFFIX="${{ steps.extract.outputs.container_suffix }}"
             CONTAINER_NAME="${PROJECT_NAME}-${CONTAINER_SUFFIX}"
 
@@ -2280,7 +2282,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
             const branchName = '${{ steps.extract.outputs.branch_name }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';

@@ -33,6 +33,8 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
   # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
   PROJECT_PATH: "."  # @wizard auto:project-path
+  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-python'를 붙여
+  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-python)
 
   # Docker 설정
   DOCKERFILE_PATH: './Dockerfile'  # PROJECT_PATH 기준 상대 경로
@@ -288,7 +290,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ github.event.issue.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -357,7 +359,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${PR_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -484,7 +486,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -552,7 +554,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -895,7 +897,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:pr-${{ needs.get-branch-from-issue.outputs.issue_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -969,7 +971,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             ISSUE_NUMBER=${{ needs.get-branch-from-issue.outputs.issue_number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${ISSUE_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${ISSUE_NUMBER}"
             DOMAIN="${PROJECT_NAME}-pr-${ISSUE_NUMBER}.${{ env.PREVIEW_DOMAIN_SUFFIX }}"
@@ -1098,7 +1100,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -1167,7 +1169,7 @@ jobs:
         with:
           script: |
             const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
             const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -1281,7 +1283,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             PR_NUMBER=${{ steps.pr_number.outputs.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:pr-${PR_NUMBER}"
 
@@ -1309,7 +1311,7 @@ jobs:
         with:
           script: |
             const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             const body = [
               '## 🗑️ Preview 환경 삭제 완료!',
@@ -1352,7 +1354,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1382,7 +1384,7 @@ jobs:
             export PATH=$PATH:/usr/local/bin
 
             NUMBER=${{ github.event.issue.number }}
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${PROJECT_NAME}-pr-${NUMBER}"
             docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"
 
@@ -1391,7 +1393,7 @@ jobs:
         with:
           script: |
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
@@ -1647,7 +1649,7 @@ jobs:
             SUFFIX="pr-${{ steps.branch_info.outputs.container_number }}"
           fi
           echo "suffix=$SUFFIX" >> $GITHUB_OUTPUT
-          echo "name=${{ env.PROJECT_NAME }}-${SUFFIX}" >> $GITHUB_OUTPUT
+          echo "name=${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}-${SUFFIX}" >> $GITHUB_OUTPUT
 
       - name: Docker 이미지 빌드 & Push
         if: steps.branch_info.outputs.branch_exists == 'true'
@@ -1656,7 +1658,7 @@ jobs:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}:${{ steps.container.outputs.suffix }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ steps.container.outputs.suffix }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -1729,7 +1731,7 @@ jobs:
             fi
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
             CONTAINER_NAME="${{ steps.container.outputs.name }}"
             CONTAINER_SUFFIX="${{ steps.container.outputs.suffix }}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${CONTAINER_SUFFIX}"
@@ -1852,7 +1854,7 @@ jobs:
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
 
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const apiDocsPath = '${{ env.API_DOCS_PATH }}';
@@ -2000,7 +2002,7 @@ jobs:
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             // 브랜치명에서 Issue 번호 추출 (#번호 패턴)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -2050,7 +2052,7 @@ jobs:
             echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
 
             CONTAINER_NAME="${{ steps.container_info.outputs.container_name }}"
-            PROJECT_NAME="${{ env.PROJECT_NAME }}"
+            PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
             # 컨테이너명에서 suffix 추출
             SUFFIX="${CONTAINER_NAME#${PROJECT_NAME}-}"
@@ -2116,7 +2118,7 @@ jobs:
         with:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
 
             // 브랜치명에서 Issue 번호 추출 (#번호 패턴)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -2174,7 +2176,7 @@ jobs:
           script: |
             const branchName = '${{ needs.check-command.outputs.custom_branch }}';
             const containerName = '${{ steps.container_info.outputs.container_name }}';
-            const projectName = '${{ env.PROJECT_NAME }}';
+            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}';
             const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
             const previewPort = '${{ env.PREVIEW_PORT }}';
             const domain = `${containerName}.${domainSuffix}`;
