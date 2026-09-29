@@ -296,3 +296,103 @@ for (const path of bothCopies("AUTO-CHANGELOG-CONTROL")) {
     assert.ok(step.includes("exit 1"), "끝내 실패하면 성공처럼 넘어가지 않는다");
   });
 }
+
+// ---------------------------------------------------------------
+// 안전망(main 직접 push) 뒤 릴리스: develop 역병합 + 버전·태그 기반 멱등 판정
+// ---------------------------------------------------------------
+for (const path of bothCopies("VERSION-CONTROL")) {
+  test(`${path}: 안전망 bump를 push한 뒤 develop에 역병합한다`, () => {
+    const body = read(path);
+    const idx = body.indexOf("- name: Back-merge the safety-net bump into");
+    assert.ok(idx > -1, "역병합 스텝이 없다");
+    const step = body.slice(idx, body.indexOf("- name: Summary"));
+    assert.ok(step.includes("steps.commit_push.outputs.pushed == 'true'"), "bump를 실제로 push했을 때만");
+    assert.match(step, /git merge --no-edit -m "chore\(version\): merge v\$\{NEW_VERSION\} safety-net bump into \$\{DEVELOP_BRANCH\} \[skip ci\]"/);
+    assert.ok(step.includes('git push origin "HEAD:$DEVELOP_BRANCH"'));
+    assert.ok(step.includes("git merge --abort"), "충돌 시 작업트리를 정리하고 안내만 남긴다");
+    assert.ok(!/^\s+exit 1\s*$/m.test(step), "역병합 실패가 안전망 릴리스를 실패로 만들면 안 된다");
+  });
+}
+
+for (const path of bothCopies("AUTO-CHANGELOG-CONTROL")) {
+  test(`${path}: 충돌로 머지하지 못하면 develop 역병합을 안내한다`, () => {
+    const body = read(path);
+    assert.ok(body.includes('if [ "$MERGEABLE" = "CONFLICTING" ]; then'));
+    assert.match(body, /::error::릴리스 PR이 (\{\{MAIN_BRANCH\}\}|main)와 충돌합니다/);
+  });
+}
+
+function bumpSnippet() {
+  const body = read(payloadPath("AUTO-CHANGELOG-CONTROL"));
+  const s = body.slice(body.indexOf("- name: Confirm release version"), body.indexOf("- name: Generate summary"));
+  return s.slice(s.indexOf("run: |") + 7).split("\n").map((l) => l.replace(/^ {10}/, "")).join("\n")
+    .replaceAll("{{MAIN_BRANCH}}", "main").replaceAll("{{DEVELOP_BRANCH}}", "develop")
+    .replaceAll("${{ steps.semver_options.outputs.semver_auto }}", "true");
+}
+
+test("릴리스 PR 버전 확정은 재실행·추가 push·main 역병합에도 버전을 건너뛰지 않는다", (t) => {
+  if (process.platform === "win32") {
+    t.skip("워크플로우 셸 조각은 ubuntu 러너용 bash 전제");
+    return;
+  }
+  if (findPython() !== "python3") {
+    t.skip("워크플로우 조각은 python3 명령을 전제");
+    return;
+  }
+  const root = mkdtempSync(join(tmpdir(), "paw-confirm-"));
+  const work = join(root, "work");
+  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1" };
+  const run = (cmd, args, cwd = work) => {
+    const r = spawnSync(cmd, args, { cwd, encoding: "utf-8", env });
+    assert.strictEqual(r.status, 0, `${cmd} ${args.join(" ")}\n${r.stdout}\n${r.stderr}`);
+    return r.stdout;
+  };
+  const git = (...args) => run("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args]);
+  const version = () => read(join(work, "version.yml")).match(/^version: "([^"]+)"/m)[1];
+  const confirm = () => {
+    writeFileSync(join(work, "commits.txt"), git("log", "--pretty=%s", "origin/main..HEAD"));
+    writeFileSync(join(work, "out.txt"), "");
+    run("bash", ["-e", "-c", bumpSnippet()], work);
+    rmSync(join(work, "commits.txt"));
+    rmSync(join(work, "out.txt"));
+    git("commit", "-q", "--allow-empty", "-am", `chore(version): confirm v${version()} and update release docs [skip ci]`);
+    return version();
+  };
+  try {
+    run("git", ["init", "-q", "--bare", join(root, "remote.git")], root);
+    mkdirSync(join(work, ".github", "scripts"), { recursive: true });
+    git("init", "-q");
+    git("remote", "add", "origin", join(root, "remote.git"));
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+      writeFileSync(join(work, ".github", "scripts", f), read(join("payload", "scripts", f)));
+    }
+    writeFileSync(join(work, "version.yml"), 'version: "0.3.0"\nversion_code: 1\nproject_types: ["basic"]\n');
+    git("add", ".");
+    git("commit", "-q", "-m", "chore: init");
+    git("push", "-q", "origin", "HEAD:main");
+    git("tag", "v0.3.0");
+    git("push", "-q", "origin", "v0.3.0");
+    git("fetch", "-q", "origin");
+    env.GITHUB_OUTPUT = join(work, "out.txt");
+
+    git("commit", "-q", "--allow-empty", "-m", "fix: 로그인 오류");
+    assert.strictEqual(confirm(), "0.3.1", "첫 확정");
+    assert.strictEqual(confirm(), "0.3.1", "재실행은 다시 올리지 않는다");
+
+    git("commit", "-q", "--allow-empty", "-m", "fix: 확정 뒤 추가된 수정");
+    assert.strictEqual(confirm(), "0.3.1", "확정 커밋 위에 커밋이 쌓여도 발행 전 버전을 다시 올리지 않는다");
+
+    git("commit", "-q", "--allow-empty", "-m", "feat: 확정 뒤 추가된 기능");
+    assert.strictEqual(confirm(), "0.4.0", "확정 뒤 feat는 main 기준으로 다시 계산한다 (0.4.1로 건너뛰지 않음)");
+
+    // 릴리스가 main에 병합·발행된 뒤의 다음 릴리스
+    git("push", "-q", "origin", "HEAD:main");
+    git("tag", "v0.4.0");
+    git("push", "-q", "origin", "v0.4.0");
+    git("fetch", "-q", "origin");
+    git("commit", "-q", "--allow-empty", "-m", "fix: 발행 뒤 수정");
+    assert.strictEqual(confirm(), "0.4.1", "발행된 버전 다음으로 새로 올린다");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

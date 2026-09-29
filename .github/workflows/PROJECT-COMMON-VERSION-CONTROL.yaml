@@ -20,7 +20,9 @@
 #
 # After pushing the safety-net bump, this workflow also triggers
 # RELEASE-PUBLISH via workflow_dispatch so a version drift is
-# auto-recovered instead of requiring a manual re-run.
+# auto-recovered instead of requiring a manual re-run, and merges
+# main back into develop so the next release PR does
+# not conflict on the version files.
 
 name: PROJECT-VERSION-CONTROL
 
@@ -197,6 +199,42 @@ jobs:
         run: |
           gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
           echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 이슈 #61 드리프트 자동 복구)"
+
+      - name: Back-merge the safety-net bump into develop
+        # 안전망 bump는 main에만 올라간다. develop가 이를 모르면 다음 릴리스 PR에서
+        # 양쪽이 같은 버전 줄을 고쳐 충돌하므로 곧바로 develop에도 병합해 둔다.
+        # 실패(충돌·브랜치 보호)해도 안전망 릴리스는 이미 끝났으므로 경고만 남긴다.
+        if: steps.release_guard.outputs.skip != 'true' && steps.commit_push.outputs.pushed == 'true'
+        run: |
+          DEVELOP_BRANCH="develop"
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          MANUAL="git checkout $DEVELOP_BRANCH && git pull && git merge origin/main && git push"
+
+          if ! git ls-remote --exit-code --heads origin "$DEVELOP_BRANCH" >/dev/null 2>&1; then
+            echo "branch $DEVELOP_BRANCH not found — nothing to back-merge"
+            exit 0
+          fi
+
+          for ATTEMPT in 1 2 3; do
+            git fetch -q origin "$DEVELOP_BRANCH" main
+            git checkout -q -B safety-net-back-merge "origin/$DEVELOP_BRANCH"
+            if git merge-base --is-ancestor "origin/main" HEAD; then
+              echo "$DEVELOP_BRANCH already contains main"
+              exit 0
+            fi
+            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/main"; then
+              git merge --abort 2>/dev/null || true
+              echo "::warning::main을 ${DEVELOP_BRANCH}에 자동 병합하지 못했습니다 (충돌). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
+              exit 0
+            fi
+            if git push origin "HEAD:$DEVELOP_BRANCH"; then
+              echo "safety-net bump v$NEW_VERSION merged into $DEVELOP_BRANCH"
+              exit 0
+            fi
+            echo "push attempt $ATTEMPT failed — retrying"
+            sleep 5
+          done
+          echo "::warning::${DEVELOP_BRANCH}에 push하지 못했습니다 (브랜치 보호 등). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
 
       - name: Summary
         if: always()

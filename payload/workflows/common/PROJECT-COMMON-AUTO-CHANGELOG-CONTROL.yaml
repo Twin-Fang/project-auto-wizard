@@ -205,27 +205,45 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
-          # Idempotency: if the PR head is already this workflow's own
-          # version-confirm commit (re-run / synchronize retrigger), do not
-          # bump a second time — reuse the confirmed version.
+          # 멱등: 이 PR에서 이미 확정한(아직 발행 전) 버전을 다시 올리지 않는다.
+          # HEAD 커밋 메시지만 보면 확정 커밋 위에 커밋이 더 쌓일 때({{DEVELOP_BRANCH}} 추가 push,
+          # {{MAIN_BRANCH}} 역병합) 가드가 풀려 발행되지 않은 버전이 생기므로 버전과 태그로 판정한다.
           HEAD_MSG=$(git log -1 --pretty=%s)
-          if printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): confirm v.* \[skip ci\]"; then
-            NEW_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+          HEAD_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
+          MAIN_VERSION=$(git show "origin/{{MAIN_BRANCH}}:version.yml" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[ \t]*"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/' || true)
+          version_gt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]; }
+          is_tagged() { git ls-remote --exit-code --tags origin "refs/tags/v$1" >/dev/null 2>&1; }
+
+          if [ "${{ steps.semver_options.outputs.semver_auto }}" = "true" ]; then
+            BUMP=$(python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt | tail -n 1)
+          else
+            BUMP="patch"
+          fi
+          echo "bump level: $BUMP"
+
+          if [ -n "$MAIN_VERSION" ] && [ -n "$HEAD_VERSION" ] && version_gt "$HEAD_VERSION" "$MAIN_VERSION" && ! is_tagged "$HEAD_VERSION"; then
+            # 이미 확정된 버전 — {{MAIN_BRANCH}} 버전 기준으로 다시 계산해 더 높아질 때만(예: 확정 뒤 feat 추가) 올린다.
+            # 버전을 건너뛰지 않고, AI 보조 판정이 재실행마다 달라도 낮아지지 않는다.
+            TARGET=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$MAIN_VERSION" "$BUMP")
+            if version_gt "$TARGET" "$HEAD_VERSION"; then
+              NEW_VERSION=$(python3 .github/scripts/version_manager.py set "$TARGET" | tail -n 1)
+              echo "confirmed version raised: $HEAD_VERSION -> $NEW_VERSION ($BUMP from {{MAIN_BRANCH}} $MAIN_VERSION)"
+            else
+              NEW_VERSION="$HEAD_VERSION"
+              echo "version already confirmed and not yet released — reusing $NEW_VERSION ({{MAIN_BRANCH}} is $MAIN_VERSION)"
+            fi
+          elif [ -z "$MAIN_VERSION" ] && printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): confirm v.* \[skip ci\]"; then
+            # {{MAIN_BRANCH}}에 아직 version.yml이 없는 첫 릴리스의 재실행
+            NEW_VERSION="$HEAD_VERSION"
             echo "version already confirmed by a previous run — reusing $NEW_VERSION (no re-increment)"
           else
-            if [ "${{ steps.semver_options.outputs.semver_auto }}" = "true" ]; then
-              BUMP=$(python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt | tail -n 1)
-            else
-              BUMP="patch"
-            fi
-            echo "bump level: $BUMP"
             NEW_VERSION=$(python3 .github/scripts/version_manager.py increment --bump "$BUMP" | tail -n 1)
-            if [ -z "$NEW_VERSION" ]; then
-              echo "version bump failed"
-              exit 1
-            fi
             python3 .github/scripts/version_manager.py sync
             echo "release version confirmed: $NEW_VERSION ($BUMP)"
+          fi
+          if [ -z "$NEW_VERSION" ]; then
+            echo "version bump failed"
+            exit 1
           fi
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
@@ -410,6 +428,8 @@ jobs:
             fi
             cat "$ERR_FILE" >&2
             [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && break
+            # 충돌은 기다려도 풀리지 않는다
+            [ "$(gh pr view "$PR_NUMBER" --json mergeable -q .mergeable 2>/dev/null)" = "CONFLICTING" ] && break
             if grep -qi "out of date" "$ERR_FILE"; then
               # 브랜치 보호의 "최신 상태 요구"로 실제로 뒤처졌다면 base를 head에 병합해 따라잡는다
               # (단순 반영 지연이면 "새 커밋 없음"으로 거절되고 그대로 재시도한다)
@@ -423,8 +443,12 @@ jobs:
 
           if [ "$MERGED" != "true" ]; then
             # All attempts failed — diagnose instead of pretending success.
+            MERGEABLE=$(gh pr view "$PR_NUMBER" --json mergeable -q .mergeable 2>/dev/null || echo "unknown")
             ALLOW_MERGE_COMMIT=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_merge_commit' 2>/dev/null || echo "unknown")
-            if [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
+            if [ "$MERGEABLE" = "CONFLICTING" ]; then
+              # 주로 {{MAIN_BRANCH}} 직접 push 뒤 안전망 버전 bump가 {{DEVELOP_BRANCH}}에 반영되지 않았을 때다
+              echo "::error::릴리스 PR이 {{MAIN_BRANCH}}와 충돌합니다 (버전 파일·CHANGELOG 등) — {{MAIN_BRANCH}}에만 있는 커밋을 {{DEVELOP_BRANCH}}에 병합한 뒤 push하세요: git checkout {{DEVELOP_BRANCH}} && git merge origin/{{MAIN_BRANCH}} (버전 줄 충돌은 어느 쪽을 택해도 다음 실행이 알맞게 다시 확정합니다)"
+            elif [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
               echo "::error::이 레포는 merge commit이 비활성화되어 있습니다 — Settings에서 'Allow merge commits'를 켜세요; 릴리스 감지는 merge commit subject를 사용합니다"
             else
               echo "::error::PR merge failed after $MAX_ATTEMPTS attempts (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
