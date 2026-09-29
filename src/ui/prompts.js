@@ -1,4 +1,4 @@
-// 대화형 프롬프트 래핑 (.sh interactive_menu/choose_menu/ask_* 등가).
+// 대화형 프롬프트 래핑.
 // node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
 // ESC는 각 함수가 CANCEL 심볼을 반환 → 호출부가 기본값/머무르기로 해석한다.
 // Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.

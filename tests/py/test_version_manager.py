@@ -53,8 +53,7 @@ class TestCore(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
     def test_increment_also_bumps_version_code(self):
-        # bash contract: increment = patch+1 AND version_code+1
-        # (version_manager.sh calls increment_version_code after update_all_versions)
+        # 계약: increment = patch+1 이면서 version_code+1
         run(["increment"], self.tmp)
         r = run(["get-code"], self.tmp)
         self.assertEqual(r.stdout.strip().splitlines()[-1], "2")

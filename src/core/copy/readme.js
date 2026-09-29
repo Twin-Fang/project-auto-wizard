@@ -1,4 +1,4 @@
-// README 버전 섹션 추가 (.sh add_version_section_to_readme 등가) — template_integrator.sh 2145~2181.
+// README 버전 섹션 추가.
 import { join } from "node:path";
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
 
@@ -32,7 +32,7 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   const content = readFileSync(p, "utf8");
 
-  // .sh: cat >> README.md << EOF — EOF 다음 첫 줄이 빈 줄이므로 append 본문은 "\n---\n..."로 시작.
+  // 기존 본문과 구분선 사이에 빈 줄을 두도록 append 본문은 "\n---\n..."로 시작.
   const section =
     "\n" +
     "---\n" +

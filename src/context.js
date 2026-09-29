@@ -1,4 +1,4 @@
-// 마법사 전역 상태를 하나의 객체로 명시화 (bash 전역 변수군 대체)
+// 마법사 전역 상태를 하나의 객체로 명시화
 import { TYPE_IDS } from "./core/types.js";
 
 // --type 화이트리스트 — 타입 레지스트리(core/types.js)의 표시 순서 그대로.

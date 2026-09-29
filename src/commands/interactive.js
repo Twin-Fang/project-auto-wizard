@@ -1,4 +1,4 @@
-// 대화형 마법사 (.sh interactive_mode 등가) + #446 UI 층.
+// 대화형 마법사.
 // io 주입으로 테스트 가능. 실제 실행은 src/ui/prompts.js 함수를 io로 넘긴다.
 // 새 시각 층(banner/detectionLog/analysisCard/installKind/summary)과 저수준 엔진(engineIo)은
 // io의 "옵셔널 멤버" — 스텁이 생략하면 해당 층만 건너뛰고 실행 계약은 동일하다.
@@ -43,7 +43,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   if (io.banner) io.banner({ version: templateVersion, modeLabel: "대화형 통합 마법사" });
   else io.intro?.("project-auto-wizard — 대화형 통합 마법사");
 
-  // 기존 version.yml — version/version_code/paths/옵션 보존의 단일 진실 (.sh SSoT L2208~2239)
+  // 기존 version.yml — version/version_code/paths/옵션 보존의 단일 진실
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
@@ -71,7 +71,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     return 0;
   }
 
-  // Breaking Changes 게이트 (.sh execute_integration L4415~4420 — 모든 모드 공통, 대화형은 확인 질문)
+  // Breaking Changes 게이트 (모든 모드 공통, 대화형은 확인 질문)
   const proceed = await runBreakingCheck({
     cwd, payloadRoot: payload, templateVersion,
     askYesNo: (msg, def) => io.askYesNo(msg, def),
@@ -95,7 +95,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
   });
   const repoName = detectRepoName(cwd);
-  // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션 (.sh read_template_options L2361 등가)
+  // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션
   // 플래그로 정한 값은 질문을 생략한다 — 비대화형과 같은 우선순위.
   let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
     { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
@@ -173,7 +173,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi }, existing));
   const showOptionToggles = mode === "full";
 
-  // 확인/수정 루프 — ESC는 '머무르기' (.sh L1877~1881: 명시적 '아니오'만 종료)
+  // 확인/수정 루프 — ESC는 '머무르기' (명시적 '아니오'만 종료)
   let paths = new Map();
   let confirmed = false;
   while (!confirmed) {
@@ -201,7 +201,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       if (what === "type") {
         const t = await io.selectTypes(types);
         if (!isCancel(t) && Array.isArray(t) && t.length) {
-          // 타입 집합이 실제로 바뀌면 경로 재해석 대상으로 초기화 (.sh L1984~1992 — 정렬 집합 비교)
+          // 타입 집합이 실제로 바뀌면 경로 재해석 대상으로 초기화 (정렬 집합 비교)
           const oldSorted = [...types].sort().join(",");
           types = t.filter((x) => VALID_TYPES.includes(x));
           if ([...types].sort().join(",") !== oldSorted) paths = new Map();
@@ -209,7 +209,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       } else if (what === "version") {
         const v = await io.askText("새 버전 (예: 1.0.0)", version);
         if (!isCancel(v) && v !== version) {
-          // semver 형식 검증 (.sh L2010~2015)
+          // semver 형식 검증
           if (/^\d+\.\d+\.\d+$/.test(v)) { version = v; versionAutoDetected = false; }
           else io.note?.("버전 형식이 올바르지 않습니다 (x.y.z 형태) — 기존 값을 유지합니다.", "⚠ 버전");
         }
@@ -242,7 +242,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     iosDeployMode: flutter.iosDeployMode || DEFAULT_DEPLOY_MODE,
   };
 
-  // 신규 질문 ① — 브랜치 설정 (DESIGN-SPEC §4). full/workflows만 질문, version은 기본값 기록.
+  // 브랜치 설정. full/workflows만 질문, version은 기본값 기록.
   // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
   // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)이 있으면 저장값이 없는 것으로 보고 다시 묻는다.
   const savedBranches = existing?.branches
@@ -281,7 +281,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  // 경로 확정 (.sh resolve_project_paths L1362~1589 — 저장값·후보 스캔·질문)
+  // 경로 확정 (저장값·후보 스캔·질문)
   if (mode === "full") {
     paths = await resolveProjectPaths({
       root: cwd, types, paths, existingPaths: existing?.paths ?? new Map(),
@@ -297,7 +297,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   }
   const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
 
-  // @wizard env 계획 질문 (.sh wf_prompt_env_plan L3220 — full/workflows만)
+  // @wizard env 계획 질문 (full/workflows만)
   const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);
   let envValues = new Map(), envUseDefaults = true, envAnswers = [];
   if (showOptional) {
@@ -350,7 +350,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       }
     }
 
-    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용 (.sh L3440~3508 UX 등가)
+    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용
     const decisions = new Map();
     if (conflicts.length) {
       const perType = new Map();
@@ -364,7 +364,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
               { value: "template", label: "기존 유지 + 새 버전을 .template.yaml로 참고 추가" },
             ],
           });
-          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = 건너뛰기 (.sh L3463)
+          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = 건너뛰기
         }
         decisions.set(filename, perType.get(type));
       }
@@ -374,7 +374,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   const result = runFull(ctx, payload, cwd, hooks);
 
-  // 완료 요약 (.sh print_summary L5438)
+  // 완료 요약
   io.summary?.({
     mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],

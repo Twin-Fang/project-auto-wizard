@@ -1,4 +1,4 @@
-// .sh compare_versions 등가: v 접두 제거, 3자리 숫자 비교, 누락 자리=0
+// 버전 비교: v 접두 제거, 3자리 숫자 비교, 누락 자리=0
 export function compareVersions(a, b) {
   const parse = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
   const pa = parse(a), pb = parse(b);
@@ -11,7 +11,7 @@ export function compareVersions(a, b) {
 }
 
 // breaking-changes.json에서 current < ver <= target 범위 항목 수집.
-// ⚠️ .sh 버그 수정: target은 하드코딩 1.3.14가 아니라 실제 templateVersion을 넘긴다.
+// target은 고정값이 아니라 실제 templateVersion을 넘긴다 — 그래야 설치하려는 버전까지의 고지가 모두 잡힌다.
 // _ 로 시작하는 키(메타) 제외. severity critical / 그 외(warning).
 // 버전 키의 값은 항목 객체 또는 항목 객체의 배열(같은 릴리스에 고지가 여러 건일 때).
 // types: 설치된 프로젝트 타입. 항목에 types가 있으면 겹치는 타입이 있을 때만 보여준다 — spring 레포에

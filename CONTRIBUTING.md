@@ -2,6 +2,8 @@
 
 기여해 주셔서 감사합니다! 이 문서는 로컬 개발 환경 설정과 PR 규칙을 안내합니다.
 
+코드 구조와 설치 흐름은 [ARCHITECTURE.md](ARCHITECTURE.md), 새 프로젝트 타입을 추가하는 절차는 [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md)를 참고하세요.
+
 ## 개발 환경 설정
 
 ```bash

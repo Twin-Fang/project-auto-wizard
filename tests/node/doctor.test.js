@@ -154,7 +154,7 @@ test("runDoctor: 모든 항목이 용도(purpose)를 가진다", () => {
   }
 });
 
-// 문제 항목은 조치 단계와 문서 링크를 반드시 동반해야 한다(스펙 §3.3② "해결 가이드 링크").
+// 문제 항목은 조치 단계와 문서 링크를 반드시 동반해야 한다(해결 가이드 링크).
 test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공한다", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
@@ -169,7 +169,7 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
       assert.ok(r.impact?.length, `${r.name}에 영향 설명이 없습니다`);
       assert.ok(r.actions?.length, `${r.name}에 조치 단계가 없습니다`);
     }
-    // WORKFLOW_PAT은 #105에서 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
+    // WORKFLOW_PAT은 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
     // 필요한 항목(automerge 호환성)으로 doc 링크 존재를 검증한다.
     const automerge = problems.find((r) => r.name === "automerge 호환성(merge commit 허용)");
     assert.strictEqual(automerge.doc, DOC.postInstall);

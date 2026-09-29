@@ -159,6 +159,10 @@ The full documentation is currently in Korean: [README.ko.md](README.ko.md). An 
 
 Issues and pull requests are welcome. Branch from `develop` and open PRs against `develop`; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and tests (`npm test`). This repository releases itself with the workflows it installs.
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — module map, install pipeline, `@wizard` marker grammar, how updates compare files
+- [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md) — step-by-step guide to adding a project type
+- [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup and pull request rules
+
 ## License
 
 [MIT](LICENSE)

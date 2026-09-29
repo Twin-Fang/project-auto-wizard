@@ -1,4 +1,4 @@
-// CLI 인자 파싱 (.sh top-level while-case 등가) — template_integrator.sh 842~920.
+// CLI 인자 파싱.
 import { VALID_TYPES, VALID_MODES } from "../context.js";
 import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { isValidBranchName } from "../core/branches.js";

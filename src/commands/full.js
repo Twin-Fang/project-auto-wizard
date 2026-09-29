@@ -1,7 +1,6 @@
-// full 모드 오케스트레이터 (.sh execute_integration full case 등가).
+// full 모드 오케스트레이터 — 대화형·비대화형이 확정한 context로 실제 설치를 수행한다.
 // 복사 순서: workflows(+env 치환) → flutter 앱 파일 → version.yml → readme → scripts → gitignore(조건부)
 // gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다.
-// (원본의 util/issue/discussion/setup-guide/config 설치는 project-auto-wizard 스코프에서 제외 — DESIGN-SPEC §2)
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
@@ -38,7 +37,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     throw new CliError(`쓰기 권한이 없어 설치를 시작하지 않았습니다 (아무 파일도 바꾸지 않았습니다):\n${blocked.map((p) => `  - ${p}`).join("\n")}\n권한을 확인한 뒤 다시 실행하세요.`);
   }
 
-  // project_paths 마커 계산 (.sh existing_marker_in_dir 등가).
+  // project_paths 마커 계산.
   // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
   // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다.
   const pathMarkers = new Map();

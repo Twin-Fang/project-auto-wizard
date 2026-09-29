@@ -73,7 +73,7 @@ test("planPurge: keepFlags excludes categories from the plan", () => {
 // runFull()은 이제 충돌 백업 부산물(.bak/.template.yaml)이
 // 실제로 생겼을 때만 .gitignore를 건드린다. 이 라운드트립 테스트의 설치는 충돌이 없어 .gitignore가
 // 전혀 생성되지 않으므로 아래 필터는 사실상 no-op이지만, 만약 다른 테스트가 충돌을 유발하도록 바뀌더라도
-// purge는 스펙 §2 비목표에 따라 .gitignore를 절대 건드리지 않으므로 안전하게 비교 대상에서 제외해 둔다.
+// purge는 .gitignore를 절대 건드리지 않으므로 안전하게 비교 대상에서 제외해 둔다.
 function listAllFiles(dir, base = dir) {
   let out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -119,8 +119,7 @@ test("executePurge: --keep-version-yml preserves version.yml while removing the 
   }
 });
 
-// 스펙 §9-1은 "--keep-* 각각"에 대해 실행 레벨(execute) 보존 검증을 요구하는데
-// 최초 초안은 --keep-version-yml 하나뿐이었다 — 나머지 5개도 각각 실행 레벨에서 검증한다.
+// --keep-* 각각에 대해 실행 레벨(execute) 보존을 검증한다 — plan만 보면 실제 삭제 결과를 놓친다.
 test("executePurge: --keep-readme preserves the AUTO-VERSION-SECTION block while removing the rest", () => {
   const target = installFixture();
   try {
