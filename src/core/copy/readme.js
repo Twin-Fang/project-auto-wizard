@@ -24,7 +24,6 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
 
   // .sh: cat >> README.md << EOF — EOF 다음 첫 줄이 빈 줄이므로 append 본문은 "\n---\n..."로 시작.
-  // (원본 파일이 개행으로 끝난다는 전제는 .sh와 동일 — heredoc은 원본 끝에 그대로 붙는다.)
   const section =
     "\n" +
     "---\n" +
@@ -33,7 +32,10 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
     `## 최신 버전 : v${version}\n` +
     "\n" +
     "[전체 버전 기록 보기](CHANGELOG.md)\n";
-  appendFileSync(p, section);
+  // 끝 개행이 없는 README에 그대로 붙이면 마지막 줄 바로 다음 줄에 "---"가 와서
+  // 마크다운이 그 줄을 제목(Setext h2)으로 바꿔 버린다 — 줄을 먼저 끝낸다.
+  const lead = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+  appendFileSync(p, lead + section);
   return "added";
 }
 
