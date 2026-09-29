@@ -61,9 +61,13 @@ export function writeBaseline(targetRoot, { templateVersion, installedAt, entrie
     };
   }
   const apps = { ...(previous?.appFiles || {}), ...Object.fromEntries(appFiles) };
+  // 기준점이 하나도 바뀌지 않은 재실행은 설치 시각도 그대로 둔다 — 매 실행마다 파일이 바뀌면 멱등이 아니다.
+  const unchanged = previous && previous.templateVersion === (templateVersion || "unknown")
+    && JSON.stringify(previous.files) === JSON.stringify(files)
+    && JSON.stringify(previous.appFiles || {}) === JSON.stringify(apps);
   const out = {
     templateVersion: templateVersion || "unknown",
-    installedAt: installedAt || "",
+    installedAt: unchanged ? (previous.installedAt || "") : (installedAt || ""),
     files,
     ...(Object.keys(apps).length ? { appFiles: apps } : {}),
   };

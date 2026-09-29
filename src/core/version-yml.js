@@ -135,7 +135,31 @@ export function parseExisting(content) {
   const options = parseTemplateOptions(text);
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
-  return { version, versionCode, types, paths, templateVersion, options, branches, extraTopLevel: parseExtraTopLevel(text) };
+  return {
+    version, versionCode, types, paths, templateVersion, options, branches,
+    deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
+  };
+}
+
+// deploy 블록 파싱 — 설치 때 답한 배포 값을 다시 읽어 재실행·업데이트의 기본값으로 쓴다.
+// 쓰기만 하고 읽지 않으면 손대지 않은 파일은 치환을 건너뛰어 블록이 사라지고, 자동 갱신은
+// 사용자가 고른 값을 템플릿 기본값으로 되돌린다.
+// 반환: Map<type, Map<KEY, value>> (값은 buildVersionYml이 쓴 큰따옴표 이스케이프를 푼 원문)
+export function parseDeployBlock(content) {
+  const out = new Map();
+  let inDeploy = false;
+  let current = null;
+  for (const raw of String(content || "").split("\n")) {
+    const l = raw.replace(/\r$/, "");
+    if (/^deploy:/.test(l)) { inDeploy = true; current = null; continue; }
+    if (!inDeploy) continue;
+    if (/^\S/.test(l)) { inDeploy = false; continue; } // 다음 최상위 키 → 블록 종료
+    const t = l.match(/^ {2}([a-z][a-z-]*):\s*(?:#.*)?$/);
+    if (t) { current = new Map(); out.set(t[1], current); continue; }
+    const kv = l.match(/^ {4}([A-Za-z_][A-Za-z0-9_]*):\s*"((?:[^"\\]|\\.)*)"/);
+    if (kv && current) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
+  }
+  return out;
 }
 
 // metadata.template.branches 블록 파싱. 셋 다 있어야 유효 — 아니면 null.
@@ -258,6 +282,14 @@ export function buildVersionYml({
   }
   if (!text.endsWith("\n")) text += "\n";
   return text.replace(/\n{3,}$/, "\n"); // 말미 과잉 빈 줄 정리
+}
+
+// 설치 시각 줄(metadata.last_updated 등)만 다른가 — 바뀐 게 없는 재실행이 매번 파일을 고쳐
+// 작업트리를 dirty하게 만들지 않도록 호출부가 쓰기를 건너뛰는 데 쓴다.
+const TIMESTAMP_LINE = /^\s*(last_updated|integration_date|integrated_date|last_update_date):/;
+export function sameIgnoringTimestamps(a, b) {
+  const norm = (t) => String(t).replace(/\r\n/g, "\n").split("\n").filter((l) => !TIMESTAMP_LINE.test(l)).join("\n");
+  return norm(a) === norm(b);
 }
 
 // context 하나로 version.yml 최종형을 만든다 — 실제 설치(full)와 미리보기(dry-run)가

@@ -11,7 +11,7 @@ import { exists, listYamlFiles } from "../core/fsutil.js";
 import { parseWizardLine, resolveToken, replaceProjectTokens } from "../core/wizard-env.js";
 import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-labels.js";
 import { deployFilter, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
-import { buildTypeRootFilter } from "../core/copy/workflows.js";
+import { buildTypeRootFilter, readSavedDeployValues } from "../core/copy/workflows.js";
 import * as engine from "./readline-engine.js";
 
 const CANCEL = engine.CANCEL;
@@ -37,10 +37,12 @@ export function scopeString(usages = []) {
 //   resolvers    - @접두 기본값(@repo 등) 해석용 (.sh는 수집 시점에 resolve_token — 동일)
 //   flutterStore - Flutter 스토어 대상(string[]|null). 배열이면 선택 해제된 스토어 워크플로우는 스캔에서 제외 (null=현행)
 //   prompts      - wizard-labels 파싱 객체 (워크플로우 표시명용, null이면 확장자 제거 폴백)
+//   saved        - Map<type, Map<key,value>>: version.yml deploy 블록 저장값. 있으면 그 값을 기본값으로 보여준다
+//                  (업데이트 때 "기본값 그대로"를 고르면 설치 때 답한 값이 유지되어야 한다)
 // 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
-  const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null } = opts;
+  const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null, saved = new Map() } = opts;
   // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
   const keepDeploy = deployFilter(deployStyle);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
@@ -88,7 +90,10 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
         // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면실제 repoName으로
         // 풀어준다 — substituteEnv()가 설치 파일에 적용하는 것과 동일한 치환이라야 마법사
         // 화면 표시와 실제 설치 결과가 어긋나지 않는다.
-        const typeDefault = replaceProjectTokens(rawDefault, resolveToken("repo", type, resolvers));
+        const savedValue = saved.get(type)?.get(p.key);
+        const typeDefault = savedValue != null && savedValue !== ""
+          ? savedValue
+          : replaceProjectTokens(rawDefault, resolveToken("repo", type, resolvers));
         typeDefaults.set(`${type}|${p.key}`, typeDefault);
         if (!defaults.has(p.key)) { keys.push(p.key); defaults.set(p.key, typeDefault); }
         const list = usages.get(p.key) || [];
@@ -214,7 +219,8 @@ export async function promptEnvPlan({
   deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
 } = {}) {
   const prompts = loadWizardPrompts(targetRoot, payloadRoot);
-  const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts });
+  const saved = readSavedDeployValues(targetRoot);
+  const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts, saved });
   const defaults = asks.defaults;
 
   // 수집 키 0개 → 질문 자체가 없음 (.sh `[ ${#WF_ASK_KEYS[@]} -eq 0 ]` 등가)

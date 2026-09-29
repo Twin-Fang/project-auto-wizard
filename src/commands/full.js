@@ -7,7 +7,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
 import { CliError } from "../cli/args.js";
 import { PATHS } from "../core/paths.js";
-import { renderVersionYml, parseExisting } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
@@ -68,13 +68,18 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다.
   const vyPath = join(targetRoot, PATHS.versionFile);
-  const extraTopLevel = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")).extraTopLevel : [];
+  const prevVy = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
+  const extraTopLevel = prevVy != null ? parseExisting(prevVy).extraTopLevel : [];
 
   // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성)
-  writeText(join(targetRoot, PATHS.versionFile),
-    renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel }));
-
-  log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
+  //    날짜 줄만 달라지는 재실행은 다시 쓰지 않는다(멱등).
+  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel });
+  if (prevVy == null || !sameIgnoringTimestamps(prevVy, vyText)) {
+    writeText(vyPath, vyText);
+    log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
+  } else {
+    log.info("version", "skip", `version.yml (v${version}, code=${versionCode}, 변경 없음)`);
+  }
 
   // 3. README 버전 섹션
   const readme = addVersionSectionToReadme(version, targetRoot);
@@ -137,7 +142,8 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     entries: computeBaselineEntries(
       wfCounters.baselineTargets || new Map(),
       join(targetRoot, PATHS.workflowsDir),
-      makeSrcText(context.branches || null, context.deployStyle || "")),
+      makeSrcText(context.branches || null, context.deployStyle || ""),
+      deployValues),
     previous: previousBaseline,
     // 새로 만든 Flutter 앱 파일만 기록한다 — 기존 사용자 파일(kept)은 완전 삭제 대상이 아니다.
     appFiles: new Map(flutterApp.created.map((rel) => [rel, appFileHash(readFileSync(join(targetRoot, rel), "utf8"))])),
