@@ -7,12 +7,10 @@
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
-import { remove } from "../core/fsutil.js";
 import { planRemoval, backupArtifacts } from "../core/removal-plan.js";
-import { removeAppFiles, pruneInstallDirs } from "./uninstall.js";
-import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
-import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
-import { logRemovals } from "../core/logger.js";
+import { executeRemoval } from "../core/removal-exec.js";
+import { hasVersionSection } from "../core/copy/readme.js";
+import { hasAutoAddedEntries } from "../core/copy/gitignore.js";
 
 const CHANGELOG_FILES = ["CHANGELOG.json", "CHANGELOG.md"];
 
@@ -87,22 +85,11 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
 // 이론상 어긋나는 경우에도 printPurgeResult가 거짓으로 "제거됨"을 보고하지 않는다.
 export function executePurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const plan = planPurge(payloadRoot, targetRoot, keepFlags);
-  const wfDir = join(targetRoot, PATHS.workflowsDir);
-  const done = [];
-  for (const name of plan.workflows) { remove(join(wfDir, name)); done.push(["remove", "workflow", name]); }
-  for (const name of plan.scripts) { remove(join(targetRoot, PATHS.scriptsDir, name)); done.push(["remove", "script", name]); }
-  removeAppFiles(targetRoot, plan.appFiles, done);
-  for (const p of plan.baseline || []) { remove(join(targetRoot, p)); done.push(["remove", "metadata", p]); }
-  pruneInstallDirs(targetRoot, plan);
-  if (plan.versionYml) { remove(join(targetRoot, PATHS.versionFile)); done.push(["remove", "version", PATHS.versionFile]); }
-  const readmeSection = plan.readmeSection && removeVersionSectionFromReadme(targetRoot) === "removed";
-  const gitignoreStatus = plan.gitignore ? removeAutoAddedEntriesFromGitignore(targetRoot) : null;
-  const gitignore = gitignoreStatus === "removed" || gitignoreStatus === "file-deleted";
-  if (gitignore) done.push(["remove", "gitignore", ".gitignore 자동 추가 항목"]);
-  for (const f of plan.changelog) { remove(join(targetRoot, f)); done.push(["remove", "changelog", f]); }
-  if (readmeSection) done.push(["remove", "readme", "README.md 버전 섹션"]);
-  logRemovals(targetRoot, done);
-  return { ...plan, readmeSection, gitignore };
+  const { readme, gitignore } = executeRemoval(targetRoot, { ...plan, readme: plan.readmeSection }, {
+    logOrder: ["version", "gitignore", "changelog", "readme"],
+    gitignoreDetail: (status) => (status === "removed" || status === "file-deleted" ? ".gitignore 자동 추가 항목" : null),
+  });
+  return { ...plan, readmeSection: readme, gitignore };
 }
 
 // 삭제 후 실제 제거된 목록 출력 — printPurgePlan과 완전히 동일한 형태(파일명 나열)로
