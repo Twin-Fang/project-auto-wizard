@@ -6,7 +6,7 @@
 // 사본 = payload 원본 → 브랜치 플레이스홀더 치환(설치기와 같은 substitute) → PATCHES 적용.
 // 사본에만 있어야 하는 차이는 반드시 PATCHES에 선언한다. 사본을 손으로 고치면 --check가 잡는다.
 // 설치기와 마찬가지로 외부 의존성 없이 node:* 내장 모듈만 쓴다.
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { substitute } from "../src/core/branding.js";
@@ -154,6 +154,16 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// import.meta.url은 실제 경로로 풀리지만 argv[1]은 링크 경로 그대로라 둘 다 realpath로 맞춰 비교한다
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
   process.exitCode = main(process.argv.slice(2));
 }

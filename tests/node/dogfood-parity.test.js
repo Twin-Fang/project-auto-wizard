@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildExpected, findDrift, PATCHES, REPO_BRANCHES, SCRIPTS } from "../../scripts/sync-dogfood.mjs";
@@ -86,5 +86,30 @@ test("payload가 바뀌어 패치 기준 문구가 사라지면 조용히 넘어
     const src = join(dir, "payload", "workflows", "common", "PROJECT-COMMON-ISSUE-HELPER.yaml");
     writeFileSync(src, readFileSync(src, "utf8").replace('ISSUE_HELPER_CREATE_BRANCH: "false"', 'ISSUE_HELPER_CREATE_BRANCH: "no"'));
     assert.throws(() => buildExpected(dir), /패치 기준 문구/);
+  });
+});
+
+// 링크가 낀 경로로 실행하면 argv[1]이 실제 경로와 달라 main()이 건너뛰어지던 회귀를 막는다.
+test("sync-dogfood --check: 심볼릭 링크 경로로 실행해도 드리프트를 잡아 exit 1", (t) => {
+  withRepoCopy((dir) => {
+    // 스크립트는 자기 위치 기준으로 루트를 잡으므로 실행에 필요한 파일도 함께 복사한다
+    for (const rel of ["scripts", "src", "package.json"]) cpSync(rel, join(dir, rel), { recursive: true });
+    const wf = join(dir, ".github", "workflows", "PROJECT-COMMON-VERSION-CONTROL.yaml");
+    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# 로컬 수정\n");
+
+    const link = `${dir}-link`;
+    try {
+      symlinkSync(dir, link, "dir");
+    } catch (e) {
+      t.skip(`심볼릭 링크를 만들 수 없음: ${e.code}`);
+      return;
+    }
+    try {
+      const r = spawnSync(process.execPath, [join(link, "scripts", "sync-dogfood.mjs"), "--check"], { encoding: "utf8" });
+      assert.strictEqual(r.status, 1, `링크 경로에서 검사가 건너뛰어졌다\n${r.stdout}${r.stderr}`);
+      assert.match(r.stderr, /dogfood 불일치/);
+    } finally {
+      unlinkSync(link);
+    }
   });
 });
