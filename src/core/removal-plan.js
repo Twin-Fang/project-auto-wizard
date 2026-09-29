@@ -62,6 +62,10 @@ function isInstalledName(name, recorded) {
   return candidates.some((c) => recorded.has(c));
 }
 
+// 충돌 처리·정리로 생긴 백업 파생 파일(.bak/.template.yaml) — .gitignore 자동 추가 항목이 가리는 대상이다.
+// 워크플로우를 남기는 삭제에서 이 파일들이 남으면 .gitignore 항목도 남겨야 git 상태에 드러나지 않는다.
+export const backupArtifacts = (names) => names.filter((n) => n.endsWith(".bak") || n.endsWith(".template.yaml"));
+
 // 아무것도 지우지 않는 순수 함수 — uninstall/purge/--dry-run이 공유한다.
 export function planRemoval(payloadRoot, targetRoot = ".") {
   const removedWf = new Set();

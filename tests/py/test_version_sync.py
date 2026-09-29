@@ -201,6 +201,32 @@ class TestSyncReact(SyncTestCase):
         self.assertNotIn("\\ud55c", raw)
 
 
+class TestSyncJsonKeepsFormatting(SyncTestCase):
+    # 버전 한 줄만 바뀌어야 한다 — 들여쓰기를 고정값으로 다시 쓰면 매 릴리스가 파일 전체 diff가 된다.
+    def _sync_with(self, text):
+        tmp = self.make_tmp("react")
+        pkg = Path(tmp) / "package.json"
+        pkg.write_text(text, encoding="utf-8")
+        run(["set", "1.2.3"], tmp)
+        r = run(["sync"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return pkg.read_text(encoding="utf-8")
+
+    def test_four_space_indent_is_preserved(self):
+        before = '{\n    "name": "my-app",\n    "version": "0.5.0",\n    "scripts": {\n        "build": "vite build"\n    }\n}\n'
+        self.assertEqual(self._sync_with(before), before.replace("0.5.0", "1.2.3"))
+
+    def test_tab_indent_is_preserved(self):
+        before = '{\n\t"name": "my-app",\n\t"version": "0.5.0"\n}\n'
+        self.assertEqual(self._sync_with(before), before.replace("0.5.0", "1.2.3"))
+
+    def test_two_space_indent_is_unchanged(self):
+        before = '{\n  "name": "my-app",\n  "version": "0.5.0"\n}\n'
+        self.assertEqual(self._sync_with(before), before.replace("0.5.0", "1.2.3"))
+
+
 class TestSyncPython(SyncTestCase):
     def test_sync_updates_pyproject_toml(self):
         tmp = self.make_tmp("python-proj")

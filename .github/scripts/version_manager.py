@@ -486,12 +486,23 @@ def sync_flutter(path_dir, new_version, version_code):
     log(f"updated: {target}")
 
 
+def _json_indent(text):
+    """Indentation used by an existing JSON file — the first indented line after a newline
+    (e.g. 4 spaces or a tab). Single-line JSON stays on one line (None).
+    Rewriting with a fixed indent turns every version bump into a whole-file diff."""
+    if "\n" not in text.strip():
+        return None
+    m = re.search(r'\n([ \t]+)\S', text)
+    return m.group(1) if m else 2
+
+
 def sync_json_version(target, new_version, key_path):
     if not target.is_file():
         log(f"WARNING: {target} not found — skipping")
         return
+    raw = read_file(target)
     try:
-        data = json.loads(read_file(target))
+        data = json.loads(raw)
     except json.JSONDecodeError as e:
         # 건너뛰고 성공으로 끝내면 태그·version.yml과 패키지 버전이 조용히 어긋난다.
         raise VersionSyncError(f"{target} is not valid JSON ({e}) — cannot write version")
@@ -499,7 +510,7 @@ def sync_json_version(target, new_version, key_path):
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
     node[key_path[-1]] = new_version
-    write_file(target, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    write_file(target, json.dumps(data, indent=_json_indent(raw), ensure_ascii=False) + "\n")
     log(f"updated: {target}")
 
 

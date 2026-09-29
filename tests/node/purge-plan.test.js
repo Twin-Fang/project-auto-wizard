@@ -245,3 +245,49 @@ test("executePurge: 마법사가 .gitignore에 추가한 블록을 제거해 원
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("executePurge --keep-workflows: 남겨 둔 .bak을 가리는 .gitignore 항목은 지우지 않는다", async () => {
+  const { planUninstall } = await import("../../src/commands/uninstall.js");
+  const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
+  try {
+    const payload = resolvePayloadRoot();
+    const ctx = (deployStyle) => createContext({
+      mode: "full", force: true, types: ["spring"], version: "1.0.0", versionCode: 1,
+      branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+      paths: new Map(), deployStyle,
+      now: "2026-07-28 00:00:00", today: "2026-07-28", templateVersion: "0.1.0",
+    });
+    runFull(ctx("simple"), payload, target);
+    const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
+    writeFileSync(simple, readFile(simple, "utf8") + "# 직접 수정\n");
+    runFull(ctx("traefik"), payload, target); // 수정본은 .bak으로 옮겨지고 .gitignore가 생긴다
+    assert.ok(existsSync(simple + ".bak"));
+    const gitignore = readFile(join(target, ".gitignore"), "utf8");
+
+    // 워크플로우를 남기는 uninstall 선택도 같은 규칙을 따른다.
+    assert.strictEqual(planUninstall(payload, target, { workflows: false, gitignore: true }).gitignore, false);
+
+    const plan = planPurge(payload, target, { workflows: true });
+    assert.strictEqual(plan.gitignore, false);
+    assert.strictEqual(plan.gitignoreKept, true);
+    executePurge(payload, target, { workflows: true });
+    assert.ok(existsSync(simple + ".bak"));
+    assert.strictEqual(readFile(join(target, ".gitignore"), "utf8"), gitignore);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("executePurge --keep-workflows: 백업 파일이 없으면 .gitignore 자동 추가 항목은 그대로 제거한다", async () => {
+  const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
+  const target = installFixture();
+  try {
+    writeFileSync(join(target, ".gitignore"), "node_modules/\n");
+    ensureGitignore(target);
+    const result = executePurge(resolvePayloadRoot(), target, { workflows: true });
+    assert.strictEqual(result.gitignore, true);
+    assert.strictEqual(readFile(join(target, ".gitignore"), "utf8"), "node_modules/\n");
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
 import { remove } from "../core/fsutil.js";
-import { planRemoval } from "../core/removal-plan.js";
+import { planRemoval, backupArtifacts } from "../core/removal-plan.js";
 import { removeAppFiles, pruneInstallDirs } from "./uninstall.js";
 import { removeVersionSectionFromReadme, hasVersionSection } from "../core/copy/readme.js";
 import { removeAutoAddedEntriesFromGitignore, hasAutoAddedEntries } from "../core/copy/gitignore.js";
@@ -41,6 +41,9 @@ function generatedChangelogFiles(targetRoot) {
 // 반환: { workflows, scripts, versionYml, readmeSection, gitignore, changelog } — 아무것도 지우지 않는 순수 함수.
 export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
+  // 워크플로우를 남기면 그 .bak/.template.yaml도 남는다 — .gitignore 항목까지 지우면 백업 파일이 git 상태에 드러난다.
+  const gitignoreKept = hasAutoAddedEntries(targetRoot) && keepFlags.workflows === true
+    && backupArtifacts(removalPlan.workflows).length > 0;
   return {
     workflows: keepFlags.workflows ? [] : removalPlan.workflows,
     // Flutter 앱 파일의 생성 기록은 baseline에 있으므로 baseline과 같은 플래그를 따른다.
@@ -49,7 +52,8 @@ export function planPurge(payloadRoot, targetRoot = ".", keepFlags = {}) {
     scripts: keepFlags.scripts ? [] : removalPlan.scripts,
     versionYml: !keepFlags.versionYml && existsSync(join(targetRoot, PATHS.versionFile)),
     readmeSection: !keepFlags.readme && hasVersionSection(targetRoot),
-    gitignore: hasAutoAddedEntries(targetRoot),
+    gitignore: hasAutoAddedEntries(targetRoot) && !gitignoreKept,
+    gitignoreKept,
     changelog: keepFlags.changelog ? [] : generatedChangelogFiles(targetRoot),
   };
 }
@@ -69,6 +73,7 @@ export function printPurgePlan(plan, { dryRun = false } = {}) {
   if (plan.versionYml) lines.push("파일: version.yml");
   if (plan.readmeSection) lines.push("README.md: AUTO-VERSION-SECTION 블록");
   if (plan.gitignore) lines.push(".gitignore: 자동 추가 항목(*.bak, *.template.yaml)");
+  if (plan.gitignoreKept) lines.push(".gitignore: 자동 추가 항목 유지 (남겨 둔 워크플로우의 백업 파일을 가리는 항목)");
   for (const f of plan.changelog) lines.push(`파일: ${f}`);
   lines.push("");
   console.log(lines.join("\n"));

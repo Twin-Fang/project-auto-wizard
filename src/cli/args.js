@@ -140,7 +140,12 @@ export function parseArgs(argv) {
       case "--no-copilot":
         if (seenFlags.has("--copilot")) throw new CliError("--copilot과 --no-copilot은 동시에 지정할 수 없습니다");
         seenFlags.add("--no-copilot"); result.includeCopilotAi = false; break;
-      case "--paths": result.pathsCsv = args.shift() ?? ""; break;
+      case "--paths": {
+        // 값이 없는데 조용히 자동 감지로 넘어가면 사용자가 지정했다고 믿은 경로와 다르게 설치된다.
+        const v = (args.shift() ?? "").trim();
+        if (!v) throw new CliError("--paths 인자가 비어 있습니다 (예: --paths flutter=app,react=client)");
+        result.pathsCsv = v; break;
+      }
       case "--main-branch": case "--develop-branch": {
         const v = (args.shift() ?? "").trim();
         if (!v) throw new CliError(`${a}에 빈 값을 지정할 수 없습니다`);

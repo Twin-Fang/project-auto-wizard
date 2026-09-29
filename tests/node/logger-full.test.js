@@ -144,3 +144,23 @@ test("runFull: Flutter 옵션 선택이 로그에 남는다", () => {
       /option {4}flutter {5}env=dotenv stores=android android=store_prepare ios=store_only/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
+
+test("runFull: 배포 방식 정리로 생긴 삭제·.bak 이동이 요약에 집계된다", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-logfull-"));
+  try {
+    mkdirSync(join(target, "src/main/resources"), { recursive: true });
+    writeFileSync(join(target, "src/main/resources/application.yaml"), "");
+    writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
+    resetLogger();
+    runFull({ ...ctxFor(target, "2026-08-26 12:03:41"), deployStyle: "simple" }, resolvePayloadRoot(), target);
+    const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
+    writeFileSync(simple, readFileSync(simple, "utf8") + "# 직접 수정\n");
+
+    const r = initLogger(target, { action: "update", now: "2026-08-26 12:10:00", templateVersion: "0.8.2" });
+    runFull({ ...ctxFor(target, "2026-08-26 12:10:00"), deployStyle: "traefik" }, resolvePayloadRoot(), target);
+    closeLogger();
+    const body = readFileSync(join(target, r.path), "utf8");
+    assert.match(body, /백업 교체\s+: 0개/, "충돌 백업은 없었다");
+    assert.match(body, /정리\s+: 삭제 0개, \.bak 이동 1개/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
