@@ -121,6 +121,12 @@ for (const { file, type, jobs } of CI_TARGETS) {
     assert.ok(changes.some((l) => l.trim() === EXPECTED_FILTER_LINE), "필터 표현식이 계약과 다릅니다");
   });
 
+  test(`${file}: push와 pull_request 모두에서 실행된다 (CI Gate를 required check로 쓸 수 있어야 한다)`, () => {
+    const on = topLevelBlock(text, "on").join("\n");
+    assert.match(on, /^ {2}push:$/m);
+    assert.match(on, /^ {2}pull_request:$/m);
+  });
+
   test(`${file}: push에서는 직전 커밋(before) 대비로 판별한다 (기본 브랜치 대비 누적 diff 금지)`, () => {
     const changes = parseJobs(text).get("changes");
     assert.ok(changes.some((l) => l.trim() === EXPECTED_BASE_LINE), "paths-filter base가 push 범위 기준이 아닙니다");

@@ -1,6 +1,6 @@
 # project-auto-wizard:managed-workflow
 # React CI (빌드 검증)
-# {{MAIN_BRANCH}} 브랜치 푸시 시 npm ci와 npm run build로 빌드를 검증합니다. node_modules와 빌드 결과를 캐싱합니다.
+# {{DEVELOP_BRANCH}} 브랜치 push·PR 시 npm ci와 npm run build로 빌드를 검증합니다. node_modules와 빌드 결과를 캐싱합니다.
 #
 # GitHub Secrets
 #   ENV_FILE (선택): .env 파일 내용. CI는 빌드 검증 목적이므로 배포 관련 Secrets는 불필요
@@ -14,6 +14,8 @@ name: PROJECT-REACT-CI
 
 on:
   push:
+    branches: ["{{DEVELOP_BRANCH}}"]
+  pull_request:
     branches: ["{{DEVELOP_BRANCH}}"]
   workflow_dispatch:
 
