@@ -32,8 +32,26 @@ export function stampFrom(now = "") {
   return `${m[1]}${m[2]}${m[3]}-${m[4]}${m[5]}${m[6]}`;
 }
 
-export function logFilename(now, action = "install") {
-  return `${stampFrom(now)}-${action}.log`;
+// 초 단위 이름만 쓰면 같은 초에 연달아 실행할 때 앞 실행의 로그를 덮어쓴다 — 밀리초를 붙인다.
+// 밀리초도 시각 순서라 이름 정렬이 곧 실행 순서라는 전제(rotate)는 그대로 유지된다.
+export function logFilename(now, action = "install", ms = 0) {
+  return `${stampFrom(now)}-${String(ms).padStart(3, "0")}-${action}.log`;
+}
+
+// 같은 이름이 이미 있으면(다른 프로세스가 같은 밀리초에 연 경우) -2, -3을 붙여 새로 만든다.
+// wx 플래그로 "없을 때만 생성"을 원자적으로 판정해 동시 실행끼리도 서로 덮어쓰지 않는다.
+function createUnique(dir, base, header) {
+  const stem = base.replace(/\.log$/, "");
+  for (let n = 1; n < 100; n++) {
+    const name = n === 1 ? base : `${stem}-${n}.log`;
+    try {
+      writeFileSync(join(dir, name), header, { flag: "wx" });
+      return name;
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
+  }
+  throw new Error(`로그 파일 이름이 모두 사용 중입니다: ${base}`);
 }
 
 // 최근 KEEP개만 남기고 오래된 것부터 지운다. 파일명이 시각 오름차순이라 이름 정렬로 충분하다.
@@ -46,7 +64,8 @@ function rotate(dir) {
 }
 
 export function initLogger(targetRoot, opts = {}) {
-  const { action = "install", now = "", argv = [], templateVersion = "unknown", clock = () => new Date() } = opts;
+  const { action = "install", now = "", argv = [], templateVersion = "unknown", clock = () => new Date(),
+    ms = new Date().getUTCMilliseconds() } = opts;
   try {
     const dir = join(targetRoot, LOG_DIR);
     mkdirSync(dir, { recursive: true });
@@ -55,14 +74,14 @@ export function initLogger(targetRoot, opts = {}) {
     if (!existsSync(gi)) writeFileSync(gi, GITIGNORE_BODY);
     rotate(dir);
 
-    const rel = `${LOG_DIR}/${logFilename(now, action)}`;
-    const file = join(targetRoot, rel);
+    // 시각은 UTC다 — 로컬 시간대로 읽으면 몇 시간 어긋나 보이므로 헤더에 밝혀 둔다.
     const header =
-      `=== project-auto-wizard v${templateVersion} | ${action} | ${now} ===\n` +
+      `=== project-auto-wizard v${templateVersion} | ${action} | ${now} UTC ===\n` +
       `argv    : ${["project-auto-wizard", ...argv].join(" ")}\n` +
       `node    : ${process.version} | ${process.platform} ${process.arch}\n` +
       `target  : ${targetRoot}\n\n`;
-    writeFileSync(file, header);
+    const rel = `${LOG_DIR}/${createUnique(dir, logFilename(now, action, ms), header)}`;
+    const file = join(targetRoot, rel);
     state = { file, rel, clock, startedAt: Date.now(), disabled: false };
     return { path: rel };
   } catch (e) {

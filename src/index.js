@@ -49,7 +49,8 @@ function utcNow(date = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   const d = `${date.getUTCFullYear()}-${p(date.getUTCMonth() + 1)}-${p(date.getUTCDate())}`;
   const t = `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}`;
-  return { now: `${d} ${t}`, today: d };
+  // ms: 로그 파일명이 같은 초의 연속 실행끼리 겹치지 않도록 쓴다 (now와 같은 시각에서 뽑는다).
+  return { now: `${d} ${t}`, today: d, ms: date.getUTCMilliseconds() };
 }
 
 // purge TTY 확인 — 실제 stdin에서 한 줄 입력을 받는다 (테스트는 promptRepoName 주입으로 대체).
@@ -83,7 +84,7 @@ async function runInner(argv, {
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
 
   // 시각은 여기서 한 번만 계산한다 — 로그 파일명과 설치 기록이 같은 값을 쓰도록.
-  const { now, today } = clock || utcNow();
+  const { now, today, ms } = clock || utcNow();
 
   // dry-run은 "파일을 바꾸지 않는다"가 계약이므로 로그도 남기지 않는다.
   // --version/--help는 이 지점 이전에 이미 반환되므로 자연히 제외된다.
@@ -92,7 +93,7 @@ async function runInner(argv, {
     : opts.mode === "purge" ? "purge"
     : "install";
   if (loggedAction) {
-    initLogger(cwd, { action: loggedAction, now, argv, templateVersion: readTemplateVersion() });
+    initLogger(cwd, { action: loggedAction, now, ms, argv, templateVersion: readTemplateVersion() });
   }
 
   // 대화형 모드 — 인자 없이 실행 or --mode interactive

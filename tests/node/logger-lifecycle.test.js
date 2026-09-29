@@ -64,3 +64,15 @@ test("--version / --help는 로그를 만들지 않는다", async () => {
     assert.deepStrictEqual(logsIn(target), []);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
+
+test("같은 초에 두 번 설치해도 로그가 실행마다 하나씩 남는다", async () => {
+  const target = springTarget();
+  try {
+    const clock = { now: "2026-08-26 12:03:41", today: "2026-08-26" };
+    for (let i = 0; i < 2; i++) {
+      resetLogger();
+      assert.strictEqual(await run(["--mode", "full", "--force", "--type", "spring"], { cwd: target, clock }), 0);
+    }
+    assert.strictEqual(logsIn(target).length, 2, "두 번째 실행이 첫 실행 로그를 덮어쓰면 안 된다");
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
