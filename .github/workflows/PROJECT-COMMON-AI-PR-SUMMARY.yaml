@@ -6,6 +6,9 @@
 # same engine chain as the release changelog (user API key -> Copilot CLI,
 # opt-in via version.yml copilot_ai -> rule-based fallback).
 # The prompt includes commit subjects plus a capped `git diff --stat`.
+# The summary header shows the version this PR is expected to ship in
+# (current version + the bump the post-merge workflow will apply), not
+# the version that is already released.
 #
 # On release PRs (head branch == develop) this job is skipped.
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL owns that case: it confirms
@@ -71,8 +74,6 @@ jobs:
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
-          VERSION=${VERSION:-unreleased}
 
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
@@ -86,6 +87,21 @@ jobs:
             cp _full_diff_stat.txt diff_stat.txt
           fi
           rm -f _full_diff_stat.txt
+
+          # 헤더에는 이미 발행된 현재 버전이 아니라 이 PR이 병합되면 붙을 예상 버전을 보인다.
+          # 병합 뒤 버전을 올리는 쪽과 같은 규칙: trunk-based는 RELEASE-PUBLISH가 semver_auto면
+          # 커밋으로 승격 폭을 정하고, pr-flow에서 main로 바로 들어가는 PR은
+          # VERSION-CONTROL 안전망이 patch를 올린다. 예상치라 AI 보조 판정 없이 규칙만 쓴다.
+          CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
+          MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
+          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          BUMP="patch"
+          if [ "$MODE" = "trunk-based" ] && [ "$SEMVER_AUTO" = "true" ]; then
+            BUMP=$(AI_API_KEY="" COPILOT_AI="false" python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt 2>/dev/null | tail -n 1)
+          fi
+          VERSION=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$CURRENT_VERSION" "${BUMP:-patch}" 2>/dev/null || echo "")
+          VERSION=${VERSION:-Unreleased}
+          echo "expected next version: $VERSION (current: ${CURRENT_VERSION:-none}, mode: $MODE, bump: ${BUMP:-patch})"
 
           SUMMARY_RESULT=$(python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \

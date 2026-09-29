@@ -172,3 +172,71 @@ for (const name of ["AI-PR-SUMMARY", "AUTO-CHANGELOG-CONTROL"]) {
     });
   }
 }
+
+// ---------------------------------------------------------------
+// AI-PR-SUMMARY 헤더: 이미 발행된 현재 버전이 아니라 병합 뒤 붙을 예상 버전
+// ---------------------------------------------------------------
+function expectedVersionSnippet() {
+  const lines = read(payloadPath("AI-PR-SUMMARY")).split("\n").map((l) => l.replace(/^ {10}/, ""));
+  const start = lines.findIndex((l) => l.startsWith("CURRENT_VERSION="));
+  const end = lines.findIndex((l) => l.startsWith('echo "expected next version:'));
+  assert.ok(start > -1 && end > start, "예상 버전 계산 블록을 찾지 못했다");
+  return lines.slice(start, end).join("\n") + '\nprintf "%s" "$VERSION"';
+}
+
+function runExpectedVersion(t, { mode, semverAuto, commits, withVersionYml = true }) {
+  if (process.platform === "win32") {
+    t.skip("워크플로우 셸 조각은 ubuntu 러너용 bash 전제");
+    return null;
+  }
+  const python = findPython();
+  if (python !== "python3") {
+    t.skip("워크플로우 조각은 python3 명령을 전제");
+    return null;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "paw-nextver-"));
+  try {
+    mkdirSync(join(dir, ".github", "scripts"), { recursive: true });
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+      writeFileSync(join(dir, ".github", "scripts", f), read(join("payload", "scripts", f)));
+    }
+    if (withVersionYml) {
+      writeFileSync(join(dir, "version.yml"), [
+        'version: "0.2.3"',
+        "version_code: 1",
+        'project_types: ["basic"]',
+        "metadata:",
+        "  template:",
+        "    branches:",
+        `      mode: "${mode}"`,
+        "    options:",
+        `      semver_auto: ${semverAuto}`,
+        "",
+      ].join("\n"));
+    }
+    writeFileSync(join(dir, "commits.txt"), commits.join("\n") + "\n");
+    const r = spawnSync("bash", ["-e", "-c", expectedVersionSnippet()], {
+      cwd: dir, encoding: "utf-8",
+      env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "should-not-be-used", COPILOT_AI: "true" },
+    });
+    assert.strictEqual(r.status, 0, r.stderr);
+    return r.stdout;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("AI-PR-SUMMARY: trunk-based + semver_auto면 커밋 승격 폭을 반영한 다음 버전을 헤더에 쓴다", (t) => {
+  const v = runExpectedVersion(t, { mode: "trunk-based", semverAuto: true, commits: ["feat: 새 화면"] });
+  if (v !== null) assert.strictEqual(v, "0.3.0");
+});
+
+test("AI-PR-SUMMARY: pr-flow에서 메인으로 바로 가는 PR은 안전망과 같은 patch 다음 버전을 쓴다", (t) => {
+  const v = runExpectedVersion(t, { mode: "pr-flow", semverAuto: true, commits: ["feat: 새 화면"] });
+  if (v !== null) assert.strictEqual(v, "0.2.4");
+});
+
+test("AI-PR-SUMMARY: 버전을 읽지 못하면 Unreleased로 표시한다", (t) => {
+  const v = runExpectedVersion(t, { mode: "pr-flow", semverAuto: true, commits: ["fix: x"], withVersionYml: false });
+  if (v !== null) assert.strictEqual(v, "Unreleased");
+});
