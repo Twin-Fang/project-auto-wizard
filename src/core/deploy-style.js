@@ -136,8 +136,9 @@ export function activateDeployTrigger(content) {
 // opts.available  — payload 워크플로우 파일명 집합. 주면 그 안의 파일(마법사가 까는 파일)만 정리하고,
 //                   고른 방식이 없는 타입의 단일 서버 배포는 남긴다.
 // opts.justWritten — 이번 실행에서 마법사가 방금 쓴 파일. 첫 설치처럼 baseline이 없어도 수정본으로 오인하지 않는다.
+// opts.dryRun      — 판정만 하고 파일은 건드리지 않는다. --dry-run 미리보기가 실제 실행과 같은 판정을 쓰게 한다.
 // 반환: { removed:[], backedUp:[] } — 완료 화면·설치 기록에 그대로 보고한다.
-export function cleanupOtherDeployWorkflows(workflowsDir, installedFilenames, style, baseline, { available = null, justWritten = [] } = {}) {
+export function cleanupOtherDeployWorkflows(workflowsDir, installedFilenames, style, baseline, { available = null, justWritten = [], dryRun = false } = {}) {
   const keep = deployFilter(style, available);
   const written = new Set(justWritten);
   const removed = [];
@@ -152,10 +153,10 @@ export function cleanupOtherDeployWorkflows(workflowsDir, installedFilenames, st
     const known = baseline?.files?.[filename]?.installed;
     const untouched = written.has(filename) || (known && sha256(readFileSync(p, "utf8")) === known);
     if (untouched) {
-      rmSync(p, { force: true });
+      if (!dryRun) rmSync(p, { force: true });
       removed.push(filename);
     } else {
-      renameSync(p, `${p}.bak`);
+      if (!dryRun) renameSync(p, `${p}.bak`);
       backedUp.push(filename);
     }
   }

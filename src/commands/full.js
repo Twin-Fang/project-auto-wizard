@@ -101,37 +101,17 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // 6. 이전 배포 방식 정리 — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
   //    옛 baseline이 살아 있는 지금이 "사용자가 손댔는가"를 판정할 수 있는 유일한 시점이다.
   const previousBaseline = readBaseline(targetRoot);
-  const cleanup = cleanupOtherDeployWorkflows(
-    join(targetRoot, PATHS.workflowsDir),
-    existsSync(join(targetRoot, PATHS.workflowsDir)) ? readdirSync(join(targetRoot, PATHS.workflowsDir)) : [],
-    context.deployStyle || DEFAULT_DEPLOY_STYLE,
-    previousBaseline,
-    { available: payloadWorkflowNames(payloadRoot), justWritten: wfCounters.copiedFiles || [] });
+  const { cleanup, storeCleanup, staleCleanup } = cleanupWorkflows(context, payloadRoot, targetRoot, previousBaseline,
+    { justWritten: wfCounters.copiedFiles || [] });
   // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
-  for (const f of [...cleanup.removed, ...cleanup.backedUp]) delete previousBaseline?.files?.[f];
+  for (const r of [cleanup, storeCleanup, staleCleanup]) {
+    for (const f of [...r.removed, ...r.backedUp]) delete previousBaseline?.files?.[f];
+  }
 
   for (const f of cleanup.removed || []) log.info("cleanup", "remove", `${f} (이전 배포 방식 정리)`);
   for (const f of cleanup.backedUp || []) log.info("cleanup", "backup", `${f} → ${f}.bak`);
-
-  // 6-1. 선택 해제된 스토어 워크플로우 정리 — 스토어 대상을 줄여 재설치하면 이전 워크플로우가 남아
-  //      main push마다 계속 도는 것을 막는다. 규칙은 6과 같다(미수정 삭제, 수정본 .bak).
-  //      선택이 미결정(null)이거나 Flutter가 없으면 현행 동작 그대로 아무것도 지우지 않는다.
-  //      Fastfile·ExportOptions는 사용자 소유라 여기서 다루지 않는다.
-  const workflowsDir = join(targetRoot, PATHS.workflowsDir);
-  const storeCleanup = Array.isArray(context.flutterStore) && types.includes("flutter")
-    ? cleanupDeselectedStoreWorkflows(
-      workflowsDir,
-      existsSync(workflowsDir) ? readdirSync(workflowsDir) : [],
-      context.flutterStore,
-      previousBaseline)
-    : { removed: [], backedUp: [] };
-  for (const f of [...storeCleanup.removed, ...storeCleanup.backedUp]) delete previousBaseline?.files?.[f];
   for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (선택 해제된 스토어 워크플로우 정리)`);
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
-
-  // 6-2. payload에서 이름이 바뀌거나 빠진 옛 워크플로우 정리 — 규칙은 6과 같다(미수정 삭제, 수정본 .bak).
-  const staleCleanup = cleanupStaleWorkflows(targetRoot, findStaleWorkflows(payloadRoot, targetRoot, previousBaseline), previousBaseline);
-  for (const f of [...staleCleanup.removed, ...staleCleanup.backedUp]) delete previousBaseline?.files?.[f];
   for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (현재 버전에 없는 이전 워크플로우 정리)`);
   for (const f of staleCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
 
@@ -187,6 +167,28 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   ]);
 
   return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, bytecodeRemoved, optionalSecrets };
+}
+
+// 워크플로우 정리 3종 — 실제 설치(runFull)와 --dry-run 미리보기가 같은 판정을 쓴다.
+//   6   배포 방식 정리 — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
+//   6-1 선택 해제된 스토어 워크플로우 정리 — 스토어 대상을 줄여 재설치하면 이전 워크플로우가 main push마다
+//       계속 돈다. 선택이 미결정(null)이거나 Flutter가 없으면 아무것도 지우지 않는다.
+//       Fastfile·ExportOptions는 사용자 소유라 여기서 다루지 않는다.
+//   6-2 payload에서 이름이 바뀌거나 빠진 옛 워크플로우 정리.
+// 규칙은 모두 같다(미수정 삭제, 수정본 .bak). 세 대상은 파일명이 겹치지 않아 순서와 무관하게 판정이 같다.
+// baseline은 정리 전의 것을 넘겨야 한다 — "사용자가 손댔는가"를 판정할 수 있는 유일한 기준이다.
+// dryRun이면 판정만 하고 파일은 건드리지 않는다.
+export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { justWritten = [], dryRun = false } = {}) {
+  const workflowsDir = join(targetRoot, PATHS.workflowsDir);
+  const listDir = () => (existsSync(workflowsDir) ? readdirSync(workflowsDir) : []);
+  const cleanup = cleanupOtherDeployWorkflows(workflowsDir, listDir(),
+    context.deployStyle || DEFAULT_DEPLOY_STYLE, baseline,
+    { available: payloadWorkflowNames(payloadRoot), justWritten, dryRun });
+  const storeCleanup = Array.isArray(context.flutterStore) && (context.types || []).includes("flutter")
+    ? cleanupDeselectedStoreWorkflows(workflowsDir, listDir(), context.flutterStore, baseline, { dryRun })
+    : { removed: [], backedUp: [] };
+  const staleCleanup = cleanupStaleWorkflows(targetRoot, findStaleWorkflows(payloadRoot, targetRoot, baseline), baseline, { dryRun });
+  return { cleanup, storeCleanup, staleCleanup };
 }
 
 // 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도

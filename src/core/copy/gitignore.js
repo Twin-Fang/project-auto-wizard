@@ -40,16 +40,26 @@ const NEW_FILE_CONTENT =
   "*.bak\n" +
   "*.template.yaml\n";
 
+// 쓰지 않고 판정만 한다 — 실제 갱신과 --dry-run 미리보기가 같은 판정을 쓰게 한다.
+// 반환: {created, added:[...]}
+export function planGitignore(targetRoot = ".") {
+  const p = join(targetRoot, ".gitignore");
+  if (!existsSync(p)) return { created: true, added: REQUIRED_ENTRIES.slice() };
+  const content = readFileSync(p, "utf8");
+  return { created: false, added: REQUIRED_ENTRIES.filter((e) => !entryExists(e, content)) };
+}
+
 // 반환: {created, added:[...]}
 export function ensureGitignore(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
-  if (!existsSync(p)) {
+  const plan = planGitignore(targetRoot);
+  if (plan.created) {
     writeFileSync(p, NEW_FILE_CONTENT);
-    return { created: true, added: REQUIRED_ENTRIES.slice() };
+    return plan;
   }
+  const toAdd = plan.added;
+  if (toAdd.length === 0) return plan;
   let content = readFileSync(p, "utf8");
-  const toAdd = REQUIRED_ENTRIES.filter((e) => !entryExists(e, content));
-  if (toAdd.length === 0) return { created: false, added: [] };
 
   // BANNER는 "\n"으로 시작한다. 파일 끝에 개행이 없으면 그 "\n"이 마지막 줄을 끝내는 역할을 하고,
   // 개행이 있으면 빈 줄 하나가 된다. 어느 쪽이든 제거 시 BANNER 앞까지 자르면 원문 그대로 돌아온다.

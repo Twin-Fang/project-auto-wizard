@@ -55,8 +55,9 @@ export function storeWorkflowFilter(stores) {
 //   손대지 않은 것(baseline의 installed 해시와 동일) → 삭제
 //   손댄 것                                          → .bak으로 옮긴다 (내용 보존, 트리거만 죽인다)
 // 사용자 소유인 Fastfile·ExportOptions.plist는 여기서 다루지 않는다 (워크플로우 파일만 대상).
+// dryRun이면 판정만 하고 파일은 건드리지 않는다 (--dry-run 미리보기용).
 // 반환: { removed:[], backedUp:[] }
-export function cleanupDeselectedStoreWorkflows(workflowsDir, installedFilenames, stores, baseline) {
+export function cleanupDeselectedStoreWorkflows(workflowsDir, installedFilenames, stores, baseline, { dryRun = false } = {}) {
   const keep = storeWorkflowFilter(stores);
   const removed = [];
   const backedUp = [];
@@ -69,10 +70,10 @@ export function cleanupDeselectedStoreWorkflows(workflowsDir, installedFilenames
     const known = baseline?.files?.[filename]?.installed;
     const untouched = known && sha256(readFileSync(p, "utf8")) === known;
     if (untouched) {
-      rmSync(p, { force: true });
+      if (!dryRun) rmSync(p, { force: true });
       removed.push(filename);
     } else {
-      renameSync(p, `${p}.bak`);
+      if (!dryRun) renameSync(p, `${p}.bak`);
       backedUp.push(filename);
     }
   }

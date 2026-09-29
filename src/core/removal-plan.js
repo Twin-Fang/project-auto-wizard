@@ -113,8 +113,8 @@ export function findStaleWorkflows(payloadRoot, targetRoot = ".", baseline = nul
 }
 
 // 배포 방식 정리와 같은 규칙 — 손대지 않은 파일(installed 해시 일치)은 삭제, 손댄 파일은 .bak으로 옮겨
-// 내용은 지키고 트리거만 끈다.
-export function cleanupStaleWorkflows(targetRoot, names, baseline) {
+// 내용은 지키고 트리거만 끈다. dryRun이면 판정만 하고 파일은 건드리지 않는다 (--dry-run 미리보기용).
+export function cleanupStaleWorkflows(targetRoot, names, baseline, { dryRun = false } = {}) {
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   const removed = [];
   const backedUp = [];
@@ -123,10 +123,10 @@ export function cleanupStaleWorkflows(targetRoot, names, baseline) {
     if (!existsSync(p)) continue;
     const known = baseline?.files?.[name]?.installed;
     if (known && sha256(readFileSync(p, "utf8")) === known) {
-      rmSync(p, { force: true });
+      if (!dryRun) rmSync(p, { force: true });
       removed.push(name);
     } else {
-      renameSync(p, `${p}.bak`);
+      if (!dryRun) renameSync(p, `${p}.bak`);
       backedUp.push(name);
     }
   }
