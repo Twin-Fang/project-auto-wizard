@@ -422,6 +422,32 @@ def sync_spring(path_dir, new_version):
         log(f"updated: {gradle_file}")
 
 
+def _pubspec_build_number(path_dir):
+    """pubspec.yaml `version: x.y.z+N`의 N. 없으면 None."""
+    target = Path(path_dir) / "pubspec.yaml"
+    if not target.is_file():
+        return None
+    m = re.search(r'^version:[ \t]*[^\s#+]+\+(\d+)', read_file(target), re.MULTILINE)
+    return int(m.group(1)) if m else None
+
+
+def get_reconciled_version_code():
+    """version.yml의 version_code와 pubspec.yaml의 +N 중 큰 값.
+    로컬 수동 배포 등으로 pubspec 쪽이 앞서 있으면 스토어는 더 작은 build number를
+    거부하므로, 그 값을 version.yml에 반영해 역행을 막는다."""
+    code = int(get_version_code())
+    types = get_project_types_csv()
+    pubspec_codes = [
+        n for n in (_pubspec_build_number(get_type_path(t)) for t in types if t == "flutter")
+        if n is not None
+    ]
+    if pubspec_codes and max(pubspec_codes) > code:
+        log(f"pubspec.yaml build number {max(pubspec_codes)} is ahead of version_code {code} — adopting it")
+        code = max(pubspec_codes)
+        set_version_code(code)
+    return code
+
+
 def sync_flutter(path_dir, new_version, version_code):
     target = Path(path_dir) / "pubspec.yaml"
     if not target.is_file():
@@ -526,7 +552,7 @@ def sync_all_project_files(new_version):
         # "basic" and skip every sync without a word.
         raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
     for t in types:
-        sync_for_type(t, new_version, get_version_code)
+        sync_for_type(t, new_version, get_reconciled_version_code)
 
 
 def update_all_versions(new_version):
@@ -653,14 +679,14 @@ def cmd_get(args):
 
 def cmd_get_code(args):
     require_version_yml()
-    code = get_version_code()
+    code = get_reconciled_version_code()
     print(code)
     return 0
 
 
 def cmd_increment_code(args):
     require_version_yml()
-    current = int(get_version_code())
+    current = get_reconciled_version_code()
     new_code = current + 1
     set_version_code(new_code)
     print(new_code)
@@ -675,10 +701,9 @@ def cmd_increment(args):
         return 1
     bump = getattr(args, "bump", None) or "patch"
     new_version = increment_version(current_version, bump)
+    # build number를 먼저 올려야 이어지는 pubspec 동기화에 새 값이 함께 기록된다.
+    set_version_code(get_reconciled_version_code() + 1)
     update_all_versions(new_version)
-
-    current_code = int(get_version_code())
-    set_version_code(current_code + 1)
 
     print(new_version)
     return 0

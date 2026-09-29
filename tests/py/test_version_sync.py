@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -147,6 +148,37 @@ class TestSyncFlutter(SyncTestCase):
         self.assertEqual(r.returncode, 0)
         text = (Path(tmp) / "pubspec.yaml").read_text(encoding="utf-8")
         self.assertIn("version: 1.2.3+1", text)
+
+
+class TestFlutterBuildNumberNeverRegresses(SyncTestCase):
+    def make_flutter(self, pubspec_version):
+        tmp = self.make_tmp("flutter")
+        run(["set", "2.5.0"], tmp)
+        pubspec = Path(tmp) / "pubspec.yaml"
+        text = pubspec.read_text(encoding="utf-8")
+        pubspec.write_text(re.sub(r"^version: .*$", f"version: {pubspec_version}", text, flags=re.M),
+                           encoding="utf-8")
+        return tmp, pubspec
+
+    def test_get_and_sync_keep_higher_pubspec_build_number(self):
+        tmp, pubspec = self.make_flutter("2.5.0+40")
+        run(["get"], tmp)
+        r = run(["sync"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version: 2.5.0+40", pubspec.read_text(encoding="utf-8"))
+        self.assertEqual(run(["get-code"], tmp).stdout.strip().splitlines()[-1], "40")
+
+    def test_increment_uses_max_plus_one_and_writes_both(self):
+        tmp, pubspec = self.make_flutter("2.5.0+100")
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("version: 2.5.1+101", pubspec.read_text(encoding="utf-8"))
+        self.assertIn("version_code: 101", (Path(tmp) / "version.yml").read_text(encoding="utf-8"))
+
+    def test_increment_code_uses_max_plus_one(self):
+        tmp, _ = self.make_flutter("2.5.0+40")
+        r = run(["increment-code"], tmp)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "41")
 
 
 class TestSyncReact(SyncTestCase):
