@@ -377,6 +377,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   io.summary?.({
     mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
+    autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,
     answers: envAnswers,
     unresolved: result?.unresolved ?? [],

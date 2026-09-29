@@ -10,6 +10,7 @@ import { runFull } from "../../src/commands/full.js";
 import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { makeResolvers } from "../../src/core/detect-fs.js";
+import { sha256, BASELINE_PATH } from "../../src/core/baseline.js";
 
 function springTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-logcopy-"));
@@ -68,5 +69,29 @@ test("재설치: 손대지 않은 파일은 skip(unchanged)으로 기록된다",
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
     assert.match(body, /copy {6}skip {8}.*\(unchanged\)/);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
+
+test("재설치: 자동 갱신된 파일은 요약에서 설치와 자동 갱신에 두 번 집계되지 않는다", () => {
+  const target = springTarget();
+  try {
+    resetLogger();
+    runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
+    // 이전 버전이 설치한 파일을 흉내 낸다 — 내용이 다르지만 baseline의 installed와 같으므로 사용자 미수정이다.
+    const name = "PROJECT-COMMON-VERSION-CONTROL.yaml";
+    const old = "# 이전 버전 템플릿\n";
+    writeFileSync(join(target, ".github/workflows", name), old);
+    const bp = join(target, BASELINE_PATH);
+    const baseline = JSON.parse(readFileSync(bp, "utf8"));
+    baseline.files[name].installed = sha256(old);
+    writeFileSync(bp, JSON.stringify(baseline));
+
+    const r = initLogger(target, { action: "update", now: "2026-08-26 12:10:00" });
+    const result = runFull(ctxFor(target, "2026-08-26 12:10:00"), resolvePayloadRoot(), target);
+    closeLogger();
+    assert.deepStrictEqual(result.workflows.autoUpdated, [name]);
+    const body = readFileSync(join(target, r.path), "utf8");
+    assert.match(body, /설치\s+: 0개 파일/);
+    assert.match(body, /자동 갱신\s+: 1개/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
