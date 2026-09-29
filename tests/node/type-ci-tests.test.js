@@ -46,3 +46,16 @@ test("Python CI: Docker 빌드 검증은 Dockerfile이 있을 때만 실행된�
     assert.match(block, /if: steps\.dockerfile\.outputs\.exists == 'true'/, `${name}: Dockerfile 조건 누락`);
   }
 });
+
+for (const file of ["react/PROJECT-REACT-CI.yaml", "next/PROJECT-NEXT-CI.yaml"]) {
+  test(`${file}: test 스크립트가 있으면 npm test를 실행하고, 없으면 건너뛴다`, () => {
+    const text = read(file);
+    const block = stepBlock(text, "테스트 실행");
+    assert.ok(block, "테스트 실행 스텝 없음");
+    assert.match(block, /CI=true npm test/);
+    assert.match(block, /no test specified/, "npm init 기본 test 스크립트는 없는 것으로 봐야 한다");
+    assert.match(block, /::notice::/);
+    // 빌드보다 먼저 실행되어 테스트 실패가 CI Gate 실패로 이어져야 한다
+    assert.ok(text.indexOf("- name: 테스트 실행") < text.indexOf("- name: 프로젝트 빌드"));
+  });
+}

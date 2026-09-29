@@ -1,6 +1,6 @@
 # project-auto-wizard:managed-workflow
 # Next.js CI (빌드 검증)
-# {{DEVELOP_BRANCH}} 브랜치 push·PR 시 npm ci와 npm run build로 빌드를 검증합니다. node_modules와 .next/cache를 캐싱합니다.
+# {{DEVELOP_BRANCH}} 브랜치 push·PR 시 npm ci, npm test(test 스크립트가 있을 때), npm run build로 검증합니다. node_modules와 .next/cache를 캐싱합니다.
 #
 # GitHub Secrets
 #   ENV_FILE (선택): .env 파일 내용. CI는 빌드 검증 목적이므로 배포 관련 Secrets는 불필요
@@ -117,6 +117,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
             ${{ runner.os }}-nextjs-
+
+      # package.json에 test 스크립트가 있을 때만 실행한다 (npm init 기본값 "no test specified"는 없는 것으로 본다)
+      - name: 테스트 실행
+        run: |
+          TEST_SCRIPT=$(node -p "(require('./package.json').scripts || {}).test || ''")
+          if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
+            echo "::notice::package.json에 test 스크립트가 없어 테스트를 건너뜁니다"
+            exit 0
+          fi
+          echo "🧪 npm test 실행: $TEST_SCRIPT"
+          # CI=true: watch 모드로 대기하는 테스트 러너(react-scripts 등)를 한 번만 실행
+          CI=true npm test
 
       - name: 프로젝트 빌드
         id: build
