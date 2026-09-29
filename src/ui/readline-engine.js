@@ -31,10 +31,12 @@ const c = {
 };
 // NO_COLOR(https://no-color.org)/비TTY 가드 — ansi.js와 동일한 규칙(존재 여부만 체크, 값 무관)이지만
 // 의존성 0 유지를 위해 자체 구현.
-const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY;
+// TERM=dumb은 색상뿐 아니라 커서 이동·지우기 시퀀스도 해석하지 못한다 — 그때는 다시 그리지 않고 이어서 출력한다.
+const isDumb = () => process.env.TERM === "dumb";
+const colorEnabled = () => process.env.NO_COLOR === undefined && !!stdout.isTTY && !isDumb();
 const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${c.reset}` : String(s));
-const hideCursor = () => stdout.write(`${ESC}?25l`);
-const showCursor = () => stdout.write(`${ESC}?25h`);
+const hideCursor = () => { if (!isDumb()) stdout.write(`${ESC}?25l`); };
+const showCursor = () => { if (!isDumb()) stdout.write(`${ESC}?25h`); };
 
 // 심볼 (clack 톤 유지)
 const S_ACTIVE = paint("●", c.green);
@@ -51,6 +53,7 @@ function makeRenderer() {
   let prevLines = 0;
   return {
     render(lines) {
+      if (isDumb()) { stdout.write(lines.join("\n") + "\n"); return; }
       if (prevLines > 0) stdout.write(`${ESC}${prevLines}A`); // 위로
       stdout.write(`${ESC}0J`); // 커서 아래 전부 지우기
       stdout.write(lines.join("\n") + "\n");
@@ -217,7 +220,13 @@ export async function text({ message, defaultValue = "" }) {
     stdin.resume();
     let buf = "";
 
+    // dumb 터미널은 줄을 지울 수 없으므로 프롬프트는 한 번만 쓰고 입력 글자만 이어서 출력한다.
+    const dumb = isDumb();
     const prompt = () => {
+      if (dumb) {
+        stdout.write(`${S_Q}  ${message} ${defaultValue ? `[${defaultValue}] ` : ""}`);
+        return;
+      }
       stdout.write(`\r${ESC}0K`); // 줄 초기화
       const shown = buf.length ? buf : paint(defaultValue || "", c.dim);
       stdout.write(`${S_Q}  ${paint(message, c.bold)} ${shown}`);
@@ -246,9 +255,18 @@ export async function text({ message, defaultValue = "" }) {
         resolve(buf.length ? buf : defaultValue);
         return;
       }
-      if (key.name === "backspace") { buf = buf.slice(0, -1); prompt(); return; }
+      if (key.name === "backspace") {
+        if (dumb && buf.length) stdout.write("\b \b");
+        buf = buf.slice(0, -1);
+        if (!dumb) prompt();
+        return;
+      }
       // 일반 문자 (제어문자 제외)
-      if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") { buf += str; prompt(); return; }
+      if (str && !key.ctrl && !key.meta && str.length === 1 && str >= " ") {
+        buf += str;
+        if (dumb) stdout.write(str); else prompt();
+        return;
+      }
     };
     stdin.on("keypress", handler);
     stdin.on("end", onEnd);

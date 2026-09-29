@@ -3,6 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { printSummary } from "../../src/ui/summary.js";
 
+// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+delete process.env.TERM;
+
 function captureStderr(fn) {
   const original = process.stderr.write.bind(process.stderr);
   let output = "";

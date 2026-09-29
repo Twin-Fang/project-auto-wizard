@@ -3,6 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { colorEnabled, paint, A } from "../../src/ui/ansi.js";
 
+// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+delete process.env.TERM;
+
 test("colorEnabled: NO_COLOR가 설정되면 TTY 여부와 무관하게 false", () => {
   const original = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
@@ -67,5 +70,17 @@ test("printBannerCompact: NO_COLOR=1이면 TTY여도 ESC 바이트가 출력에 
     assert.ok(output.includes("project-auto-wizard"));
   } finally {
     if (originalNoColor === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = originalNoColor;
+  }
+});
+
+test("colorEnabled: TERM=dumb이면 TTY여도 false", () => {
+  const original = process.env.NO_COLOR;
+  delete process.env.NO_COLOR;
+  process.env.TERM = "dumb";
+  try {
+    assert.strictEqual(colorEnabled({ isTTY: true }), false);
+  } finally {
+    delete process.env.TERM;
+    if (original !== undefined) process.env.NO_COLOR = original;
   }
 });
