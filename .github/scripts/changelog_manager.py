@@ -262,10 +262,13 @@ def _parse_markdown_heuristic(md_content: str) -> dict:
 # 1단계 패턴은 제목도 같은 정규식에서 캡처한다 — " : type : " 마커(타입 앞 콜론에
 # 반드시 공백 선행)가 유일한 구분자이므로, 제목 안의 맨몸 콜론("v1:2" 등)에서
 # 잘리지 않는다. 별도 split 재수행 금지.
-_TIER1_RE = re.compile(r'^(.+?)\s:\s*(feat|fix|chore|docs|refactor|test)\s*:\s*(.+)$')
+# 타입은 대소문자를 가리지 않는다(Conventional Commits 스펙). `!`는 breaking 표시.
+_TIER1_RE = re.compile(r'^(.+?)\s:\s*(feat|fix|chore|docs|refactor|test)\s*(!)?\s*:\s*(.+)$', re.IGNORECASE)
 _TRAILING_URL_RE = re.compile(r'\s*https?://\S+$')
+# `feat : 내용`처럼 콜론 앞 공백도 흔한 표기라 허용한다.
 _TIER2_RE = re.compile(
-    r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?!?:\s*(.+)$'
+    r'^(feat|fix|chore|docs|refactor|test|perf|style|build|ci)(\([^)]*\))?\s*(!)?\s*:\s*(.+)$',
+    re.IGNORECASE,
 )
 _TIER2_BUCKET_MAP = {
     'feat': 'feat',
@@ -282,11 +285,20 @@ _TIER2_BUCKET_MAP = {
 
 _FALLBACK_BUCKET_KEYS = ('feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'changes')
 
-# 승격 폭 판단 전용 — 타입 뒤 `!` 마커(어떤 타입이든)는 breaking 신호.
-# BREAKING CHANGE: 본문 푸터는 지원하지 않는다(커밋 수집이 제목 한 줄만
-# 가져오는 구조라 본문에 접근 불가 — Conventional Commits 스펙 조항 13에
-# 따르면 `!` 마커 단독으로도 표준을 만족하므로 이는 표준이 허용하는 부분집합).
-_BREAKING_MARKER_RE = re.compile(r'^[a-zA-Z]+(\([^)]*\))?!:')
+# 승격 폭 판단 전용 — 표준 타입 뒤 `!` 마커와 본문 푸터 `BREAKING CHANGE:`가 breaking 신호.
+# `hotfix!:`·`WIP!:`처럼 표준 타입이 아닌 단어의 `!`는 되돌리기 어려운 major를 만들므로 인정하지 않는다.
+# 푸터는 커밋 목록에 본문 줄이 함께 들어올 때만 보인다(제목만 수집하면 `!` 마커만 판정된다).
+_BREAKING_FOOTER_RE = re.compile(r'^BREAKING[ -]CHANGE\s*:\s*(.*)$')
+
+
+def _is_breaking(line: str) -> bool:
+    if _BREAKING_FOOTER_RE.match(line):
+        return True
+    tier1 = _TIER1_RE.match(line)
+    if tier1:
+        return bool(tier1.group(3))
+    tier2 = _TIER2_RE.match(line)
+    return bool(tier2 and tier2.group(3))
 
 
 def classify_commits(lines: list[str]) -> dict:
@@ -310,6 +322,8 @@ def classify_commits(lines: list[str]) -> dict:
             continue
         if line.startswith('Merge '):
             continue
+        if _BREAKING_FOOTER_RE.match(line):
+            continue
 
         # 1단계가 2단계보다 먼저다 — 트레이드오프: "제목 : feat : 내용" 형식은
         # "feat: ..." Conventional Commits와 겹칠 수 없지만(타입 앞에 제목 필수),
@@ -318,8 +332,8 @@ def classify_commits(lines: list[str]) -> dict:
         tier1 = _TIER1_RE.match(line)
         if tier1:
             title = tier1.group(1).strip()
-            commit_type = tier1.group(2)
-            desc = tier1.group(3).strip()
+            commit_type = tier1.group(2).lower()
+            desc = tier1.group(4).strip()
             # 커밋 말미의 이슈 URL은 릴리즈 노트 렌더링에서 노이즈 — 제거.
             desc = _TRAILING_URL_RE.sub('', desc).strip()
             classified[commit_type].append(f"{title} — {desc}")
@@ -327,7 +341,7 @@ def classify_commits(lines: list[str]) -> dict:
 
         tier2 = _TIER2_RE.match(line)
         if tier2:
-            commit_type, _scope, desc = tier2.group(1), tier2.group(2), tier2.group(3)
+            commit_type, _scope, desc = tier2.group(1).lower(), tier2.group(2), tier2.group(4)
             bucket = _TIER2_BUCKET_MAP[commit_type]
             classified[bucket].append(desc.strip())
             continue
@@ -374,7 +388,7 @@ def render_fallback_md(classified: dict, version: str) -> str:
 def classify_bump_level(lines: list[str]) -> str:
     """커밋 제목 목록에서 semver 승격 폭을 규칙 기반으로 판단.
 
-    - 타입 뒤 `!` 마커 포함 -> major
+    - 표준 타입 뒤 `!` 마커 또는 `BREAKING CHANGE:` 푸터 포함 -> major
     - `feat:`(classify_commits의 feat 버킷과 동일 판정 기준) 포함 -> minor
     - 그 외(매칭 실패 포함) -> patch
     """
@@ -382,7 +396,7 @@ def classify_bump_level(lines: list[str]) -> str:
         line = raw_line.strip()
         if not line or '[skip ci]' in line or line.startswith('Merge '):
             continue
-        if _BREAKING_MARKER_RE.match(line):
+        if _is_breaking(line):
             return 'major'
     classified = classify_commits(lines)
     return 'minor' if classified.get('feat') else 'patch'
