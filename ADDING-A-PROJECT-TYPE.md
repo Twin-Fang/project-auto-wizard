@@ -129,5 +129,5 @@ Finish with:
 ```bash
 PYTHONDONTWRITEBYTECODE=1 npm test
 npm run sync:dogfood:check
-node bin/project-auto-wizard.js --mode full --type <id> --dry-run
+node bin/project-auto-wizard.js --mode full --type <id> --paths "<id>=tests/fixtures/e2e/<id>" --dry-run
 ```

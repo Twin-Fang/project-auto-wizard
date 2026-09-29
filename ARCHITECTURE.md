@@ -130,7 +130,7 @@ file on disk and *theirs* is the current payload rendered with the saved/answere
 | not on disk, in baseline | `removed` | user deleted it → keep deleted unless they choose to restore |
 | anything else | `changed` | real conflict → ask: keep / back up to `.bak` and replace / write `.template.yaml` beside it. Non-interactive default is keep. |
 
-Without a baseline (old installs) only `unchanged` / `changed` are possible; that run writes the
+Without a baseline (old installs), files already on disk can only be `unchanged` / `changed`; that run writes the
 baseline. A kept conflict keeps its old `rendered` hash so the upstream change is offered again
 next time.
 
@@ -185,7 +185,7 @@ npm run test:py   # python unittest, tests/py (launcher: scripts/run-py-tests.mj
   `e2e-matrix.test.js`, which installs every type from `tests/fixtures/e2e/<case>/` and checks the
   expected files and that no placeholder is left.
 - `tests/node/type-registry-consistency.test.js` fails when a type is missing from any list that
-  must mention every type (help, version.yml template, README, `version_manager.py`, payload folders).
+  must mention every type (help, version.yml template, README.md and README.ko.md, `version_manager.py`); it also checks that every payload folder name is a valid type.
 - `tests/py/` — the release-time scripts (`version_manager.py`, `changelog_manager.py`, ...).
 - `tests/fixtures/` — sample projects used by detection and install tests.
 
