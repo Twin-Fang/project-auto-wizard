@@ -1,0 +1,6 @@
+[tool.commitizen]
+version = "9.9.9"
+
+[tool.poetry]
+name = "my-service"
+version = "0.9.0"

@@ -1,0 +1,6 @@
+[project]
+name = "my-service"
+dynamic = ["version"]
+
+[tool.setuptools_scm]
+version_file = "src/my_service/_version.py"
