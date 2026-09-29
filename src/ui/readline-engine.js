@@ -7,6 +7,7 @@
 //       Ctrl+C·Ctrl+D·stdin 종료는 중단 — PromptAbortError로 reject해 어느 질문에서든 즉시 빠져나간다.
 import { emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
+import { visualWidth } from "./ansi.js";
 
 export const CANCEL = Symbol("cancel");
 
@@ -47,8 +48,15 @@ const S_BAR = paint("│", c.gray);
 const S_Q = paint("◆", c.cyan);
 const S_DONE = paint("◇", c.green);
 
+// 한 줄이 터미널에서 실제로 차지하는 행 수 — 폭을 넘는 줄은 터미널이 접어서 여러 행이 된다.
+// 논리 줄 수만큼만 올라가면 접힌 윗부분이 지워지지 않고 화면에 사본이 쌓인다.
+export function physicalRows(line, columns = stdout.columns) {
+  if (!columns) return 1;
+  return Math.max(1, Math.ceil(visualWidth(line) / columns));
+}
+
 // 여러 줄 지운 뒤 커서를 블록 시작으로 되돌리는 렌더러.
-// prevLines 만큼 위로 올라가 지우고 새로 그린다.
+// 직전에 그린 물리 행 수만큼 위로 올라가 지우고 새로 그린다.
 function makeRenderer() {
   let prevLines = 0;
   return {
@@ -57,7 +65,7 @@ function makeRenderer() {
       if (prevLines > 0) stdout.write(`${ESC}${prevLines}A`); // 위로
       stdout.write(`${ESC}0J`); // 커서 아래 전부 지우기
       stdout.write(lines.join("\n") + "\n");
-      prevLines = lines.length;
+      prevLines = lines.reduce((n, l) => n + physicalRows(l), 0);
     },
     reset() { prevLines = 0; },
   };
@@ -222,14 +230,18 @@ export async function text({ message, defaultValue = "" }) {
 
     // dumb 터미널은 줄을 지울 수 없으므로 프롬프트는 한 번만 쓰고 입력 글자만 이어서 출력한다.
     const dumb = isDumb();
+    let prevRows = 0; // 직전 프롬프트가 차지한 물리 행 수 — 긴 프롬프트는 여러 행으로 접힌다
     const prompt = () => {
       if (dumb) {
         stdout.write(`${S_Q}  ${message} ${defaultValue ? `[${defaultValue}] ` : ""}`);
         return;
       }
-      stdout.write(`\r${ESC}0K`); // 줄 초기화
+      // 커서는 접힌 마지막 행에 있으므로 첫 행까지 올라간 뒤 아래를 전부 지운다
+      stdout.write(prevRows > 1 ? `\r${ESC}${prevRows - 1}A${ESC}0J` : `\r${ESC}0J`);
       const shown = buf.length ? buf : paint(defaultValue || "", c.dim);
-      stdout.write(`${S_Q}  ${paint(message, c.bold)} ${shown}`);
+      const line = `${S_Q}  ${paint(message, c.bold)} ${shown}`;
+      stdout.write(line);
+      prevRows = physicalRows(line);
     };
 
     const cleanup = () => {
