@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
-import { planFlutterAppFiles } from "../core/copy/flutter-app.js";
+import { planTypeAppFiles } from "../core/copy/app-files.js";
 import { planUninstall } from "./uninstall.js";
 import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
@@ -50,7 +50,7 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     cleanup,
     gitignore: backedUp ? planGitignore(targetRoot) : null,
     // Flutter 스토어 배포 파일(Fastfile·ExportOptions.plist) — 이미 있는 파일은 덮어쓰지 않고 유지한다.
-    flutterApp: planFlutterAppFiles(context, payloadRoot, targetRoot),
+    flutterApp: planTypeAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
     // 실제 설치가 함께 바꾸는 파일 — 특히 기존 파일을 덮어쓰는 스크립트는 미리 보여줘야 한다.
     scripts: planScripts(payloadRoot, targetRoot),

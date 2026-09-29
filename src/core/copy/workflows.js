@@ -5,7 +5,7 @@ import { join, basename } from "node:path";
 import {
   deployFilter, isDeployWorkflow, activateDeployTrigger, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE, NO_DEPLOY_STYLE,
 } from "../deploy-style.js";
-import { storeWorkflowFilter } from "../flutter-options.js";
+import { typeInfo } from "../types.js";
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { PATHS, PAYLOAD, typeWorkflowDirs } from "../paths.js";
 import { exists, writeText, listYamlFiles } from "../fsutil.js";
@@ -50,7 +50,8 @@ export function readSavedDeployValues(targetRoot = ".") {
 export function buildTypeRootFilter(type, deployStyle, flutterStore, available = null) {
   const filters = [];
   if (deployStyle) filters.push(deployFilter(deployStyle, available));
-  if (type === "flutter" && Array.isArray(flutterStore)) filters.push(storeWorkflowFilter(flutterStore));
+  const typeFilter = typeInfo(type)?.hooks?.workflowFilter?.({ flutterStore });
+  if (typeFilter) filters.push(typeFilter);
   return (filename) => filters.every((keep) => keep(filename));
 }
 

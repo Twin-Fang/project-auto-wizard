@@ -34,6 +34,7 @@ Add one object to `TYPES`. Array order is the display order in `--help` and the 
 | `versionSources` | Where to read the initial version at install time, tried first when this is the primary type. |
 | `buildNumberSource` | Only for mobile types with a build number (`version_code`). |
 | `singleServerCd` | Only when the type has one server CD workflow with no deploy style variants (like react, next). |
+| `hooks` | Optional type-specific behavior (workflow filter, deselected-workflow cleanup, app files, status labels, doctor checks). Shared code calls them through `hooksFor()`, so a type without hooks needs nothing here. `flutter` is the reference (`src/core/flutter-hooks.js`). |
 
 If the type reads its version or build number from a file format that is not supported yet, add a
 reader:
