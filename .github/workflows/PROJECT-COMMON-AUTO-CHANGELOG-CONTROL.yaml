@@ -61,6 +61,10 @@ permissions:
   pull-requests: write
   copilot-requests: write
 
+env:
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
   changelog-and-merge:
     name: Version confirm + changelog + automerge
@@ -265,7 +269,11 @@ jobs:
           # Working files must not land in the repo
           rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
 
-          git add -A
+          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
+          # 버전 파일은 이미 추적 중이라 -u로 충분하고, 첫 릴리스에 새로 생기는
+          # CHANGELOG만 따로 올린다 (.gitignore에 있으면 건너뛴다).
+          git add -u
+          git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
           if git diff --staged --quiet; then
             echo "no changes to commit"

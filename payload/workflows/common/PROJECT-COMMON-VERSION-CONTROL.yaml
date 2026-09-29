@@ -42,6 +42,10 @@ permissions:
   contents: write
   actions: write
 
+env:
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
   version-bump:
     name: Safety-net version bump
@@ -137,7 +141,9 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          git add -A
+          # 버전 파일은 이미 추적 중인 파일만 수정되므로 -u로 충분하다.
+          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
+          git add -u
 
           if git diff --staged --quiet; then
             echo "no changes to commit (already in sync)"

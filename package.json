@@ -13,7 +13,9 @@
   "files": [
     "bin/",
     "src/",
-    "payload/"
+    "payload/",
+    "!**/__pycache__/",
+    "!**/*.pyc"
   ],
   "scripts": {
     "test": "npm run test:node && npm run test:py",

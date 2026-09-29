@@ -44,6 +44,8 @@ name: README VERSION UPDATE
 env:
   # Whether to show the date next to the version (true/false)
   SHOW_DATE: true
+  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
 
 concurrency:
   group: readme-version-update

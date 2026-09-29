@@ -41,6 +41,10 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  # 테스트가 payload/scripts를 import하며 만드는 __pycache__가 패키지에 실리지 않게 한다
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
   publish-npm:
     name: npm 패키지 배포
