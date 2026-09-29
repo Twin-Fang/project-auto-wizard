@@ -265,7 +265,7 @@
 - .github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.yaml를 payload 사본과 동기화
 - .github/scripts/changelog_manager.py를 payload 사본과 동기화
 - .github/scripts/issue_helper.py를 payload 사본과 동기화
-- .superpowers SDD 스크래치 워크스페이스를 gitignore에 추가
+- 로컬 스크래치 폴더를 gitignore에 추가
 
 ---
 
