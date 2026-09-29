@@ -99,3 +99,16 @@ test("printSummary: pr-flow인데 develop이 없으면 구성 줄 아래에 만�
   const { out: ok } = await captureStderr(() => printSummary({ mode: "full", types: ["node"], version: "1.0.0", branches }));
   assert.ok(!ok.includes("아직 원격에 없습니다"));
 });
+
+test("printSummary: 설치 파일 커밋과 develop 반영, 첫 릴리스 전 CHANGELOG 링크를 안내한다", async () => {
+  const { out } = await captureStderr(() => printSummary({
+    mode: "full", types: ["node"], version: "1.0.0", branches: { main: "main", develop: "develop", mode: "pr-flow" },
+  }));
+  assert.match(out, /설치된 파일을 커밋해 main에 push하세요/);
+  assert.match(out, /git checkout develop && git merge main/);
+  assert.match(out, /CHANGELOG/);
+  const { out: trunk } = await captureStderr(() => printSummary({
+    mode: "full", types: ["node"], version: "1.0.0", branches: { main: "main", develop: "main", mode: "trunk-based" },
+  }));
+  assert.ok(!trunk.includes("git merge"), "trunk-based에는 병합 안내가 없어야 한다");
+});

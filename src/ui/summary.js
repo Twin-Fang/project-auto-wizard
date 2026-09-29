@@ -177,6 +177,18 @@ export function printSummary(ctx) {
     err("");
   }
 
+  // 설치 파일은 아직 커밋 전이다. develop을 이번 실행에서 만들었다면 설치 전 커밋 기준이라 워크플로우가 없다 —
+  // 한쪽 브랜치에만 커밋하면 다른 쪽에는 VERSION-CONTROL 등이 빠진 채로 남는다.
+  if (branches) {
+    err(`  ${num()} 설치된 파일을 커밋해 ${branches.main}에 push하세요`);
+    if (branches.mode !== "trunk-based") {
+      err(`     → ${branches.develop}에도 같은 파일이 있어야 합니다 — 한쪽에 커밋한 뒤 다른 쪽에 병합하세요`);
+      err(`       예) git checkout ${branches.develop} && git merge ${branches.main} && git push`);
+    }
+    err("     → README의 '전체 버전 기록 보기'(CHANGELOG.md) 링크는 첫 릴리스에서 CHANGELOG가 생성된 뒤부터 열립니다");
+    err("");
+  }
+
   err(`  ${num()} 릴리스 automerge용 PAT (선택 — 없으면 GITHUB_TOKEN 폴백으로 자동 진행)`);
   err("     → Repository Settings > Secrets > Actions");
   err("     → Secret Name: WORKFLOW_PAT (Scopes: repo, workflow)");
