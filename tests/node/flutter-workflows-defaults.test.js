@@ -109,3 +109,12 @@ test("수동 실행(workflow_dispatch) 배포 모드 기본값이 설치 시 선
     assert.ok(rendered.includes("|| 'store_submit' }}"), `${f}: 폴백과 dispatch 기본값이 어긋납니다`);
   }
 });
+
+test("CI changes job은 push 때 이번 push의 커밋만 비교한다 (기본 브랜치 누적 diff 금지)", () => {
+  const text = read("PROJECT-FLUTTER-CI.yaml");
+  const filter = text.slice(text.indexOf("uses: dorny/paths-filter@v4"), text.indexOf("filters: |"));
+  assert.ok(
+    filter.includes("base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}"),
+    "push 이벤트 base가 github.event.before가 아닙니다",
+  );
+});
