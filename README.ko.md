@@ -152,7 +152,7 @@ flutter.APP_ARTIFACT_NAME:
 
 ### 실행 로그 (`.github/.wizard/logs/`)
 
-설치·업데이트·삭제를 실행할 때마다 `.github/.wizard/logs/<시각>-<동작>.log`에 실행 추적이 남습니다. 감지 근거, **파일별 처리 결정과 그 사유**, 치환된 값, 미치환 항목, 등록해야 하는 GitHub Secret이 시간순으로 기록되고, 파일 끝에 결과 요약이 붙습니다.
+설치·업데이트를 실행할 때마다 `.github/.wizard/logs/<시각>-<동작>.log`에 실행 추적이 남습니다. 감지 근거, **파일별 처리 결정과 그 사유**, 치환된 값, 미치환 항목, 등록해야 하는 GitHub Secret이 시간순으로 기록되고, 파일 끝에 결과 요약이 붙습니다.
 
 ```
 === project-auto-wizard v0.12.2 | install | 2026-09-29 08:01:22 UTC ===
@@ -169,7 +169,7 @@ flutter.APP_ARTIFACT_NAME:
 
 이 폴더에는 자체 `.gitignore`(`*`, `!.gitignore`)가 함께 생성되어 **로그가 git에 올라가지 않습니다**. 최근 20개만 보관하고 오래된 것부터 정리합니다. `--dry-run`은 파일을 만들지 않는 것이 계약이므로 로그도 남기지 않습니다.
 
-`.github/.wizard/`에는 업데이트 3-way 판정에 쓰는 `baseline.json`도 함께 들어 있어, 완전 삭제 시 워크플로우와 함께 제거됩니다.
+`.github/.wizard/`에는 업데이트 3-way 판정에 쓰는 `baseline.json`도 함께 들어 있어, 완전 삭제 시 워크플로우와 함께 제거됩니다. 그래서 워크플로우까지 지우는 삭제(`--mode uninstall --force` 기본 동작 포함)는 로그 폴더도 함께 사라져 로그가 남지 않으며, 제거 결과는 터미널에 출력됩니다. 워크플로우를 남기는 삭제만 이 폴더에 삭제 로그가 남습니다.
 
 ### 완전 삭제(`--mode uninstall`)
 
