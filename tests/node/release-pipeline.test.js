@@ -74,3 +74,16 @@ for (const path of bothCopies("RELEASE-PUBLISH")) {
     assert.ok(step.indexOf("GH_TOKEN: ${{ github.token }}") > -1, "기본 토큰으로도 동작해야 한다");
   });
 }
+
+// 태그 스냅샷의 README는 README 버전 커밋보다 앞서 있어 항상 한 버전 전이다.
+test("NPM-PUBLISH는 패키징 전에 README 버전 줄을 배포 버전으로 맞춘다", () => {
+  const body = read(join(".github", "workflows", "NPM-PUBLISH.yaml"));
+  const fix = body.indexOf("- name: README 버전 줄을 배포 버전으로 맞춤");
+  assert.ok(fix > -1, "README 버전 보정 스텝이 없다");
+  assert.ok(fix > body.indexOf("uses: actions/checkout"), "체크아웃 뒤에 와야 한다");
+  assert.ok(fix < body.indexOf("npm publish --dry-run"), "패키징(publish) 전에 와야 한다");
+  const step = body.slice(fix, fix + 900);
+  assert.ok(step.includes("AUTO-VERSION-SECTION"), "자동 버전 마커 다음 줄을 고쳐야 한다");
+  assert.ok(step.includes("steps.target.outputs.version"), "배포 대상 버전을 써야 한다");
+  assert.match(body, /^env:\n(?:  .*\n)*  PYTHONDONTWRITEBYTECODE: "1"/m, "배포 게이트 테스트가 pyc를 남기면 패키지에 실린다");
+});
