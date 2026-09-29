@@ -60,3 +60,17 @@ test("npm pack은 payload 아래 pyc를 싣지 않는다 (실측)", (t) => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// 봇 토큰 push는 README 갱신을 깨우지 못한다 — PAT 없는 기본 설치에서도 README가 릴리스 버전을 따라가야 한다.
+for (const path of bothCopies("RELEASE-PUBLISH")) {
+  test(`${path}: 릴리스 발행 뒤 README-VERSION-UPDATE를 workflow_dispatch로 깨운다`, () => {
+    const body = read(path);
+    assert.match(body, /^permissions:[\s\S]*?^\s+actions:\s*write/m, "workflow_dispatch에는 actions: write가 필요하다");
+    const idx = body.indexOf("- name: Trigger README-VERSION-UPDATE");
+    assert.ok(idx > -1, "README 갱신 트리거 스텝이 없다");
+    const step = body.slice(idx, idx + 1200);
+    assert.ok(step.includes("steps.version.outputs.release_exists != 'true'"), "새로 발행한 릴리스에서만 깨워야 한다");
+    assert.match(step, /gh workflow run PROJECT-COMMON-README-VERSION-UPDATE\.yaml --ref (\{\{MAIN_BRANCH\}\}|main)/);
+    assert.ok(step.indexOf("GH_TOKEN: ${{ github.token }}") > -1, "기본 토큰으로도 동작해야 한다");
+  });
+}

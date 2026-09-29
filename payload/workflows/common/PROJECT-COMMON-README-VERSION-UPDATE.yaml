@@ -33,11 +33,12 @@
 #   * true:  v1.0.0 (2025-08-16)
 #   * false: v1.0.0
 #
-# Note (safety-net path): on a direct push to {{MAIN_BRANCH}} this
-# workflow reads the pre-bump version — PROJECT-VERSION-CONTROL bumps
-# afterwards with a [skip ci] commit that does not re-trigger this
-# workflow, so the README stays one version behind until the next
-# release/push. Run this workflow manually (workflow_dispatch) to catch up.
+# Note: pushes made with GITHUB_TOKEN (a release PR merged without
+# WORKFLOW_PAT, the [skip ci] version commits of the safety net and of
+# trunk-based releases) never trigger this workflow. RELEASE-PUBLISH
+# therefore dispatches it right after publishing a release, so the
+# README always ends on the released version. Run it manually
+# (workflow_dispatch) to catch up at any other time.
 
 name: README VERSION UPDATE
 
