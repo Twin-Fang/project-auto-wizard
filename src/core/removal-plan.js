@@ -8,6 +8,8 @@
 // 없는(그러나 파일명은 여전히 현재 payload와 일치하는) 기존 설치 전체를 인식하지 못하는 회귀가
 // 생긴다 — 그래서 두 방식을 합집합으로 병행한다. 마커는 이 수정 이후 배포되는 payload 템플릿부터
 // 포함되므로, (b) 경로가 실제로 새로 잡아내는 것은 "이름이 바뀌거나 삭제된, 마커가 있는" 파일뿐이다.
+// 단, 마커는 사용자가 워크플로우를 복사해 이름만 바꾼 파일에도 그대로 따라간다. 그래서 (b)는
+// baseline에 설치 기록이 있는 파일명만 인정하고, baseline이 없는 구버전 설치에서만 PROJECT-* 접두로 대신 판단한다.
 // 사용자가 직접 만든 워크플로우·version.yml·README·.gitignore는 대상이 아니다
 // (version.yml은 사용자 버전 데이터 — 제거 대상이 아니라 산출물이다).
 //
@@ -16,7 +18,7 @@
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { PATHS, PAYLOAD } from "./paths.js";
-import { BASELINE_DIR, BASELINE_PATH } from "./baseline.js";
+import { BASELINE_DIR, BASELINE_PATH, readBaseline } from "./baseline.js";
 
 // payload/workflows/**/*.yaml 첫 줄에 심어둔 고정 마커 — 이 값이 바뀌면 과거 설치분과의 매칭이 끊긴다.
 export const MANAGED_WORKFLOW_MARKER = "# project-auto-wizard:managed-workflow";
@@ -46,6 +48,19 @@ function markedWorkflowNames(wfDir) {
   return names;
 }
 
+// 마커가 있는 파일이 마법사가 설치한 것인지 — .bak/.template.yaml 백업본은 원본 파일명으로 따진다.
+// recorded: baseline의 파일명 집합, baseline이 없으면 null.
+function isInstalledName(name, recorded) {
+  if (!recorded) return name.startsWith("PROJECT-");
+  const stem = name.endsWith(".bak") ? name.slice(0, -".bak".length) : name;
+  const candidates = [name, stem];
+  if (stem.endsWith(".template.yaml")) {
+    const base = stem.slice(0, -".template.yaml".length);
+    candidates.push(base, base + ".yaml");
+  }
+  return candidates.some((c) => recorded.has(c));
+}
+
 // 아무것도 지우지 않는 순수 함수 — uninstall/purge/--dry-run이 공유한다.
 export function planRemoval(payloadRoot, targetRoot = ".") {
   const removedWf = new Set();
@@ -61,7 +76,11 @@ export function planRemoval(payloadRoot, targetRoot = ".") {
       if (existsSync(p + ".bak")) removedWf.add(name + ".bak");
     }
     // (b) 관리 마커로 시작하는 것 — payload에서 이름이 바뀌거나 삭제된 파일도 인식.
-    for (const name of markedWorkflowNames(wfDir)) removedWf.add(name);
+    const baseline = readBaseline(targetRoot);
+    const recorded = baseline ? new Set(Object.keys(baseline.files)) : null;
+    for (const name of markedWorkflowNames(wfDir)) {
+      if (isInstalledName(name, recorded)) removedWf.add(name);
+    }
   }
   for (const s of ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"]) {
     if (existsSync(join(targetRoot, PATHS.scriptsDir, s))) removedScripts.push(s);

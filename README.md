@@ -170,7 +170,7 @@ flutter.APP_ARTIFACT_NAME:
 
 `npx project-auto-wizard --mode uninstall`은 마법사가 설치한 것을 제거합니다 — 워크플로우·스크립트는 물론, README.md의 `AUTO-VERSION-SECTION` 버전 섹션과 `.gitignore`에 자동 추가된 항목, `version.yml`까지 선택적으로 제거할 수 있습니다.
 
-제거 대상은 payload가 설치한 파일명과 정확히 일치하는 것, 그리고 마법사 관리 마커를 가진 파일뿐입니다. 사용자가 직접 만든 워크플로우는 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
+제거 대상은 payload가 설치한 파일명과 정확히 일치하는 것, 그리고 마법사 관리 마커가 있으면서 설치 기록(`.github/.wizard/baseline.json`)에 남은 파일뿐입니다. 사용자가 직접 만든 워크플로우는 마법사 워크플로우를 복사해 이름만 바꾼 것이라도 건드리지 않습니다. 설치 시 충돌 처리로 생성된 `.bak`/`.template.yaml` 파생 파일도 함께 정리됩니다.
 
 - **대화형(TTY)**: 실제로 설치된 항목만 체크리스트로 보여줍니다. 워크플로우·스크립트는 기본 체크, README·`.gitignore`·`version.yml`은 opt-in입니다. 선택 후 최종 확인(기본 "아니오")을 거쳐야 실제로 삭제됩니다.
 - **비대화형(`--force`)**: 워크플로우·스크립트만 기본 삭제합니다. README·`.gitignore`·`version.yml`까지 지우려면 `--purge-readme`/`--purge-gitignore`/`--purge-version`을 함께 지정하세요.
