@@ -1,0 +1,6 @@
+/* 랜딩 hero 아래 데모 영상 폭을 본문 폭에 맞춘다 */
+.hero + .sl-markdown-content .demo-video,
+.demo-video {
+  max-width: 960px;
+  margin-inline: auto;
+}

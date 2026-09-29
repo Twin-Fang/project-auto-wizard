@@ -1,0 +1,72 @@
+---
+// 단계형 흐름도. 문구를 페이지에서 넘겨받아 언어마다 같은 그림을 쓴다.
+interface Step {
+  title: string;
+  detail?: string;
+}
+interface Props {
+  steps: Step[];
+  caption?: string;
+}
+const { steps, caption } = Astro.props;
+---
+
+<figure class="flow">
+  <ol>
+    {
+      steps.map((step) => (
+        <li>
+          <strong>{step.title}</strong>
+          {step.detail && <span>{step.detail}</span>}
+        </li>
+      ))
+    }
+  </ol>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .flow {
+    margin: 1.5rem 0;
+  }
+  .flow ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+  .flow li {
+    position: relative;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-left: 4px solid var(--sl-color-accent);
+    border-radius: 0.5rem;
+    background: var(--sl-color-gray-7, var(--sl-color-black));
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  /* 단계 사이 화살표 */
+  .flow li:not(:last-child)::after {
+    content: '↓';
+    position: absolute;
+    left: 50%;
+    bottom: -1.6rem;
+    transform: translateX(-50%);
+    color: var(--sl-color-gray-3);
+    font-size: 1.1rem;
+    line-height: 1.5rem;
+  }
+  .flow li span {
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+  }
+  .flow figcaption {
+    margin-top: 0.75rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+  }
+</style>

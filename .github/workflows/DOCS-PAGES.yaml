@@ -1,0 +1,77 @@
+# DOCS-PAGES.yaml
+# 문서 사이트(website/) 빌드·GitHub Pages 배포 워크플로우 (이 레포 전용 — payload에 복제하지 않는다)
+#
+# 동작:
+# - main에 website/ 변경이 들어오면 Astro Starlight 사이트를 빌드해 Pages에 배포한다
+# - 수동 재배포는 workflow_dispatch
+#
+# 릴리스 워크플로우와 분리한 이유:
+#   경로 필터로 website/ 변경에만 반응하므로 버전 bump·CHANGELOG 커밋에는 뜨지 않는다.
+#   릴리스 흐름이 쓰는 concurrency 그룹과도 겹치지 않는다.
+#
+# 전제: Settings → Pages → Build and deployment → Source를 "GitHub Actions"로 설정해야 한다.
+#   사이트 주소는 https://twin-fang.github.io/project-auto-wizard/ (base는 website/astro.config.mjs).
+
+name: DOCS-PAGES
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "website/**"
+      - ".github/workflows/DOCS-PAGES.yaml"
+  workflow_dispatch:
+
+# 배포 중인 실행을 끊으면 Pages가 반쯤 갱신된 상태로 남을 수 있어 취소하지 않고 순서대로 처리한다
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 문서 사이트 빌드
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v7
+
+      # Astro는 Node 22.12 이상을 요구한다 (루트 CLI의 Node 20 하한과 별개)
+      - name: Node.js 설정
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 사이트 빌드
+        run: npm run build
+
+      - name: Pages 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: website/dist
+
+  deploy:
+    name: GitHub Pages 배포
+    needs: build
+    runs-on: ubuntu-latest
+    # deploy-pages는 OIDC 토큰으로 Pages에 배포하므로 이 job에만 쓰기 권한을 준다
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v5

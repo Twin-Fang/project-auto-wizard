@@ -6,6 +6,11 @@ tmp/
 .idea/
 .worktrees/
 
+# 문서 사이트(website/) 빌드 산출물
+website/node_modules/
+website/dist/
+website/.astro/
+
 # ====================================================================
 # project-auto-wizard: Auto-added entries
 # ====================================================================

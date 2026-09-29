@@ -1,0 +1,81 @@
+---
+title: Release flow
+description: What happens from the release PR to the tag, GitHub Release and deploys.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FlowDiagram from '../../../components/FlowDiagram.astro';
+
+This page describes the default `pr-flow` strategy. For `trunk-based`, see [Branch strategies](../branch-strategies/).
+
+<FlowDiagram
+  caption="pr-flow: one release PR from develop to main produces one release."
+  steps={[
+    { title: 'Feature PRs merge into develop', detail: 'Type CI runs on each PR and push to develop.' },
+    { title: 'Open a release PR: develop → main', detail: 'PROJECT-COMMON-AUTO-CHANGELOG-CONTROL starts.' },
+    { title: 'Confirm the version', detail: 'Next version from commit types (semver-auto). Every version file is synced and committed to the PR branch.' },
+    { title: 'Write release notes', detail: 'Summary engine chain: your AI API → Copilot (optional) → rule-based. Posted as a PR comment.' },
+    { title: 'Update CHANGELOG.md / CHANGELOG.json', detail: 'Committed to the PR branch with [skip ci].' },
+    { title: 'Automerge', detail: 'Merge commit into main.' },
+    { title: 'Tag vX.Y.Z + GitHub Release', detail: 'PROJECT-COMMON-RELEASE-PUBLISH on the push to main.' },
+    { title: 'README version line + deploys', detail: 'README-VERSION-UPDATE runs; server and store deploy workflows run on the release branch.' },
+  ]}
+/>
+
+## Step by step
+
+### 1. Release PR opened
+
+`PROJECT-COMMON-AUTO-CHANGELOG-CONTROL` runs on PRs from the development branch to the release branch that are still open. A run queued behind the one that already merged the PR exits early.
+
+### 2. Version confirmed
+
+With `semver_auto: true` (the default), commits since the last release are classified:
+
+| Commit | Bump |
+|---|---|
+| `feat:` | minor |
+| any standard type with `!` (`feat!:`, `fix(api)!:`), or a `BREAKING CHANGE:` footer at the start of a body line | major |
+| anything else | patch |
+
+Types are case-insensitive. Only the `BREAKING CHANGE:` footer is read from commit bodies; the rest of the body is ignored.
+
+If the result is patch but some commits do not follow the convention, and a user AI API or Copilot is configured, the AI is asked only whether to upgrade patch to minor. It never produces a major bump. With AI off (the default) the rule result is used as is.
+
+With `semver_auto: false`, every release is patch + 1 and you edit major/minor by hand in `version.yml`.
+
+The new version is written to `version.yml` and to each type's version file, then committed to the PR branch.
+
+### 3. Release notes and CHANGELOG
+
+`changelog_manager.py` builds the summary from commit subjects plus a capped `git diff --stat` (file-level summary, no diff body). The same text is posted as a PR comment (re-runs edit that comment) and written to `CHANGELOG.json` and `CHANGELOG.md`. See [Summary engine](../summary-engine/).
+
+### 4. Automerge
+
+The workflow enables automerge with a merge commit, falls back to a direct merge, and retries with backoff while GitHub catches up with the freshly pushed head. An already-merged PR counts as success.
+
+### 5. Tag and GitHub Release
+
+On the push to the release branch, `PROJECT-COMMON-RELEASE-PUBLISH` only proceeds when the head commit message matches the release pattern `chore(release):`. It pushes the `vX.Y.Z` tag and creates the GitHub Release. The release notes are the CHANGELOG entry plus GitHub's generated notes (contributors and compare link). Tag and Release are checked separately, so a half-finished release is completed on re-run.
+
+It then dispatches `README-VERSION-UPDATE`, which rewrites the version line under the `<!-- AUTO-VERSION-SECTION -->` marker in `README.md`.
+
+### 6. Deploys
+
+Server and store deploy workflows run on pushes to the release branch.
+
+<Aside>
+A PR merged with `GITHUB_TOKEN` does not trigger `on: push` workflows. When that happens, `RELEASE-PUBLISH` starts the installed release-branch deploy workflows with `workflow_dispatch` after publishing. Store deploys use the deploy mode chosen at install time as the input default. When a `WORKFLOW_PAT` or a person merged the PR, the push event already started them and they are not dispatched again.
+</Aside>
+
+## Direct pushes to main
+
+Not every change arrives through a release PR. `PROJECT-COMMON-VERSION-CONTROL` is a safety net for direct pushes to the release branch: it bumps the patch version, syncs the version files, adds a CHANGELOG entry built from commits since the last tag, dispatches `RELEASE-PUBLISH`, and merges the release branch back into the development branch so the next release PR does not conflict on version files.
+
+It skips pushes that came from a release PR (the merge commit carries `chore(release):` and changes `version.yml`) and does not run at all in trunk-based mode.
+
+## Publishing packages
+
+The release flow stops at the GitHub Release. It does not publish to npm, PyPI or app stores by itself (store deploys are separate Flutter workflows). To publish a package, add a workflow on the `release: published` event. This repository does exactly that for npm: the tag is an immutable snapshot, so what gets published does not depend on workflow timing.
+
+A Release created with `GITHUB_TOKEN` does not trigger other workflows, so a `release: published` workflow only fires when `RELEASE-PUBLISH` runs with a `WORKFLOW_PAT`.
