@@ -50,18 +50,34 @@ export function detectVersionFromFiles({ read, readJson, gitTag, warn, hint }) {
     return null;
   };
   let v;
-  const gradleRe = /version\s*=\s*["']?(\d+\.\d+\.\d+)/;
+  // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
+  const gradleRe = /^\s*version\s*=\s*["']?(\d+\.\d+\.\d+)/;
   // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
   // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
   if ((v = grab(read("build.gradle"), gradleRe))) return v;
   if ((v = grab(read("build.gradle.kts"), gradleRe))) return v;
   if ((v = versionFromPom(read("pom.xml")))) return v;
   if ((v = grab(read("pubspec.yaml"), /^version:\s*(\d+\.\d+\.\d+)/))) return v;
-  if ((v = grab(read("pyproject.toml"), /version\s*=\s*["']?(\d+\.\d+\.\d+)/))) return v;
+  if ((v = versionFromPyproject(read("pyproject.toml")))) return v;
   if (gitTag) { const t = String(gitTag).replace(/^v/, ""); if (VERSION_RE.test(t)) return t; }
   const tail = hint ?? "--project-version으로 직접 지정하거나 version.yml을 확인하세요.";
   warn?.(`⚠️  버전을 자동 감지하지 못해 기본값 0.0.1을 사용합니다 — ${tail}`);
   return "0.0.1";
+}
+
+// pyproject.toml의 패키지 버전. [tool.*] 등 다른 섹션의 `version =`은 도구 설정이라
+// [project]·[tool.poetry] 섹션 안에서만 읽는다.
+export function versionFromPyproject(content) {
+  if (!content) return null;
+  let section = "";
+  for (const line of String(content).split(/\r?\n/)) {
+    const h = line.match(/^\s*\[+\s*([^\]]+?)\s*\]+\s*(?:#.*)?$/);
+    if (h) { section = h[1]; continue; }
+    if (section !== "project" && section !== "tool.poetry") continue;
+    const m = line.match(/^\s*version\s*=\s*["'](\d+\.\d+\.\d+)/);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 // Maven pom.xml의 프로젝트 버전. <parent> 블록 안의 버전은 스프링 부트 BOM 버전이라

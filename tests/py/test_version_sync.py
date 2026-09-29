@@ -49,6 +49,25 @@ class TestSyncSpring(SyncTestCase):
         self.assertIn('version = "1.2.3"', text)
 
 
+class TestSyncSpringDependencyVersions(SyncTestCase):
+    def test_increment_leaves_kotlin_version_variable_untouched(self):
+        tmp = self.make_tmp("spring")
+        (Path(tmp) / "build.gradle").write_text(
+            "buildscript {\n  ext.kotlin_version = '1.9.0'\n}\n"
+            "version = '1.2.3'\n"
+            "ext { compose_version = \"1.5.0\" }\n",
+            encoding="utf-8",
+        )
+        run(["set", "1.2.3"], tmp)
+        r = run(["increment"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "1.2.4")
+        text = (Path(tmp) / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn("version = '1.2.4'", text)
+        self.assertIn("ext.kotlin_version = '1.9.0'", text)
+        self.assertIn('compose_version = "1.5.0"', text)
+
+
 class TestSyncFlutter(SyncTestCase):
     def test_sync_updates_pubspec_with_build_number(self):
         tmp = self.make_tmp("flutter")

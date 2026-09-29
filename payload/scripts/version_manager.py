@@ -316,6 +316,9 @@ def _write_nested_scalar(key, value):
 # Project file sync (type-specific)
 # ===================================================================
 
+_GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])[^'"\n]*\2""", re.MULTILINE)
+
+
 def sync_spring(path_dir, new_version):
     """Look for build.gradle or build.gradle.kts under path_dir (root of that dir, like bash's maxdepth 2)."""
     candidates = []
@@ -328,8 +331,14 @@ def sync_spring(path_dir, new_version):
         return
     for gradle_file in candidates:
         text = read_file(gradle_file)
-        new_text = re.sub(r"version\s*=\s*'[^']*'", f"version = '{new_version}'", text)
-        new_text = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{new_version}"', new_text)
+        # 줄 시작의 `version =`만 프로젝트 버전이다. 앵커가 없으면 kotlin_version 같은
+        # 의존성 버전 변수까지 함께 바뀌어 빌드가 깨진다.
+        new_text, count = _GRADLE_VERSION_RE.subn(
+            lambda m: f"{m.group(1)}{m.group(2)}{new_version}{m.group(2)}", text,
+        )
+        if count == 0:
+            log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
+            continue
         write_file(gradle_file, new_text)
         log(f"updated: {gradle_file}")
 
