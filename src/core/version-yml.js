@@ -1,6 +1,7 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
+import { DEFAULT_LANGUAGE, isSupportedLanguage, normalizeLanguage } from "../i18n/languages.js";
 
 // version.yml 파싱·생성 (전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
@@ -11,7 +12,7 @@ import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
 // 빼면 기존 파일의 단수 줄이 "사용자가 추가한 필드"로 오인돼 재생성 때 되살아난다. 아는 키로
 // 둬야 재통합 시 흡수되어 사라진다.
 const KNOWN_TOP_LEVEL_KEYS = new Set([
-  "version", "version_code", "project_types", "project_type", "project_paths", "metadata", "deploy",
+  "version", "version_code", "project_types", "project_type", "language", "project_paths", "metadata", "deploy",
 ]);
 
 // 최상위 레벨의 알려지지 않은 필드(사용자가 직접 추가한 임의 필드)를 원본 그대로 보존한다
@@ -105,6 +106,9 @@ export function parseExisting(content) {
   const typesRaw = line(/^project_types:\s*(\[[^\]]*\])/);
   let types = [];
   if (typesRaw) types = [...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
+  const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
+  const language = isSupportedLanguage(langRaw) ? langRaw : null;
   // project_paths 블록: "  type: "path""
   const paths = new Map();
   let inPaths = false;
@@ -132,7 +136,7 @@ export function parseExisting(content) {
   // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, paths, templateVersion, options, branches,
+    version, versionCode, types, language, paths, templateVersion, options, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }
@@ -187,6 +191,7 @@ export function parseTemplateBranches(content) {
 // opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
 //         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존
+//         language?:string,  <- message language (en|ko, default en)
 //         typeOptions?:object }  ← 타입 훅(versionOptionsBlock)이 해당 타입일 때만 렌더하는 옵션 블록의 입력
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
@@ -196,7 +201,7 @@ export function parseTemplateBranches(content) {
 export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
-  templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {},
+  templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {}, language = DEFAULT_LANGUAGE,
 }) {
   if (!templateText) throw new Error("version.yml.template 원문이 필요합니다 (payload/version.yml.template 누락?)");
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -238,6 +243,7 @@ export function buildVersionYml({
   const scalars = {
     VERSION: version, VERSION_CODE: String(versionCode),
     PROJECT_TYPES: typesJson,
+    LANGUAGE: isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE,
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
@@ -280,11 +286,11 @@ export function sameIgnoringTimestamps(a, b) {
 // deployValues는 실제 설치에서만 존재한다(미리보기는 치환을 수행하지 않으므로 빈 Map).
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
-    now, today, templateVersion = "unknown", branches = null,
+    now, today, templateVersion = "unknown", branches = null, language,
     includeSemverAuto, includeCopilotAi, deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
-    deployValues, extraTopLevel,
+    deployValues, extraTopLevel, language,
     typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,

@@ -35,6 +35,7 @@ export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-nat
       --ios-deploy-mode MODE         iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
       --copilot / --no-copilot  Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비)
+      --lang LANG          메시지 언어: en | ko (기본: en)
       --force              full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
       --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거

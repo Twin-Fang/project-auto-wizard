@@ -321,6 +321,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     releaseOptions: { includeSemverAuto, includeCopilotAi },
     mode, force: true, version, versionCode, branch, branches, paths,
     repoName, resolvers, envValues, envUseDefaults, now, today,
+    language: baseCtx.language ?? existing?.language ?? "en",
     // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers, envAnswers, detectWarnings,
   });
