@@ -1,0 +1,19 @@
+// 한국어 메시지: copy 영역 (src/core/copy).
+export default {
+  "copy.readme.status.added": "README.md 끝에 버전 섹션 추가",
+  "copy.readme.status.skipNoReadme": "README.md가 없어 버전 섹션을 추가하지 않음",
+  "copy.readme.status.skipMarker": "이미 버전 섹션이 있어 그대로 둠",
+  "copy.readme.status.skipVersionLine": "이미 버전 줄이 있어 그대로 둠",
+  "copy.readme.versionHeading": "## 최신 버전 : v{version}",
+  "copy.readme.historyLink": "[전체 버전 기록 보기](CHANGELOG.md)",
+  "copy.gitignore.newFileHeader": "# project-auto-wizard: 충돌 처리 시 생성되는 백업 파일 (안전하게 무시해도 됩니다)",
+  "copy.workflows.error.noPayloadWorkflows": "패키지 구조 오류 — payload/workflows 폴더를 찾지 못했습니다.",
+  "copy.workflows.log.keepLocal": "{f} (업스트림 무변경, 사용자 수정본 유지)",
+  "copy.workflows.log.autoUpdate": "{f} (사용자 미수정, 최신으로 교체)",
+  "copy.workflows.log.restore": "{f} (사용자가 지웠지만 복원 결정)",
+  "copy.workflows.log.removedKept": "{f} (사용자가 지움, 되살리지 않음)",
+  "copy.workflows.log.backup": "{filename} → {filename}.bak (사용자 결정, 새 버전으로 교체)",
+  "copy.workflows.log.template": "{filename} 유지 + {templateName} 생성 (사용자 결정)",
+  "copy.workflows.log.skipDecided": "{filename} (사용자 결정: 기존 유지, 업스트림 변경 미반영)",
+  "copy.workflows.log.skipForce": "{filename} (--force 기본값: 기존 유지, 업스트림 변경 미반영)",
+};
