@@ -1313,6 +1313,9 @@ EN = {
     "wf_changelog.pr_already_merged": "PR #{pr_number} is already merged",
     "wf_changelog.automerge_enabled": "automerge enabled: {subject}",
     "wf_changelog.automerge_unavailable": "automerge unavailable — merged directly: {subject}",
+    "wf_changelog.automerge_off": "release_automerge is off — PR renamed to \"{subject}\"; merge it yourself",
+    "wf_changelog.automerge_rename_failed": "Could not update PR #{pr_number} (title or guidance comment); the release still needs \"chore(release):\" in the merge commit message",
+    "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Merge this PR yourself when you are ready to release, using **Create a merge commit** or **Squash and merge**. Do not use *Rebase and merge*: the release gate reads `chore(release):` from the resulting commit message and a rebase would drop it.",
     "wf_changelog.merge_retry": "merge attempt {attempt}/{max_attempts} failed — retrying in {wait}s",
     "wf_changelog.merge_gave_up": "PR merge failed after {max_attempts} attempts (allow_merge_commit={allow_merge_commit}) — check branch protection rules, required checks, and token permissions",
     # --- wf_readme ---
@@ -2583,6 +2586,9 @@ KO = {
     "wf_changelog.pr_already_merged": "PR #{pr_number}은(는) 이미 병합되었습니다",
     "wf_changelog.automerge_enabled": "automerge 활성화: {subject}",
     "wf_changelog.automerge_unavailable": "automerge를 쓸 수 없어 직접 병합했습니다: {subject}",
+    "wf_changelog.automerge_off": "release_automerge가 꺼져 있어 PR 제목을 \"{subject}\"로 바꿨습니다. 직접 머지하세요",
+    "wf_changelog.automerge_rename_failed": "PR #{pr_number}의 제목 또는 안내 댓글을 갱신하지 못했습니다. 릴리스가 되려면 머지 커밋 메시지에 \"chore(release):\"가 있어야 합니다",
+    "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 릴리스할 준비가 되면 **Create a merge commit** 또는 **Squash and merge**로 직접 머지하세요. *Rebase and merge*는 쓰지 마세요. 릴리스 게이트가 결과 커밋 메시지의 `chore(release):`를 읽는데 rebase는 이를 없앱니다.",
     "wf_changelog.merge_retry": "병합 시도 {attempt}/{max_attempts} 실패 — {wait}초 후 다시 시도합니다",
     "wf_changelog.merge_gave_up": "PR 병합이 {max_attempts}회 시도 후에도 실패했습니다 (allow_merge_commit={allow_merge_commit}) — 브랜치 보호 규칙, 필수 체크, 토큰 권한을 확인하세요",
     # --- wf_readme ---
