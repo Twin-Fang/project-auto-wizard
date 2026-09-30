@@ -8,6 +8,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError, TYPE_CLI_FLAGS } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
+import { resolveLanguage, setLanguage, LANG_ENV_VAR } from "./i18n/index.js";
 import { fallbackStyleTypes } from "./core/deploy-style.js";
 import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
@@ -82,6 +83,21 @@ async function runInner(argv, {
   if (opts.showVersion) { console.log(readPkgVersion()); return 0; }
   if (opts.help) { console.log(HELP_TEXT); return 0; }
 
+  // Language: --lang -> env var -> saved version.yml value -> en. Resolved after --help/--version
+  // so an invalid env var cannot block the help output.
+  let language;
+  try {
+    const savedVy = join(cwd, "version.yml");
+    language = resolveLanguage({
+      flag: opts.lang, env: process.env[LANG_ENV_VAR],
+      saved: existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")).language : null,
+    });
+  } catch (e) {
+    if (e instanceof CliError) { console.error(e.message); return 1; }
+    throw e;
+  }
+  setLanguage(language);
+
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
 
   // 시각은 여기서 한 번만 계산한다 — 로그 파일명과 설치 기록이 같은 값을 쓰도록.
@@ -115,7 +131,7 @@ async function runInner(argv, {
     // 로그 파일은 첫 기록 때 생기므로 메뉴에서 status/doctor만 보고 나가면 아무것도 남지 않는다.
     startLog("install");
     return await runInteractive(
-      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi },
+      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi, language },
       { cwd, payloadRoot: payload, clock },
     );
   }
@@ -335,7 +351,7 @@ async function runInner(argv, {
     repoName,
     // @wizard ask/auto 토큰 값을 계산하는 resolver
     resolvers: makeResolvers(cwd, repoName, paths, typeOptions),
-    now, today,
+    now, today, language,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
   });

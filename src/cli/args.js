@@ -5,6 +5,7 @@ import { isValidBranchName } from "../core/branches.js";
 import { TYPES } from "../core/types.js";
 import { CliError } from "../core/errors.js";
 import { normalizePath, isRepoRelativePath } from "../core/paths.js";
+import { t, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, isSupportedLanguage, normalizeLanguage } from "../i18n/index.js";
 
 // 기존 import 경로(cli/args.js) 호환 — 정의는 core에 있다.
 export { CliError, normalizePath, isRepoRelativePath };
@@ -28,6 +29,7 @@ export function parseArgs(argv) {
     deployStyle: "",         // 서버 배포 방식 (--deploy-style). 빈값=version.yml 저장값 → simple
     // 타입 전용 플래그 필드(예: Flutter 환경변수 방식·스토어 대상·배포 모드) — 미지정 값은 타입 훅이 정한다.
     ...Object.fromEntries(TYPE_CLI_FLAGS.map((f) => [f.field, f.initial])),
+    lang: "",                // message language (--lang). empty = env var -> saved version.yml value -> en
     force: false,
     help: false,
     showVersion: false,      // -v/--version → 패키지 버전 출력 (npm 관례)
@@ -84,6 +86,17 @@ export function parseArgs(argv) {
         result.types = types;
         result.primaryType = types[0];
         break;
+      }
+      case "--lang": {
+        // The language is not resolved yet while parsing, so errors use the default language.
+        const supported = SUPPORTED_LANGUAGES.join(", ");
+        const raw = args.shift();
+        const v = normalizeLanguage(raw);
+        if (!v) throw new CliError(t("cli.lang.missing", { supported }, DEFAULT_LANGUAGE));
+        if (!isSupportedLanguage(v)) {
+          throw new CliError(t("cli.lang.invalid", { value: String(raw).trim(), source: "--lang", supported }, DEFAULT_LANGUAGE));
+        }
+        result.lang = v; break;
       }
       case "--force": result.force = true; break;
       case "--dry-run": result.dryRun = true; break;

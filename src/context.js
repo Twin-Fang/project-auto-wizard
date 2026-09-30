@@ -28,6 +28,7 @@ export function createContext(overrides = {}) {
     includeCopilotAi: null,  // null=미설정(다운스트림에서 false로 해석), true/false=명시 — Copilot AI 요약 opt-in
     // 타입 전용 옵션 필드 — 해당 타입이 없는 프로젝트에서는 전부 무시된다. 필드와 기본값은 타입 훅(contextDefaults)이 정한다.
     ...allHookValues("contextDefaults"),
+    language: "en",          // message language (--lang / env / version.yml), default en
     templateVersion: "",
     deployValues: new Map(), // "type.KEY" -> value
     counters: {},

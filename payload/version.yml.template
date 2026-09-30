@@ -34,6 +34,7 @@
 version: "{{VERSION}}"
 version_code: {{VERSION_CODE}} # app build number
 project_types: {{PROJECT_TYPES}} # first entry is primary
+language: "{{LANGUAGE}}" # message language: en | ko
 {{PROJECT_PATHS}}
 metadata:
   last_updated: "{{NOW}}"
