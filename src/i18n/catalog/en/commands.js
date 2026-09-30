@@ -115,6 +115,7 @@ export default {
   "cmd.dryRun.readme.skipNoReadme": "README.md: no file, so no version section is added",
   "cmd.dryRun.readme.skipMarker": "README.md: a version section already exists, no change",
   "cmd.dryRun.readme.skipVersionLine": "README.md: a version line already exists, no change",
+  "cmd.dryRun.readme.headingUpdated": "README.md: the version heading will switch to the current language (it is the bundled default text)",
   "cmd.dryRun.readme.other": "README.md: {status}",
   "cmd.dryRun.baseline.update": "{path}: will be updated (reference for the next update)",
   "cmd.dryRun.baseline.create": "{path}: will be created (reference for the next update)",

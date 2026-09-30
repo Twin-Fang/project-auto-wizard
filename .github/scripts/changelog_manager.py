@@ -508,13 +508,13 @@ def _ai_assisted_minor_upgrade(unclassified_lines: list[str]) -> bool:
         try:
             return call_openai_compatible(base_url, api_key, model, prompt).strip() == 'MINOR'
         except Exception as e:
-            _warn_engine_failure(f"[warn] bump AI assist failed: {e}")
+            _warn_engine_failure("[warn] " + t("changelog.engine_bump_failed", error=e))
 
     if _copilot_enabled():
         try:
             return call_copilot_cli(prompt).strip() == 'MINOR'
         except Exception as e:
-            _warn_engine_failure(f"[warn] bump AI assist (copilot) failed: {e}")
+            _warn_engine_failure("[warn] " + t("changelog.engine_bump_copilot_failed", error=e))
     return False
 
 
@@ -866,7 +866,7 @@ def call_copilot_cli(prompt: str) -> str:
             capture_output=True, text=True, timeout=_COPILOT_TIMEOUT_SECONDS,
         )
     if result.returncode != 0:
-        raise RuntimeError(f"copilot exited with {result.returncode}: {result.stderr.strip()[:200]}")
+        raise RuntimeError(t("changelog.engine_copilot_exit", code=result.returncode, detail=result.stderr.strip()[:200]))
     return result.stdout
 
 
@@ -961,9 +961,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "user-api"
             else:
-                failures.append(_warn_engine_failure("[warn] user-api failed: empty content in response"))
+                failures.append(_warn_engine_failure("[warn] " + t("changelog.engine_user_api_empty")))
         except Exception as e:
-            failures.append(_warn_engine_failure(f"[warn] user-api failed: {e}"))
+            failures.append(_warn_engine_failure("[warn] " + t("changelog.engine_user_api_failed", error=e)))
 
     if summary_text is None and _copilot_enabled():
         try:
@@ -972,9 +972,9 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
                 summary_text = candidate
                 engine = "copilot"
             else:
-                failures.append(_warn_engine_failure("[warn] copilot failed: empty or not in the requested Markdown format"))
+                failures.append(_warn_engine_failure("[warn] " + t("changelog.engine_copilot_invalid")))
         except Exception as e:
-            failures.append(_warn_engine_failure(f"[warn] copilot failed: {e}"))
+            failures.append(_warn_engine_failure("[warn] " + t("changelog.engine_copilot_failed", error=e)))
 
     if summary_text is None:
         classified = classify_commits(commit_lines)
@@ -990,7 +990,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
         # rescue-print the summary text to stderr. Keep exit code 0
         # (contract so the workflow pipeline is not cut).
         write_ok = False
-        print(f"[warn] output write failed: {e}", file=sys.stderr)
+        print("[warn] " + t("changelog.output_write_failed", error=e), file=sys.stderr)
         print(summary_text, file=sys.stderr)
 
     result = {"ok": write_ok, "engine": engine, "output": output_path}

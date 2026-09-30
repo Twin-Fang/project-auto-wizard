@@ -21,7 +21,7 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 </div>
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v0.14.0 (2026-09-30)
+## Latest Version : v0.15.0 (2026-09-30)
 
 [Full release history](CHANGELOG.md)
 
@@ -49,6 +49,8 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 ```
 
 Commit the generated files and push. `npx project-auto-wizard --mode doctor` checks the repository settings the workflows depend on.
+
+Messages are in English or Korean (`en` | `ko`). Pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence.
 
 ## What you get
 

@@ -86,22 +86,24 @@ jobs:
       - name: Check README.md exists
         id: precheck
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           if [ -f README.md ]; then
             echo "readme_exists=true" >> $GITHUB_OUTPUT
           else
             echo "readme_exists=false" >> $GITHUB_OUTPUT
-            echo "README.md not found — nothing to update, skipping"
+            echo "$(m wf_readme.not_found)"
           fi
 
       - name: Read latest version via version_manager.py
         id: version_info
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           LATEST_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           # Guard: an empty version must never reach the README rewrite —
           # it would commit a corrupted "v (date)" line.
           if [ -z "$LATEST_VERSION" ]; then
-            echo "failed to read the current version"
+            echo "$(m wf_readme.read_version_failed)"
             exit 1
           fi
           RELEASE_DATE=$(date '+%Y-%m-%d')
@@ -130,28 +132,28 @@ jobs:
             local version_text="$4"
 
             echo ""
-            echo "README.md version update failed"
-            echo "  error type: $error_type"
-            echo "  current version line: $version_line"
-            echo "  extracted header: $header_part"
-            echo "  new version text: $version_text"
+            echo "$(m wf_readme.update_failed)"
+            echo "$(m wf_readme.err_type error_type="$error_type")"
+            echo "$(m wf_readme.err_current_line version_line="$version_line")"
+            echo "$(m wf_readme.err_header header_part="$header_part")"
+            echo "$(m wf_readme.err_new_text version_text="$version_text")"
             echo ""
-            echo "Make sure the README version line matches one of:"
+            echo "$(m wf_readme.hint_formats)"
             echo "  $(m wf_readme.hint_first_example)"
             echo "  ## Current Version : v1.0.0"
             echo "  ## Version : v1.0.0"
-            echo "Notes:"
-            echo "  - no markdown bold (**) characters"
-            echo "  - no regex special characters (*, [, ], ^, $)"
-            echo "  - the version must come right after the colon (:)"
+            echo "$(m wf_readme.hint_notes)"
+            echo "$(m wf_readme.hint_no_bold)"
+            echo "$(m wf_readme.hint_no_regex)"
+            echo "$(m wf_readme.hint_after_colon)"
           }
 
           if [ "$SHOW_DATE" = "true" ]; then
             VERSION_TEXT="v${LATEST_VERSION} (${RELEASE_DATE})"
-            echo "version text with date: $VERSION_TEXT"
+            echo "$(m wf_readme.text_with_date version_text="$VERSION_TEXT")"
           else
             VERSION_TEXT="v${LATEST_VERSION}"
-            echo "version text: $VERSION_TEXT"
+            echo "$(m wf_readme.text version_text="$VERSION_TEXT")"
           fi
 
           # Patterns for recognized version lines (case-insensitive, flexible spacing)
@@ -172,14 +174,14 @@ jobs:
             if grep -qi "$pattern" README.md; then
               VERSION_LINE=$(grep -i "$pattern" README.md | head -n 1)
               PATTERN_FOUND="$pattern"
-              echo "version line found: $VERSION_LINE"
+              echo "$(m wf_readme.line_found version_line="$VERSION_LINE")"
               break
             fi
           done
 
           # No version line yet — insert a default one
           if [ -z "$VERSION_LINE" ]; then
-            echo "no version line found — inserting a new one"
+            echo "$(m wf_readme.line_inserting)"
             # Heading wording follows the configured language; an existing line keeps its own wording
             DEFAULT_HEADING=$(m wf_readme.default_heading)
 
@@ -190,16 +192,16 @@ jobs:
               # at the very top of the file
               sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## '"$DEFAULT_HEADING"' : '"$VERSION_TEXT"'\n' README.md
             fi
-            echo "default version line inserted: $VERSION_TEXT"
+            echo "$(m wf_readme.line_inserted version_text="$VERSION_TEXT")"
           else
             # Update the existing version line
 
             # Validate the line format
             if [[ "$VERSION_LINE" =~ \*\* ]]; then
               echo ""
-              echo "warning: the version line contains markdown bold (**) characters"
-              echo "  current line: $VERSION_LINE"
-              echo "  this may break the version update"
+              echo "$(m wf_readme.warn_bold)"
+              echo "$(m wf_readme.warn_current_line version_line="$VERSION_LINE")"
+              echo "$(m wf_readme.warn_may_break)"
               echo ""
             fi
 
@@ -211,12 +213,12 @@ jobs:
               PREV_LINE=$(sed -n "${PREV_LINE_NUMBER}p" README.md)
               if [[ "$PREV_LINE" != *"AUTO-VERSION-SECTION"* ]]; then
                 sed -i "${PREV_LINE_NUMBER}a\\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->" README.md
-                echo "auto-update marker comment added"
+                echo "$(m wf_readme.marker_added)"
                 LINE_NUMBER=$((LINE_NUMBER + 1))
               fi
             else
               sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->' README.md
-              echo "auto-update marker comment added"
+              echo "$(m wf_readme.marker_added)"
               LINE_NUMBER=$((LINE_NUMBER + 1))
             fi
 
@@ -224,7 +226,7 @@ jobs:
             HEADER_PART=$(printf '%s\n' "$VERSION_LINE" | sed 's/\(.*:\).*/\1 /')
 
             if [ -z "$HEADER_PART" ] || [[ "$HEADER_PART" == "$VERSION_LINE" ]]; then
-              print_error_message "header extraction failed - no colon (:) found" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
+              print_error_message "$(m wf_readme.err_no_colon)" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
               exit 1
             fi
 
@@ -237,29 +239,30 @@ jobs:
             ESCAPED_LINE=$(printf '%s' "$NEW_LINE" | sed 's/[&\\|]/\\&/g')
 
             if ! sed -i "${LINE_NUMBER}s|.*|${ESCAPED_LINE}|" README.md 2>/tmp/sed_error.log; then
-              SED_ERROR=$(cat /tmp/sed_error.log 2>/dev/null || echo "unknown sed error")
-              print_error_message "sed command failed - $SED_ERROR" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
+              SED_ERROR=$(cat /tmp/sed_error.log 2>/dev/null || m wf_readme.err_sed_unknown)
+              print_error_message "$(m wf_readme.err_sed error="$SED_ERROR")" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
               exit 1
             fi
 
             # Verify the replacement
             UPDATED_LINE=$(sed -n "${LINE_NUMBER}p" README.md)
             if [[ "$UPDATED_LINE" != *"$VERSION_TEXT"* ]]; then
-              print_error_message "version replacement verification failed" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
-              echo "  updated line: $UPDATED_LINE"
+              print_error_message "$(m wf_readme.err_verify)" "$VERSION_LINE" "$HEADER_PART" "$VERSION_TEXT"
+              echo "$(m wf_readme.updated_line_detail updated_line="$UPDATED_LINE")"
               exit 1
             fi
 
-            echo "version line updated: $VERSION_TEXT"
+            echo "$(m wf_readme.line_updated version_text="$VERSION_TEXT")"
           fi
 
       - name: Commit and push changes
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git add README.md
 
           if git diff --staged --quiet; then
-            echo "no changes in README.md"
+            echo "$(m wf_readme.no_changes)"
           else
             VERSION="${{ steps.version_info.outputs.latest_version }}"
 
@@ -272,19 +275,19 @@ jobs:
 
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
               RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "push attempt $RETRY_COUNT/$MAX_RETRIES..."
+              echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
               if git push origin HEAD:{{MAIN_BRANCH}}; then
                 PUSH_SUCCESS=true
-                echo "README.md version update pushed"
+                echo "$(m wf_readme.pushed)"
                 break
               else
-                echo "push failed, syncing with remote..."
+                echo "$(m wf_common.push_failed_syncing)"
 
                 if git pull --rebase origin {{MAIN_BRANCH}}; then
-                  echo "rebase ok, retrying push..."
+                  echo "$(m wf_common.rebase_ok)"
                 else
-                  echo "rebase failed, manual conflict resolution required"
+                  echo "$(m wf_common.rebase_failed)"
                   git rebase --abort 2>/dev/null || true
                   exit 1
                 fi
@@ -292,7 +295,7 @@ jobs:
             done
 
             if [ "$PUSH_SUCCESS" = false ]; then
-              echo "push failed after $MAX_RETRIES attempts"
+              echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
               exit 1
             fi
           fi

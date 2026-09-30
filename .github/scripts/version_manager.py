@@ -117,7 +117,7 @@ def _version_yml_path():
 
 def require_version_yml():
     if not _version_yml_path().is_file():
-        log("ERROR: version.yml not found")
+        log(t("version_manager.err_yml_missing"))
         sys.exit(1)
 
 
@@ -238,7 +238,7 @@ def get_version_code():
     require_version_yml()
     code = read_scalar_key("version_code", None)
     if code is None or code == "" or code == "null":
-        log("WARNING: version_code field missing, adding default value 1")
+        log(t("version_manager.warn_code_missing"))
         text = read_text()
         if re.search(r'^version:', text, re.MULTILINE):
             new_text = re.sub(
@@ -260,7 +260,7 @@ def set_version_code(new_code):
     if current not in (None, "", "null"):
         try:
             if int(new_code) < int(current):
-                log(f"WARNING: version_code {new_code} is lower than current {current} — writing anyway (regression?)")
+                log(t("version_manager.warn_code_regress", new_code=new_code, current=current))
         except ValueError:
             pass
     text = read_text()
@@ -318,7 +318,7 @@ def get_higher_version(v1, v2):
 def update_version_yml(new_version):
     if not write_scalar_key("version", new_version):
         # Without the key nothing was written yet the call looked successful, so the same version came out every time.
-        log("WARNING: version field missing in version.yml, adding it")
+        log(t("version_manager.warn_version_missing"))
         text = read_text()
         line = f'version: "{new_version}"\n'
         if re.search(r'^version_code:', text, re.MULTILINE):
@@ -327,7 +327,7 @@ def update_version_yml(new_version):
             new_text = text.rstrip("\n") + "\n" + line
         write_text(new_text)
     if read_scalar_key("version") != new_version:
-        raise VersionSyncError(f"failed to write version {new_version} to version.yml")
+        raise VersionSyncError(t("version_manager.err_write_failed", version=new_version))
     today = datetime.date.today().isoformat()
     user = os.environ.get("GITHUB_ACTOR", "")
     if not user:
@@ -411,16 +411,16 @@ def sync_maven(path_dir, new_version):
     text = read_file(root_pom)
     old_version = _pom_text(text, ["version"])
     if old_version is None:
-        log(f"WARNING: spring: {root_pom} has no project <version> (inherited from parent?) — skipping")
+        log(t("version_manager.warn_spring_no_version", pom=root_pom))
         return True
     if "${" in old_version:
         # CI-friendly versions such as ${revision} are managed in a property, so leave them alone.
-        log(f"WARNING: spring: {root_pom} <version> is a property ({old_version}) — skipping")
+        log(t("version_manager.warn_spring_property", pom=root_pom, version=old_version))
         return True
     new_full = _keep_snapshot(old_version, new_version)
     new_text, _ = _pom_replace(text, ["version"], new_full)
     write_file(root_pom, new_text)
-    log(f"updated: {root_pom}")
+    log(t("version_manager.updated", path=root_pom))
 
     root_artifact = _pom_text(text, ["artifactId"])
     for child in sorted(Path(path_dir).glob("*/pom.xml")):
@@ -433,7 +433,7 @@ def sync_maven(path_dir, new_version):
         if _pom_text(ctext, ["version"]) == old_version:
             ctext, _ = _pom_replace(ctext, ["version"], new_full)
         write_file(child, ctext)
-        log(f"updated: {child}")
+        log(t("version_manager.updated", path=child))
     return True
 
 
@@ -509,7 +509,7 @@ def sync_spring(path_dir, new_version):
     has_pom = sync_maven(path_dir, new_version)
     if not candidates:
         if not has_pom:
-            log(f"WARNING: spring: no build.gradle(.kts) or pom.xml found under {path_dir} — skipping")
+            log(t("version_manager.warn_spring_no_files", dir=path_dir))
         return
     for gradle_file in candidates:
         text = read_file(gradle_file)
@@ -522,10 +522,10 @@ def sync_spring(path_dir, new_version):
             replaced = f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}"
             new_text = new_text[:m.start()] + replaced + new_text[m.end():]
         if not matches:
-            log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
+            log(t("version_manager.warn_spring_no_gradle_line", file=gradle_file))
             continue
         write_file(gradle_file, new_text)
-        log(f"updated: {gradle_file}")
+        log(t("version_manager.updated", path=gradle_file))
 
 
 def _pubspec_build_number(path_dir):
@@ -548,7 +548,7 @@ def get_reconciled_version_code():
         if n is not None
     ]
     if pubspec_codes and max(pubspec_codes) > code:
-        log(f"pubspec.yaml build number {max(pubspec_codes)} is ahead of version_code {code} — adopting it")
+        log(t("version_manager.pubspec_ahead", build=max(pubspec_codes), code=code))
         code = max(pubspec_codes)
         set_version_code(code)
     return code
@@ -557,7 +557,7 @@ def get_reconciled_version_code():
 def sync_flutter(path_dir, new_version, version_code):
     target = Path(path_dir) / "pubspec.yaml"
     if not target.is_file():
-        log(f"WARNING: flutter: {target} not found — skipping")
+        log(t("version_manager.warn_flutter_missing", target=target))
         return
     text = read_file(target)
     full_version = f"{new_version}+{version_code}"
@@ -567,7 +567,7 @@ def sync_flutter(path_dir, new_version, version_code):
     else:
         new_text = text.rstrip("\n") + f"\nversion: {full_version}\n"
     write_file(target, new_text)
-    log(f"updated: {target}")
+    log(t("version_manager.updated", path=target))
 
 
 def _json_indent(text):
@@ -582,20 +582,20 @@ def _json_indent(text):
 
 def sync_json_version(target, new_version, key_path):
     if not target.is_file():
-        log(f"WARNING: {target} not found — skipping")
+        log(t("version_manager.warn_target_missing", target=target))
         return
     raw = read_file(target)
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
         # Skipping and reporting success would silently leave the tag/version.yml and the package version out of step.
-        raise VersionSyncError(f"{target} is not valid JSON ({e}) — cannot write version")
+        raise VersionSyncError(t("version_manager.err_not_json", target=target, error=e))
     node = data
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
     node[key_path[-1]] = new_version
     write_file(target, json.dumps(data, indent=_json_indent(raw), ensure_ascii=False) + "\n")
-    log(f"updated: {target}")
+    log(t("version_manager.updated", path=target))
 
 
 _TOML_HEADER_RE = re.compile(r'^[ \t]*\[+[ \t]*([^\]\n]+?)[ \t]*\]+[ \t]*(?:#.*)?$', re.MULTILINE)
@@ -641,12 +641,12 @@ def sync_python(path_dir, new_version):
     spans = _python_version_spans(path_dir)
     if not spans:
         # Setups that keep the version out of the file (e.g. dynamic = ["version"]) have nowhere to write it.
-        log(f"WARNING: python: no version in pyproject.toml [project]/[tool.poetry] or setup.py under {path_dir} — skipping")
+        log(t("version_manager.warn_python_no_version", dir=path_dir))
         return
     for target, (start, end) in spans:
         text = read_file(target)
         write_file(target, text[:start] + new_version + text[end:])
-        log(f"updated: {target}")
+        log(t("version_manager.updated", path=target))
 
 
 _PLIST_VERSION_RE = re.compile(r'(<key>CFBundleShortVersionString</key>\s*<string>)([^<]*)(</string>)')
@@ -673,33 +673,33 @@ def sync_react_native(path_dir, new_version):
                 continue
             # A build-variable reference such as $(MARKETING_VERSION) is owned by the Xcode settings, so do not overwrite it.
             if m.group(2).strip().startswith("$("):
-                log(f"skipped: {plist_file} — CFBundleShortVersionString references a build variable")
+                log(t("version_manager.skipped_plist", file=plist_file))
                 continue
             new_text = _PLIST_VERSION_RE.sub(lambda mm: mm.group(1) + new_version + mm.group(3), text)
             write_file(plist_file, new_text)
-            log(f"updated: {plist_file}")
+            log(t("version_manager.updated", path=plist_file))
             found_plist = True
     else:
-        log(f"WARNING: react-native: {ios_dir} not found — skipping")
+        log(t("version_manager.warn_rn_ios_missing", dir=ios_dir))
 
     gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"
     if gradle_file.is_file():
         text = read_file(gradle_file)
         new_text = re.sub(r'versionName\s+"[^"]*"', f'versionName "{new_version}"', text)
         write_file(gradle_file, new_text)
-        log(f"updated: {gradle_file}")
+        log(t("version_manager.updated", path=gradle_file))
     else:
-        log(f"WARNING: react-native: {gradle_file} not found — skipping")
+        log(t("version_manager.warn_rn_gradle_missing", file=gradle_file))
 
     if not found_plist and not gradle_file.is_file():
-        log(f"WARNING: react-native: no target files found under {path_dir}")
+        log(t("version_manager.warn_rn_no_targets", dir=path_dir))
 
 
 def sync_for_type(project_type, new_version, version_code_getter):
     path_dir = get_type_path(project_type)
     handler = TYPE_HANDLERS.get(project_type)
     if handler is None:
-        log(f"WARNING: unknown project type: {project_type} — skipping")
+        log(t("version_manager.warn_unknown_type", type=project_type))
         return
     handler.sync(path_dir, new_version, version_code_getter)
 
@@ -709,17 +709,17 @@ def sync_all_project_files(new_version):
     if not types:
         # No silent fallback: an unreadable project_types used to degrade to
         # "basic" and skip every sync without a word.
-        raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync project files")
+        raise SystemExit(t("version_manager.err_no_types_sync"))
     errors = []
-    for t in types:
+    for ptype in types:
         # Keep syncing the other types when one fails; collect failures and report them via the exit code at the end.
         try:
-            sync_for_type(t, new_version, get_reconciled_version_code)
+            sync_for_type(ptype, new_version, get_reconciled_version_code)
         except VersionSyncError as e:
-            log(f"ERROR: {t}: {e}")
-            errors.append(t)
+            log(t("version_manager.err_type", type=ptype, error=e))
+            errors.append(ptype)
     if errors:
-        raise VersionSyncError(f"project file sync failed for: {', '.join(errors)}")
+        raise VersionSyncError(t("version_manager.err_sync_failed", types=", ".join(errors)))
 
 
 README_VERSION_LINE_RE = re.compile(
@@ -749,7 +749,7 @@ def update_readme_version(new_version, path="README.md"):
             return False
         lines[i + 1] = new_line
         write_file(p, "\n".join(lines))
-        log(f"README.md version line -> v{new_version}")
+        log(t("version_manager.readme_updated", version=new_version))
         return True
     return False
 
@@ -880,7 +880,7 @@ def get_project_file_version(project_type):
         if handler is not None:
             version = handler.read(path_dir)
     except Exception as e:
-        log(f"WARNING: failed reading project file for {project_type}: {e}")
+        log(t("version_manager.warn_read_failed", type=project_type, error=e))
         version = None
 
     if not version:
@@ -892,32 +892,32 @@ def sync_versions():
     yml_version = get_current_version()
     types = get_project_types_csv()
     if not types:
-        raise SystemExit("ERROR: version.yml has no readable project_types — cannot sync versions")
+        raise SystemExit(t("version_manager.err_no_types_check"))
     primary_type = types[0]
     project_version = get_project_file_version(primary_type)
 
-    log("Version sync check")
-    log(f"  version.yml: {yml_version}")
-    log(f"  project file: {project_version}")
+    log(t("version_manager.sync_check"))
+    log(t("version_manager.sync_yml_version", version=yml_version))
+    log(t("version_manager.sync_project_version", version=project_version))
 
     if yml_version != project_version:
         if validate_version(yml_version) and validate_version(project_version):
             higher = get_higher_version(yml_version, project_version)
-            log(f"Version mismatch detected, syncing to higher version: {higher}")
+            log(t("version_manager.sync_mismatch", version=higher))
             if higher != yml_version:
                 update_version_yml(higher)
             if higher != project_version:
                 sync_all_project_files(higher)
             return higher
         else:
-            log("WARNING: version format invalid, cannot sync")
+            log(t("version_manager.warn_format_invalid"))
             return yml_version
     else:
         types = get_project_types_csv()
         if types:
-            log(f"Multi-type — reconciling all type files to version.yml version: {yml_version}")
+            log(t("version_manager.sync_multi", version=yml_version))
             sync_all_project_files(yml_version)
-        log(f"Version already in sync: {yml_version}")
+        log(t("version_manager.sync_ok", version=yml_version))
         return yml_version
 
 
@@ -952,7 +952,7 @@ def cmd_increment(args):
     require_version_yml()
     current_version = sync_versions()
     if not validate_version(current_version):
-        log(f"ERROR: invalid version format: {current_version}")
+        log(t("version_manager.err_invalid_version", version=current_version))
         return 1
     bump = getattr(args, "bump", None) or "patch"
     new_version = increment_version(current_version, bump)
@@ -968,7 +968,7 @@ def cmd_set(args):
     require_version_yml()
     new_version = args.version
     if not validate_version(new_version):
-        log(f"ERROR: invalid version format: {new_version} (must be x.y.z)")
+        log(t("version_manager.err_invalid_version_xyz", version=new_version))
         return 1
     update_all_versions(new_version)
     print(new_version)
@@ -1017,7 +1017,7 @@ def main(argv=None):
     try:
         return handler(args)
     except VersionSyncError as e:
-        log(f"ERROR: {e}")
+        log(t("version_manager.err_generic", error=e))
         return 1
 
 

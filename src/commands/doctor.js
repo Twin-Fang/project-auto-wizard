@@ -179,6 +179,11 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   return results;
 }
 
+// Exit code for the CLI: 0 when every item is OK/INFO, 1 when any WARN or FAIL item was found.
+// Warnings and errors are not split: both mean "something the workflows rely on needs attention",
+// and a script that wants to tolerate warnings can ignore the code (`|| true`).
+export const doctorExitCode = (results) => (results.some((r) => r.status === "WARN" || r.status === "FAIL") ? 1 : 0);
+
 const asLines = (v) => (Array.isArray(v) ? v : v ? [String(v)] : []);
 const headOf = (r) => `${r.label || r.name}${r.purpose ? ` — ${r.purpose}` : ""}`;
 

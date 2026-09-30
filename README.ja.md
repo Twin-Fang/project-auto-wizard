@@ -49,6 +49,8 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 生成されたファイルをコミットして push してください。`npx project-auto-wizard --mode doctor` は、ワークフローが依存するリポジトリ設定を確認します。
 
+メッセージの言語は英語または韓国語（`en` | `ko`）です。`--lang`、環境変数 `PROJECT_AUTO_WIZARD_LANG`、`version.yml` の `language` の順に優先されます。
+
 ## インストールされるもの
 
 | インストール対象 | 用途 |

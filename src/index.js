@@ -31,7 +31,7 @@ import { runInteractive } from "./commands/interactive.js";
 import { resolveDeployStyle, resolveVersion, resolveVersionCode, buildInstallContext } from "./commands/install-settings.js";
 import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs, log } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
-import { runDoctor, printDoctorReport } from "./commands/doctor.js";
+import { runDoctor, printDoctorReport, doctorExitCode } from "./commands/doctor.js";
 import { planDryRun, printDryRun } from "./commands/dry-run.js";
 import { planPurge, executePurge, printPurgePlan, printPurgeResult } from "./commands/purge.js";
 
@@ -271,8 +271,9 @@ async function runInner(argv, {
   }
   // doctor mode: read-only, always works regardless of TTY/--force
   if (opts.mode === "doctor") {
-    printDoctorReport(runDoctor(cwd));
-    return 0;
+    const results = runDoctor(cwd);
+    printDoctorReport(results);
+    return doctorExitCode(results);
   }
   // An explicit mode (full) without --force is rejected immediately, TTY or not
   // (fixes a defect where a TTY run installed at once without confirmation).

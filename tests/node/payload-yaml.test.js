@@ -235,7 +235,10 @@ test("RELEASE-PUBLISH fails loudly when version.yml has drifted ahead of the new
   assert.ok(body.includes("git tag --list 'v*' --sort=-v:refname"), "newest tag lookup missing");
   assert.ok(body.includes("GITHUB_STEP_SUMMARY"), "job summary warning missing");
   // The whole point of this guard is not to pass silently — without exit 1 it is meaningless
-  assert.ok(/::error::[^\n]*ahead of the newest tag/.test(body), "error annotation missing");
+  assert.ok(body.includes('echo "::error::$(m wf_release.drift_error'), "error annotation missing");
+  // The wording lives in the message catalog; the English text must still say what went wrong
+  const catalog = readFileSync(join("payload", "scripts", "messages.py"), "utf8");
+  assert.ok(/"wf_release\.drift_error": "[^\n]*ahead of the newest tag/.test(catalog), "error wording missing from the catalog");
 });
 
 // ---------------------------------------------------------------

@@ -85,16 +85,27 @@ jobs:
       github.event.pull_request.head.ref == '{{DEVELOP_BRANCH}}'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       open: ${{ steps.state.outputs.open }}
     steps:
+      # Only the message catalog and language setting are needed for the log wording
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
       - name: Read the current PR state
         id: state
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           # A push to {{DEVELOP_BRANCH}} mid-pipeline queues a run that later reprocesses the
           # already-merged PR - an empty summary comment, duplicate CHANGELOG entries and a
@@ -104,10 +115,10 @@ jobs:
           STATE=$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null || echo "UNKNOWN")
           if [ "$STATE" = "MERGED" ] || [ "$STATE" = "CLOSED" ]; then
             echo "open=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::PR #$PR_NUMBER is already $STATE — skipping the release pipeline"
+            echo "::notice::$(m wf_changelog.pr_not_open pr_number="$PR_NUMBER" state="$STATE")"
           else
             echo "open=true" >> "$GITHUB_OUTPUT"
-            echo "PR #$PR_NUMBER state: $STATE"
+            echo "$(m wf_changelog.pr_state pr_number="$PR_NUMBER" state="$STATE")"
           fi
 
   changelog-and-merge:
@@ -131,18 +142,20 @@ jobs:
       - name: Read semver_auto option from version.yml
         id: semver_options
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
-          echo "semver_auto option: $SEMVER_AUTO"
+          echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
       - name: Read copilot_ai option from version.yml
         id: copilot_options
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
           COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
-          echo "copilot_ai option: $COPILOT_AI"
+          echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Install Copilot CLI
         if: steps.copilot_options.outputs.copilot_ai == 'true'
@@ -152,6 +165,7 @@ jobs:
       - name: Collect commits since last release
         id: collect
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin {{MAIN_BRANCH}}
           git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
@@ -165,7 +179,7 @@ jobs:
             cp _full_diff_stat.txt diff_stat.txt
           fi
           rm -f _full_diff_stat.txt
-          echo "commits to summarize: $(wc -l < commits.txt)"
+          echo "$(m wf_changelog.commits_to_summarize n="$(wc -l < commits.txt)")"
 
       - name: Collect issues merged into {{DEVELOP_BRANCH}}
         continue-on-error: true
@@ -211,6 +225,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # Idempotency: never raise a version this PR already confirmed (not yet published).
           # Looking only at the HEAD commit message lets the guard slip when more commits
           # pile on top of the confirm commit (extra {{DEVELOP_BRANCH}} pushes, a
@@ -227,7 +242,7 @@ jobs:
           else
             BUMP="patch"
           fi
-          echo "bump level: $BUMP"
+          echo "$(m wf_common.bump_level bump="$BUMP")"
 
           if [ -n "$MAIN_VERSION" ] && [ -n "$HEAD_VERSION" ] && version_gt "$HEAD_VERSION" "$MAIN_VERSION" && ! is_tagged "$HEAD_VERSION"; then
             # Already-confirmed version - recompute from the {{MAIN_BRANCH}} version and raise it
@@ -237,22 +252,22 @@ jobs:
             TARGET=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$MAIN_VERSION" "$BUMP")
             if version_gt "$TARGET" "$HEAD_VERSION"; then
               NEW_VERSION=$(python3 .github/scripts/version_manager.py set "$TARGET" | tail -n 1)
-              echo "confirmed version raised: $HEAD_VERSION -> $NEW_VERSION ($BUMP from {{MAIN_BRANCH}} $MAIN_VERSION)"
+              echo "$(m wf_changelog.version_raised head_version="$HEAD_VERSION" new_version="$NEW_VERSION" bump="$BUMP" main_branch="{{MAIN_BRANCH}}" main_version="$MAIN_VERSION")"
             else
               NEW_VERSION="$HEAD_VERSION"
-              echo "version already confirmed and not yet released — reusing $NEW_VERSION ({{MAIN_BRANCH}} is $MAIN_VERSION)"
+              echo "$(m wf_changelog.version_reuse_unreleased new_version="$NEW_VERSION" main_branch="{{MAIN_BRANCH}}" main_version="$MAIN_VERSION")"
             fi
           elif [ -z "$MAIN_VERSION" ] && printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): confirm v.* \[skip ci\]"; then
             # Re-run of a first release where {{MAIN_BRANCH}} has no version.yml yet
             NEW_VERSION="$HEAD_VERSION"
-            echo "version already confirmed by a previous run — reusing $NEW_VERSION (no re-increment)"
+            echo "$(m wf_changelog.version_reuse_previous new_version="$NEW_VERSION")"
           else
             NEW_VERSION=$(python3 .github/scripts/version_manager.py increment --bump "$BUMP" | tail -n 1)
             python3 .github/scripts/version_manager.py sync
-            echo "release version confirmed: $NEW_VERSION ($BUMP)"
+            echo "$(m wf_changelog.version_confirmed new_version="$NEW_VERSION" bump="$BUMP")"
           fi
           if [ -z "$NEW_VERSION" ]; then
-            echo "version bump failed"
+            echo "$(m wf_common.version_bump_failed)"
             exit 1
           fi
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -269,6 +284,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
 
           SUMMARY_RESULT=$(python3 .github/scripts/changelog_manager.py ai-summary \
@@ -281,7 +297,7 @@ jobs:
           # On fallback, append the reason (the script also emits it as ::warning::) to the engine line so the cause is visible without opening the job log
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
-          echo "summary engine: $ENGINE_LINE"
+          echo "$(m wf_changelog.summary_engine engine_line="$ENGINE_LINE")"
           echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
           echo "engine=$ENGINE" >> $GITHUB_OUTPUT
           echo "fallback_reason=$FALLBACK_REASON" >> $GITHUB_OUTPUT
@@ -296,6 +312,7 @@ jobs:
           FALLBACK_REASON: ${{ steps.summary.outputs.fallback_reason }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           # Find this bot's earlier summary comment by its marker and replace it so re-runs and re-syncs do not pile up comments
           MARKER="<!-- project-auto-wizard:pr-summary -->"
@@ -315,12 +332,12 @@ jobs:
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" 2>/dev/null | tail -n 1 || true)
           if [ -n "$COMMENT_ID" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" --input comment_payload.json > /dev/null \
-              && echo "summary comment updated (#${COMMENT_ID})" \
-              || echo "comment update failed — continuing (this workflow never blocks the release)"
+              && echo "$(m wf_changelog.comment_updated comment_id="${COMMENT_ID}")" \
+              || echo "$(m wf_changelog.comment_update_failed)"
           else
             gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --input comment_payload.json > /dev/null \
-              && echo "summary comment posted" \
-              || echo "comment post failed — continuing (this workflow never blocks the release)"
+              && echo "$(m wf_changelog.comment_posted)" \
+              || echo "$(m wf_changelog.comment_post_failed)"
           fi
 
           rm -f comment_body.md comment_payload.json
@@ -345,6 +362,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
           VERSION="${{ steps.bump.outputs.new_version }}"
 
@@ -356,7 +374,7 @@ jobs:
           # {{DEVELOP_BRANCH}} after the merge).
           PR_STATE=$(gh pr view "${{ github.event.pull_request.number }}" --json state -q .state 2>/dev/null || echo "UNKNOWN")
           if [ "$PR_STATE" = "MERGED" ] || [ "$PR_STATE" = "CLOSED" ]; then
-            echo "::notice::PR is already $PR_STATE — not pushing release docs"
+            echo "::notice::$(m wf_changelog.pr_closed_skip_docs pr_state="$PR_STATE")"
             exit 0
           fi
 
@@ -367,7 +385,7 @@ jobs:
           git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
           if git diff --staged --quiet; then
-            echo "no changes to commit"
+            echo "$(m wf_common.no_changes)"
           else
             git commit -m "chore(version): confirm v${VERSION} and update release docs [skip ci]"
 
@@ -378,18 +396,18 @@ jobs:
 
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
               RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "push attempt $RETRY_COUNT/$MAX_RETRIES..."
+              echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
               if git push origin HEAD:$HEAD_BRANCH; then
                 PUSH_SUCCESS=true
-                echo "release docs pushed to $HEAD_BRANCH"
+                echo "$(m wf_changelog.docs_pushed head_branch="$HEAD_BRANCH")"
                 break
               else
-                echo "push failed, syncing with remote..."
+                echo "$(m wf_common.push_failed_syncing)"
                 if git pull --rebase origin $HEAD_BRANCH; then
-                  echo "rebase ok, retrying push..."
+                  echo "$(m wf_common.rebase_ok)"
                 else
-                  echo "rebase failed, manual conflict resolution required"
+                  echo "$(m wf_common.rebase_failed)"
                   git rebase --abort 2>/dev/null || true
                   exit 1
                 fi
@@ -397,7 +415,7 @@ jobs:
             done
 
             if [ "$PUSH_SUCCESS" = false ]; then
-              echo "push failed after $MAX_RETRIES attempts"
+              echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
               exit 1
             fi
           fi
@@ -424,18 +442,18 @@ jobs:
           MAX_ATTEMPTS=4
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
             if [ "$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null)" = "MERGED" ]; then
-              echo "PR #$PR_NUMBER is already merged"
+              echo "$(m wf_changelog.pr_already_merged pr_number="$PR_NUMBER")"
               MERGED=true
               break
             fi
             if gh pr merge "$PR_NUMBER" --auto --merge --subject "$SUBJECT" 2> "$ERR_FILE"; then
-              echo "automerge enabled: $SUBJECT"
+              echo "$(m wf_changelog.automerge_enabled subject="$SUBJECT")"
               MERGED=true
               break
             fi
             cat "$ERR_FILE" >&2
             if gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT" 2> "$ERR_FILE"; then
-              echo "automerge unavailable — merged directly: $SUBJECT"
+              echo "$(m wf_changelog.automerge_unavailable subject="$SUBJECT")"
               MERGED=true
               break
             fi
@@ -451,7 +469,7 @@ jobs:
                 && echo "head branch updated from base" || true
             fi
             WAIT=$((ATTEMPT * 10))
-            echo "merge attempt $ATTEMPT/$MAX_ATTEMPTS failed — retrying in ${WAIT}s"
+            echo "$(m wf_changelog.merge_retry attempt="$ATTEMPT" max_attempts="$MAX_ATTEMPTS" wait="${WAIT}")"
             sleep "$WAIT"
           done
 
@@ -465,7 +483,7 @@ jobs:
             elif [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
               echo "::error::$(m wf_changelog.merge_commit_disabled)"
             else
-              echo "::error::PR merge failed after $MAX_ATTEMPTS attempts (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
+              echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
             fi
             exit 1
           fi

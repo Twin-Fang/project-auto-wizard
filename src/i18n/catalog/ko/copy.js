@@ -4,6 +4,7 @@ export default {
   "copy.readme.status.skipNoReadme": "README.md가 없어 버전 섹션을 추가하지 않음",
   "copy.readme.status.skipMarker": "이미 버전 섹션이 있어 그대로 둠",
   "copy.readme.status.skipVersionLine": "이미 버전 줄이 있어 그대로 둠",
+  "copy.readme.status.headingUpdated": "버전 제목을 현재 언어로 교체",
   "copy.readme.versionHeading": "## 최신 버전 : v{version}",
   "copy.readme.historyLink": "[전체 버전 기록 보기](CHANGELOG.md)",
   "copy.gitignore.newFileHeader": "# project-auto-wizard: 충돌 처리 시 생성되는 백업 파일 (안전하게 무시해도 됩니다)",

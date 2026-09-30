@@ -25,8 +25,8 @@
 # - basic: version.yml only
 # ===
 
-version: "0.14.0"
-version_code: 62  # app build number
+version: "0.15.0"
+version_code: 63  # app build number
 project_types: ["node"] # first entry is primary
 project_paths: # per-type project folders (relative to repo root)
   node: "." # package.json

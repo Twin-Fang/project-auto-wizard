@@ -304,6 +304,15 @@ class TestSyncFailuresAreReported(SyncTestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("ERROR", r.stderr)
 
+    def test_failed_type_is_named_in_the_summary_message(self):
+        # The summary lists the failing types; it must not crash while joining them
+        tmp = self.make_tmp("react")
+        (Path(tmp) / "package.json").write_text('{ "name": "my-app", "version": "0.5.0", }', encoding="utf-8")
+        r = run(["set", "1.0.1"], tmp)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("project file sync failed for: react", r.stderr)
+
     def test_single_quoted_pyproject_version_is_updated(self):
         tmp = self.make_tmp("python-proj")
         (Path(tmp) / "pyproject.toml").write_text("[project]\nname = 'my-app'\nversion = '0.9.10'\n",
