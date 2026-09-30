@@ -677,11 +677,11 @@ test("language-aware Flutter workflows: every message key they use exists in bot
   }
 });
 
-test("language-aware Flutter workflows: no Korean text is left except the (선택 token in header comments", () => {
+test("language-aware Flutter workflows: no Korean text is left", () => {
   for (const filename of LANGUAGE_AWARE) {
     const offenders = rawWorkflow(filename)
       .split("\n")
-      .filter((line) => /[가-힣]/.test(line) && !/^#\s+[A-Z][A-Z0-9_]*\s+\(선택\):/.test(line));
+      .filter((line) => /[가-힣]/.test(line));
     assert.deepStrictEqual(offenders, [], `${filename}: Korean text belongs in the message catalog`);
   }
 });

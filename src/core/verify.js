@@ -51,7 +51,8 @@ export const OPTIONAL_SECRETS = new Set(["AI_API_KEY", "WORKFLOW_PAT"]);
 const SECRET_RE = /secrets\.([A-Z][A-Z0-9_]*)/g;
 
 // The "NAME (optional)" note in a workflow header comment - a secret the workflow is written to work without.
-// The payload comments are Korean ("(\uC120\uD0DD)" = "(optional)"); the English form is accepted too.
+// The payload uses "(optional)"; the legacy Korean marker ("\uC120\uD0DD") is still accepted so workflows installed
+// by older versions keep being classified correctly.
 const OPTIONAL_NOTE_RE = /^\s*#\s*-?\s*([A-Z][A-Z0-9_]*)\s*\((?:\uC120\uD0DD|optional)/i;
 // `secrets.A || secrets.B` - only one of the two is needed.
 const EITHER_RE = /^\s*\|\|\s*secrets\.([A-Z][A-Z0-9_]*)/;

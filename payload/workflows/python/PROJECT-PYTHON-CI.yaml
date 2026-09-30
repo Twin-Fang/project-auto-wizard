@@ -7,7 +7,7 @@
 # - Does not deploy (deployment happens only on the {{MAIN_BRANCH}} branch)
 #
 # GitHub Secrets
-# - ENV_FILE (선택): contents of the .env file — verified with an empty .env when missing
+# - ENV_FILE (optional): contents of the .env file — verified with an empty .env when missing
 
 name: PROJECT-PYTHON-CI
 

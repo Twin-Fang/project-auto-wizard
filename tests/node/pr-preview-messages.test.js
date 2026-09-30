@@ -40,8 +40,8 @@ for (const file of FILES) {
     }
   });
 
-  test(`${file}: no Hangul in the workflow except the "(선택" marker`, () => {
-    const left = text.split("\n").filter((l) => HANGUL.test(l) && !/\(선택/.test(l));
+  test(`${file}: no Hangul left in the workflow`, () => {
+    const left = text.split("\n").filter((l) => HANGUL.test(l));
     assert.deepStrictEqual(left, []);
   });
 

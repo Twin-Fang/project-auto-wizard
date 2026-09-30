@@ -35,7 +35,7 @@
 # PROJECT_PATH    : path used for change detection (set automatically at install; "." always runs)
 #
 # Required GitHub Secrets
-# ENV_FILE (선택): contents of the .env file
+# ENV_FILE (optional): contents of the .env file
 #
 # Note: CI only verifies builds, so no signing/deploy Secrets are needed
 # Note: to use this CI as a required check in a monorepo, register only `ci-gate`, not the individual jobs.

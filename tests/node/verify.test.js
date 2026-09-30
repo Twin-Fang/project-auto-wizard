@@ -89,13 +89,22 @@ test("classifySecrets: groups `A || B` fallback pairs into one entry and treats 
 
 test("classifySecrets: excludes secrets marked (optional) in the header comment from required", () => {
   const dir = wfDirWith({
-    "A.yaml": "# SECRETS_XCCONFIG (선택): Secrets.xcconfig 내용\n# ENV_FILE (선택): .env 파일 내용\n" +
+    "A.yaml": "# SECRETS_XCCONFIG (optional): contents of Secrets.xcconfig\n# ENV_FILE (optional): contents of the .env file\n" +
       "x: ${{ secrets.SECRETS_XCCONFIG }}\ne: ${{ secrets.ENV_FILE || secrets.ENV }}\n",
   });
   try {
     const { required, optional } = classifySecrets(dir, ["A.yaml"]);
     assert.strictEqual(required.size, 0);
     assert.deepStrictEqual([...optional.keys()], ["ENV_FILE 또는 ENV", "SECRETS_XCCONFIG"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("classifySecrets: still reads the legacy Korean optional marker from workflows installed by older versions", () => {
+  const dir = wfDirWith({ "A.yaml": "# ENV_FILE (\uC120\uD0DD): legacy note\nx: ${{ secrets.ENV_FILE }}\n" });
+  try {
+    const { required, optional } = classifySecrets(dir, ["A.yaml"]);
+    assert.strictEqual(required.size, 0);
+    assert.deepStrictEqual([...optional.keys()], ["ENV_FILE"]);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
