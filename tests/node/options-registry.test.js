@@ -57,3 +57,15 @@ test("renderValues: unset context falls back to the option default", () => {
   assert.strictEqual(renderValues({ includeSemverAuto: false }).includeSemverAuto, false);
   assert.strictEqual(renderValues({ includeCopilotAi: true }).includeCopilotAi, true);
 });
+
+// Every i18n key a registry entry points to must exist in both catalogs (a missing key would show the raw key to users).
+test("registry: conflict/ask i18n keys exist in every catalog", async () => {
+  const { CATALOGS } = await import("../../src/i18n/catalog/index.js");
+  const { OPTIONS: opts } = await import("../../src/core/options.js");
+  for (const [lang, catalog] of Object.entries(CATALOGS)) {
+    for (const o of opts) {
+      const keys = [o.conflictKey, ...(o.ask ? [o.ask.questionKey, o.ask.menuLabelKey, o.ask.summaryKey, o.ask.cardLabelKey] : [])];
+      for (const key of keys) assert.ok(key in catalog, `${lang}: missing ${key} (${o.key})`);
+    }
+  }
+});

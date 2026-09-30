@@ -9,18 +9,28 @@
 // conflictKey   : i18n key of the error thrown when --<flag> and --no-<flag> are both given (catalog lives in src/i18n)
 // logLabel      : label used by the install log line ("option <logLabel> on|off")
 // ask           : present only for options the interactive wizard asks about / lists in the edit menu
-//   { questionKey, initial, menuLabelKey, summaryKey, cardIcon, cardLabel }
+//   { questionKey, initial, menuLabelKey, summaryKey, cardIcon, cardLabelKey } (all i18n keys except initial/cardIcon)
 // Keys only - this module never imports the i18n layer, so core stays free of UI dependencies.
 export const OPTIONS = Object.freeze([
   {
     key: "semver_auto", name: "semverAuto", ctxField: "includeSemverAuto",
     flag: "semver-auto", default: true, legacyDefault: false,
     conflictKey: "cli.args.semverConflict", logLabel: "semver",
+    ask: {
+      questionKey: "interactive.question.semverAuto", initial: true,
+      menuLabelKey: "ui.prompts.edit.semverAuto", summaryKey: "interactive.summary.semverAuto",
+      cardIcon: "🔢", cardLabelKey: "ui.status-cards.card.autoBump",
+    },
   },
   {
     key: "copilot_ai", name: "copilotAi", ctxField: "includeCopilotAi",
     flag: "copilot", default: false, legacyDefault: false,
     conflictKey: "cli.args.copilotConflict", logLabel: "copilot",
+    ask: {
+      questionKey: "interactive.question.copilotAi", initial: false,
+      menuLabelKey: "ui.prompts.edit.copilotAi", summaryKey: "interactive.summary.copilotAi",
+      cardIcon: "🤖", cardLabelKey: "ui.status-cards.card.copilot",
+    },
   },
 ]);
 
