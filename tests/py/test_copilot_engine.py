@@ -73,7 +73,7 @@ class TestCallCopilotCli(unittest.TestCase):
         self.assertEqual(args[args.index("--model") + 1], "auto")
 
     def test_model_is_always_auto_even_if_copilot_model_env_is_set(self):
-        # Copilot Free/Student는 auto만 허용하므로 모델명 오버라이드를 지원하지 않는다.
+        # Copilot Free/Student only allow auto, so a model-name override is not supported.
         changelog_manager.os.environ["COPILOT_MODEL"] = "my-model"
         with patch.object(changelog_manager.subprocess, "run", return_value=_completed("ok")) as mock_run:
             changelog_manager.call_copilot_cli("PROMPT")

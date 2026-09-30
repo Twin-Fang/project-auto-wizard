@@ -38,16 +38,16 @@ class TestTruncateReleaseNotes(unittest.TestCase):
         self.assertEqual(self.path.read_text(encoding="utf-8"), "hello")
 
     def test_byte_mode_truncates_without_splitting_multibyte(self):
-        # "가"는 UTF-8로 3바이트 — limit=16(3의 배수가 아님)으로 잘라도
-        # 결과는 항상 완전한 문자로만 구성되고 유효한 UTF-8이어야 한다.
-        self.write("가" * 10)  # 30바이트
+        # "가" is 3 bytes in UTF-8 — even when cutting at limit=16 (not a multiple of 3)
+        # the result must consist of whole characters only and be valid UTF-8.
+        self.write("가" * 10)  # 30 bytes
         r = run([str(self.path), "16", "byte"])
         self.assertEqual(r.returncode, 0)
         data = self.path.read_bytes()
         self.assertLessEqual(len(data), 16)
-        decoded = data.decode("utf-8")  # 깨진 바이트가 남아있으면 여기서 예외 발생
+        decoded = data.decode("utf-8")  # raises here if a broken byte is left over
         self.assertNotIn("�", decoded)
-        self.assertEqual(decoded, "가" * 5)  # 15바이트 = 완전한 5글자, 16번째 바이트부터는 버려짐
+        self.assertEqual(decoded, "가" * 5)  # 15 bytes = 5 whole characters, the 16th byte onward is dropped
 
     def test_byte_mode_leaves_under_limit_untouched(self):
         self.write("hello")
@@ -62,7 +62,7 @@ class TestTruncateReleaseNotes(unittest.TestCase):
         self.assertFalse(missing.exists())
 
     def test_lf_preserved(self):
-        self.write("line1\nline2\n" * 50)  # 넉넉히 길게 만들어 truncate 유도
+        self.write("line1\nline2\n" * 50)  # long enough to force truncation
         run([str(self.path), "20", "char"])
         data = self.path.read_bytes()
         self.assertNotIn(b"\r\n", data)
@@ -101,8 +101,28 @@ class TestTruncateReleaseNotes(unittest.TestCase):
 
     def test_survives_non_utf8_console_encoding(self):
         self.write("가" * 20)
-        r = run([str(self.path), "10", "char"], env={"PYTHONIOENCODING": "ascii"})
+        # ko log lines contain non-ASCII text, which is what an ASCII console must survive
+        r = run([str(self.path), "10", "char"],
+                env={"PYTHONIOENCODING": "ascii", "PROJECT_AUTO_WIZARD_LANG": "ko"})
         self.assertEqual(r.returncode, 0)
+
+    def test_log_lines_english(self):
+        self.write("a" * 5)
+        r = run([str(self.path), "10", "char"], env={"PROJECT_AUTO_WIZARD_LANG": "en"})
+        self.assertIn("Within limit (5/10 char), not truncating:", r.stderr)
+        self.write("a" * 20)
+        r = run([str(self.path), "10", "char"], env={"PROJECT_AUTO_WIZARD_LANG": "en"})
+        self.assertIn("Over limit (20 -> truncated to at most 10 char):", r.stderr)
+        r = run([str(self.path) + ".missing", "10", "char"], env={"PROJECT_AUTO_WIZARD_LANG": "en"})
+        self.assertIn("Release notes file not found, skipping:", r.stderr)
+
+    def test_log_lines_korean_unchanged(self):
+        self.write("a" * 5)
+        r = run([str(self.path), "10", "char"], env={"PROJECT_AUTO_WIZARD_LANG": "ko"})
+        self.assertIn("한도 이내 (5/10 char), 자르지 않음:", r.stderr)
+        self.write("a" * 20)
+        r = run([str(self.path), "10", "char"], env={"PROJECT_AUTO_WIZARD_LANG": "ko"})
+        self.assertIn("한도 초과 (20 -> 10 char 이하로 절단):", r.stderr)
 
 
 if __name__ == "__main__":

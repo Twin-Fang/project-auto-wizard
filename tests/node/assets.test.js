@@ -61,12 +61,13 @@ test("copyScripts installs payload python scripts into .github/scripts/", () => 
   const target = mkdtempSync(join(tmpdir(), "paw-scripts-"));
   try {
     const copied = copyScripts(resolvePayloadRoot(), target);
-    assert.strictEqual(copied.length, 4);
+    assert.strictEqual(copied.length, 5);
     assert.ok(copied.every((r) => r.action === "create"));
     assert.ok(existsSync(join(target, ".github", "scripts", "version_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "changelog_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "truncate_release_notes.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "issue_helper.py")));
+    assert.ok(existsSync(join(target, ".github", "scripts", "messages.py")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
