@@ -6,7 +6,7 @@ import { PATHS } from "../core/paths.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { planTypeAppFiles } from "../core/copy/app-files.js";
 import { planUninstall } from "./uninstall.js";
-import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps, droppedPathLines } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { planScripts } from "../core/copy/simple.js";
@@ -33,6 +33,11 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   return { existed: existingRaw !== null, changed: existingRaw === null || !sameIgnoringTimestamps(existingRaw, wouldBe) };
 }
 
+function existingDroppedLines(targetRoot, paths) {
+  const vyPath = join(targetRoot, PATHS.versionFile);
+  return existsSync(vyPath) ? droppedPathLines(parseExisting(readFileSync(vyPath, "utf8")).droppedPaths, paths) : [];
+}
+
 // mode: "full" | "uninstall". Read-only: writes no file.
 export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
   if (mode === "uninstall") {
@@ -54,6 +59,8 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     // Flutter store deploy files (Fastfile, ExportOptions.plist): existing files are kept, not overwritten.
     flutterApp: planTypeAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
+    // Folders the rewrite would drop from version.yml (same type listed under two names with different folders).
+    droppedPathLines: existingDroppedLines(targetRoot, context.paths),
     // Files the real install also changes; scripts that overwrite existing files in particular must be shown in advance.
     scripts: planScripts(payloadRoot, targetRoot),
     readme: planVersionSection(targetRoot),
@@ -130,6 +137,7 @@ export function printDryRun(plan) {
       // For types with a deploy block (spring etc.) say the preview may differ from the real install.
       lines.push(t("cmd.dryRun.versionYml.note"));
     }
+    if (plan.droppedPathLines?.length) lines.push(...plan.droppedPathLines.map((l) => `⚠️  ${l}`));
     if (plan.scripts) {
       const mark = { create: "+", overwrite: "~", unchanged: "=" };
       const note = {

@@ -14,6 +14,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { A, paint, colorEnabled, visualWidth } from "../ui/ansi.js";
 import { PATHS } from "../core/paths.js";
+import { findMissingScripts } from "../core/copy/simple.js";
+import { resolvePayloadRoot } from "../core/assets.js";
 import { parseExisting } from "../core/version-yml.js";
 import { hooksFor } from "../core/types.js";
 import { t } from "../i18n/index.js";
@@ -44,6 +46,15 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   // Per-type local file checks (e.g. Flutter store deploy files): only local files are read, so this runs regardless of the gh lookup results.
   if (installed) {
     const existing = parseExisting(readFileSync(join(cwd, PATHS.versionFile), "utf8"));
+    const missing = findMissingScripts(resolvePayloadRoot(), cwd);
+    if (missing.length) {
+      add({
+        name: t("cmd.doctor.scripts.name"), label: t("cmd.doctor.scripts.label"), purpose: t("cmd.doctor.scripts.purpose"), status: "WARN",
+        value: t("cmd.doctor.scripts.missing", { files: missing.join(", ") }),
+        impact: [t("cmd.doctor.scripts.impact")],
+        actions: [t("cmd.doctor.scripts.action")],
+      });
+    }
     for (const { hook } of hooksFor(existing.types, "doctorChecks")) {
       for (const item of hook(cwd, existing, { docs: DOC })) add(item);
     }
