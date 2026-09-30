@@ -28,8 +28,7 @@ import { t } from "../i18n/index.js";
 // payloadRoot: the package's payload/ root. targetRoot: the install target.
 export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
-    force = true, now, today, templateVersion = "unknown",
-    includeSemverAuto } = context;
+    force = true, now, today, templateVersion = "unknown" } = context;
 
   // Check permissions before writing anything: stopping midway would leave a half-installed state.
   const blocked = findUnwritable(targetRoot,

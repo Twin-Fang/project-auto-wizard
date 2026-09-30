@@ -68,3 +68,18 @@ test("workflow readers only read registry keys and fall back to the registry leg
     assert.strictEqual(r.fallback, String(o.legacyDefault), `${r.file}: fallback for ${r.key} must equal the registry legacyDefault`);
   }
 });
+
+test("an option's doctor spec names messages that exist in both languages", async () => {
+  const { t, setLanguage } = await import("../../src/i18n/index.js");
+  for (const o of OPTIONS.filter((x) => x.doctor)) {
+    const { prefix, notes } = o.doctor;
+    const keys = [`${prefix}.name`, `${prefix}.purpose`, ...Object.values(notes).flat().map((k) => `${prefix}.${k}`)];
+    for (const lang of ["en", "ko"]) {
+      setLanguage(lang);
+      for (const key of keys) assert.notStrictEqual(t(key), key, `${o.key}: ${key} missing in ${lang}`);
+    }
+    // Every saved value (true / false / key absent) must have a note list
+    for (const state of ["true", "false", "null"]) assert.ok(Array.isArray(notes[state]), `${o.key}: no doctor notes for ${state}`);
+  }
+  setLanguage("ko");
+});
