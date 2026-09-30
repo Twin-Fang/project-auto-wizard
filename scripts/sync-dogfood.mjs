@@ -1,11 +1,11 @@
-// payload/ 공통 워크플로우·스크립트로 이 레포 자신의 .github/ 사본을 다시 만든다.
+// Rebuilds this repo's own .github/ copies from the payload/ common workflows and scripts.
 //
-//   node scripts/sync-dogfood.mjs          # .github/ 사본을 payload 기준으로 덮어쓴다
-//   node scripts/sync-dogfood.mjs --check  # 쓰지 않고 비교만 — 어긋나면 exit 1
+//   node scripts/sync-dogfood.mjs          # overwrite the .github/ copies from payload
+//   node scripts/sync-dogfood.mjs --check  # compare only, without writing - exit 1 on drift
 //
-// 사본 = payload 원본 → 브랜치 플레이스홀더 치환(설치기와 같은 substitute) → PATCHES 적용.
-// 사본에만 있어야 하는 차이는 반드시 PATCHES에 선언한다. 사본을 손으로 고치면 --check가 잡는다.
-// 설치기와 마찬가지로 외부 의존성 없이 node:* 내장 모듈만 쓴다.
+// copy = payload original -> branch placeholder substitution (same substitute as the installer) -> PATCHES applied.
+// Differences that must exist only in the copy have to be declared in PATCHES. Hand-editing a copy is caught by --check.
+// Like the installer, this uses only built-in node:* modules, with no external dependencies.
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,19 +13,20 @@ import { substitute } from "../src/core/branding.js";
 
 const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// 이 레포의 브랜치 구성 — version.yml의 metadata.template.branches와 같아야 한다.
+// This repo's branch layout - must match metadata.template.branches in version.yml.
 export const REPO_BRANCHES = { main: "main", develop: "develop" };
 
-// 이 레포 워크플로우가 호출하는 스크립트만 둔다.
-// truncate_release_notes.py는 Flutter 워크플로우 전용이라 사본이 없다.
-export const SCRIPTS = ["changelog_manager.py", "issue_helper.py", "version_manager.py"];
+// List only the scripts that this repo's workflows call.
+// truncate_release_notes.py is Flutter-workflow-only, so it has no copy.
+export const SCRIPTS = ["changelog_manager.py", "issue_helper.py", "messages.py", "version_manager.py"];
 
-// 사본에만 있는 의도된 차이. 치환된 payload 텍스트에서 from이 정확히 한 번 나와야 한다 —
-// payload가 바뀌어 기준 문구가 사라지면 조용히 넘어가지 않고 실패시켜 목록을 갱신하게 한다.
+// Intentional differences that exist only in the copy. `from` must appear exactly once in the substituted
+// payload text - if payload changes and the anchor text disappears, this fails instead of passing
+// silently, forcing the list to be updated.
 export const PATCHES = [
   {
     file: "workflows/PROJECT-COMMON-ISSUE-HELPER.yaml",
-    reason: "이 레포는 이슈 브랜치를 자동 생성하고 develop에서 딴다",
+    reason: "This repo auto-creates issue branches and cuts them from develop",
     from:
       '      ISSUE_HELPER_CREATE_BRANCH: "false" # @wizard ask:false\n' +
       '      ISSUE_HELPER_BASE_BRANCH: "main"\n',
@@ -35,7 +36,7 @@ export const PATCHES = [
   },
   {
     file: "workflows/PROJECT-COMMON-RELEASE-PUBLISH.yaml",
-    reason: "헤더 주석을 사본 관점으로 바꾼다",
+    reason: "Rewrite the header comment from the copy's point of view",
     from:
       "# This file and its self-copy (.github/workflows/) intentionally\n" +
       "# differ by one step — the self-copy also triggers NPM-PUBLISH via\n" +
@@ -52,7 +53,7 @@ export const PATCHES = [
   },
   {
     file: "workflows/PROJECT-COMMON-RELEASE-PUBLISH.yaml",
-    reason: "npm 배포는 이 레포 전용 NPM-PUBLISH 워크플로우가 맡는다",
+    reason: "npm publishing is handled by this repo's own NPM-PUBLISH workflow",
     from:
       '          echo "GitHub Release v$VERSION published"\n' +
       "\n" +
@@ -68,7 +69,7 @@ export const PATCHES = [
       "        run: |\n" +
       '          VERSION="${{ steps.version.outputs.version }}"\n' +
       '          gh workflow run NPM-PUBLISH.yaml --ref main -f tag="v${VERSION}"\n' +
-      '          echo "NPM-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)"\n' +
+      '          echo "NPM-PUBLISH workflow_dispatch trigger requested (works without WORKFLOW_PAT)"\n' +
       "\n" +
       "      - name: Trigger README-VERSION-UPDATE\n",
   },
@@ -80,12 +81,12 @@ function countOccurrences(text, needle) {
   return count;
 }
 
-// 기대 사본 목록 [{ rel, source, expected }]. rel은 .github/ 기준 경로.
-// 패치 기준 문구를 못 찾으면 throw — 사본을 추측으로 만들지 않는다.
+// List of expected copies [{ rel, source, expected }]. rel is the path relative to .github/.
+// Throws if a patch anchor is not found - copies are never built by guesswork.
 export function buildExpected(root = DEFAULT_ROOT) {
   const commonDir = join(root, "payload", "workflows", "common");
   const entries = [];
-  // 공통 워크플로우는 디렉터리를 그대로 훑어 새로 추가된 파일도 빠짐없이 대상에 넣는다
+  // Scan the common workflows directory as-is so newly added files are always included
   for (const name of readdirSync(commonDir).filter((f) => /\.ya?ml$/.test(f)).sort()) {
     const source = join("payload", "workflows", "common", name);
     entries.push({ rel: `workflows/${name}`, source, expected: substitute(readFileSync(join(root, source), "utf8"), REPO_BRANCHES) });
@@ -97,17 +98,17 @@ export function buildExpected(root = DEFAULT_ROOT) {
 
   for (const patch of PATCHES) {
     const entry = entries.find((e) => e.rel === patch.file);
-    if (!entry) throw new Error(`패치 대상이 payload에 없습니다: ${patch.file}`);
+    if (!entry) throw new Error(`Patch target is missing from payload: ${patch.file}`);
     const n = countOccurrences(entry.expected, patch.from);
     if (n !== 1) {
-      throw new Error(`패치 기준 문구가 ${patch.file}에서 ${n}번 발견됐습니다 (정확히 1번이어야 함) — PATCHES를 갱신하세요: ${patch.reason}`);
+      throw new Error(`Patch anchor text was found ${n} times in ${patch.file} (must be exactly 1) - update PATCHES: ${patch.reason}`);
     }
     entry.expected = entry.expected.replace(patch.from, () => patch.to);
   }
   return entries;
 }
 
-// 실제 .github/ 사본과 비교해 어긋난 항목만 돌려준다.
+// Compares with the actual .github/ copies and returns only the drifted entries.
 export function findDrift(root = DEFAULT_ROOT) {
   return buildExpected(root).filter(({ rel, expected }) => {
     const target = join(root, ".github", rel);
@@ -115,7 +116,7 @@ export function findDrift(root = DEFAULT_ROOT) {
   });
 }
 
-// 어긋난 첫 줄 번호 — 긴 워크플로우에서 어디부터 달라졌는지 바로 보이게 한다.
+// First differing line number - shows where a long workflow starts to differ.
 function firstDiffLine(actual, expected) {
   const a = actual.split("\n");
   const e = expected.split("\n");
@@ -132,15 +133,15 @@ function main(argv) {
 
   if (check) {
     if (drift.length === 0) {
-      console.log("dogfood: .github/ 사본이 payload와 일치합니다");
+      console.log("dogfood: .github/ copies match payload");
       return 0;
     }
     for (const { rel, source, expected } of drift) {
       const target = join(root, ".github", rel);
-      const where = existsSync(target) ? `${firstDiffLine(readFileSync(target, "utf8"), expected)}번째 줄부터 다름` : "사본 없음";
-      console.error(`dogfood 불일치: .github/${rel} (${where}, 원본 ${source})`);
+      const where = existsSync(target) ? `differs from line ${firstDiffLine(readFileSync(target, "utf8"), expected)}` : "copy missing";
+      console.error(`dogfood mismatch: .github/${rel} (${where}, source ${source})`);
     }
-    console.error("npm run sync:dogfood 로 사본을 다시 만들고, 사본에만 필요한 차이는 scripts/sync-dogfood.mjs의 PATCHES에 선언하세요.");
+    console.error("Rebuild the copies with npm run sync:dogfood, and declare copy-only differences in PATCHES in scripts/sync-dogfood.mjs.");
     return 1;
   }
 
@@ -148,13 +149,13 @@ function main(argv) {
     const target = join(root, ".github", rel);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, expected);
-    console.log(`dogfood 갱신: .github/${rel}`);
+    console.log(`dogfood updated: .github/${rel}`);
   }
-  if (drift.length === 0) console.log("dogfood: 갱신할 사본이 없습니다");
+  if (drift.length === 0) console.log("dogfood: no copies to update");
   return 0;
 }
 
-// import.meta.url은 실제 경로로 풀리지만 argv[1]은 링크 경로 그대로라 둘 다 realpath로 맞춰 비교한다
+// import.meta.url resolves to the real path but argv[1] keeps the link path, so compare both via realpath
 function isDirectRun() {
   if (!process.argv[1]) return false;
   try {

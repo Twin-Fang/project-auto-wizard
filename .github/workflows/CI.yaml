@@ -1,18 +1,18 @@
 # CI.yaml
-# 테스트 실행 워크플로우 (이 레포 전용 — payload에 복제하지 않는다)
+# Test workflow (repo-only — not copied into payload)
 #
-# 동작:
-# - PR과 main push에서 npm test(Node + Python)를 실행한다
-# - Node 20·22·24 × ubuntu·windows 6조합 매트릭스
+# Behavior:
+# - Runs npm test (Node + Python) on PRs and main pushes
+# - Matrix of Node 20/22/24 x ubuntu/windows (6 combinations)
 #
-# Windows를 포함하는 이유: Windows CRLF 회귀가 있었고
-# tests/node/line-endings.test.js가 그 회귀 가드다. Linux에서만 돌리면
-# 그 테스트의 존재 의의가 사라진다.
+# Why Windows is included: there was a Windows CRLF regression and
+# tests/node/line-endings.test.js guards against it. Running only on Linux
+# would defeat the purpose of that test.
 #
-# Node 20이 하한인 이유: package.json의 engines(">=20.12")와
-# bin/project-auto-wizard.js의 런타임 게이트가 20.12를 요구한다.
+# Why Node 20 is the floor: engines (">=20.12") in package.json and the
+# runtime gate in bin/project-auto-wizard.js require 20.12.
 #
-# 의존성이 0개이고 package-lock.json이 없으므로 설치 단계가 없다.
+# There are zero dependencies and no package-lock.json, so there is no install step.
 
 name: CI
 
@@ -30,35 +30,35 @@ permissions:
 
 jobs:
   test:
-    name: 테스트 (Node ${{ matrix.node }} · ${{ matrix.os }})
+    name: Test (Node ${{ matrix.node }} · ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
 
     strategy:
-      # 한 조합이 깨져도 나머지를 봐야 "Windows만"인지 "Node 24만"인지 좁혀진다.
+      # Keep going when one combination fails, so we can tell "Windows only" from "Node 24 only".
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [20, 22, 24]
 
     steps:
-      - name: 저장소 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Node.js ${{ matrix.node }} 설정
+      - name: Set up Node.js ${{ matrix.node }}
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Python 설정 (test:py용)
+      - name: Set up Python (for test:py)
         uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
-      - name: 버전 확인
+      - name: Show versions
         run: |
           node --version
           npm --version
           python --version
 
-      - name: 테스트 실행
+      - name: Run tests
         run: npm test

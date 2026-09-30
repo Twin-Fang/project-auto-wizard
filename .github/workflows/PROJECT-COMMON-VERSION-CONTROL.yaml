@@ -47,7 +47,7 @@ permissions:
   actions: write
 
 env:
-  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  # Keep script imports from creating .github/scripts/__pycache__ so it never ends up in bot commits
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
@@ -139,9 +139,11 @@ jobs:
           fi
 
       - name: Update CHANGELOG for the safety-net release
-        # 안전망 릴리스도 실제로 들어간 커밋으로 CHANGELOG 항목을 만든다. 항목이 없으면
-        # RELEASE-PUBLISH가 고정 문구로 릴리스 노트를 채우고 변경 내역이 어디에도 남지 않는다.
-        # 요약 엔진: 사용자 API(설정된 경우) -> 규칙 기반 (Copilot은 릴리스 PR·trunk 경로에서만 쓴다)
+        # Build the CHANGELOG entry from the commits that actually landed, even for a
+        # safety-net release. Without an entry RELEASE-PUBLISH fills the notes with fixed
+        # text and the change history is recorded nowhere.
+        # Summary engine: user API (if configured) -> rule-based (Copilot is used only on
+        # the release-PR and trunk paths)
         if: steps.release_guard.outputs.skip != 'true'
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
@@ -150,12 +152,13 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
-          # 마지막 릴리스 태그 이후 main에 직접 들어온 커밋 (태그가 없으면 전체 이력)
+          # Commits pushed straight to main since the last release tag (full history if there is no tag)
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           LOG_RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
           git log --pretty=%s "$LOG_RANGE" > commits.txt
-          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
-          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
+          # line. The script reads each line as one entry, so passing the whole body (%B)
+          # would turn description lines into change entries.
           git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           echo "commits since ${LAST_TAG:-the beginning}: $(wc -l < commits.txt)"
 
@@ -183,9 +186,9 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
-          # 버전 파일은 이미 추적 중이라 -u로 충분하고, 새로 생기는 CHANGELOG만
-          # 따로 올린다 (.gitignore에 있으면 건너뛴다).
+          # -A would also commit runner temp files and caches into the user's repo.
+          # Version files are already tracked, so -u is enough; only a newly created
+          # CHANGELOG is added separately (skipped if it is in .gitignore).
           git add -u
           git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
@@ -233,21 +236,25 @@ jobs:
             fi
           fi
 
-      - name: Trigger RELEASE-PUBLISH (safety-net bump 발행)
+      - name: Trigger RELEASE-PUBLISH (publish the safety-net bump)
         if: steps.release_guard.outputs.skip != 'true' && steps.commit_push.outputs.pushed == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
-          echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 이슈 #61 드리프트 자동 복구)"
+          echo "$(m wf_version.release_publish_triggered)"
 
       - name: Back-merge the safety-net bump into develop
-        # 안전망 bump는 main에만 올라간다. develop가 이를 모르면 다음 릴리스 PR에서
-        # 양쪽이 같은 버전 줄을 고쳐 충돌하므로 곧바로 develop에도 병합해 둔다.
-        # 실패(충돌·브랜치 보호)해도 안전망 릴리스는 이미 끝났으므로 경고만 남긴다.
+        # The safety-net bump lands only on main. If develop does not know
+        # about it, both sides edit the same version line and conflict in the next release
+        # PR, so merge it into develop right away.
+        # On failure (conflict, branch protection) the safety-net release is already done,
+        # so only a warning is left.
         if: steps.release_guard.outputs.skip != 'true' && steps.commit_push.outputs.pushed == 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           DEVELOP_BRANCH="develop"
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           MANUAL="git checkout $DEVELOP_BRANCH && git pull && git merge origin/main && git push"
@@ -266,7 +273,7 @@ jobs:
             fi
             if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/main"; then
               git merge --abort 2>/dev/null || true
-              echo "::warning::main을 ${DEVELOP_BRANCH}에 자동 병합하지 못했습니다 (충돌). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
+              echo "::warning::$(m wf_version.backmerge_conflict prod="main" dev="$DEVELOP_BRANCH" manual="$MANUAL")"
               exit 0
             fi
             if git push origin "HEAD:$DEVELOP_BRANCH"; then
@@ -276,7 +283,7 @@ jobs:
             echo "push attempt $ATTEMPT failed — retrying"
             sleep 5
           done
-          echo "::warning::${DEVELOP_BRANCH}에 push하지 못했습니다 (브랜치 보호 등). 다음 릴리스 PR 전에 직접 병합하세요: $MANUAL"
+          echo "::warning::$(m wf_version.backmerge_push_failed dev="$DEVELOP_BRANCH" manual="$MANUAL")"
 
       - name: Summary
         if: always()
