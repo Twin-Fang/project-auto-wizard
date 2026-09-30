@@ -4,6 +4,8 @@ export default {
   "core.versionYml.pathMergedTitle": "One folder per type",
   "core.versionYml.pathMerged": "version.yml lists '{keptName}' (folder {kept}) and '{name}' (folder {path}) separately, but they are now the same type and only one folder per type is managed. Keeping {type}={final}; {lost} drops out of CI and version sync.",
   "core.versionYml.pathMergedHint": "To manage {path} instead, rerun with --paths {type}={path}; to keep both, add a hand-written CI workflow for the dropped folder.",
+  "core.versionYml.optionInvalid": "version.yml option {key} has an unrecognized value \"{value}\"; it is read as false. Use true or false.",
+  "core.versionYml.optionInvalidTitle": "Unrecognized option value",
   "core.breakingCheck.nonInteractive": "⚠️  There are CRITICAL breaking changes - continuing because this is a non-interactive run. Be sure to review the notes above.",
   "core.logger.error.nameExhausted": "All log file names are in use: {base}",
   "core.logger.warn.startFailed": "Could not start the run log: {message}",

@@ -98,17 +98,17 @@ function collectLines(name) {
   return read(payloadPath(name))
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l.startsWith("git log --pretty=%") && /> ?commits\.txt|>> commits\.txt/.test(l));
+    .filter((l) => /^git log (--cherry-pick --right-only )?--pretty=%/.test(l) && /> ?commits\.txt|>> commits\.txt/.test(l));
 }
 
 for (const name of COLLECTORS) {
   // Commit text is non-ASCII (escaped) on purpose: the collection step must keep UTF-8 subjects intact
   test(`${name}: collects commit subjects plus only the BREAKING CHANGE footer from bodies`, () => {
     const lines = collectLines(name);
-    assert.ok(lines.some((l) => l.startsWith("git log --pretty=%s") && l.includes("> commits.txt")), "missing subject collection line");
+    assert.ok(lines.some((l) => /^git log (--cherry-pick --right-only )?--pretty=%s/.test(l) && l.includes("> commits.txt")), "missing subject collection line");
     const footer = lines.find((l) => l.includes(">> commits.txt"));
     assert.ok(footer, "missing body footer collection line");
-    assert.ok(footer.startsWith("git log --pretty=%b"), "must be taken from the body (%b)");
+    assert.match(footer, /^git log (--cherry-pick --right-only )?--pretty=%b/, "must be taken from the body (%b)");
     assert.ok(footer.includes("grep -E '^BREAKING[ -]CHANGE[[:space:]]*:'"), "must filter only footer lines");
     assert.ok(footer.endsWith("|| true"), "the step must not fail on grep's exit code when there is no footer");
   });

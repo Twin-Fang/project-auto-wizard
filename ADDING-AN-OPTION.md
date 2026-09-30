@@ -51,11 +51,14 @@ Add the `conflictKey` message in `cli.js`, the `--<flag> / --no-<flag>` line in 
 
 ## 4. Workflow — only if a workflow reads the option
 
-Workflows read `version.yml` at run time. Copy the reader step of `copilot_ai` or `release_automerge`
-in `payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml` and change three things: the
-key, the output name, and the fallback printed when the key is missing. **The fallback must equal the
-registry `legacyDefault`** — the consistency test checks it. Wire the output into the step or job
-`if:`, then run `npm run sync:dogfood`.
+Workflows read `version.yml` at run time through `version_manager.py option <key> --default <value>`,
+which applies the same value rule as the CLI (quotes, case and a trailing comment are accepted; only
+`true` / `false` count; a written-but-unrecognized value reads as `false` with a warning). Copy the reader
+step of `copilot_ai` or `release_automerge` in
+`payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml` and change three things: the key, the
+output name, and the `--default` (and the matching `|| echo`). **The default must equal the registry
+`legacyDefault`** — the consistency test checks it. Wire the output into the step or job `if:`, then run
+`npm run sync:dogfood`. Add a row to `tests/fixtures/option-value-cases.json` only if the value rule itself changes.
 
 ## 5. Docs
 

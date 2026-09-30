@@ -59,8 +59,24 @@ The workflow enables automerge with a merge commit, falls back to a direct merge
 Automerge is on by default. To keep a human in the loop, set `release_automerge: false` in `version.yml` (or reinstall with `--no-release-automerge`). The workflow then skips automerge and the wait-for-merge job, renames the release PR to `chore(release): vX.Y.Z (PR #N)` and leaves one guidance comment.
 
 - Merge after that workflow run has finished, because it confirms the version and renames the PR.
-- Use **Create a merge commit**. The release gate reads `chore(release):` from the merge commit message, which includes the PR title. *Squash and merge* rewrites history that the next release notes are built from, and *Rebase and merge* drops the marker.
+- Use **Create a merge commit** (recommended). The release gate reads `chore(release):` from the merge commit message, which includes the PR title.
 - If the automatic rename fails, the comment tells you which merge message to set so the release is still published.
+
+What each merge method does to the release:
+
+| Merge method | Release published? | Why |
+|---|---|---|
+| Create a merge commit | Yes | The merge commit message carries the renamed PR title (`chore(release): ...`) and no `[skip ci]`. |
+| Squash and merge | Not with the default squash message | With the default message (the commit list is included) the merge commit body contains the `[skip ci]` of the version-confirm commit, so GitHub skips the push workflows. If the repository's squash message default is set to the PR title only, the release is published. The next release notes can list earlier changes again, because the original commits are not part of the release branch history. |
+| Rebase and merge | No, not by itself | The last commit on the release branch is the version-confirm commit (`[skip ci]`), so the push workflows are skipped. The next release notes do not repeat the rebased commits, but only while develop has not merged the release branch back; after that merge they are listed again. |
+| Merged before the run finished | Extra patch release | The PR is not renamed and the version is not confirmed yet, so the safety-net workflow publishes a patch version of its own. |
+
+If a release PR was rebase-merged, or squash-merged with the default message, publish it by running **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow). It is idempotent, so running it twice is safe.
+
+Known limits:
+
+- Only a merge commit keeps the release branch history the release notes are built from. A squash merge cannot be told apart from new work when the next notes are collected.
+- Older wizard versions (0.15.1 and earlier) do not know the `release_automerge` key and drop it when you reinstall with them, which turns automerge back on. Reinstall with 0.16.0 or later, or add the key again.
 
 ### 5. Tag and GitHub Release
 

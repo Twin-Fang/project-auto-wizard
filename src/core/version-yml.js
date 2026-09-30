@@ -1,5 +1,5 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
-import { OPTIONS, optionVar, renderValues } from "./options.js";
+import { OPTIONS, optionVar, renderValues, parseOptionValue } from "./options.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
 import { normalizePath } from "./paths.js";
@@ -43,14 +43,17 @@ export function parseExtraTopLevel(content) {
 // Type-specific option key -> returned field (type hook savedOptionKeys). The value is returned as the raw string; validity is up to the type hook's resolveOptions.
 const TYPE_OPTION_KEYS = allHookValues("savedOptionKeys");
 const OPTION_BY_KEY = new Map(OPTIONS.map((o) => [o.key, o]));
-const OPTION_LINE = new RegExp(`^\\s+(${OPTIONS.map((o) => o.key).join("|")}):\\s*(.+)`);
+// (.*) on purpose: a key with an empty value is still a written value (an unrecognized one), not a missing key.
+const OPTION_LINE = new RegExp(`^\\s+(${OPTIONS.map((o) => o.key).join("|")}):\\s*(.*)`);
 const TYPE_OPTION_LINE = new RegExp(`^\\s+(${Object.keys(TYPE_OPTION_KEYS).join("|")}):\\s*(.+)`);
 
 // State-machine parse of metadata.template.options.
 // Returns: { <one bool|null per registry option, e.g. semverAuto/copilotAi>, deployStyle: string|null,
 //         type-specific option fields (e.g. envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } - null = not written.
 // Other keys such as the old synology/coderabbit ones hit no branch and are naturally ignored (no parse error).
-export function parseTemplateOptions(content) {
+// invalid (optional out array): receives { key, value } for every option key whose written value was not recognized.
+export function parseTemplateOptions(content, invalid = []) {
+  const seen = new Set();
   const out = {
     ...Object.fromEntries(OPTIONS.map((o) => [o.name, null])), deployStyle: null,
     ...Object.fromEntries(Object.values(TYPE_OPTION_KEYS).map((field) => [field, null])),
@@ -69,12 +72,18 @@ export function parseTemplateOptions(content) {
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(TYPE_OPTION_LINE);
       if (m) { const v = strip(m[2]); if (v) out[TYPE_OPTION_KEYS[m[1]]] = v; continue; }
-      // Boolean options come from the registry; a value other than true/false is left null (= not written).
+      // Boolean options come from the registry and are read with parseOptionValue (same rule as the workflows).
+      // The first occurrence wins, like the workflow reader. An unrecognized value reads as false and is reported
+      // through `invalid`, so it can never turn an option on (or release_automerge back on) without a word.
       const optionLine = line.match(OPTION_LINE);
       if (optionLine) {
-        const v = strip(optionLine[2]);
-        if (v === "true") out[OPTION_BY_KEY.get(optionLine[1]).name] = true;
-        if (v === "false") out[OPTION_BY_KEY.get(optionLine[1]).name] = false;
+        const name = OPTION_BY_KEY.get(optionLine[1]).name;
+        if (!seen.has(name)) {
+          seen.add(name);
+          const parsed = parseOptionValue(optionLine[2]);
+          out[name] = parsed ?? false;
+          if (parsed === null) invalid.push({ key: optionLine[1], value: optionLine[2].replace(/\r$/, "").trim() });
+        }
         continue;
       }
       // another key indented 0-4 spaces -> end of the options section
@@ -99,6 +108,11 @@ export function droppedPathLines(droppedPaths = [], finalPaths = null) {
     if (same(d.kept)) lines.push(tr("core.versionYml.pathMergedHint", { type: d.type, path: d.path }));
     return lines;
   });
+}
+
+// Warning lines for option values that were written but not recognized (they read as false); empty when all are fine.
+export function invalidOptionLines(invalidOptions = []) {
+  return invalidOptions.map((o) => tr("core.versionYml.optionInvalid", { key: o.key, value: o.value }));
 }
 
 // Extract values from an existing version.yml (line-based, avoids false hits on comment lines).
@@ -171,11 +185,12 @@ export function parseExisting(content) {
     }
   }
   // Optional workflow options (metadata.template.options)
-  const options = parseTemplateOptions(text);
+  const invalidOptions = [];
+  const options = parseTemplateOptions(text, invalidOptions);
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, branches,
+    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }

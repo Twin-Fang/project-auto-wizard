@@ -1,0 +1,290 @@
+[
+  {
+    "name": "key missing -> default on",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "true",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: true\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "false",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: false\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "double quoted false",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: \"false\"\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "single quoted false",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: 'false'\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "single quoted true",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: 'true'\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "capitalized False",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: False\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "upper FALSE",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: FALSE\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "upper TRUE",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: TRUE\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "false with trailing comment",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: false # merge by hand\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "quoted false with trailing comment",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: \"false\" # merge by hand\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "padded value",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge:    false   \n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "quoted with inner padding",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: ' false '\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "no space before hash is not a comment",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: false#x\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "false#x"
+  },
+  {
+    "name": "mismatched quotes",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: \"false'\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "\"false'"
+  },
+  {
+    "name": "yes",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: yes\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "yes"
+  },
+  {
+    "name": "no",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: no\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "no"
+  },
+  {
+    "name": "on",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: on\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "on"
+  },
+  {
+    "name": "off",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: off\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "off"
+  },
+  {
+    "name": "zero",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: 0\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "0"
+  },
+  {
+    "name": "one",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: 1\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "1"
+  },
+  {
+    "name": "maybe",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: \"maybe\"\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "\"maybe\""
+  },
+  {
+    "name": "null keyword",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: null\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "null"
+  },
+  {
+    "name": "tilde",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: ~\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "~"
+  },
+  {
+    "name": "empty value",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge:\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": ""
+  },
+  {
+    "name": "only a comment",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: # todo\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "# todo"
+  },
+  {
+    "name": "first occurrence wins",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: false\n      release_automerge: true\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "first occurrence wins (invalid first)",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      release_automerge: maybe\n      release_automerge: true\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "maybe"
+  },
+  {
+    "name": "CRLF false",
+    "content": "version: \"1.0.0\"\r\nversion_code: 1\r\nmetadata:\r\n  template:\r\n    version: \"0.16.1\"\r\n    options:\r\n      semver_auto: true\r\n      release_automerge: false\r\n      deploy_style: simple\r\n    branches:\r\n      main: main\r\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "CRLF quoted false with comment",
+    "content": "version: \"1.0.0\"\r\nversion_code: 1\r\nmetadata:\r\n  template:\r\n    version: \"0.16.1\"\r\n    options:\r\n      semver_auto: true\r\n      release_automerge: 'false' # x\r\n      deploy_style: simple\r\n    branches:\r\n      main: main\r\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": null
+  },
+  {
+    "name": "CRLF invalid",
+    "content": "version: \"1.0.0\"\r\nversion_code: 1\r\nmetadata:\r\n  template:\r\n    version: \"0.16.1\"\r\n    options:\r\n      semver_auto: true\r\n      release_automerge: maybe\r\n      deploy_style: simple\r\n    branches:\r\n      main: main\r\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "false",
+    "invalid": "maybe"
+  },
+  {
+    "name": "commented out key is ignored",
+    "content": "version: \"1.0.0\"\nversion_code: 1\nmetadata:\n  template:\n    version: \"0.16.1\"\n    options:\n      semver_auto: true\n      # release_automerge: false\n      deploy_style: simple\n    branches:\n      main: main\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "key outside options is ignored",
+    "content": "version: \"1.0.0\"\nmetadata:\n  template:\n    options:\n      semver_auto: true\n    branches:\n      release_automerge: false\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "top-level key is ignored",
+    "content": "release_automerge: false\nmetadata:\n  template:\n    options:\n      semver_auto: true\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "no options block",
+    "content": "version: \"1.0.0\"\n",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  },
+  {
+    "name": "empty file",
+    "content": "",
+    "key": "release_automerge",
+    "default": true,
+    "expected": "true",
+    "invalid": null
+  }
+]

@@ -1,7 +1,7 @@
 // status command: read-only install state check. No network access (local file comparison only).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseExisting, droppedPathLines } from "../core/version-yml.js";
+import { parseExisting, droppedPathLines, invalidOptionLines } from "../core/version-yml.js";
 import { OPTIONS } from "../core/options.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
@@ -47,6 +47,7 @@ export function runStatus(payloadRoot, targetRoot = ".") {
     types: existing.types,
     branches: existing.branches,
     options: existing.options,
+    invalidOptions: existing.invalidOptions,
     // Files the user touched = real conflicts (changed) + upstream unchanged but locally edited (localOnly).
     // Without a baseline localOnly is always empty, so behavior is the same as before.
     modifiedFiles: [...plan.changed, ...plan.localOnly].map((f) => f.filename),
@@ -79,7 +80,13 @@ export function printStatus(status) {
   }
   // An unset option is shown with the value it resolves to on this (existing) install, i.e. its legacyDefault.
   const unsetLabel = (o) => t(o.legacyDefault ? "cmd.status.unsetDefaultTrue" : "cmd.status.unsetDefaultFalse");
-  const optionLabels = OPTIONS.map((o) => `${o.key}=${status.options[o.name] ?? unsetLabel(o)}`).join(" ");
+  // A key written with an unrecognized value reads as false; show that instead of pretending the file is fine.
+  const invalidByKey = new Map((status.invalidOptions || []).map((i) => [i.key, i.value]));
+  const optionLabel = (o) => {
+    if (invalidByKey.has(o.key)) return `${o.key}=${status.options[o.name]} (${t("cmd.status.invalidValue", { value: invalidByKey.get(o.key) })})`;
+    return `${o.key}=${status.options[o.name] ?? unsetLabel(o)}`;
+  };
+  const optionLabels = OPTIONS.map(optionLabel).join(" ");
   const typeLabels = hooksFor(status.types, "statusLabels").map(({ hook }) => hook(status.options)).join("");
   const deployLabel = status.options.deployStyle ? ` deploy_style=${status.options.deployStyle}` : "";
   lines.push(t("cmd.status.options", { value: `${optionLabels}${deployLabel}${typeLabels}` }));

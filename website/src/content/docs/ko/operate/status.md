@@ -12,7 +12,7 @@ npx project-auto-wizard --mode status
 보여 주는 내용:
 
 - 설치된 템플릿 버전, 프로젝트 타입, 브랜치 모드
-- 옵션값: `semver_auto`, `copilot_ai`, `release_automerge`(미설정이면 실제로 적용되는 기본값으로 표시), 서버 배포가 있는 타입이면 `deploy_style`, Flutter면 환경변수 방식·스토어 배포 대상·배포 모드
+- 옵션값: `semver_auto`, `copilot_ai`, `release_automerge`(미설정이면 실제로 적용되는 기본값으로 표시, `true`/`false`가 아닌 값은 잘못된 값으로 표시하고 `false`로 읽음), 서버 배포가 있는 타입이면 `deploy_style`, Flutter면 환경변수 방식·스토어 배포 대상·배포 모드
 - 설치 이후 사용자가 수정한 워크플로우 파일
 - 현재 버전의 payload에 없는 이전 워크플로우가 남아 있는지
 - 설치 기록이 있으면, 지금 업데이트했을 때 자동 적용·유지·충돌 건수

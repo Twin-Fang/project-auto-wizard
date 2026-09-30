@@ -31,7 +31,9 @@
 #
 # With version.yml release_automerge: false, step 5 and the wait job are
 # skipped: the PR is renamed to the release-confirm subject and one guidance
-# comment asks the maintainer to merge it with a merge commit (not squash or rebase).
+# comment asks the maintainer to merge it with a merge commit. Squash and rebase merges
+# put the [skip ci] of the confirm commit into the merge result, so GitHub skips the push
+# workflows and PROJECT-RELEASE-PUBLISH has to be run manually for them.
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -152,7 +154,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          SEMVER_AUTO=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option semver_auto --default false || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
           echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
@@ -163,16 +165,18 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
-          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          COPILOT_AI=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option copilot_ai --default false || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Read release_automerge option from version.yml
         id: automerge_option
         run: |
-          # Same metadata: -> template: -> options: scope as copilot_ai. A missing key means ON:
-          # installs from before the option existed already automerge, and that must not change.
-          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?^\s+release_automerge:\s*\"?(true|false)", t, re.S|re.M); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          # Read with the same rule as the CLI (quotes, case and a trailing comment are fine; only true/false count).
+          # A missing key means ON: installs from before the option existed already automerge, and that must not change.
+          # A key that is present but unrecognized (e.g. maybe, off, empty) is reported and treated as false,
+          # so a typo never switches automerge back on for someone who turned it off.
+          AUTOMERGE=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option release_automerge --default true || echo "true")
           echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
           echo "release_automerge option: $AUTOMERGE"
 
@@ -187,11 +191,15 @@ jobs:
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin main
-          git log --pretty=%s "origin/main..HEAD" > commits.txt
+          # --cherry-pick --right-only drops commits whose change already exists on main under another hash
+          # (a rebase-merged release PR), but only while develop has not merged main back: after that merge the
+          # rebased copies are on develop too, nothing is left to compare with, and they are listed again.
+          # A squash merge leaves no matching patch at all and cannot be told apart this way.
+          git log --cherry-pick --right-only --pretty=%s "origin/main...HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
-          git log --pretty=%b "origin/main..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          git log --cherry-pick --right-only --pretty=%b "origin/main...HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
@@ -209,7 +217,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          git log --pretty=%H "origin/main..HEAD" > commit_shas.txt
+          git log --cherry-pick --right-only --pretty=%H "origin/main...HEAD" > commit_shas.txt
 
           gh pr list --state merged --base develop \
             --json number,headRefName,mergeCommit --limit 200 > merged_prs.json

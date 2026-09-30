@@ -882,6 +882,7 @@ EN = {
     "truncate.limit_positive": "ERROR: limit must be a positive integer: {limit}",
     # --- version ---
     "version.bump_help": "bump level (default patch — same as before when not given)",
+    "version.option_default_help": "value to print when the key is not in version.yml (default false)",
     # --- wf_aisum ---
     "wf_aisum.no_issue_in_branch": "No issue number found in the branch name — skipping: {ref}",
     # --- wf_changelog ---
@@ -1265,6 +1266,7 @@ EN = {
     "version_manager.err_invalid_version": "ERROR: invalid version format: {version}",
     "version_manager.err_invalid_version_xyz": "ERROR: invalid version format: {version} (must be x.y.z)",
     "version_manager.err_generic": "ERROR: {error}",
+    "version_manager.option_invalid": "::warning::version.yml option {option} has an unrecognized value \"{value}\"; using false. Use true or false.",
     "version_manager.err_no_types_sync": "ERROR: version.yml has no readable project_types — cannot sync project files",
     "version_manager.err_no_types_check": "ERROR: version.yml has no readable project_types — cannot sync versions",
     "version_manager.err_write_failed": "failed to write version {version} to version.yml",
@@ -1317,7 +1319,7 @@ EN = {
     "wf_changelog.automerge_off_list_failed": "Could not read the comments of PR #{pr_number}; skipped the merge guidance comment to avoid a duplicate",
     "wf_changelog.automerge_off_rename_hint": "The PR title could not be updated automatically. Before merging, set the merge commit message (or the PR title) to `{subject}` so the release is published.",
     "wf_changelog.automerge_rename_failed": "Could not update PR #{pr_number} (title or guidance comment); the release still needs \"chore(release):\" in the merge commit message",
-    "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Wait until this workflow run has finished (it confirms the version and renames the PR), then merge this PR yourself when you are ready to release, using **Create a merge commit**. Do not use *Squash and merge* or *Rebase and merge*: the release gate reads `chore(release):` from the resulting commit message, and squashing or rebasing also rewrites the history that the next release notes are built from.",
+    "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Wait until this workflow run has finished (it confirms the version and renames this PR to `chore(release): ...`), then merge it yourself with **Create a merge commit** (recommended).\n\nOther merge methods may not publish the release by themselves. *Rebase and merge* leaves the version-confirm commit (`[skip ci]`) as the last commit, and *Squash and merge* with the default message (commit list included) puts that `[skip ci]` into the merge commit body; in both cases GitHub skips the push workflows and no tag or Release is created. If the repository's squash message default is the PR title only, a squash merge is published. If a release was skipped, run **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow) to publish. Both methods also rewrite the commit history the next release notes are built from, so earlier changes can be listed again (after a rebase merge only once develop has merged the release branch back). Merging before this run finishes has a similar effect: the safety-net workflow (PROJECT-VERSION-CONTROL) then publishes an extra patch version.",
     "wf_changelog.merge_retry": "merge attempt {attempt}/{max_attempts} failed — retrying in {wait}s",
     "wf_changelog.merge_gave_up": "PR merge failed after {max_attempts} attempts (allow_merge_commit={allow_merge_commit}) — check branch protection rules, required checks, and token permissions",
     # --- wf_readme ---
@@ -2157,6 +2159,7 @@ KO = {
     "truncate.limit_positive": "ERROR: limit은 양수여야 함: {limit}",
     # --- version ---
     "version.bump_help": "승격 폭 (기본 patch — 지정 안 하면 기존 동작과 동일)",
+    "version.option_default_help": "version.yml에 키가 없을 때 출력할 값 (기본 false)",
     # --- wf_aisum ---
     "wf_aisum.no_issue_in_branch": "브랜치명에서 이슈 번호를 찾지 못함 — 건너뜀: {ref}",
     # --- wf_changelog ---
@@ -2540,6 +2543,7 @@ KO = {
     "version_manager.err_invalid_version": "오류: 올바르지 않은 버전 형식: {version}",
     "version_manager.err_invalid_version_xyz": "오류: 올바르지 않은 버전 형식: {version} (x.y.z 형식이어야 합니다)",
     "version_manager.err_generic": "오류: {error}",
+    "version_manager.option_invalid": "::warning::version.yml의 {option} 값 \"{value}\"을(를) 인식하지 못해 false로 처리합니다. true 또는 false를 쓰세요.",
     "version_manager.err_no_types_sync": "오류: version.yml에서 project_types를 읽을 수 없어 프로젝트 파일을 동기화할 수 없습니다",
     "version_manager.err_no_types_check": "오류: version.yml에서 project_types를 읽을 수 없어 버전을 동기화할 수 없습니다",
     "version_manager.err_write_failed": "version.yml에 버전 {version}을(를) 기록하지 못했습니다",
@@ -2592,7 +2596,7 @@ KO = {
     "wf_changelog.automerge_off_list_failed": "PR #{pr_number}의 댓글을 읽지 못해 중복을 피하려고 머지 안내 댓글을 건너뛰었습니다",
     "wf_changelog.automerge_off_rename_hint": "PR 제목을 자동으로 바꾸지 못했습니다. 릴리스가 발행되도록 머지하기 전에 머지 커밋 메시지(또는 PR 제목)를 `{subject}`로 지정하세요.",
     "wf_changelog.automerge_rename_failed": "PR #{pr_number}의 제목 또는 안내 댓글을 갱신하지 못했습니다. 릴리스가 되려면 머지 커밋 메시지에 \"chore(release):\"가 있어야 합니다",
-    "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 이 워크플로우 실행이 끝난 뒤(버전 확정과 PR 제목 변경이 끝난 뒤) 릴리스할 준비가 되면 **Create a merge commit**으로 직접 머지하세요. *Squash and merge*와 *Rebase and merge*는 쓰지 마세요. 릴리스 게이트가 결과 커밋 메시지의 `chore(release):`를 읽고, squash나 rebase는 다음 릴리스 노트가 기대는 커밋 이력까지 바꿉니다.",
+    "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 이 워크플로우 실행이 끝난 뒤(버전 확정과 PR 제목이 `chore(release): ...`로 바뀐 뒤) 릴리스할 준비가 되면 **Create a merge commit**으로 직접 머지하는 것을 권장합니다.\n\n다른 머지 방식은 릴리스가 저절로 발행되지 않을 수 있습니다. *Rebase and merge*는 버전 확정 커밋(`[skip ci]`)이 마지막 커밋으로 남고, 기본 메시지(커밋 목록 포함)의 *Squash and merge*는 그 `[skip ci]`가 머지 커밋 본문에 들어가므로, 두 경우 모두 GitHub가 push 워크플로우를 건너뛰어 태그와 Release가 만들어지지 않습니다. 레포의 squash 메시지 기본값을 PR 제목으로 바꿨다면 squash는 발행됩니다. 건너뛰었다면 릴리스 브랜치에서 **PROJECT-RELEASE-PUBLISH**를 수동으로 실행(Actions > Run workflow)하면 발행됩니다. 두 방식은 다음 릴리스 노트가 기대는 커밋 이력도 바꾸어 이전 변경이 다시 기재될 수 있습니다(rebase는 develop이 릴리스 브랜치를 역머지하기 전까지는 제외됩니다). 이 실행이 끝나기 전에 머지해도 비슷한 문제가 생깁니다. 안전망 워크플로우(PROJECT-VERSION-CONTROL)가 패치 버전을 하나 더 발행합니다.",
     "wf_changelog.merge_retry": "병합 시도 {attempt}/{max_attempts} 실패 — {wait}초 후 다시 시도합니다",
     "wf_changelog.merge_gave_up": "PR 병합이 {max_attempts}회 시도 후에도 실패했습니다 (allow_merge_commit={allow_merge_commit}) — 브랜치 보호 규칙, 필수 체크, 토큰 권한을 확인하세요",
     # --- wf_readme ---

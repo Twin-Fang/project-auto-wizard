@@ -14,7 +14,7 @@ import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
-import { parseExisting, droppedPathLines } from "./core/version-yml.js";
+import { parseExisting, droppedPathLines, invalidOptionLines } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
 import { explicitFromContext, optionContextFields } from "./core/options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
@@ -319,6 +319,8 @@ async function runInner(argv, {
 
   // Warn against the final folders (an explicit --paths may keep the other one). The dry-run preview prints its own notice.
   if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths, paths)) console.error(`⚠️  ${line}`);
+  // An option value that could not be read is rewritten as false by this run - say so instead of doing it silently.
+  for (const line of invalidOptionLines(existing?.invalidOptions)) console.error(`⚠️  ${line}`);
 
   // version: existing version.yml first (SSoT; prevents overwriting on re-run) -> CLI value -> file detection.
   // Non-interactive, so the fallback notice uses the CLI wording (--project-version) as is.
@@ -406,6 +408,7 @@ async function runInner(argv, {
   // Completion summary (also printed in CLI mode)
   printSummary({
     mode: opts.mode, types, version, versionCode, branches, developMissing,
+    releaseAutomerge: context.includeReleaseAutomerge !== false,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,

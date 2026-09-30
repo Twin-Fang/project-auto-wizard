@@ -148,7 +148,9 @@ test("args: --release-automerge=value fails like the other switches (not as an u
   assert.strictEqual(automerge.replaceAll("release-automerge", "copilot"), copilot);
 });
 
-test("guidance never recommends squash (it makes the next release re-collect already released commits)", () => {
+// Squash and rebase are not merge methods the release flow supports by itself (the merge result carries [skip ci] and the
+// history changes); any line that mentions squash must say so instead of offering it as an equal choice.
+test("guidance never presents squash as a supported merge method", () => {
   const files = [
     "payload/version.yml.template", "payload/scripts/messages.py", "src/i18n/catalog/en/commands.js",
     "src/i18n/catalog/ko/commands.js", "website/src/content/docs/reference/version-yml.md",
@@ -157,7 +159,7 @@ test("guidance never recommends squash (it makes the next release re-collect alr
   for (const f of files) {
     const text = readFileSync(join(import.meta.dirname, "..", "..", f), "utf8");
     for (const line of text.split("\n").filter((l) => /automerge/i.test(l) || /squash/i.test(l))) {
-      assert.ok(!/squash/i.test(line) || /not squash|금지|쓰지 마세요|Do not use/i.test(line), `${f}: ${line.slice(0, 120)}`);
+      assert.ok(!/squash/i.test(line) || /merge commit|머지 커밋|skip|건너|not squash|금지|쓰지 마세요|Do not use|again|cannot be|다시 기재/i.test(line), `${f}: ${line.slice(0, 120)}`);
     }
   }
 });
