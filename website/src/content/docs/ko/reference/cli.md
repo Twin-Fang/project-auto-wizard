@@ -14,7 +14,7 @@ npx project-auto-wizard [옵션]
 | 옵션 | 값 | 기본값 | 설명 |
 |---|---|---|---|
 | `-m`, `--mode MODE` | `full` \| `uninstall` \| `status` \| `doctor` | 대화형 | `full`은 설치 및 업데이트. `uninstall`은 완전 삭제(대화형 체크리스트, `--force` 시 `--purge-*`로 opt-in). `status`는 설치 상태·드리프트 확인(읽기 전용). `doctor`는 환경 진단(읽기 전용) |
-| `-t`, `--type CSV` | `spring` `flutter` `next` `react` `react-native` `react-native-expo` `node` `python` `basic` `go` | 자동 감지 | 프로젝트 타입 csv (예: `spring,react,python`) |
+| `-t`, `--type CSV` | `spring` `flutter` `react` `react-native` `react-native-expo` `node` `python` `basic` `go` | 자동 감지 | 프로젝트 타입 csv (예: `spring,react,python`). `next`는 `react`의 별칭으로 받습니다 |
 | `--project-version V` | `x.y.z` | 자동 감지 | 통합 대상의 초기 버전 (예: `1.0.0`) |
 | `--paths "t=p,..."` | `타입=경로` 쌍 | 레포 루트 | 모노레포 타입별 경로. 예: `flutter=app,react=client` |
 | `--main-branch B` | 브랜치 이름 | 감지된 default branch | 릴리스 브랜치 |
@@ -75,7 +75,7 @@ project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 �
                            uninstall = 완전 삭제(대화형 체크리스트, --force 시 --purge-*로 opt-in)
                            status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
   -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
-                           지원: spring flutter next react react-native
+                           지원: spring flutter react react-native
                                  react-native-expo node python basic go
       --project-version V  통합 대상의 초기 버전 (예: 1.0.0). 미지정 시 자동 감지
       --paths "t=p,..."    타입별 프로젝트 경로 (모노레포). 예: flutter=app,react=client

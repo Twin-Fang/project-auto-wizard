@@ -31,7 +31,7 @@ export const isDeployWorkflow = (filename) => DEPLOY_STYLES.some((s) => filename
 
 const PREVIEW_SUFFIX = "-PR-PREVIEW.yaml";
 
-// All workflows that deploy to a server: CD bodies, single CDs (react, next) and PR preview.
+// All workflows that deploy to a server: CD bodies, the single CD (react) and PR preview.
 // "No deploy" removes all of them identically for every type. Removing only some would leave server Secret requirements behind.
 export const isServerDeployWorkflow = (filename) =>
   isDeployWorkflow(filename) || SINGLE_SERVER_CD_FILES.has(filename) || filename.endsWith(PREVIEW_SUFFIX);

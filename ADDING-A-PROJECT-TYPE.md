@@ -30,11 +30,18 @@ Add one object to `TYPES`. Array order is the display order in `--help` and the 
 | `id` | Name used by `--type`, `version.yml` `project_types`, and `payload/workflows/<id>/`. |
 | `markers` | Files that prove the type. Also written as the path marker in `version.yml`. |
 | `detectBy` | `"markers"` (any marker file exists), `"package"` (a `package.json` dependency, set `packageDep`), `"package-fallback"` (only `node`), or omitted (never auto-detected, like `basic`). |
+| `extraPackageDeps` | Optional. Further dependency keys that also classify a project as this type (react also takes `next`). |
+| `displayName` | Optional. Name shown next to the id in the interactive type choices (react shows "React / Next.js"). |
 | `detectOrder` | Order within the same `detectBy`; unique integers, earlier wins. |
 | `versionSources` | Where to read the initial version at install time, tried first when this is the primary type. |
 | `buildNumberSource` | Only for mobile types with a build number (`version_code`). |
-| `singleServerCd` | Only when the type has one server CD workflow with no deploy style variants (like react, next). |
+| `singleServerCd` | Only when the type has one server CD workflow with no deploy style variants (like react). |
 | `hooks` | Optional type-specific behavior (workflow filter, deselected-workflow cleanup, app files, status labels, doctor checks, option resolution, CLI flags, version.yml option block, install notices). Shared code calls them through `hooksFor()` (or `typeInfo(id).hooks`), and a hook a type doesn't define is simply skipped, so a type without hooks needs nothing here. `flutter` is the reference (`src/core/flutter-hooks.js`). |
+
+A type that is folded into another one later (like `next` into `react`) is not deleted outright: add the old name to
+`TYPE_ALIASES` in `src/core/types.js`. `--type`, `--paths` and `version.yml` are read through `canonicalTypeId()`, so existing
+installs keep working and `version.yml` is rewritten with the new name. `payload/scripts/version_manager.py` keeps a matching
+`TYPE_ALIASES` for repos whose `version.yml` has not been rewritten yet.
 
 If the type reads its version or build number from a file format that is not supported yet, add a
 reader:

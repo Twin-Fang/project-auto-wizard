@@ -47,7 +47,7 @@ test("Python CI: Docker build verification runs only when a Dockerfile exists", 
   }
 });
 
-for (const file of ["react/PROJECT-REACT-CI.yaml", "next/PROJECT-NEXT-CI.yaml"]) {
+for (const file of ["react/PROJECT-REACT-CI.yaml"]) {
   test(`${file}: runs npm test when a test script exists, and skips otherwise`, () => {
     const text = read(file);
     const block = stepBlock(text, "Run tests");

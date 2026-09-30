@@ -7,7 +7,7 @@
 // Template shared by the Go/Python PR previews. Only the per-type differences go into vars.
 const PR_PREVIEW = "pr-preview.base.yaml";
 
-// Template shared by the React/Next deployments. Only differences (container run options, guide comments, ...) go into vars.
+// Template for the React / Next.js deployment. Only the values that may differ per type (names, guide comments, ...) go into vars.
 const CICD_FRONTEND = "cicd-frontend.base.yaml";
 
 // Template shared by the Go/Python single-server deployments (SSH + Docker). Only the per-type differences go into vars.
@@ -97,7 +97,7 @@ export const TARGETS = [
         "m \"${{ env.PAW_M_cicd_pull_image }}\" image=\"${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}\"",
       ],
       HEADER: [
-        "# React CI/CD deployment",
+        "# React / Next.js CI/CD deployment",
         "# Builds a Docker image and deploys it when the {{MAIN_BRANCH}} branch is pushed.",
       ],
       DEPLOY_VARS: [
@@ -136,9 +136,6 @@ export const TARGETS = [
       EXISTING_COMMENT: [
         "# Check whether a container with the same name exists",
       ],
-      RUN_COMMENT: [],
-      RUN_ENV: [],
-      RUN_RESTART: [],
       FOOTER: [
         "# Usage example - using the {{MAIN_BRANCH}} branch",
         "#",
@@ -152,90 +149,6 @@ export const TARGETS = [
         "# - PROJECT_DEPLOY_PORT (optional, default: 3000)",
         "#",
         "",
-      ],
-    },
-  },
-  {
-    out: "payload/workflows/next/PROJECT-NEXT-CICD.yaml",
-    template: CICD_FRONTEND,
-    vars: {
-      TYPE_UPPER: "NEXT",
-      IMAGE_PREFIX: "nextjs-container",
-      BUILD_JOB_NAME: "Build Next.js application",
-      PULL_LINE: [
-        "m \"${{ env.PAW_M_cicd_pull_image_short }}\"",
-      ],
-      HEADER: [
-        "# Next.js CI/CD deployment",
-        "# Builds a Docker image and deploys it when the {{MAIN_BRANCH}} branch is pushed. Deployed as a Node.js runtime container to support SSR.",
-      ],
-      DEPLOY_VARS: [
-        "BRANCH=${{ github.ref_name }}",
-        "PROJECT_NAME=\"${{ env.PROJECT_NAME }}\"",
-        "",
-        "# Per-branch port and container name",
-        "PORT=3000",
-        "CONTAINER_NAME=\"${PROJECT_NAME}-nextjs\"",
-      ],
-      BRANCH_BLOCK: [
-        "if [ \"$BRANCH\" == \"{{MAIN_BRANCH}}\" ]; then",
-        "  PORT=${{ secrets.PROJECT_DEPLOY_PORT || '3000' }}",
-        "  CONTAINER_NAME=\"${PROJECT_NAME}-nextjs-deploy\"",
-        "  m \"${{ env.PAW_M_cicd_deploy_start }}\" branch=\"$BRANCH\"",
-        "else",
-        "  m \"${{ env.PAW_M_cicd_branch_unsupported }}\" branch=\"$BRANCH\"",
-        "  exit 1",
-        "fi",
-      ],
-      CONFIG_COMMENT: [],
-      EXISTING_COMMENT: [],
-      RUN_COMMENT: [
-        "# Next.js needs a Node.js server for SSR",
-        "# With standalone mode, run it with node server.js",
-      ],
-      RUN_ENV: [
-        "-e NODE_ENV=production \\",
-      ],
-      RUN_RESTART: [
-        "--restart unless-stopped \\",
-      ],
-      FOOTER: [
-        "# Next.js Dockerfile example (standalone mode)",
-        "#",
-        "# # Stage 1: Dependencies",
-        "# FROM node:20-alpine AS deps",
-        "# WORKDIR /app",
-        "# COPY package*.json ./",
-        "# RUN npm ci --only=production",
-        "#",
-        "# # Stage 2: Builder",
-        "# FROM node:20-alpine AS builder",
-        "# WORKDIR /app",
-        "# COPY --from=deps /app/node_modules ./node_modules",
-        "# COPY . .",
-        "# RUN npm run build",
-        "#",
-        "# # Stage 3: Runner",
-        "# FROM node:20-alpine AS runner",
-        "# WORKDIR /app",
-        "# ENV NODE_ENV production",
-        "#",
-        "# RUN addgroup --system --gid 1001 nodejs",
-        "# RUN adduser --system --uid 1001 nextjs",
-        "#",
-        "# COPY --from=builder /app/public ./public",
-        "# COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./",
-        "# COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static",
-        "#",
-        "# USER nextjs",
-        "# EXPOSE 3000",
-        "# ENV PORT 3000",
-        "# CMD [\"node\", \"server.js\"]",
-        "#",
-        "# Add the standalone setting to next.config.js:",
-        "# module.exports = {",
-        "#   output: 'standalone',",
-        "# }",
       ],
     },
   },

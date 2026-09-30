@@ -33,7 +33,7 @@ test("each generation target is byte-identical to the committed file", () => {
   }
 });
 
-test("Go/Python preview, single-server deploy, and React/Next deploy are all generation targets", () => {
+test("Go/Python preview, single-server deploy, and React deploy are all generation targets", () => {
   const outs = TARGETS.map((t) => t.out);
   for (const f of [
     "payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml",
@@ -41,7 +41,6 @@ test("Go/Python preview, single-server deploy, and React/Next deploy are all gen
     "payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml",
     "payload/workflows/python/PROJECT-PYTHON-SIMPLE-CICD.yaml",
     "payload/workflows/react/PROJECT-REACT-CICD.yaml",
-    "payload/workflows/next/PROJECT-NEXT-CICD.yaml",
   ]) {
     assert.ok(outs.includes(f), `${f} is not a generation target`);
   }

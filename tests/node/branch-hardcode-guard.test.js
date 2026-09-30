@@ -43,7 +43,7 @@ const CASES = [
   { name: "spring", label: "spring-nginx", args: ["--type", "spring", "--deploy-style", "nginx"] },
   { name: "spring", label: "spring-traefik", args: ["--type", "spring", "--deploy-style", "traefik"] },
   { name: "react", args: ["--type", "react"] },
-  { name: "next", args: ["--type", "next"] },
+  { name: "next", label: "next-alias", args: ["--type", "next"] },
   { name: "python", args: ["--type", "python"] },
   { name: "go", args: ["--type", "go"] },
 ];

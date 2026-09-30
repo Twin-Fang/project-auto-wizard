@@ -128,7 +128,7 @@ Skip it if:
 |---|---|---|
 | `spring` | `build.gradle`, `build.gradle.kts`, `pom.xml` | CI, server deploy (single server / zero-downtime Nginx or Traefik), PR preview |
 | `flutter` | `pubspec.yaml` | CI, Android (Firebase, Play Store, self-hosted, test APK), iOS TestFlight |
-| `react`, `next` | `package.json` dependencies | CI, CI + CD |
+| `react` (React / Next.js) | `package.json` with a `react` or `next` dependency | CI, CI + CD |
 | `python` | `pyproject.toml`, `setup.py`, `requirements.txt` | CI, PR preview, server deploy |
 | `go` | `go.mod` | CI, PR preview, server deploy |
 | `node`, `react-native`, `react-native-expo`, `basic` | `package.json` / fallback | Release automation only |

@@ -2,7 +2,9 @@
   "0.10.1": [
     {
       "severity": "warning",
-      "types": ["flutter"],
+      "types": [
+        "flutter"
+      ],
       "title": "Flutter SELFHOSTED and TEST-APK now run flutter build directly",
       "message": "SELFHOSTED and TEST-APK run flutter build apk --release directly instead of fastlane build, and the Ruby/fastlane install steps are gone. fastlane is now used only by the three store deploy workflows (PLAYSTORE, IOS-TESTFLIGHT, IOS-TEST-TESTFLIGHT).",
       "title_ko": "Flutter SELFHOSTED·TEST-APK가 flutter build를 직접 실행",
@@ -10,7 +12,9 @@
     },
     {
       "severity": "warning",
-      "types": ["flutter"],
+      "types": [
+        "flutter"
+      ],
       "title": "Flutter env default switched to dart-define",
       "message": "New installs default to dart-define (--dart-define-from-file). Existing installs keep dotenv (a generated .env) when version.yml has no saved value; to change it, use the wizard 'Modify > environment variable method' or --flutter-env-mode.",
       "title_ko": "Flutter 환경변수 기본 방식이 dart-define으로 변경",
@@ -18,7 +22,9 @@
     },
     {
       "severity": "warning",
-      "types": ["flutter"],
+      "types": [
+        "flutter"
+      ],
       "title": "Flutter workflows now run from FLUTTER_PROJECT_DIR",
       "message": "FIREBASE, SELFHOSTED, CI, TEST-APK and IOS-TEST-TESTFLIGHT now run from the Flutter root (FLUTTER_PROJECT_DIR), like PLAYSTORE. For a monorepo where Flutter lives in a subfolder, set it with --paths flutter=<path>.",
       "title_ko": "Flutter 워크플로우가 FLUTTER_PROJECT_DIR 기준으로 동작",
@@ -26,7 +32,13 @@
     },
     {
       "severity": "warning",
-      "types": ["flutter", "go", "next", "python", "react", "spring"],
+      "types": [
+        "flutter",
+        "go",
+        "python",
+        "react",
+        "spring"
+      ],
       "title": "Register only ci-gate as the monorepo CI required check",
       "message": "CI workflows (Flutter, Go, Next, Python, React, Spring CI) always run and skip their jobs when nothing changed. To use them as a required check, register only the CI Gate (ci-gate), not the individual jobs.",
       "title_ko": "모노레포 CI required check는 ci-gate 하나만 등록",
@@ -45,7 +57,9 @@
   "0.12.1": [
     {
       "severity": "warning",
-      "types": ["spring"],
+      "types": [
+        "spring"
+      ],
       "title": "Spring nexus and GitHub Packages publish options removed",
       "message": "PROJECT-SPRING-NEXUS-PUBLISH.yml and PROJECT-SPRING-GITHUB-PACKAGES-PUBLISH.yml are no longer installed, and PROJECT-SPRING-NEXUS-CI.yml became PROJECT-SPRING-CI.yml, which is always installed. On update, untouched old files are deleted and modified ones are moved to .bak. To keep deploying, move the .bak into a workflow you maintain yourself.",
       "title_ko": "Spring nexus·GitHub Packages publish 옵션 제거",
@@ -57,6 +71,18 @@
       "message": "PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml is no longer installed. If you had it, untouched files are deleted on update and modified ones are moved to .bak. To keep using it, move the .bak into a workflow you maintain yourself.",
       "title_ko": "Secret 서버 백업 워크플로우(secret_backup 옵션) 제거",
       "message_ko": "PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml을 더 이상 설치하지 않습니다. 설치해 두었다면 업데이트 때 손대지 않은 파일은 삭제되고 수정한 파일은 .bak으로 옮겨집니다. 계속 쓰려면 .bak을 직접 관리하는 워크플로우로 옮기세요."
+    }
+  ],
+  "0.15.1": [
+    {
+      "severity": "warning",
+      "types": [
+        "react"
+      ],
+      "title": "The next type is now react; Next.js deploy names changed",
+      "message": "Next.js projects are now the react type (next is still accepted as an alias). PROJECT-NEXT-CI and PROJECT-NEXT-CICD are replaced by PROJECT-REACT-CI and PROJECT-REACT-CICD on update (untouched old files are deleted, modified ones move to .bak). The deploy image prefix changes from nextjs-container to front-container and the container from <project>-nextjs-deploy to <project>-front-deploy, so the first deploy pulls a new image; the workflow removes the old nextjs container automatically before starting the new one. Clean up the old image on the server if you no longer need it.",
+      "title_ko": "next 타입이 react로 통합되고 Next.js 배포 이름이 바뀜",
+      "message_ko": "Next.js 프로젝트는 이제 react 타입입니다(next는 별칭으로 계속 받습니다). 업데이트하면 PROJECT-NEXT-CI·PROJECT-NEXT-CICD가 PROJECT-REACT-CI·PROJECT-REACT-CICD로 교체됩니다(손대지 않은 이전 파일은 삭제, 수정한 파일은 .bak으로 이동). 배포 이미지 접두어가 nextjs-container에서 front-container로, 컨테이너 이름이 <프로젝트>-nextjs-deploy에서 <프로젝트>-front-deploy로 바뀌므로 첫 배포에서 새 이미지를 받으며, 워크플로우가 새 컨테이너를 띄우기 전에 이전 nextjs 컨테이너를 자동으로 지웁니다. 이전 이미지가 필요 없다면 서버에서 직접 정리하세요."
     }
   ]
 }

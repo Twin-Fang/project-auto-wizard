@@ -186,7 +186,7 @@ test("deploy_style in version.yml does not swallow an inline comment as its valu
   assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
 });
 
-test("deployFilter('none'): excludes the 3 CDs, the PR preview and the react/next single CD, and passes CI and common", () => {
+test("deployFilter('none'): excludes the 3 CDs, the PR preview and the react single CD, and passes CI and common", () => {
   const keep = deployFilter("none");
   assert.ok(!keep(SIMPLE));
   assert.ok(!keep(NGINX));
@@ -194,7 +194,6 @@ test("deployFilter('none'): excludes the 3 CDs, the PR preview and the react/nex
   assert.ok(!keep(PREVIEW), "the PR preview is also a server deploy, so it must be excluded too");
   assert.ok(!keep("PROJECT-PYTHON-PR-PREVIEW.yaml"));
   assert.ok(!keep("PROJECT-REACT-CICD.yaml"));
-  assert.ok(!keep("PROJECT-NEXT-CICD.yaml"));
   assert.ok(keep("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "store deploys are not server deploys");
   assert.ok(keep("PROJECT-REACT-CI.yaml"));
   assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));

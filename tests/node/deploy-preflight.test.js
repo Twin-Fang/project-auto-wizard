@@ -15,7 +15,6 @@ const CASES = [
   ["go/PROJECT-GO-SIMPLE-CICD.yaml", 1, true],
   ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", 1, true],
   ["react/PROJECT-REACT-CICD.yaml", 1, true],
-  ["next/PROJECT-NEXT-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", 1, true],
   ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", 1, true],
