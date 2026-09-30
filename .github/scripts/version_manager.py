@@ -717,7 +717,7 @@ def sync_all_project_files(new_version):
             sync_for_type(ptype, new_version, get_reconciled_version_code)
         except VersionSyncError as e:
             log(t("version_manager.err_type", type=ptype, error=e))
-            errors.append(t)
+            errors.append(ptype)
     if errors:
         raise VersionSyncError(t("version_manager.err_sync_failed", types=", ".join(errors)))
 
