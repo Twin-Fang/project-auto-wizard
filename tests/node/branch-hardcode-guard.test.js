@@ -1,6 +1,6 @@
-// 설치 시 고른 브랜치명이 모든 워크플로우에 반영되는지 검증한다.
-// main/develop이 아닌 이름으로 설치했을 때 체크아웃 ref·git pull 등에 main/develop이 박혀 있으면
-// 배포가 엉뚱한 브랜치 코드를 쓰거나 실패한다.
+// Verify the branch name chosen at install is reflected in every workflow.
+// If main/develop are hardcoded in checkout refs, git pull, etc. when installed with other names,
+// the deploy uses the wrong branch's code or fails.
 import { test } from "node:test";
 import assert from "node:assert";
 import { execFileSync } from "node:child_process";
@@ -12,8 +12,8 @@ const BIN = join(process.cwd(), "bin", "project-auto-wizard.js");
 const FIXTURES = join(process.cwd(), "tests", "fixtures", "e2e");
 const MAIN = "master";
 const DEVELOP = "dev-line";
-// 주석 줄은 사용자 안내문이라 제외하고, 실행되는 줄에서 브랜치명으로 쓰인 main/develop만 잡는다.
-// Maven/Gradle 소스 경로(src/main/...)는 브랜치가 아니므로 먼저 걷어낸다.
+// Skip comment lines (user-facing notes) and catch only main/develop used as branch names on executed lines.
+// Strip Maven/Gradle source paths (src/main/...) first since they are not branches.
 const HARDCODED_RE = /\b(main|develop)\b/;
 const SOURCE_PATH_RE = /\bsrc\/main\//g;
 
@@ -49,16 +49,16 @@ const CASES = [
 ];
 
 for (const { name, label = name, args } of CASES) {
-  test(`${label}: --main-branch ${MAIN} 설치 시 워크플로우에 main/develop 하드코딩이 남지 않는다`, () => {
+  test(`${label}: --main-branch ${MAIN} installing leaves no main/develop hardcoding in the workflows`, () => {
     const t = installFixture(name, args);
     try {
       const hits = strayLines(t);
-      assert.deepStrictEqual(hits, [], `하드코딩된 브랜치명:\n${hits.join("\n")}`);
+      assert.deepStrictEqual(hits, [], `hardcoded branch names:\n${hits.join("\n")}`);
     } finally { rmSync(t, { recursive: true, force: true }); }
   });
 }
 
-test("flutter: 스토어 배포 워크플로우의 체크아웃·pull이 설치한 릴리스 브랜치를 따른다", () => {
+test("flutter: checkout and pull in the store deploy workflows follow the installed release branch", () => {
   const t = installFixture("flutter", ["--type", "flutter", "--flutter-store", "android,ios"]);
   try {
     const wfDir = join(t, ".github", "workflows");

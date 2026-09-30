@@ -1,6 +1,6 @@
 // tests/node/installed-stores.test.js
-// flutter_store 저장값이 없는 기존 설치는 설치된 스토어 워크플로우로 플랫폼을 추론한다.
-// (선택 해제로 오인해 잘 쓰던 스토어 워크플로우가 정리되는 사고를 막는다.)
+// An existing install without a stored flutter_store infers platforms from the installed store workflows.
+// (Prevents a working store workflow from being cleaned up because it is mistaken for a deselection.)
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -16,7 +16,7 @@ function workflowsDirWith(files) {
   return { root, dir };
 }
 
-test("inferInstalledStores: 스토어 워크플로우 파일명으로 설치된 플랫폼을 추론한다", () => {
+test("inferInstalledStores: infers installed platforms from store workflow file names", () => {
   const { root, dir } = workflowsDirWith(["PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"]);
   try {
     assert.deepStrictEqual(inferInstalledStores(dir), ["ios"]);
@@ -27,7 +27,7 @@ test("inferInstalledStores: 스토어 워크플로우 파일명으로 설치된 
   }
 });
 
-test("inferInstalledStores: 스토어와 무관한 Flutter 워크플로우만 있으면 빈 배열", () => {
+test("inferInstalledStores: empty array when only non-store Flutter workflows exist", () => {
   const { root, dir } = workflowsDirWith([
     "PROJECT-FLUTTER-CI.yaml", "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml", "PROJECT-COMMON-VERSION-CONTROL.yaml",
   ]);
@@ -38,7 +38,7 @@ test("inferInstalledStores: 스토어와 무관한 Flutter 워크플로우만 �
   }
 });
 
-test("inferInstalledStores: 워크플로우 폴더가 없으면 빈 배열", () => {
+test("inferInstalledStores: empty array when the workflows folder is missing", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-installed-stores-empty-"));
   try {
     assert.deepStrictEqual(inferInstalledStores(join(root, ".github", "workflows")), []);

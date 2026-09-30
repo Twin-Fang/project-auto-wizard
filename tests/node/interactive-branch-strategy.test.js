@@ -1,6 +1,6 @@
 // tests/node/interactive-branch-strategy.test.js
-// 브랜치 전략(pr-flow/trunk-based)을 먼저 명시적으로 선택한 뒤,
-// trunk-based면 개발 브랜치 질문을 생략하는지 검증한다.
+// Verify that after explicitly choosing the branch strategy (pr-flow/trunk-based),
+// trunk-based skips the development branch question.
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
@@ -37,7 +37,7 @@ function tmpProject() {
   return mkdtempSync(join(tmpdir(), "paw-branch-strategy-"));
 }
 
-test("trunk-based 선택 시 개발 브랜치 질문이 생략되고 branches.mode가 trunk-based가 된다", async () => {
+test("choosing trunk-based skips the dev branch question and sets branches.mode to trunk-based", async () => {
   const target = tmpProject();
   try {
     const { io, askTextCalls, noteCalls, summaryCalls } = stubIo({ strategy: "trunk-based" });
@@ -45,22 +45,22 @@ test("trunk-based 선택 시 개발 브랜치 질문이 생략되고 branches.mo
     assert.strictEqual(code, 0);
 
     const branchQuestions = askTextCalls.filter((c) => c.message.includes("브랜치를 선택하세요"));
-    assert.strictEqual(branchQuestions.length, 1, "trunk-based면 릴리스 브랜치 질문 1개만 나와야 한다");
-    assert.ok(branchQuestions[0].message.includes("릴리스 브랜치"), "생략 없이 남는 질문은 릴리스 브랜치여야 한다");
+    assert.strictEqual(branchQuestions.length, 1, "trunk-based must ask only the one release branch question");
+    assert.ok(branchQuestions[0].message.includes("릴리스 브랜치"), "the question that remains must be the release branch");
 
     const { branches } = summaryCalls[0];
     assert.strictEqual(branches.mode, "trunk-based");
-    assert.strictEqual(branches.main, branches.develop, "trunk-based는 main과 develop이 같아야 한다");
+    assert.strictEqual(branches.main, branches.develop, "trunk-based requires main and develop to be the same");
 
     const strategyNote = noteCalls.find((n) => n.title === "브랜치 모드");
-    assert.ok(strategyNote, "trunk-based 안내 note가 떠야 한다");
+    assert.ok(strategyNote, "the trunk-based guidance note must appear");
     assert.ok(strategyNote.text.includes("trunk-based"));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("pr-flow 선택 시 릴리스/개발 브랜치 질문이 각각 나오고 서로 다른 이름이면 branches.mode가 pr-flow가 된다", async () => {
+test("choosing pr-flow asks release and dev branch questions separately, and distinct names set branches.mode to pr-flow", async () => {
   const target = tmpProject();
   try {
     const { io, askTextCalls, summaryCalls } = stubIo({
@@ -71,7 +71,7 @@ test("pr-flow 선택 시 릴리스/개발 브랜치 질문이 각각 나오고 �
     assert.strictEqual(code, 0);
 
     const branchQuestions = askTextCalls.filter((c) => c.message.includes("브랜치를 선택하세요"));
-    assert.strictEqual(branchQuestions.length, 2, "pr-flow면 릴리스+개발 두 질문이 나와야 한다");
+    assert.strictEqual(branchQuestions.length, 2, "pr-flow must ask both release and dev questions");
 
     const { branches } = summaryCalls[0];
     assert.strictEqual(branches.mode, "pr-flow");
@@ -82,7 +82,7 @@ test("pr-flow 선택 시 릴리스/개발 브랜치 질문이 각각 나오고 �
   }
 });
 
-test("전략 선택이 취소(ESC)되면 pr-flow로 폴백해 기존과 동일하게 두 질문이 나온다", async () => {
+test("cancelling (ESC) the strategy falls back to pr-flow and asks the same two questions as before", async () => {
   const target = tmpProject();
   try {
     const { io, askTextCalls } = stubIo({ strategy: Symbol("cancel") });
@@ -90,27 +90,27 @@ test("전략 선택이 취소(ESC)되면 pr-flow로 폴백해 기존과 동일�
     assert.strictEqual(code, 0);
 
     const branchQuestions = askTextCalls.filter((c) => c.message.includes("브랜치를 선택하세요"));
-    assert.strictEqual(branchQuestions.length, 2, "취소 시 pr-flow 폴백이므로 두 질문 모두 나와야 한다");
+    assert.strictEqual(branchQuestions.length, 2, "cancel falls back to pr-flow, so both questions must appear");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("pr-flow + 원격 없음: develop을 만들지 않았다고 안내하고 요약에 developMissing을 넘긴다", async () => {
+test("pr-flow with no remote: says develop was not created and passes developMissing to the summary", async () => {
   const target = tmpProject();
   try {
     const { io, noteCalls, summaryCalls } = stubIo({ strategy: "pr-flow" });
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
     const notice = noteCalls.find((n) => n.title === "브랜치" && n.text.includes("git push origin main:develop"));
-    assert.ok(notice, "develop 생성 방법 안내 note가 떠야 한다");
+    assert.ok(notice, "the note explaining how to create develop must appear");
     assert.strictEqual(summaryCalls[0].developMissing, true);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("브랜치 입력: 앞뒤 공백은 떼고, 공백만이면 기본값, 쓸 수 없는 이름이면 다시 묻는다", async () => {
+test("branch input: trims surrounding whitespace, uses the default for blank, re-asks for an unusable name", async () => {
   const target = tmpProject();
   try {
     const answers = { "릴리스 브랜치": ["   "], "개발 브랜치": ["dev branch", " dev "] };
@@ -124,7 +124,7 @@ test("브랜치 입력: 앞뒤 공백은 떼고, 공백만이면 기본값, 쓸 
     const { branches } = summaryCalls[0];
     assert.strictEqual(branches.main, "main");
     assert.strictEqual(branches.develop, "dev");
-    assert.ok(noteCalls.some((n) => n.text.includes("'dev branch'")), "잘못된 이름을 알려야 한다");
+    assert.ok(noteCalls.some((n) => n.text.includes("'dev branch'")), "must report the invalid name");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

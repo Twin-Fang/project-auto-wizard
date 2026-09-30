@@ -1,23 +1,23 @@
-// 파이썬 테스트 크로스플랫폼 런처.
+// Cross-platform launcher for the Python tests.
 //
-// `python3`는 Windows에 존재하지 않는다 — 있어도 Microsoft Store 스텁이라
-// 실행 시 exit 49로 죽는다. 반대로 일부 Linux 배포판에는 `python`이 없다.
-// 두 이름을 순서대로 시도해 실제로 동작하는 인터프리터를 고른다.
+// `python3` does not exist on Windows — and if it does, it is a Microsoft Store stub
+// that dies with exit 49. Conversely, some Linux distros have no `python`.
+// Try both names in order and pick the interpreter that actually works.
 //
-// Node는 npm 스크립트 실행 시점에 반드시 존재하므로 추가 의존성이 없다
-// (zero-dependency 원칙 유지). package.json의 files 화이트리스트
-// (bin/·src/·payload/)에 없으므로 npm 패키지에는 실리지 않는다.
+// Node is always present when npm scripts run, so this adds no dependency
+// (keeps the zero-dependency rule). It is not in the package.json files whitelist
+// (bin/, src/, payload/), so it is not shipped in the npm package.
 import { spawnSync } from "node:child_process";
 
 const CANDIDATES = ["python3", "python"];
 const ARGS = ["-m", "unittest", "discover", "-s", "tests/py", "-v"];
 
-// 해당 이름이 "실제로 쓸 수 있는" 파이썬인지 확인한다.
-// Windows Store 스텁은 `--version`에도 0을 반환하지 않으므로 이걸로 걸러진다.
+// Checks whether the given name is a Python that is actually usable.
+// The Windows Store stub does not return 0 even for `--version`, so this filters it out.
 function isUsable(cmd) {
   const probe = spawnSync(cmd, ["-c", "import sys; print(sys.version_info[0])"], {
     encoding: "utf8",
-    // 스텁이 stdin을 기다리며 매달리지 않도록 즉시 EOF를 준다
+    // Send EOF immediately so a stub does not hang waiting on stdin
     input: "",
   });
   return probe.status === 0 && probe.stdout.trim() === "3";
@@ -27,15 +27,15 @@ const python = CANDIDATES.find(isUsable);
 
 if (!python) {
   console.error(
-    `파이썬 3을 찾을 수 없습니다 (시도: ${CANDIDATES.join(", ")}).\n` +
-    "Python 3을 설치하고 PATH에 등록한 뒤 다시 실행하세요."
+    `Python 3 not found (tried: ${CANDIDATES.join(", ")}).\n` +
+    "Install Python 3, add it to PATH, and run again."
   );
   process.exit(1);
 }
 
-// 한글 출력이 Windows 기본 코드페이지(cp949)에서 깨지지 않도록 강제한다.
-// payload/scripts를 import해도 __pycache__가 남지 않게 한다 — 남으면 npm 패키지에 실리고
-// 원작자 이름 가드 테스트가 두 번째 실행부터 pyc를 잡아 실패한다.
+// Force UTF-8 so Korean output does not break on the Windows default code page (cp949).
+// Keep __pycache__ from being left behind when payload/scripts is imported — otherwise it ships in the npm package and
+// the author-name guard test catches the pyc from the second run on and fails.
 const result = spawnSync(python, ARGS, {
   stdio: "inherit",
   env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1" },

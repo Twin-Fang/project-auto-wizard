@@ -1,8 +1,8 @@
 // tests/node/status-cards-flutter.test.js
-// 회귀 방지 — 실제 화면에 출력되는
-// printAnalysisCard(src/ui/status-cards.js)가 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포
-// 모드)을 직접 렌더링하는지 단위로 검증한다. interactive.js의 summarize() fallback이 아니라
-// io.analysisCard가 항상 쓰는 이 함수 자체를 대상으로 한다.
+// Regression guard: verifies at unit level that
+// printAnalysisCard (src/ui/status-cards.js), which is what actually renders on screen, renders the Flutter options (env mode, store deploy targets, deploy
+// mode) directly. The target is not the summarize() fallback in interactive.js but
+// this function itself, which io.analysisCard always uses.
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
@@ -14,7 +14,7 @@ function render(info) {
   return text;
 }
 
-test("printAnalysisCard: showOptional && flutter 타입이면 환경변수·스토어·배포 모드 3줄을 출력한다", () => {
+test("printAnalysisCard: showOptional and flutter type print the env, store, and deploy mode lines", () => {
   const text = render({
     mode: "full", modeLabel: "전체 설치", types: ["flutter"], version: "1.0.0", branch: "main",
     showOptional: true,
@@ -26,7 +26,7 @@ test("printAnalysisCard: showOptional && flutter 타입이면 환경변수·스�
   assert.match(text, /배포모드\s+android=store_only ios=store_submit/);
 });
 
-test("printAnalysisCard: flutter.envMode가 미결정(빈 문자열)이면 envModeDefault를 보여준다", () => {
+test("printAnalysisCard: shows envModeDefault when flutter.envMode is undecided (empty string)", () => {
   const text = render({
     types: ["flutter"], version: "1.0.0", branch: "main", showOptional: true,
     flutter: { envMode: "", stores: [], androidDeployMode: "", iosDeployMode: "" },
@@ -37,25 +37,25 @@ test("printAnalysisCard: flutter.envMode가 미결정(빈 문자열)이면 envMo
   assert.match(text, /배포모드\s+없음/);
 });
 
-test("printAnalysisCard: showOptional이 false면 Flutter 옵션 줄이 없다", () => {
+test("printAnalysisCard: no Flutter option lines when showOptional is false", () => {
   const text = render({
     types: ["flutter"], version: "1.0.0", branch: "main", showOptional: false,
     flutter: { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_only", iosDeployMode: "store_only" },
     envModeDefault: "dart-define",
   });
-  assert.ok(!text.includes("환경변수"), "showOptional=false면 Flutter 줄도 숨겨야 한다");
+  assert.ok(!text.includes("환경변수"), "Flutter lines must be hidden when showOptional=false");
 });
 
-test("printAnalysisCard: flutter 타입이 아니면 flutter 상태를 넘겨도 옵션 줄이 없다", () => {
+test("printAnalysisCard: no option lines for non-flutter types even when flutter state is passed", () => {
   const text = render({
     types: ["node"], version: "1.0.0", branch: "main", showOptional: true,
     flutter: { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_only", iosDeployMode: "store_only" },
     envModeDefault: "dart-define",
   });
-  assert.ok(!text.includes("환경변수"), "Flutter 타입이 아니면 옵션 줄이 없어야 한다");
+  assert.ok(!text.includes("환경변수"), "no option lines for non-Flutter types");
 });
 
-test("printAnalysisCard: flutter 상태를 안 넘기면(기존 호출부 호환) 예외 없이 렌더링되고 옵션 줄이 없다", () => {
+test("printAnalysisCard: without flutter state (legacy caller compatibility) it renders without exceptions and has no option lines", () => {
   const text = render({
     types: ["flutter"], version: "1.0.0", branch: "main", showOptional: true,
   });

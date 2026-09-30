@@ -7,15 +7,15 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
 
-test("parseArgs: 알 수 없는 --mode 값은 CliError를 던진다", () => {
+test("parseArgs: an unknown --mode value throws CliError", () => {
   assert.throws(() => parseArgs(["--mode", "ful"]), CliError);
 });
 
-test("parseArgs: --mode 뒤에 값이 없으면(빈 문자열로 해석) CliError를 던진다", () => {
+test("parseArgs: --mode with no value (parsed as an empty string) throws CliError", () => {
   assert.throws(() => parseArgs(["--mode"]), CliError);
 });
 
-test("parseArgs: 유효한 모드는 전부 통과한다 (purge 포함)", () => {
+test("parseArgs: all valid modes pass (including purge)", () => {
   const modes = ["interactive", "full", "uninstall", "status", "doctor", "purge"];
   for (const m of modes) {
     const opts = parseArgs(["--mode", m]);
@@ -23,17 +23,17 @@ test("parseArgs: 유효한 모드는 전부 통과한다 (purge 포함)", () => 
   }
 });
 
-test("parseArgs: --mode 미지정 시 기본값 interactive는 그대로 통과한다", () => {
+test("parseArgs: the default interactive passes when --mode is not given", () => {
   const opts = parseArgs([]);
   assert.strictEqual(opts.mode, "interactive");
 });
 
-test("parseArgs: 에러 메시지는 숨김 모드(purge)를 노출하지 않는다", () => {
+test("parseArgs: the error message does not expose the hidden mode (purge)", () => {
   try {
     parseArgs(["--mode", "ful"]);
-    assert.fail("CliError가 발생해야 합니다");
+    assert.fail("CliError must be thrown");
   } catch (e) {
-    assert.ok(!e.message.includes("purge"), "purge는 숨김 모드이므로 에러 메시지에 노출되면 안 됩니다");
+    assert.ok(!e.message.includes("purge"), "purge is a hidden mode, so it must not appear in the error message");
   }
 });
 
@@ -58,22 +58,22 @@ function repoWithOriginRemote() {
   return { bare, target };
 }
 
-test("run(): 잘못된 --mode 값은 exit 1이며 원격 develop 브랜치를 생성/push하지 않는다", async () => {
+test("run(): an invalid --mode value exits 1 and does not create/push a remote develop branch", async () => {
   const { bare, target } = repoWithOriginRemote();
   try {
     const code = await run(["--mode", "ful", "--force", "--type", "node"], { cwd: target });
     assert.strictEqual(code, 1);
-    assert.ok(!git(bare, ["branch"]).includes("develop"), "원격(bare repo)에 develop 브랜치가 생기면 안 됩니다");
-    assert.ok(!git(target, ["branch"]).includes("develop"), "로컬에도 develop 브랜치가 생기면 안 됩니다");
+    assert.ok(!git(bare, ["branch"]).includes("develop"), "a develop branch must not appear on the remote (bare repo)");
+    assert.ok(!git(target, ["branch"]).includes("develop"), "a develop branch must not appear locally either");
   } finally {
     rmSync(bare, { recursive: true, force: true });
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-// 제거된 모드는 조용히 통과하면 안 된다.
-test("parseArgs: 제거된 모드(version/workflows/revert)는 CliError로 거부된다", () => {
+// Removed modes must not pass silently.
+test("parseArgs: removed modes (version/workflows/revert) are rejected with CliError", () => {
   for (const m of ["version", "workflows", "revert"]) {
-    assert.throws(() => parseArgs(["--mode", m]), CliError, `'${m}' 모드가 여전히 통과합니다`);
+    assert.throws(() => parseArgs(["--mode", m]), CliError, `'${m}' mode still passes`);
   }
 });

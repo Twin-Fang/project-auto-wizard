@@ -1,5 +1,5 @@
 // tests/node/deploy-style-scope.test.js
-// 배포 방식은 서버 배포(CD) 워크플로우가 있는 타입일 때만 묻고 기록한다.
+// The deploy style is asked and recorded only for types that have a server deploy (CD) workflow.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import { run } from "../../src/index.js";
 
 const payload = resolvePayloadRoot();
 
-test("hasServerDeployWorkflows: spring·go·python·react·next만 서버 배포 워크플로우를 가진다", () => {
+test("hasServerDeployWorkflows: only spring, go, python, react and next have server deploy workflows", () => {
   for (const t of ["spring", "go", "python", "react", "next"]) assert.strictEqual(hasServerDeployWorkflows(payload, [t]), true, t);
   for (const t of ["node", "flutter", "basic", "react-native", "react-native-expo"]) {
     assert.strictEqual(hasServerDeployWorkflows(payload, [t]), false, t);
@@ -34,7 +34,7 @@ function stubIo(deployAsked) {
   };
 }
 
-test("interactive: node 프로젝트는 배포 방식을 묻지 않고 deploy_style을 기록하지 않는다", async () => {
+test("interactive: a node project is not asked about the deploy style and deploy_style is not recorded", async () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-scope-"));
   try {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "my-app", version: "1.0.0" }));
@@ -47,21 +47,21 @@ test("interactive: node 프로젝트는 배포 방식을 묻지 않고 deploy_st
   }
 });
 
-test("interactive: go 프로젝트는 배포 방식을 묻고 기록한다", async () => {
+test("interactive: a go project is asked about the deploy style and it is recorded", async () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-scope-"));
   try {
     writeFileSync(join(dir, "go.mod"), "module example.com/my-service\n\ngo 1.22\n");
     const asked = [];
     assert.strictEqual(await runInteractive({}, { cwd: dir, io: stubIo(asked) }), 0);
     assert.strictEqual(asked.length, 1);
-    // go에는 nginx 무중단 워크플로우가 없어 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    // go has no nginx zero-downtime workflow, so a single-server deploy is installed — the installed style is recorded.
     assert.match(readFileSync(join(dir, "version.yml"), "utf8"), /deploy_style: "simple"/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("run(--force): node 프로젝트는 deploy_style을 기록하지 않는다", async () => {
+test("run(--force): a node project does not record deploy_style", async () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-scope-"));
   try {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "my-app", version: "1.0.0" }));

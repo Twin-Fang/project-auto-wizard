@@ -103,7 +103,7 @@ test("loadWizardPrompts: returns null when neither exists", () => {
   assert.strictEqual(loadWizardPrompts("target", "payload", fakeFs), null);
 });
 
-test("loadWizardPrompts: 사용자 파일은 번들을 대체하지 않고 적은 키·필드만 덮어쓴다", () => {
+test("loadWizardPrompts: the user file does not replace the bundle and only overrides the keys and fields it lists", () => {
   const files = {
     target: `PROJECT_NAME:\n  label: "내 라벨"\n_workflow_names:\n  SIMPLE-CICD: "내 배포"\n`,
     payload: `PROJECT_NAME:\n  label: "번들 라벨"\n  help: "번들 도움말"\nSSH_AUTH_METHOD:\n  label: "SSH 인증 방식"\n_workflow_names:\n  SIMPLE-CICD: "단일 서버 배포"\n  PR-PREVIEW: "PR 프리뷰"\n`,
@@ -114,14 +114,14 @@ test("loadWizardPrompts: 사용자 파일은 번들을 대체하지 않고 적�
   };
   const result = loadWizardPrompts("target", "payload", fakeFs);
   assert.strictEqual(wfField(result, "", "PROJECT_NAME", "label"), "내 라벨");
-  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "help"), "번들 도움말", "적지 않은 필드는 번들 유지");
-  assert.strictEqual(wfField(result, "", "SSH_AUTH_METHOD", "label"), "SSH 인증 방식", "적지 않은 키는 번들 유지");
+  assert.strictEqual(wfField(result, "", "PROJECT_NAME", "help"), "번들 도움말", "unlisted fields keep the bundle value");
+  assert.strictEqual(wfField(result, "", "SSH_AUTH_METHOD", "label"), "SSH 인증 방식", "unlisted keys keep the bundle value");
   assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-SIMPLE-CICD.yaml"), "내 배포");
   assert.strictEqual(workflowDisplayName(result, "PROJECT-SPRING-PR-PREVIEW.yaml"), "PR 프리뷰");
 });
 
-// 번들 문구가 빠진 ask 키는 KEY 이름만 보인다 — 새 ask 키를 추가하면 라벨도 함께 추가해야 한다.
-test("번들 wizard-prompts.yml: 모든 @wizard ask 키에 label과 help가 있다", async () => {
+// An ask key missing its bundle text shows only the KEY name — adding a new ask key requires adding its label too.
+test("bundled wizard-prompts.yml: every @wizard ask key has a label and help", async () => {
   const { readdirSync, readFileSync, statSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { parseWizardLine } = await import("../../src/core/wizard-env.js");

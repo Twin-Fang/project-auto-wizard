@@ -9,7 +9,7 @@ import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { planPurge, executePurge, printPurgeResult } from "../../src/commands/purge.js";
 
-// changelog_manager.py가 만드는 형태 — purge는 이 구조의 CHANGELOG만 지운다
+// The shape produced by changelog_manager.py — purge removes only a CHANGELOG with this structure
 const GEN_JSON = JSON.stringify({ metadata: { currentVersion: "1.0.0" }, releases: [] });
 const GEN_MD = "# Changelog\n\n**현재 버전:** 1.0.0  \n**마지막 업데이트:** 2026-07-28  \n\n---\n\n";
 
@@ -70,10 +70,10 @@ test("planPurge: keepFlags excludes categories from the plan", () => {
   }
 });
 
-// runFull()은 이제 충돌 백업 부산물(.bak/.template.yaml)이
-// 실제로 생겼을 때만 .gitignore를 건드린다. 이 라운드트립 테스트의 설치는 충돌이 없어 .gitignore가
-// 전혀 생성되지 않으므로 아래 필터는 사실상 no-op이지만, 만약 다른 테스트가 충돌을 유발하도록 바뀌더라도
-// purge는 .gitignore를 절대 건드리지 않으므로 안전하게 비교 대상에서 제외해 둔다.
+// runFull() now touches .gitignore only when conflict-backup byproducts (.bak/.template.yaml)
+// were actually created. The install in this round-trip test has no conflicts, so no .gitignore is created at all and the filter below is effectively a no-op,
+// but even if another test changes to trigger a conflict, purge never touches .gitignore,
+// so it is safely excluded from the comparison.
 function listAllFiles(dir, base = dir) {
   let out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -119,7 +119,7 @@ test("executePurge: --keep-version-yml preserves version.yml while removing the 
   }
 });
 
-// --keep-* 각각에 대해 실행 레벨(execute) 보존을 검증한다 — plan만 보면 실제 삭제 결과를 놓친다.
+// Verifies execute-level preservation for each --keep-* — looking at the plan alone would miss the actual deletion result.
 test("executePurge: --keep-readme preserves the AUTO-VERSION-SECTION block while removing the rest", () => {
   const target = installFixture();
   try {
@@ -155,9 +155,9 @@ test("executePurge: --keep-scripts preserves .github/scripts/*.py while removing
   }
 });
 
-// CHANGELOG 카테고리는 최초 초안에서 감지(planPurge)만 검증되고 실제 삭제가
-// 어떤 테스트에서도 실행되지 않는 죽은 경로였다 — --keep-changelog 보존 테스트와 별개로
-// 기본 동작(보존 플래그 없이 실제로 지워짐)도 명시적으로 검증한다.
+// The CHANGELOG category was a dead path: only detection (planPurge) was verified in the first draft and the actual deletion
+// was never executed by any test — separately from the --keep-changelog preservation test,
+// the default behavior (actually deleted without a keep flag) is also verified explicitly.
 test("executePurge: --keep-changelog preserves CHANGELOG files while removing the rest", () => {
   const target = installFixture();
   try {
@@ -205,7 +205,7 @@ test("printPurgeResult: does not throw on an empty result", () => {
   printPurgeResult({ workflows: [], scripts: [], versionYml: false, readmeSection: false, changelog: [] });
 });
 
-test("planPurge: 마법사가 만들지 않은 사용자 CHANGELOG.md는 지우지 않는다", () => {
+test("planPurge: does not delete a user CHANGELOG.md that the wizard did not create", () => {
   const target = installFixture();
   try {
     writeFileSync(join(target, "CHANGELOG.md"), "# my changelog\n");
@@ -218,7 +218,7 @@ test("planPurge: 마법사가 만들지 않은 사용자 CHANGELOG.md는 지우�
   }
 });
 
-test("planPurge: 생성된 CHANGELOG.json이 있으면 재생성된 CHANGELOG.md도 함께 지운다", () => {
+test("planPurge: when a generated CHANGELOG.json exists, the regenerated CHANGELOG.md is deleted too", () => {
   const target = installFixture();
   try {
     writeFileSync(join(target, "CHANGELOG.json"), GEN_JSON);
@@ -229,7 +229,7 @@ test("planPurge: 생성된 CHANGELOG.json이 있으면 재생성된 CHANGELOG.md
   }
 });
 
-test("executePurge: 마법사가 .gitignore에 추가한 블록을 제거해 원래 내용으로 되돌린다", async () => {
+test("executePurge: removes the block the wizard added to .gitignore and restores the original content", async () => {
   const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
   const target = installFixture();
   try {
@@ -245,7 +245,7 @@ test("executePurge: 마법사가 .gitignore에 추가한 블록을 제거해 원
   }
 });
 
-test("executePurge --keep-workflows: 남겨 둔 .bak을 가리는 .gitignore 항목은 지우지 않는다", async () => {
+test("executePurge --keep-workflows: does not remove the .gitignore entry that hides a retained .bak", async () => {
   const { planUninstall } = await import("../../src/commands/uninstall.js");
   const target = mkdtempSync(join(tmpdir(), "paw-purge-plan-"));
   try {
@@ -259,11 +259,11 @@ test("executePurge --keep-workflows: 남겨 둔 .bak을 가리는 .gitignore 항
     runFull(ctx("simple"), payload, target);
     const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
     writeFileSync(simple, readFile(simple, "utf8") + "# 직접 수정\n");
-    runFull(ctx("traefik"), payload, target); // 수정본은 .bak으로 옮겨지고 .gitignore가 생긴다
+    runFull(ctx("traefik"), payload, target); // the modified copy is moved to .bak and .gitignore is created
     assert.ok(existsSync(simple + ".bak"));
     const gitignore = readFile(join(target, ".gitignore"), "utf8");
 
-    // 워크플로우를 남기는 uninstall 선택도 같은 규칙을 따른다.
+    // An uninstall choice that keeps workflows follows the same rule.
     assert.strictEqual(planUninstall(payload, target, { workflows: false, gitignore: true }).gitignore, false);
 
     const plan = planPurge(payload, target, { workflows: true });
@@ -277,7 +277,7 @@ test("executePurge --keep-workflows: 남겨 둔 .bak을 가리는 .gitignore 항
   }
 });
 
-test("executePurge --keep-workflows: 백업 파일이 없으면 .gitignore 자동 추가 항목은 그대로 제거한다", async () => {
+test("executePurge --keep-workflows: with no backup files, the auto-added .gitignore entry is still removed", async () => {
   const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
   const target = installFixture();
   try {

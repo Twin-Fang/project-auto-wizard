@@ -24,8 +24,8 @@ function installFixture() {
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
-  // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다 — 이 픽스처는
-  // uninstall의 gitignore 정리 동작 자체를 검증하는 것이 목적이므로 직접 만들어 둔다.
+  // full mode creates .gitignore only when conflict backups were actually made — this fixture exists to
+  // verify uninstall's gitignore cleanup itself, so it is created directly.
   ensureGitignore(target);
   return target;
 }
@@ -65,7 +65,7 @@ test("runUninstall: full selection removes workflows/scripts/readme-section/giti
     assert.ok(result.workflows.length > 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
     assert.ok(!existsSync(join(target, "version.yml")));
-    assert.ok(!existsSync(join(target, ".gitignore"))); // 신규생성 케이스 -> 파일 자체 삭제
+    assert.ok(!existsSync(join(target, ".gitignore"))); // newly-created case -> the file itself is deleted
     const readme = readFileSync(join(target, "README.md"), "utf8");
     assert.ok(!readme.includes("AUTO-VERSION-SECTION"));
     assert.strictEqual(readme, "# Test Project\n");
@@ -91,14 +91,14 @@ test("runUninstall: safe selection leaves readme/gitignore/version.yml untouched
 test("runUninstall: README in unexpected format is not falsely reported as removed", () => {
   const target = installFixture();
   try {
-    // 사용자가 CHANGELOG 링크 줄을 지워 removeVersionSectionFromReadme가 skip하게 만든다.
+    // The user deletes the CHANGELOG link line so removeVersionSectionFromReadme skips.
     const readmePath = join(target, "README.md");
     const content = readFileSync(readmePath, "utf8").replace("[전체 버전 기록 보기](CHANGELOG.md)\n", "");
     writeFileSync(readmePath, content);
 
     const result = runUninstall({}, resolvePayloadRoot(), target, FULL_SELECTION);
-    assert.strictEqual(result.readme, false); // 실제로는 제거되지 않았으므로 false여야 함
-    assert.strictEqual(readFileSync(readmePath, "utf8"), content); // README는 그대로 보존
+    assert.strictEqual(result.readme, false); // nothing was actually removed, so it must be false
+    assert.strictEqual(readFileSync(readmePath, "utf8"), content); // README is preserved as is
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

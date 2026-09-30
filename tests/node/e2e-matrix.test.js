@@ -1,6 +1,6 @@
-// Task 20 게이트 — 12개 fixture에 실제 CLI(subprocess)를 돌려 설치 산출물을 검증한다.
-// 검증: 종료코드 0 / 타입별 워크플로우 배치 / py 스크립트 설치(배선 누락 검출) /
-//       version.yml branches·options 메타 / {{ 잔존 0 / trunk-based 단독 설치 / uninstall 제거.
+// Gate: runs the real CLI (subprocess) against 12 fixtures and verifies the install output.
+// Checks: exit code 0 / per-type workflow placement / py script install (detects missing wiring) /
+//       version.yml branches/options meta / zero leftover {{ / trunk-based-only install / uninstall removal.
 import { test } from "node:test";
 import assert from "node:assert";
 import { execFileSync } from "node:child_process";
@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 
 const BIN = join(process.cwd(), "bin", "project-auto-wizard.js");
 const FIXTURES = join(process.cwd(), "tests", "fixtures", "e2e");
-// 우리 토큰 잔존 검출 — ${{ github 표현식 }}·{{.Names}}(docker format)는 제외
+// Detect leftover tokens of ours — excludes ${{ github expressions }} and {{.Names}} (docker format)
 const TOKEN_RE = /(?<!\$)\{\{[A-Z][A-Z0-9_]*\}\}/;
 
 function runCli(cwd, args) {
@@ -25,24 +25,24 @@ function installFixture(name, args) {
 }
 
 function assertBaseline(target, label) {
-  // py 스크립트 — 워크플로우 전부가 이 경로를 호출한다 (누락 = 설치물 런타임 사망)
+  // py scripts — every workflow calls this path (missing = the installed workflows die at runtime)
   assert.ok(existsSync(join(target, ".github", "scripts", "version_manager.py")), `${label}: version_manager.py`);
   assert.ok(existsSync(join(target, ".github", "scripts", "changelog_manager.py")), `${label}: changelog_manager.py`);
-  // version.yml + branches/options 메타
+  // version.yml + branches/options meta
   const vy = readFileSync(join(target, "version.yml"), "utf8");
   assert.ok(/main: "main"/.test(vy) && /develop: "develop"/.test(vy) && /mode: "pr-flow"/.test(vy), `${label}: branches metadata`);
   assert.ok(/semver_auto: (true|false)/.test(vy), `${label}: options metadata`);
-  // 공통 워크플로우 4종 (pr-flow)
+  // The 4 common workflows (pr-flow)
   for (const wf of [
     "PROJECT-COMMON-VERSION-CONTROL.yaml", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
     "PROJECT-COMMON-RELEASE-PUBLISH.yaml", "PROJECT-COMMON-README-VERSION-UPDATE.yaml",
   ]) assert.ok(existsSync(join(target, ".github", "workflows", wf)), `${label}: ${wf}`);
-  // {{ 잔존 0 (치환 무결성)
+  // Zero leftover {{ (substitution integrity)
   const wfDir = join(target, ".github", "workflows");
   for (const f of readdirSync(wfDir)) {
     const body = readFileSync(join(wfDir, f), "utf8");
     for (const line of body.split("\n")) {
-      assert.ok(!TOKEN_RE.test(line), `${label}: ${f} 토큰 잔존: ${line.trim()}`);
+      assert.ok(!TOKEN_RE.test(line), `${label}: ${f} leftover token: ${line.trim()}`);
     }
   }
 }
@@ -73,11 +73,11 @@ for (const { name, args, expect = [], absent = [] } of MATRIX) {
   });
 }
 
-test("e2e flutter: 신규 통합 시 pubspec.yaml의 빌드 번호(+71)가 version_code에 반영된다 (issue #41)", () => {
+test("e2e flutter: on a fresh integration, the build number (+71) in pubspec.yaml is reflected in version_code", () => {
   const t = installFixture("flutter", ["--type", "flutter"]);
   try {
     const vy = readFileSync(join(t, "version.yml"), "utf8");
-    assert.ok(/version_code:\s*71\b/.test(vy), `version_code가 71이어야 함:\n${vy}`);
+    assert.ok(/version_code:\s*71\b/.test(vy), `version_code must be 71:\n${vy}`);
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 
@@ -104,7 +104,7 @@ test("e2e trunk-based (--main-branch main --develop-branch main): RELEASE-PUBLIS
 test("e2e uninstall: removes payload-originated files, keeps user data", () => {
   const t = installFixture("spring", ["--type", "spring"]);
   try {
-    // 사용자 자체 워크플로우 심기 — uninstall이 건드리면 안 된다
+    // Plant the user's own workflow — uninstall must not touch it
     const userWf = join(t, ".github", "workflows", "my-custom.yaml");
     writeFileSync(userWf, "name: custom\n");
     runCli(t, ["--mode", "uninstall", "--force"]);

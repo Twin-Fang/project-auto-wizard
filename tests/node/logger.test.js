@@ -1,5 +1,5 @@
 // tests/node/logger.test.js
-// 설치 로그 재설계 — 로거 코어 회귀.
+// Install log redesign: logger core regression.
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
@@ -13,56 +13,56 @@ function withTarget(fn) {
   try { fn(target); } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 }
 
-test("stampFrom: 'YYYY-MM-DD HH:MM:SS'를 파일명용 스탬프로 바꾼다", () => {
+test("stampFrom: converts 'YYYY-MM-DD HH:MM:SS' into a filename stamp", () => {
   assert.strictEqual(stampFrom("2026-08-26 12:03:41"), "20260826-120341");
   assert.strictEqual(stampFrom("2026-08-26T12:03:41"), "20260826-120341");
   assert.strictEqual(stampFrom("깨진 값"), "unknown");
 });
 
-test("logFilename: 확장자는 .log이고 밀리초와 action이 파일명에 들어간다", () => {
+test("logFilename: extension is .log and the filename includes milliseconds and the action", () => {
   assert.strictEqual(logFilename("2026-08-26 12:03:41", "install", 7), "20260826-120341-007-install.log");
   assert.strictEqual(logFilename("2026-08-26 12:03:41", "uninstall", 221), "20260826-120341-221-uninstall.log");
 });
 
-test("initLogger: 같은 시각(같은 밀리초)에 두 번 열어도 앞 로그를 덮어쓰지 않는다", () => {
+test("initLogger: opening twice at the same instant (same millisecond) does not overwrite the earlier log", () => {
   withTarget((target) => {
     const a = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 5 });
     log.info("copy", "write", "first run");
     resetLogger();
     const b = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 5 });
     log.info("copy", "write", "second run");
-    assert.notStrictEqual(a.path, b.path, "두 실행의 로그 경로가 달라야 한다");
-    assert.match(readFileSync(join(target, a.path), "utf8"), /first run/, "앞 실행의 기록이 남아 있어야 한다");
+    assert.notStrictEqual(a.path, b.path, "the two runs must have different log paths");
+    assert.match(readFileSync(join(target, a.path), "utf8"), /first run/, "the earlier run's record must remain");
     assert.strictEqual(readdirSync(join(target, LOG_DIR)).filter((f) => f.endsWith(".log")).length, 2);
   });
 });
 
-test("maskValue: 비밀로 보이는 키는 가리되 인증 '방식'은 그대로 둔다", () => {
+test("maskValue: masks keys that look secret but leaves the auth 'method' as is", () => {
   assert.strictEqual(maskValue("SERVER_PASSWORD", "hunter2"), "***");
   assert.strictEqual(maskValue("SSH_AUTH_METHOD", "password"), "password");
   assert.strictEqual(maskValue("SERVICE_DOMAIN", "api.example.com"), "api.example.com");
 });
 
-test("initLogger: 기록 전에는 아무 파일도 만들지 않는다", () => {
+test("initLogger: creates no file before anything is logged", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0 });
-    assert.strictEqual(r.path, "", "아직 연 파일이 없다");
-    assert.strictEqual(existsSync(join(target, ".github")), false, "읽기 전용 실행이 흔적을 남기면 안 된다");
+    assert.strictEqual(r.path, "", "no file has been opened yet");
+    assert.strictEqual(existsSync(join(target, ".github")), false, "a read-only run must not leave traces");
   });
 });
 
-test("initLogger: 첫 기록 때 로그 파일과 .gitignore를 만든다", () => {
+test("initLogger: creates the log file and .gitignore on first write", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0, argv: ["--mode", "full"], templateVersion: "0.8.2" });
     log.info("detect", "type", "spring");
-    assert.ok(r && r.path, "로그 경로를 돌려줘야 한다");
+    assert.ok(r && r.path, "must return the log path");
     const dir = join(target, LOG_DIR);
     assert.strictEqual(readFileSync(join(dir, ".gitignore"), "utf8"), "*\n!.gitignore\n");
     assert.deepStrictEqual(readdirSync(dir).filter((f) => f.endsWith(".log")), ["20260826-120341-000-install.log"]);
   });
 });
 
-test("initLogger: 헤더에 실행 컨텍스트가 기록된다", () => {
+test("initLogger: the header records the run context", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", argv: ["--mode", "full", "--type", "spring"], templateVersion: "0.8.2" });
     log.info("detect", "type", "spring");
@@ -74,7 +74,7 @@ test("initLogger: 헤더에 실행 컨텍스트가 기록된다", () => {
   });
 });
 
-test("initLogger: argv가 비어도 헤더가 깨지지 않는다", () => {
+test("initLogger: the header does not break when argv is empty", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
     log.info("detect", "type", "spring");
@@ -82,7 +82,7 @@ test("initLogger: argv가 비어도 헤더가 깨지지 않는다", () => {
   });
 });
 
-test("initLogger: 기존 .gitignore는 덮어쓰지 않는다", () => {
+test("initLogger: does not overwrite an existing .gitignore", () => {
   withTarget((target) => {
     const dir = join(target, LOG_DIR);
     mkdirSync(dir, { recursive: true });
@@ -93,7 +93,7 @@ test("initLogger: 기존 .gitignore는 덮어쓰지 않는다", () => {
   });
 });
 
-test("initLogger: 로그 파일이 20개를 넘으면 오래된 것부터 지운다", () => {
+test("initLogger: deletes the oldest log files once there are more than 20", () => {
   withTarget((target) => {
     const dir = join(target, LOG_DIR);
     mkdirSync(dir, { recursive: true });
@@ -104,13 +104,13 @@ test("initLogger: 로그 파일이 20개를 넘으면 오래된 것부터 지운
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41", ms: 0 });
     log.info("detect", "type", "spring");
     const logs = readdirSync(dir).filter((f) => f.endsWith(".log")).sort();
-    assert.strictEqual(logs.length, 20, "회전 후에도 20개를 유지해야 한다");
-    assert.ok(logs.includes("20260826-120341-000-install.log"), "새 로그는 남아 있어야 한다");
-    assert.ok(!logs.includes("20260801-000001-install.log"), "가장 오래된 로그가 지워져야 한다");
+    assert.strictEqual(logs.length, 20, "must keep 20 after rotation");
+    assert.ok(logs.includes("20260826-120341-000-install.log"), "the new log must remain");
+    assert.ok(!logs.includes("20260801-000001-install.log"), "the oldest log must be deleted");
   });
 });
 
-test("resetLogger: 초기화 전 상태로 되돌린다", () => {
+test("resetLogger: restores the pre-init state", () => {
   withTarget((target) => {
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
     resetLogger();
@@ -120,12 +120,12 @@ test("resetLogger: 초기화 전 상태로 되돌린다", () => {
   });
 });
 
-// ── 라인 기록 · 요약 · 실패 내성 ─────────────────────────────────────
+// ── Line logging, summary, failure tolerance ─────────────────────────────────────
 import { log, closeLogger } from "../../src/core/logger.js";
 
 const FIXED = () => new Date(Date.UTC(2026, 7, 26, 12, 3, 41, 221));
 
-test("log.info/warn/fail: 5열 고정 포맷으로 한 줄씩 append된다", () => {
+test("log.info/warn/fail: appends one line at a time in a fixed 5-column format", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", clock: FIXED });
     log.info("detect", "marker", "build.gradle → spring");
@@ -138,12 +138,12 @@ test("log.info/warn/fail: 5열 고정 포맷으로 한 줄씩 append된다", () 
   });
 });
 
-test("log.*: initLogger 없이 호출해도 던지지 않는다 (no-op)", () => {
+test("log.*: does not throw when called without initLogger (no-op)", () => {
   resetLogger();
   assert.doesNotThrow(() => { log.info("detect", "marker", "x"); log.warn("a", "b"); log.fail("a", "b"); });
 });
 
-test("log.summary: 파일 끝에 요약 블록을 붙인다", () => {
+test("log.summary: appends a summary block to the end of the file", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", clock: FIXED });
     log.info("copy", "write", "A.yaml (new)");
@@ -157,26 +157,26 @@ test("log.summary: 파일 끝에 요약 블록을 붙인다", () => {
   });
 });
 
-test("로그 파일을 쓸 수 없게 되면 no-op으로 전환하고 설치는 계속된다", () => {
+test("when the log file becomes unwritable it switches to no-op and the install continues", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", clock: FIXED });
     log.info("detect", "marker", "first");
-    // 로그 디렉토리를 통째로 날려 append가 실패하는 상황을 만든다
+    // Remove the whole log directory so that append fails
     rmSync(join(target, LOG_DIR), { recursive: true, force: true });
-    assert.doesNotThrow(() => log.info("detect", "marker", "x"), "쓰기 실패가 예외로 새어나가면 안 된다");
-    assert.doesNotThrow(() => log.info("detect", "marker", "y"), "한 번 실패하면 이후는 조용히 no-op");
+    assert.doesNotThrow(() => log.info("detect", "marker", "x"), "a write failure must not leak out as an exception");
+    assert.doesNotThrow(() => log.info("detect", "marker", "y"), "after one failure, later calls are silently no-op");
     assert.ok(!existsSync(join(target, r.path)));
   });
 });
 
-test("크래시 내성: 중간까지 기록된 라인은 파일에 남아 있다", () => {
+test("crash tolerance: lines logged up to that point remain in the file", () => {
   withTarget((target) => {
     const r = initLogger(target, { action: "install", now: "2026-08-26 12:03:41", clock: FIXED });
     log.info("detect", "marker", "build.gradle → spring");
     log.info("copy", "write", "A.yaml (new)");
-    try { throw new Error("설치 중 크래시"); } catch { /* closeLogger 없이 종료된 상황 */ }
+    try { throw new Error("crash during install"); } catch { /* simulates exiting without closeLogger */ }
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /build\.gradle → spring/, "크래시 전 라인이 남아야 한다");
+    assert.match(body, /build\.gradle → spring/, "lines from before the crash must remain");
     assert.match(body, /A\.yaml \(new\)/);
   });
 });

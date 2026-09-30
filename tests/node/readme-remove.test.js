@@ -63,7 +63,7 @@ test("removeVersionSectionFromReadme: preserves content the user appended after 
     const original = "# Test Project\n\nSome docs.\n";
     writeFileSync(join(target, "README.md"), original);
     addVersionSectionToReadme("1.0.0", target);
-    // 설치 후 사용자가 파일 끝에 라이선스 절을 추가했다고 가정 — uninstall이 이 내용을 지우면 안 된다.
+    // Assume the user appended a license section at the end of the file after install — uninstall must not delete it.
     const userAddition = "\n## License\n\nMIT\n";
     const installed = readFileSync(join(target, "README.md"), "utf8");
     writeFileSync(join(target, "README.md"), installed + userAddition);
@@ -79,8 +79,8 @@ test("removeVersionSectionFromReadme: preserves content the user appended after 
 test("removeVersionSectionFromReadme: CI-inserted standalone marker (no '---' divider) removes only the marker line", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-readme-remove-"));
   try {
-    // PROJECT-COMMON-README-VERSION-UPDATE.yaml이 사용자가 이미 가진 버전 라인 위에
-    // '---' 구분자 없이 마커 주석 한 줄만 끼워넣는 실제 케이스를 재현.
+    // Reproduces the real case where PROJECT-COMMON-README-VERSION-UPDATE.yaml inserts only a marker comment line
+    // above the user's existing version line, without a '---' separator.
     const content = "# Test Project\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Version : v1.2.0\n\nMore docs.\n";
     writeFileSync(join(target, "README.md"), content);
     assert.strictEqual(hasVersionSection(target), true);
@@ -100,7 +100,7 @@ test("removeVersionSectionFromReadme: marker block present but tail line missing
   try {
     writeFileSync(join(target, "README.md"), "# Test Project\n");
     addVersionSectionToReadme("1.0.0", target);
-    // 사용자가 CHANGELOG 링크 줄을 지웠다고 가정 — 꼬리를 못 찾으면 보수적으로 아무것도 하지 않는다.
+    // Assume the user deleted the CHANGELOG link line — if the tail cannot be found, conservatively do nothing.
     const withSection = readFileSync(join(target, "README.md"), "utf8");
     const edited = withSection.replace("[전체 버전 기록 보기](CHANGELOG.md)\n", "");
     writeFileSync(join(target, "README.md"), edited);
@@ -120,8 +120,8 @@ test("removeVersionSectionFromReadme: tail found far beyond the wizard's block -
     writeFileSync(join(target, "README.md"), original);
     addVersionSectionToReadme("1.0.0", target);
     const withSection = readFileSync(join(target, "README.md"), "utf8");
-    // 사용자가 CHANGELOG 링크 줄을 지우고, 문서 뒤쪽 먼 곳으로 "옮겨 적었다"고 가정 —
-    // 사이에 낀 사용자 콘텐츠까지 삭제되면 안 된다.
+    // Assume the user deleted the CHANGELOG link line and re-wrote it far later in the document —
+    // the user content in between must not be deleted.
     const withoutTail = withSection.replace("[전체 버전 기록 보기](CHANGELOG.md)\n", "");
     const farContent = withoutTail + "x".repeat(400) + "\n[전체 버전 기록 보기](CHANGELOG.md)\n";
     writeFileSync(join(target, "README.md"), farContent);
@@ -134,13 +134,13 @@ test("removeVersionSectionFromReadme: tail found far beyond the wizard's block -
   }
 });
 
-test("addVersionSectionToReadme: 끝 개행 없는 README도 앞줄을 제목으로 바꾸지 않는다", () => {
+test("addVersionSectionToReadme: a README without a trailing newline does not turn the previous line into a heading", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-readme-noeol-"));
   try {
     writeFileSync(join(target, "README.md"), "# Title\nbody without newline");
     assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "added");
     const body = readFileSync(join(target, "README.md"), "utf8");
-    // "body\n---"면 Setext 제목이 된다 — 빈 줄을 사이에 둬야 한다
+    // "body\n---" becomes a Setext heading — a blank line must be kept in between
     assert.ok(body.startsWith("# Title\nbody without newline\n\n---\n"), JSON.stringify(body.slice(0, 60)));
     assert.strictEqual(hasVersionSection(target), true);
     assert.strictEqual(removeVersionSectionFromReadme(target), "removed");
@@ -150,7 +150,7 @@ test("addVersionSectionToReadme: 끝 개행 없는 README도 앞줄을 제목으
   }
 });
 
-test("addVersionSectionToReadme: CRLF로 끝나는 README에는 줄을 더 넣지 않는다", () => {
+test("addVersionSectionToReadme: no extra line is added to a README ending in CRLF", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-readme-crlf-"));
   try {
     writeFileSync(join(target, "README.md"), "# Title\r\nbody\r\n");

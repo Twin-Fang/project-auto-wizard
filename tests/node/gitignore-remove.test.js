@@ -20,7 +20,7 @@ test("hasAutoAddedEntries: false before ensureGitignore, true after (fresh file 
 test("removeAutoAddedEntriesFromGitignore: fresh-file case deletes the whole file", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-gitignore-remove-"));
   try {
-    ensureGitignore(target); // .gitignore가 없었으므로 마법사가 통째로 새로 생성
+    ensureGitignore(target); // there was no .gitignore, so the wizard creates it whole
     assert.ok(existsSync(join(target, ".gitignore")));
     const status = removeAutoAddedEntriesFromGitignore(target);
     assert.strictEqual(status, "file-deleted");
@@ -35,7 +35,7 @@ test("removeAutoAddedEntriesFromGitignore: existing-file case removes only the b
   try {
     const original = "node_modules/\ndist/\n";
     writeFileSync(join(target, ".gitignore"), original);
-    ensureGitignore(target); // 기존 파일에 배너 블록만 append
+    ensureGitignore(target); // only the banner block is appended to the existing file
     const appended = readFileSync(join(target, ".gitignore"), "utf8");
     assert.notStrictEqual(appended, original);
     assert.ok(appended.includes("project-auto-wizard: Auto-added entries"));
@@ -79,7 +79,7 @@ test("removeAutoAddedEntriesFromGitignore: preserves entries the user appended a
     writeFileSync(join(target, ".gitignore"), original);
     ensureGitignore(target);
     const installed = readFileSync(join(target, ".gitignore"), "utf8");
-    // 설치 후 사용자가 파일 끝에 자기 항목을 추가했다고 가정 — uninstall이 이를 지우면 안 된다.
+    // Assume the user appended their own entries at the end after install — uninstall must not delete them.
     const userAddition = ".env\nsecrets/\n";
     writeFileSync(join(target, ".gitignore"), installed + userAddition);
 
@@ -94,7 +94,7 @@ test("removeAutoAddedEntriesFromGitignore: preserves entries the user appended a
 test("removeAutoAddedEntriesFromGitignore: fresh-file case with content appended later strips only the wizard-written prefix", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-gitignore-remove-"));
   try {
-    ensureGitignore(target); // .gitignore가 없었으므로 마법사가 통째로 새로 생성
+    ensureGitignore(target); // there was no .gitignore, so the wizard creates it whole
     const fresh = readFileSync(join(target, ".gitignore"), "utf8");
     const userAddition = "dist/\n";
     writeFileSync(join(target, ".gitignore"), fresh + userAddition);
@@ -107,7 +107,7 @@ test("removeAutoAddedEntriesFromGitignore: fresh-file case with content appended
   }
 });
 
-test("removeAutoAddedEntriesFromGitignore: a user line inserted between the two required entries is preserved, both entries removed (issue #20 M7)", () => {
+test("removeAutoAddedEntriesFromGitignore: a user line inserted between the two required entries is preserved, both entries removed", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-gitignore-remove-"));
   try {
     const original = "node_modules/\ndist/\n";
@@ -141,13 +141,13 @@ test("removeAutoAddedEntriesFromGitignore: legacy banner without an end marker f
       "# ====================================================================\n" +
       "*.bak\n" +
       "my-own-entry/\n" +
-      "*.template.yaml\n"; // 종료 마커 없음 — 이 수정 이전 버전이 설치한 형태를 그대로 재현
+      "*.template.yaml\n"; // no end marker — reproduces the form installed by versions before this fix
     writeFileSync(join(target, ".gitignore"), original + legacyBanner);
 
     const status = removeAutoAddedEntriesFromGitignore(target);
     assert.strictEqual(status, "removed");
     const after = readFileSync(join(target, ".gitignore"), "utf8");
-    // 문서화된 한계: 연속 매치가 my-own-entry/에서 끊겨 *.template.yaml은 제거되지 않는다.
+    // Documented limitation: the consecutive match breaks at my-own-entry/, so *.template.yaml is not removed.
     assert.ok(after.includes("*.template.yaml"), "legacy fallback stops at the first mismatch (documented limitation)");
     assert.ok(!after.includes("*.bak"));
   } finally {
