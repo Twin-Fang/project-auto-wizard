@@ -39,6 +39,15 @@
 # README always ends on the released version. Run it manually
 # (workflow_dispatch) to catch up at any other time.
 #
+# trunk-based mode: RELEASE-PUBLISH bumps the version, rewrites the README
+# line in its own commit and then dispatches this workflow, so the push
+# run is skipped there. Two workflows committing to the same README line
+# at the same time is what made releases fail on a rebase conflict.
+#
+# Push conflicts: if the README on {{MAIN_BRANCH}} moved in the meantime
+# (a release commit rewrote the same line), a run that shows the same
+# version, or whose version is already stale, is skipped instead of failing.
+#
 # The version line under the AUTO-VERSION-SECTION marker is already
 # rewritten inside the release commit itself (version_manager.py
 # increment/set), so the release tag snapshot shows the released
@@ -83,8 +92,26 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
+      - name: Detect branch mode
+        id: mode
+        run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          # scoped to the metadata: -> template: -> branches: chain so an
+          # unrelated top-level "mode:" key can never hijack the value
+          MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
+          # A push in trunk-based mode is a release: RELEASE-PUBLISH rewrites the
+          # README itself and dispatches this workflow afterwards. Running on the
+          # push too would race it on the same README line.
+          if [ "$MODE" = "trunk-based" ] && [ "${{ github.event_name }}" = "push" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "$(m wf_readme.trunk_skip)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check README.md exists
         id: precheck
+        if: steps.mode.outputs.skip != 'true'
         run: |
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           if [ -f README.md ]; then
@@ -268,8 +295,9 @@ jobs:
 
             git commit -m "docs(readme): update version to v$VERSION [skip ci]"
 
-            # Race-condition guard: pull-rebase then push (up to 3 retries)
-            MAX_RETRIES=3
+            # >>> push-with-retry
+            # Race-condition guard: fetch -> rebase -> push, retried
+            MAX_RETRIES=5
             RETRY_COUNT=0
             PUSH_SUCCESS=false
 
@@ -281,21 +309,37 @@ jobs:
                 PUSH_SUCCESS=true
                 echo "$(m wf_readme.pushed)"
                 break
-              else
-                echo "$(m wf_common.push_failed_syncing)"
-
-                if git pull --rebase origin {{MAIN_BRANCH}}; then
-                  echo "$(m wf_common.rebase_ok)"
-                else
-                  echo "$(m wf_common.rebase_failed)"
-                  git rebase --abort 2>/dev/null || true
-                  exit 1
-                fi
               fi
+
+              echo "$(m wf_common.push_failed_syncing)"
+              git fetch origin {{MAIN_BRANCH}}
+              if git rebase origin/{{MAIN_BRANCH}}; then
+                echo "$(m wf_common.rebase_ok)"
+                continue
+              fi
+              git rebase --abort 2>/dev/null || true
+
+              # The same README line was rewritten on the remote (a release commit).
+              # Nothing is lost when it already shows this version or is ahead of it.
+              REMOTE_VERSION=$(git show origin/{{MAIN_BRANCH}}:version.yml | grep -m1 '^version:' | sed 's/version:[ \t]*"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/')
+              if [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$VERSION" ]; then
+                echo "$(m wf_readme.conflict_skip_stale version="$VERSION" remote_version="$REMOTE_VERSION")"
+                PUSH_SUCCESS=true
+                break
+              fi
+              if git show origin/{{MAIN_BRANCH}}:README.md | grep -qF "v${VERSION}"; then
+                echo "$(m wf_readme.conflict_skip_same version="$VERSION")"
+                PUSH_SUCCESS=true
+                break
+              fi
+
+              echo "$(m wf_common.rebase_failed)"
+              exit 1
             done
 
             if [ "$PUSH_SUCCESS" = false ]; then
               echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
               exit 1
             fi
+            # <<< push-with-retry
           fi
