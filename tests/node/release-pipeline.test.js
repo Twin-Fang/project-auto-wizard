@@ -180,7 +180,7 @@ for (const name of ["AI-PR-SUMMARY", "AUTO-CHANGELOG-CONTROL"]) {
 function expectedVersionSnippet() {
   const lines = read(payloadPath("AI-PR-SUMMARY")).split("\n").map((l) => l.replace(/^ {10}/, ""));
   const start = lines.findIndex((l) => l.startsWith("CURRENT_VERSION="));
-  const end = lines.findIndex((l) => l.startsWith('echo "expected next version:'));
+  const end = lines.findIndex((l) => l.startsWith('echo "$(m wf_aisum.expected_version'));
   assert.ok(start > -1 && end > start, "could not find the expected-version calculation block");
   return lines.slice(start, end).join("\n") + '\nprintf "%s" "$VERSION"';
 }

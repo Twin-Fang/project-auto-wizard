@@ -53,11 +53,12 @@ jobs:
       - name: Read copilot_ai option from version.yml
         id: copilot_options
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
           COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
-          echo "copilot_ai option: $COPILOT_AI"
+          echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Install Copilot CLI
         if: steps.copilot_options.outputs.copilot_ai == 'true'
@@ -74,6 +75,7 @@ jobs:
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
 
           git fetch origin main
@@ -105,7 +107,7 @@ jobs:
           fi
           VERSION=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$CURRENT_VERSION" "${BUMP:-patch}" 2>/dev/null || echo "")
           VERSION=${VERSION:-Unreleased}
-          echo "expected next version: $VERSION (current: ${CURRENT_VERSION:-none}, mode: $MODE, bump: ${BUMP:-patch})"
+          echo "$(m wf_aisum.expected_version version="$VERSION" current_version="${CURRENT_VERSION:-none}" mode="$MODE" bump="${BUMP:-patch}")"
 
           SUMMARY_RESULT=$(python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
@@ -136,10 +138,10 @@ jobs:
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" 2>/dev/null | tail -n 1 || true)
           if [ -n "$COMMENT_ID" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" --input comment_payload.json > /dev/null \
-              || echo "comment update failed — continuing (this workflow never blocks the PR)"
+              || echo "$(m wf_aisum.comment_update_failed)"
           else
             gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --input comment_payload.json > /dev/null \
-              || echo "comment post failed — continuing (this workflow never blocks the PR)"
+              || echo "$(m wf_aisum.comment_post_failed)"
           fi
 
       - name: Link related issue via branch name

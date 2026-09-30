@@ -66,20 +66,21 @@ jobs:
       - name: Release merge / mode guard
         id: release_guard
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           SKIP="false"
 
           # trunk-based mode: RELEASE-PUBLISH owns versioning — skip safety net
           MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"^\s*mode:\s*\"?([A-Za-z-]+)", t, re.M); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
           if [ "$MODE" = "trunk-based" ]; then
             SKIP="true"
-            echo "trunk-based mode detected — RELEASE-PUBLISH owns version bumping, skipping"
+            echo "$(m wf_version.trunk_skip)"
           fi
 
           # release-confirm pattern: the merge commit of a release PR
           HEAD_MSG=$(git log -1 --pretty=%B)
           if echo "$HEAD_MSG" | grep -q "chore(release):"; then
             SKIP="true"
-            echo "release-confirm commit detected (chore(release):) — skipping safety-net bump"
+            echo "$(m wf_version.confirm_skip)"
           fi
 
           # release merge detection: the release push includes a version.yml change
@@ -91,51 +92,54 @@ jobs:
           fi
           if git diff --name-only $RANGE 2>/dev/null | grep -qx "version.yml"; then
             SKIP="true"
-            echo "release merge detected (push contains a version.yml change) — skipping safety-net bump"
+            echo "$(m wf_version.release_merge_skip)"
           fi
 
           echo "skip=$SKIP" >> $GITHUB_OUTPUT
           if [ "$SKIP" = "false" ]; then
-            echo "direct push to main detected — running safety-net version bump"
+            echo "$(m wf_version.direct_push main_branch="main")"
           fi
 
       - name: Read current version
         id: current_version
         if: steps.release_guard.outputs.skip != 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           if [ -z "$CURRENT_VERSION" ]; then
-            echo "failed to read current version"
+            echo "$(m wf_version.read_current_failed)"
             exit 1
           fi
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "current version: $CURRENT_VERSION"
+          echo "$(m wf_version.current_version current_version="$CURRENT_VERSION")"
 
       - name: Bump patch version and sync
         id: version
         if: steps.release_guard.outputs.skip != 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           NEW_VERSION=$(python3 .github/scripts/version_manager.py increment | tail -n 1)
           if [ -z "$NEW_VERSION" ]; then
-            echo "version bump failed"
+            echo "$(m wf_common.version_bump_failed)"
             exit 1
           fi
           python3 .github/scripts/version_manager.py sync
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "new version: $NEW_VERSION"
+          echo "$(m wf_version.new_version new_version="$NEW_VERSION")"
 
       - name: Read project types
         id: project_info
         if: steps.release_guard.outputs.skip != 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           if [ -f "version.yml" ]; then
             PROJECT_TYPES=$(grep "^project_types:" version.yml 2>/dev/null | sed -E 's/.*\[([^]]*)\].*/\1/' | tr -d '" ')
             PROJECT_TYPES=${PROJECT_TYPES:-unknown}
             echo "project_types=$PROJECT_TYPES" >> $GITHUB_OUTPUT
-            echo "project types: $PROJECT_TYPES"
+            echo "$(m wf_version.project_types project_types="$PROJECT_TYPES")"
           else
             echo "project_types=unknown" >> $GITHUB_OUTPUT
-            echo "version.yml not found"
+            echo "$(m wf_version.yml_not_found)"
           fi
 
       - name: Update CHANGELOG for the safety-net release
@@ -150,6 +154,7 @@ jobs:
           AI_API_BASE_URL: ${{ vars.AI_API_BASE_URL }}
           AI_MODEL: ${{ vars.AI_MODEL }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
           # Commits pushed straight to main since the last release tag (full history if there is no tag)
@@ -160,7 +165,7 @@ jobs:
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
           git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
-          echo "commits since ${LAST_TAG:-the beginning}: $(wc -l < commits.txt)"
+          echo "$(m wf_version.commits_since last_tag="${LAST_TAG:-the beginning}" n="$(wc -l < commits.txt)")"
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
@@ -183,6 +188,7 @@ jobs:
         id: commit_push
         if: steps.release_guard.outputs.skip != 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
@@ -193,7 +199,7 @@ jobs:
           git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
           if git diff --staged --quiet; then
-            echo "no changes to commit (already in sync)"
+            echo "$(m wf_version.no_changes_synced)"
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           else
             NEW_VERSION="${{ steps.version.outputs.new_version }}"
@@ -207,18 +213,18 @@ jobs:
 
               while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
-                echo "push attempt $RETRY_COUNT/$MAX_RETRIES..."
+                echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
                 if git push origin HEAD:main; then
                   PUSH_SUCCESS=true
-                  echo "version bump commit pushed"
+                  echo "$(m wf_version.bump_pushed)"
                   break
                 else
-                  echo "push failed, syncing with remote..."
+                  echo "$(m wf_common.push_failed_syncing)"
                   if git pull --rebase origin main; then
-                    echo "rebase ok, retrying push..."
+                    echo "$(m wf_common.rebase_ok)"
                   else
-                    echo "rebase failed, manual conflict resolution required"
+                    echo "$(m wf_common.rebase_failed)"
                     git rebase --abort 2>/dev/null || true
                     exit 1
                   fi
@@ -226,12 +232,12 @@ jobs:
               done
 
               if [ "$PUSH_SUCCESS" = false ]; then
-                echo "push failed after $MAX_RETRIES attempts"
+                echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
                 exit 1
               fi
               echo "pushed=true" >> "$GITHUB_OUTPUT"
             else
-              echo "commit failed"
+              echo "$(m wf_version.commit_failed)"
               exit 1
             fi
           fi
@@ -260,7 +266,7 @@ jobs:
           MANUAL="git checkout $DEVELOP_BRANCH && git pull && git merge origin/main && git push"
 
           if ! git ls-remote --exit-code --heads origin "$DEVELOP_BRANCH" >/dev/null 2>&1; then
-            echo "branch $DEVELOP_BRANCH not found — nothing to back-merge"
+            echo "$(m wf_version.no_develop develop_branch="$DEVELOP_BRANCH")"
             exit 0
           fi
 
@@ -268,7 +274,7 @@ jobs:
             git fetch -q origin "$DEVELOP_BRANCH" main
             git checkout -q -B safety-net-back-merge "origin/$DEVELOP_BRANCH"
             if git merge-base --is-ancestor "origin/main" HEAD; then
-              echo "$DEVELOP_BRANCH already contains main"
+              echo "$(m wf_version.already_contains develop_branch="$DEVELOP_BRANCH" main_branch="main")"
               exit 0
             fi
             if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/main"; then
@@ -277,10 +283,10 @@ jobs:
               exit 0
             fi
             if git push origin "HEAD:$DEVELOP_BRANCH"; then
-              echo "safety-net bump v$NEW_VERSION merged into $DEVELOP_BRANCH"
+              echo "$(m wf_version.backmerged new_version="$NEW_VERSION" develop_branch="$DEVELOP_BRANCH")"
               exit 0
             fi
-            echo "push attempt $ATTEMPT failed — retrying"
+            echo "$(m wf_version.push_retry attempt="$ATTEMPT")"
             sleep 5
           done
           echo "::warning::$(m wf_version.backmerge_push_failed dev="$DEVELOP_BRANCH" manual="$MANUAL")"
@@ -288,8 +294,9 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "version-control workflow finished"
-          echo "  skipped (release merge / trunk-based): ${{ steps.release_guard.outputs.skip }}"
-          echo "  previous version: ${{ steps.current_version.outputs.current_version }}"
-          echo "  new version: ${{ steps.version.outputs.new_version }}"
-          echo "  branch: ${{ github.ref_name }}"
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          echo "$(m wf_version.finished)"
+          echo "$(m wf_version.sum_skipped skip="${{ steps.release_guard.outputs.skip }}")"
+          echo "$(m wf_version.sum_previous current_version="${{ steps.current_version.outputs.current_version }}")"
+          echo "$(m wf_version.sum_new new_version="${{ steps.version.outputs.new_version }}")"
+          echo "$(m wf_version.sum_branch ref_name="${{ github.ref_name }}")"

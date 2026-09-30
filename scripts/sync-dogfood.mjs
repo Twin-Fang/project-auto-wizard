@@ -55,11 +55,11 @@ export const PATCHES = [
     file: "workflows/PROJECT-COMMON-RELEASE-PUBLISH.yaml",
     reason: "npm publishing is handled by this repo's own NPM-PUBLISH workflow",
     from:
-      '          echo "GitHub Release v$VERSION published"\n' +
+      '          echo "$(m wf_release.published version=\"$VERSION\")"\n' +
       "\n" +
       "      - name: Trigger README-VERSION-UPDATE\n",
     to:
-      '          echo "GitHub Release v$VERSION published"\n' +
+      '          echo "$(m wf_release.published version=\"$VERSION\")"\n' +
       "\n" +
       "      - name: Trigger NPM-PUBLISH\n" +
       "        if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'\n" +
