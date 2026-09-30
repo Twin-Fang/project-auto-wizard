@@ -1,6 +1,6 @@
 // tests/node/monorepo-version.test.js
-// 모노레포(--paths) 설치에서 버전·빌드 번호를 타입 폴더에서 감지하고,
-// 설치된 version_manager.py가 마법사가 쓴 project_paths(인라인 주석 포함)를 읽는지 확인한다.
+// In a monorepo (--paths) install, detects the version and build number from the type folder,
+// and checks that the installed version_manager.py reads the project_paths the wizard wrote (inline comment included).
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
@@ -33,7 +33,7 @@ async function quietRun(argv, cwd) {
   }
 }
 
-// Windows에는 python3가 없고 일부 Linux에는 python이 없다 — 실제로 동작하는 쪽을 쓴다.
+// Windows has no python3 and some Linux systems have no python — use whichever actually works.
 function findPython() {
   for (const cmd of ["python3", "python"]) {
     const r = spawnSync(cmd, ["-c", "import sys; print(sys.version_info[0])"], { encoding: "utf-8", input: "" });
@@ -42,7 +42,7 @@ function findPython() {
   return null;
 }
 
-test("detectVersion/detectBuildNumber: paths가 있으면 주 타입 폴더의 파일을 읽는다", () => {
+test("detectVersion/detectBuildNumber: with paths, reads files from the primary type folder", () => {
   const dir = repo({
     "app/pubspec.yaml": "name: my_app\nversion: 4.1.0+9\n",
     "client/package.json": JSON.stringify({ name: "my-app", version: "4.0.0" }),
@@ -52,12 +52,12 @@ test("detectVersion/detectBuildNumber: paths가 있으면 주 타입 폴더의 �
     const types = ["flutter", "react"];
     assert.strictEqual(detectVersion(dir, { types, paths, warn: () => {} }), "4.1.0");
     assert.strictEqual(detectBuildNumber(dir, { types, paths, warn: () => {} }), 9);
-    // 경로가 없으면 종전대로 루트만 본다
+    // without paths, only the root is read as before
     assert.strictEqual(detectVersion(dir, { types, warn: () => {} }), "0.0.1");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("run(--paths): 하위 폴더 package.json의 버전으로 version.yml을 만든다", async () => {
+test("run(--paths): builds version.yml from the version in the subfolder package.json", async () => {
   const dir = repo({ "web/package.json": JSON.stringify({ name: "my-app", version: "2.3.4", dependencies: { react: "18" } }) });
   try {
     assert.strictEqual(await quietRun(["--mode", "full", "--force", "--type", "react", "--paths", "react=web"], dir), 0);
@@ -66,7 +66,7 @@ test("run(--paths): 하위 폴더 package.json의 버전으로 version.yml을 �
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("run(--paths): Flutter 하위 폴더의 빌드 번호를 version_code로 가져온다", async () => {
+test("run(--paths): takes the Flutter subfolder's build number as version_code", async () => {
   const dir = repo({
     "app/pubspec.yaml": "name: my_app\nversion: 4.1.0+9\n",
     "app/lib/main.dart": "void main(){}\n",
@@ -79,14 +79,14 @@ test("run(--paths): Flutter 하위 폴더의 빌드 번호를 version_code로 �
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("설치된 version_manager.py가 마법사가 쓴 project_paths를 읽어 하위 폴더를 동기화한다", async (t) => {
+test("the installed version_manager.py reads the wizard-written project_paths and syncs subfolders", async (t) => {
   const python = findPython();
-  if (!python) { t.skip("python 3 없음"); return; }
+  if (!python) { t.skip("python 3 not available"); return; }
   const dir = repo({ "web/package.json": JSON.stringify({ name: "my-app", version: "2.3.4", dependencies: { react: "18" } }) });
   try {
     assert.strictEqual(await quietRun(["--mode", "full", "--force", "--type", "react", "--paths", "react=web"], dir), 0);
     const vy = readFileSync(join(dir, "version.yml"), "utf8");
-    assert.match(vy, /^project_paths: #/m, "마법사는 project_paths 줄에 주석을 붙인다 — 이 형식을 읽어야 한다");
+    assert.match(vy, /^project_paths: #/m, "the wizard appends a comment to the project_paths line — this format must be readable");
     const script = join(dir, ".github", "scripts", "version_manager.py");
     const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1" };
     const r = spawnSync(python, [script, "increment"], { cwd: dir, encoding: "utf-8", env });

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { intro, note } from "../../src/ui/readline-engine.js";
 
-// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+// Keep color expectations independent of the runtime TERM (e.g. dumb on CI). Individual tests set TERM=dumb behavior themselves.
 delete process.env.TERM;
 
 function captureStdout(fn) {
@@ -20,7 +20,7 @@ function withStdoutTTY(isTTY, fn) {
   try { return fn(); } finally { process.stdout.isTTY = original; }
 }
 
-test("intro(): TTY + NO_COLOR 미설정이면 ANSI 색상 코드를 포함한다", () => {
+test("intro(): includes ANSI color codes on a TTY with NO_COLOR unset", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -31,7 +31,7 @@ test("intro(): TTY + NO_COLOR 미설정이면 ANSI 색상 코드를 포함한다
   }
 });
 
-test("intro(): NO_COLOR=1이면 TTY여도 ANSI 색상 코드가 없다", () => {
+test("intro(): has no ANSI color codes with NO_COLOR=1 even on a TTY", () => {
   const originalNoColor = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
   try {
@@ -43,7 +43,7 @@ test("intro(): NO_COLOR=1이면 TTY여도 ANSI 색상 코드가 없다", () => {
   }
 });
 
-test("note(): 비TTY면 ANSI 색상 코드가 없다", () => {
+test("note(): has no ANSI color codes when not a TTY", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -54,7 +54,7 @@ test("note(): 비TTY면 ANSI 색상 코드가 없다", () => {
   }
 });
 
-test("TERM=dumb: 색상·커서 이동·지우기 시퀀스를 전혀 출력하지 않는다", async () => {
+test("TERM=dumb: emits no color, cursor-move or erase sequences at all", async () => {
   const { select, text } = await import("../../src/ui/readline-engine.js");
   const stdin = process.stdin;
   const saved = { isTTY: stdin.isTTY, setRawMode: stdin.setRawMode, outTTY: process.stdout.isTTY, NO_COLOR: process.env.NO_COLOR };
@@ -85,5 +85,5 @@ test("TERM=dumb: 색상·커서 이동·지우기 시퀀스를 전혀 출력하�
     delete process.env.TERM;
     if (saved.NO_COLOR !== undefined) process.env.NO_COLOR = saved.NO_COLOR;
   }
-  assert.ok(!output.includes("\x1b"), `ESC 시퀀스가 섞였다: ${JSON.stringify(output.slice(0, 200))}`);
+  assert.ok(!output.includes("\x1b"), `ESC sequence leaked in: ${JSON.stringify(output.slice(0, 200))}`);
 });

@@ -45,13 +45,13 @@ for (const file of FILES) {
     assert.deepStrictEqual(left, []);
   });
 
-  test(`${file}: every job loads messages from the default branch before using them`, () => {
+  test(`${file}: every job loads messages from the workflow's own revision before using them`, () => {
     const jobs = text.slice(text.search(/^jobs:\s*$/m)).split(/^(?=  [a-z][\w-]*:\s*$)/m).slice(1);
     assert.ok(jobs.length >= 7);
     for (const job of jobs) {
       const name = job.match(/^  ([\w-]+):/)[1];
       const steps = job.slice(job.indexOf("    steps:"));
-      assert.match(steps, /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/, `${name}: default branch checkout`);
+      assert.match(steps, /ref: \$\{\{ github\.event_name == 'pull_request' && github\.sha \|\| github\.event\.repository\.default_branch \}\}/, `${name}: checkout ref`);
       assert.ok(
         steps.indexOf("- name: Load messages") < steps.indexOf("wf_preview."),
         `${name}: messages loaded before the first use`,

@@ -146,3 +146,51 @@ test("invalid PROJECT_AUTO_WIZARD_LANG fails the run but not --help", async () =
     if (saved === undefined) delete process.env.PROJECT_AUTO_WIZARD_LANG; else process.env.PROJECT_AUTO_WIZARD_LANG = saved;
   }
 });
+
+// ── notice for existing installs that have no saved language ──
+async function capturedInstall(dir, extra = [], env = {}) {
+  const errs = [];
+  const orig = [console.log, console.error];
+  console.log = () => {};
+  console.error = (...a) => errs.push(a.join(" "));
+  const saved = process.env.PROJECT_AUTO_WIZARD_LANG;
+  delete process.env.PROJECT_AUTO_WIZARD_LANG;
+  Object.assign(process.env, env);
+  try {
+    await run(["--mode", "full", "--force", "--type", "node", "--develop-branch", "main", "--main-branch", "main", ...extra], { cwd: dir });
+  } finally {
+    [console.log, console.error] = orig;
+    delete process.env.PROJECT_AUTO_WIZARD_LANG;
+    if (saved !== undefined) process.env.PROJECT_AUTO_WIZARD_LANG = saved;
+  }
+  return errs.join("\n");
+}
+const NOTICE = t("cli.lang.defaultNotice", {}, "en");
+
+test("update of a version.yml without language prints the default-language notice once", async () => {
+  const dir = makeRepo();
+  try {
+    assert.ok(!(await capturedInstall(dir)).includes(NOTICE), "fresh install: no notice");
+    const p = join(dir, "version.yml");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^language:.*\n/m, ""));
+    assert.ok((await capturedInstall(dir)).includes(NOTICE), "existing install without language: notice");
+    assert.ok(!(await capturedInstall(dir)).includes(NOTICE), "language is now saved: no notice");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("no notice when --lang or the environment variable decides the language", async () => {
+  const dir = makeRepo();
+  try {
+    assert.strictEqual(await install(dir), 0);
+    const p = join(dir, "version.yml");
+    const strip = () => writeFileSync(p, readFileSync(p, "utf8").replace(/^language:.*\n/m, ""));
+    strip();
+    assert.ok(!(await capturedInstall(dir, ["--lang", "ko"])).includes(NOTICE));
+    strip();
+    assert.ok(!(await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "en" })).includes(NOTICE));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

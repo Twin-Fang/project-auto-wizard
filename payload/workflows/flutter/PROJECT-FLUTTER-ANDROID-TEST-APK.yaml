@@ -89,7 +89,7 @@ jobs:
       firebase_available: ${{ steps.firebase_check.outputs.available }}
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
@@ -334,7 +334,7 @@ jobs:
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:

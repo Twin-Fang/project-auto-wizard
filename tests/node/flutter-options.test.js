@@ -1,4 +1,4 @@
-// Flutter 옵션 — 스토어 배포 대상 선택·정리. deploy-style.test.js와 같은 구조의 검증.
+// Flutter options — store deploy target selection and cleanup. Verified with the same structure as deploy-style.test.js.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync, readdirSync } from "node:fs";
@@ -18,7 +18,7 @@ const IOS_TEST_TESTFLIGHT = "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml";
 const CI = "PROJECT-FLUTTER-CI.yaml";
 const SELFHOSTED = "PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml";
 
-test("상수: 기본값과 기존 설치 보존값이 계약대로다", () => {
+test("constants: defaults and existing-install preservation values match the contract", () => {
   assert.deepStrictEqual(ENV_MODES, ["dart-define", "dotenv"]);
   assert.strictEqual(DEFAULT_ENV_MODE, "dart-define");
   assert.strictEqual(LEGACY_ENV_MODE, "dotenv");
@@ -28,26 +28,26 @@ test("상수: 기본값과 기존 설치 보존값이 계약대로다", () => {
   assert.strictEqual(NO_STORE, "none");
 });
 
-test("isEnvMode / isDeployMode: 목록에 있는 값만 참이다", () => {
+test("isEnvMode / isDeployMode: only values in the list are truthy", () => {
   assert.ok(isEnvMode("dart-define") && isEnvMode("dotenv"));
   assert.ok(!isEnvMode("both") && !isEnvMode("") && !isEnvMode(undefined));
   assert.ok(isDeployMode("store_only") && isDeployMode("store_prepare") && isDeployMode("store_submit"));
   assert.ok(!isDeployMode("publish") && !isDeployMode("") && !isDeployMode(null));
 });
 
-test("parseStoreList: 정상 입력은 STORE_PLATFORMS 순서의 배열로 정규화한다", () => {
+test("parseStoreList: valid input is normalized to an array in STORE_PLATFORMS order", () => {
   assert.deepStrictEqual(parseStoreList("android,ios"), ["android", "ios"]);
   assert.deepStrictEqual(parseStoreList("ios,android"), ["android", "ios"]);
   assert.deepStrictEqual(parseStoreList(" ios , ios "), ["ios"]);
   assert.deepStrictEqual(parseStoreList("android"), ["android"]);
 });
 
-test("parseStoreList: 'none'과 빈 문자열은 빈 배열이다", () => {
+test("parseStoreList: 'none' and the empty string give an empty array", () => {
   assert.deepStrictEqual(parseStoreList("none"), []);
   assert.deepStrictEqual(parseStoreList(""), []);
 });
 
-test("parseStoreList: 잘못된 토큰·none 혼용·문자열이 아닌 값은 null이다", () => {
+test("parseStoreList: invalid tokens, mixing with none and non-string values give null", () => {
   assert.strictEqual(parseStoreList("windows"), null);
   assert.strictEqual(parseStoreList("android,windows"), null);
   assert.strictEqual(parseStoreList("android,none"), null);
@@ -55,7 +55,7 @@ test("parseStoreList: 잘못된 토큰·none 혼용·문자열이 아닌 값은 
   assert.strictEqual(parseStoreList(undefined), null);
 });
 
-test("formatStoreList: 직렬화하고 빈 배열은 'none'이며 parseStoreList와 왕복한다", () => {
+test("formatStoreList: serializes, an empty array is 'none', and it round-trips with parseStoreList", () => {
   assert.strictEqual(formatStoreList(["android", "ios"]), "android,ios");
   assert.strictEqual(formatStoreList(["ios", "android"]), "android,ios");
   assert.strictEqual(formatStoreList(["ios"]), "ios");
@@ -65,7 +65,7 @@ test("formatStoreList: 직렬화하고 빈 배열은 'none'이며 parseStoreList
   }
 });
 
-test("STORE_WORKFLOWS / isStoreWorkflow: 스토어 묶음 파일만 참이다", () => {
+test("STORE_WORKFLOWS / isStoreWorkflow: only store bundle files are truthy", () => {
   assert.deepStrictEqual(STORE_WORKFLOWS.android, [PLAYSTORE]);
   assert.deepStrictEqual(STORE_WORKFLOWS.ios, [IOS_TESTFLIGHT, IOS_TEST_TESTFLIGHT]);
   assert.ok(isStoreWorkflow(PLAYSTORE) && isStoreWorkflow(IOS_TESTFLIGHT) && isStoreWorkflow(IOS_TEST_TESTFLIGHT));
@@ -74,32 +74,32 @@ test("STORE_WORKFLOWS / isStoreWorkflow: 스토어 묶음 파일만 참이다", 
   assert.ok(!isStoreWorkflow("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("storeWorkflowFilter(null): 미결정이면 전부 통과한다 (현행 동작)", () => {
+test("storeWorkflowFilter(null): everything passes when undecided (current behavior)", () => {
   const keep = storeWorkflowFilter(null);
   assert.ok(keep(PLAYSTORE) && keep(IOS_TESTFLIGHT) && keep(IOS_TEST_TESTFLIGHT) && keep(CI));
 });
 
-test("storeWorkflowFilter(['android']): Android 묶음만 통과, 스토어가 아닌 파일은 항상 통과", () => {
+test("storeWorkflowFilter(['android']): only the Android bundle passes, non-store files always pass", () => {
   const keep = storeWorkflowFilter(["android"]);
   assert.ok(keep(PLAYSTORE));
   assert.ok(!keep(IOS_TESTFLIGHT) && !keep(IOS_TEST_TESTFLIGHT));
   assert.ok(keep(CI) && keep(SELFHOSTED) && keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("storeWorkflowFilter(['ios']): iOS 묶음 두 개만 통과", () => {
+test("storeWorkflowFilter(['ios']): only the two iOS bundle files pass", () => {
   const keep = storeWorkflowFilter(["ios"]);
   assert.ok(keep(IOS_TESTFLIGHT) && keep(IOS_TEST_TESTFLIGHT));
   assert.ok(!keep(PLAYSTORE));
   assert.ok(keep(CI));
 });
 
-test("storeWorkflowFilter([]): 스토어 워크플로우를 전부 거르고 나머지는 통과", () => {
+test("storeWorkflowFilter([]): filters out all store workflows and passes the rest", () => {
   const keep = storeWorkflowFilter([]);
   assert.ok(!keep(PLAYSTORE) && !keep(IOS_TESTFLIGHT) && !keep(IOS_TEST_TESTFLIGHT));
   assert.ok(keep(CI) && keep(SELFHOSTED));
 });
 
-test("STORE_APP_FILES / storeAppFilesFor: 선택된 플랫폼의 파일만, null이면 전부", () => {
+test("STORE_APP_FILES / storeAppFilesFor: only files of the selected platforms, all when null", () => {
   assert.deepStrictEqual(STORE_APP_FILES.android, ["android/fastlane/Fastfile.playstore"]);
   assert.deepStrictEqual(STORE_APP_FILES.ios, ["ios/fastlane/Fastfile", "ios/ExportOptions.plist"]);
   assert.deepStrictEqual(storeAppFilesFor(null), [
@@ -118,7 +118,7 @@ function withWorkflowsDir(fn) {
   try { return fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
-test("cleanupDeselectedStoreWorkflows: 선택 해제된 스토어 워크플로우 — 미수정은 삭제, 수정본은 .bak", () => {
+test("cleanupDeselectedStoreWorkflows: deselected store workflows — unedited are deleted, edited copies become .bak", () => {
   withWorkflowsDir((dir) => {
     const pristine = "name: testflight\n";
     writeFileSync(join(dir, IOS_TESTFLIGHT), pristine);
@@ -139,7 +139,7 @@ test("cleanupDeselectedStoreWorkflows: 선택 해제된 스토어 워크플로�
   });
 });
 
-test("cleanupDeselectedStoreWorkflows: baseline이 없으면 미수정 여부를 알 수 없으므로 전부 .bak으로 보존한다", () => {
+test("cleanupDeselectedStoreWorkflows: without a baseline, unedited status is unknown so everything is kept as .bak", () => {
   withWorkflowsDir((dir) => {
     writeFileSync(join(dir, PLAYSTORE), "name: playstore\n");
     const result = cleanupDeselectedStoreWorkflows(dir, [PLAYSTORE], ["ios"], null);
@@ -148,7 +148,7 @@ test("cleanupDeselectedStoreWorkflows: baseline이 없으면 미수정 여부를
   });
 });
 
-test("cleanupDeselectedStoreWorkflows: stores가 null이면 아무것도 정리하지 않는다", () => {
+test("cleanupDeselectedStoreWorkflows: nothing is cleaned up when stores is null", () => {
   withWorkflowsDir((dir) => {
     writeFileSync(join(dir, PLAYSTORE), "name: playstore\n");
     writeFileSync(join(dir, IOS_TESTFLIGHT), "name: testflight\n");
@@ -158,7 +158,7 @@ test("cleanupDeselectedStoreWorkflows: stores가 null이면 아무것도 정리�
   });
 });
 
-test("cleanupDeselectedStoreWorkflows: 'none'([])이면 스토어 워크플로우 전체를 정리하고 CI는 남긴다", () => {
+test("cleanupDeselectedStoreWorkflows: with 'none' ([]) all store workflows are cleaned up and CI is kept", () => {
   withWorkflowsDir((dir) => {
     const contents = { [PLAYSTORE]: "a\n", [IOS_TESTFLIGHT]: "b\n", [IOS_TEST_TESTFLIGHT]: "c\n", [CI]: "d\n" };
     for (const [name, body] of Object.entries(contents)) writeFileSync(join(dir, name), body);
@@ -170,7 +170,7 @@ test("cleanupDeselectedStoreWorkflows: 'none'([])이면 스토어 워크플로�
   });
 });
 
-test("cleanupDeselectedStoreWorkflows: 디스크에 없는 파일은 건너뛴다", () => {
+test("cleanupDeselectedStoreWorkflows: files absent from disk are skipped", () => {
   withWorkflowsDir((dir) => {
     const result = cleanupDeselectedStoreWorkflows(dir, [PLAYSTORE], ["ios"], { files: {} });
     assert.deepStrictEqual(result, { removed: [], backedUp: [] });

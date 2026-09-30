@@ -1,4 +1,4 @@
-// 한국어 메시지 카탈로그. 영역별 파트(./ko/)를 합치며, 키는 en.js와 동일해야 한다(테스트가 검사).
+// Korean message catalog. Merges the per-area parts (./ko/); keys must match en.js (checked by tests).
 import cli from "./ko/cli.js";
 import commands from "./ko/commands.js";
 import ui from "./ko/ui.js";

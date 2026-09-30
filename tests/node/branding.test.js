@@ -1,4 +1,4 @@
-// Task 14 게이트 — 브랜치 플레이스홀더 치환 + version.yml 렌더링/branches 왕복.
+// Gate — branch placeholder substitution + version.yml rendering / branches round trip.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ test("does not touch GitHub Actions expressions", () => {
   assert.ok(out.includes('"main"'));
 });
 
-// ── version.yml 렌더링 (payload/version.yml.template 소스) ─────────
+// ── version.yml rendering (payload/version.yml.template source) ─────────
 const TEMPLATE = readFileSync("payload/version.yml.template", "utf8");
 
 const BASE = {
@@ -42,7 +42,7 @@ test("buildVersionYml renders the payload template with branches metadata", () =
   assert.ok(out.includes('version: "1.2.3"'));
   assert.ok(out.includes("version_code: 7"));
   assert.ok(out.includes('project_types: ["spring", "react"]'));
-  // 레거시 단수 키는 더 이상 렌더되지 않는다
+  // The legacy singular key is no longer rendered
   assert.ok(!/^project_type:/m.test(out), `legacy singular project_type must not be rendered:\n${out}`);
   assert.ok(out.includes('spring: "api"'));
   assert.ok(out.includes('main: "main"'));

@@ -101,7 +101,7 @@ test("runUninstallFlow: selecting only readme removes just the version section",
     const { io } = stubIo({ multiselectReturn: ["readme"], confirmReturn: true });
     const result = await runUninstallFlow(resolvePayloadRoot(), target, io);
     assert.strictEqual(result.readme, true);
-    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // 미선택 항목은 유지
+    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // unselected item is kept
     assert.ok(!readFileSync(join(target, "README.md"), "utf8").includes("AUTO-VERSION-SECTION"));
   } finally {
     rmSync(target, { recursive: true, force: true });
@@ -127,36 +127,36 @@ test("runUninstallFlow: default checked items are exactly SAFE_ITEMS", async () 
     const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: ["workflows"], confirmReturn: true });
     const result = await runUninstallFlow(resolvePayloadRoot(), target, io);
 
-    // 다중선택 호출 검증
+    // verify the multi-select call
     assert.strictEqual(multiselectCalls.length, 1);
     const call = multiselectCalls[0];
 
-    // initialValues가 정확히 SAFE_ITEMS를 포함해야 함 (순서 중요)
+    // initialValues must contain exactly SAFE_ITEMS (order matters)
     assert.deepStrictEqual(call.initialValues, ["workflows", "scripts"]);
 
-    // 선택한 항목만 제거되었는지 확인
+    // check that only the selected items were removed
     assert.strictEqual(result.workflows.length > 0, true);
-    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // scripts 미선택
+    assert.ok(existsSync(join(target, ".github/scripts/version_manager.py"))); // scripts not selected
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("runUninstallFlow: --purge-* 플래그를 체크리스트 초기 선택에 반영한다", async () => {
+test("runUninstallFlow: --purge-* flags are reflected in the checklist's initial selection", async () => {
   const target = installFixture();
   try {
     const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: CANCEL, confirmReturn: false });
     await runUninstallFlow(resolvePayloadRoot(), target, io, { readme: true, gitignore: false, versionYml: true });
     const init = multiselectCalls[0].initialValues;
     assert.ok(init.includes("workflows") && init.includes("scripts"));
-    assert.ok(init.includes("readme"), "--purge-readme가 초기 선택돼야 한다");
-    assert.ok(init.includes("versionYml"), "--purge-version이 초기 선택돼야 한다");
+    assert.ok(init.includes("readme"), "--purge-readme must be initially selected");
+    assert.ok(init.includes("versionYml"), "--purge-version must be initially selected");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("runUninstallFlow: 플래그가 없으면 안전 항목만 초기 선택한다", async () => {
+test("runUninstallFlow: without flags only the safe items are initially selected", async () => {
   const target = installFixture();
   try {
     const { io, multiselectCalls } = stubIoWithCapture({ multiselectReturn: CANCEL, confirmReturn: false });

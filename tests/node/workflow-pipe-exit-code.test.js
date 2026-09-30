@@ -1,6 +1,6 @@
 // tests/node/workflow-pipe-exit-code.test.js
-// `cmd | tee log` 다음 줄의 `$?`는 cmd가 아니라 마지막 명령(tee)의 종료 코드라 실패가 성공으로 보고된다.
-// 파이프 직후 `$?`로 종료 코드를 읽는 워크플로우가 없는지 고정한다 (PIPESTATUS 또는 pipefail을 써야 한다).
+// `$?` on the line after `cmd | tee log` is the exit code of the last command (tee), not cmd, so failures are reported as success.
+// Pins that no workflow reads the exit code via `$?` right after a pipe (use PIPESTATUS or pipefail).
 import { test } from "node:test";
 import assert from "node:assert";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
@@ -20,10 +20,10 @@ function listWorkflows(dir) {
   return out;
 }
 
-// `||`가 아닌 단일 파이프가 있는 줄
+// Lines with a single pipe rather than `||`
 const PIPE = /(^|[^|])\|(?!\|)/;
 
-// 파이프 줄 바로 다음 명령 줄이 `$?`를 읽는데, 같은 run 블록 앞쪽에 pipefail이 없으면 위반
+// A violation when the command line right after a pipe line reads `$?` and no pipefail appears earlier in the same run block
 function findPipeExitCodeReads(text) {
   const lines = text.split(/\r?\n/);
   const hits = [];
@@ -40,25 +40,25 @@ function findPipeExitCodeReads(text) {
   return hits;
 }
 
-test("탐지기: tee 파이프 직후 $?는 잡고 PIPESTATUS·pipefail은 통과시킨다", () => {
+test("detector: catches $? right after a tee pipe and lets PIPESTATUS and pipefail pass", () => {
   assert.equal(findPipeExitCodeReads("./gradlew test 2>&1 | tee out.txt\necho \"rc=$?\"").length, 1);
-  assert.equal(findPipeExitCodeReads("./gradlew test | tee out.txt\n# 주석\necho \"rc=$?\"").length, 1);
+  assert.equal(findPipeExitCodeReads("./gradlew test | tee out.txt\n# comment\necho \"rc=$?\"").length, 1);
   assert.equal(findPipeExitCodeReads("./gradlew test | tee out.txt\necho \"rc=${PIPESTATUS[0]}\"").length, 0);
   assert.equal(findPipeExitCodeReads("set -o pipefail\n./gradlew test | tee out.txt\necho \"rc=$?\"").length, 0);
   assert.equal(findPipeExitCodeReads("a || b\necho $?").length, 0);
 });
 
-test("payload·레포 워크플로우: 파이프 직후 $?로 종료 코드를 읽지 않는다", () => {
+test("payload and repo workflows: do not read the exit code via $? right after a pipe", () => {
   const files = [
     ...listWorkflows(join(ROOT, "payload", "workflows")),
     ...listWorkflows(join(ROOT, ".github", "workflows")),
   ];
-  assert.ok(files.length > 0, "워크플로우 파일을 찾지 못함");
+  assert.ok(files.length > 0, "no workflow files found");
   const violations = [];
   for (const file of files) {
     for (const hit of findPipeExitCodeReads(readFileSync(file, "utf8"))) {
       violations.push(`${file.slice(ROOT.length)}:${hit}`);
     }
   }
-  assert.deepStrictEqual(violations, [], "파이프 뒤 $?는 마지막 명령의 종료 코드다 — PIPESTATUS[0]을 쓴다");
+  assert.deepStrictEqual(violations, [], "$? after a pipe is the exit code of the last command — use PIPESTATUS[0]");
 });

@@ -10,7 +10,8 @@ follows the `language` value in version.yml (en | ko, default en).
 
 Language resolution (first match wins):
     1. env PROJECT_AUTO_WIZARD_LANG   (same variable the installer honors)
-    2. `language:` in ./version.yml   (workflows run at the repo root)
+    2. `language:` in ./version.yml, else $GITHUB_WORKSPACE/version.yml
+                                      (steps with a working-directory in a monorepo do not run at the repo root)
     3. "en"
 
 Python usage:
@@ -46,11 +47,18 @@ def get_language(version_yml="version.yml"):
     env = os.environ.get(LANG_ENV, "").strip().lower()
     if env in SUPPORTED:
         return env
-    try:
-        with open(version_yml, encoding="utf-8") as f:
-            m = _LANG_LINE.search(f.read())
-    except OSError:
-        return DEFAULT
+    candidates = [version_yml]
+    workspace = os.environ.get("GITHUB_WORKSPACE", "")
+    if workspace:
+        candidates.append(os.path.join(workspace, "version.yml"))
+    m = None
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8") as f:
+                m = _LANG_LINE.search(f.read())
+        except OSError:
+            continue
+        break
     saved = m.group(1).lower() if m else ""
     return saved if saved in SUPPORTED else DEFAULT
 
@@ -69,6 +77,14 @@ def render(text, params):
 def t(key, lang=None, **params):
     """Look up `key` and fill placeholders."""
     return render(template(key, lang), params)
+
+
+def tn(key, n, lang=None, **params):
+    """Like t(), but uses `<key>_one` when n == 1 and that key exists (English singular).
+    {n} is always filled in, so languages without plural forms just define `<key>` alone."""
+    if n == 1 and f"{key}_one" in CATALOG[DEFAULT]:
+        key = f"{key}_one"
+    return t(key, lang, n=n, **params)
 
 
 def dump(prefix, lang=None):
@@ -295,12 +311,14 @@ EN = {
     "changelog.file_size": "📝 File size: {size} bytes",
     "changelog.parse_start": "\n🔍 Starting Markdown parsing...",
     "changelog.parse_ok": "✅ Parsed successfully: {n} categories",
+    "changelog.parse_ok_one": "✅ Parsed successfully: {n} category",
     "changelog.parse_failed": "⚠️ Parsing failed, saving raw_summary only",
     "changelog.result_header": "\n📊 Parse result:",
     "changelog.result_method": "  - parse method: {method}",
     "changelog.result_raw_len": "  - raw_summary length: {n} characters",
     "changelog.result_categories": "  - parsed categories: {n}",
     "changelog.result_category_item": "    • {title}: {n} items",
+    "changelog.result_category_item_one": "    • {title}: {n} item",
     "changelog.err_json_unreadable": "❌ Cannot parse CHANGELOG.json, aborting the update (protecting existing history): {error}",
     "changelog.err_json_annotation": "::error::CHANGELOG.json is not valid JSON: {error}",
     "changelog.json_updated": "\n✅ CHANGELOG.json updated!",
@@ -1350,12 +1368,14 @@ KO = {
     "changelog.file_size": "📝 파일 크기: {size} bytes",
     "changelog.parse_start": "\n🔍 Markdown 파싱 시작...",
     "changelog.parse_ok": "✅ 파싱 성공: {n}개 카테고리",
+    "changelog.parse_ok_one": "✅ 파싱 성공: {n}개 카테고리",
     "changelog.parse_failed": "⚠️ 파싱 실패, raw_summary만 저장",
     "changelog.result_header": "\n📊 파싱 결과:",
     "changelog.result_method": "  - 파싱 방식: {method}",
     "changelog.result_raw_len": "  - raw_summary 길이: {n} 문자",
     "changelog.result_categories": "  - 파싱된 카테고리: {n}개",
     "changelog.result_category_item": "    • {title}: {n}개 항목",
+    "changelog.result_category_item_one": "    • {title}: {n}개 항목",
     "changelog.err_json_unreadable": "❌ CHANGELOG.json을 해석할 수 없어 갱신을 중단합니다 (기존 이력 보호): {error}",
     "changelog.err_json_annotation": "::error::CHANGELOG.json이 올바른 JSON이 아닙니다: {error}",
     "changelog.json_updated": "\n✅ CHANGELOG.json 업데이트 완료!",

@@ -1,5 +1,5 @@
-// 설치 시 버전 감지(detect.js)가 공용 버전 파일 예시를 기대값대로 읽는지 확인한다.
-// 같은 예시·기대값을 tests/py/test_version_files_shared.py도 사용해, 한쪽 파싱만 바뀌면 여기서 드러난다.
+// Verify that install-time version detection (detect.js) reads the shared version file examples as expected.
+// tests/py/test_version_files_shared.py uses the same examples and expectations, so a parsing change on one side shows up here.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync, readdirSync } from "node:fs";
@@ -9,17 +9,17 @@ import { detectVersionFromFiles, detectBuildNumberFromFiles } from "../../src/co
 const ROOT = join(process.cwd(), "tests", "fixtures", "version-files");
 const { cases } = JSON.parse(readFileSync(join(ROOT, "expected.json"), "utf8"));
 
-test("공용 버전 파일: 케이스 폴더와 expected.json 항목이 일치한다", () => {
+test("shared version files: case folders and expected.json entries match", () => {
   const dirs = readdirSync(ROOT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   assert.deepStrictEqual(dirs.sort(), Object.keys(cases).sort());
 });
 
-test("공용 버전 파일: 언어별 예외 값 없이 두 구현이 같은 기대값을 쓴다", () => {
+test("shared version files: both implementations use the same expectations with no per-language exceptions", () => {
   for (const [name, c] of Object.entries(cases)) assert.ok(!("knownDifference" in c), name);
 });
 
 for (const [name, c] of Object.entries(cases)) {
-  test(`공용 버전 파일(JS): ${name}`, () => {
+  test(`shared version files (JS): ${name}`, () => {
     const dir = join(ROOT, name);
     const read = (rel) => { try { return readFileSync(join(dir, rel), "utf8"); } catch { return null; } };
     const readJson = (rel) => { const s = read(rel); try { return s ? JSON.parse(s) : null; } catch { return null; } };
@@ -27,7 +27,7 @@ for (const [name, c] of Object.entries(cases)) {
       try { return readdirSync(join(dir, rel), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return null; }
     };
     const warned = [];
-    // git 태그 폴백은 파일 파싱과 무관하므로 비운다. 폴백 경고가 나오면 "파일에서 못 찾음"(null)이다.
+    // The git tag fallback is unrelated to file parsing, so clear it. A fallback warning means "not found in file" (null).
     const detected = detectVersionFromFiles({ read, readJson, list, gitTag: "", warn: (m) => warned.push(m), types: [c.type] });
     const buildNumber = detectBuildNumberFromFiles({ types: [c.type], read, readJson, warn: () => {} });
     assert.deepStrictEqual(

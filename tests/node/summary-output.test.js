@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { printSummary } from "../../src/ui/summary.js";
 
-// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+// Keeps color expectations independent of the runner's TERM (e.g. dumb on CI). TERM=dumb behavior is set directly by the individual test.
 delete process.env.TERM;
 
 function captureStderr(fn) {
@@ -19,21 +19,21 @@ function captureStderr(fn) {
   return output;
 }
 
-test("printSummary: full 모드 + gitignoreUpdated:true -> .gitignore 줄 출력", () => {
+test("printSummary: full mode + gitignoreUpdated:true -> prints the .gitignore line", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["basic"], version: "1.0.0", gitignoreUpdated: true });
   });
   assert.ok(output.includes(".gitignore"));
 });
 
-test("printSummary: full 모드 + gitignoreUpdated:false(기본값) -> .gitignore 줄 없음", () => {
+test("printSummary: full mode + gitignoreUpdated:false (default) -> no .gitignore line", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
   });
   assert.ok(!output.includes(".gitignore"));
 });
 
-test("printSummary: gitignoreUpdated가 없으면 .gitignore를 절대 언급하지 않는다", () => {
+test("printSummary: never mentions .gitignore when gitignoreUpdated is absent", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
   });
@@ -46,7 +46,7 @@ function withStderrTTY(isTTY, fn) {
   try { return fn(); } finally { process.stderr.isTTY = original; }
 }
 
-test("printSummary: TTY + NO_COLOR 미설정 -> ANSI 색상 코드 포함", () => {
+test("printSummary: TTY + NO_COLOR unset -> includes ANSI color codes", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -59,7 +59,7 @@ test("printSummary: TTY + NO_COLOR 미설정 -> ANSI 색상 코드 포함", () =
   }
 });
 
-test("printSummary: NO_COLOR=1이면 TTY여도 ANSI 색상 코드가 전혀 섞이지 않는다", () => {
+test("printSummary: with NO_COLOR=1 no ANSI color codes are mixed in even on a TTY", () => {
   const originalNoColor = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
   try {
@@ -72,7 +72,7 @@ test("printSummary: NO_COLOR=1이면 TTY여도 ANSI 색상 코드가 전혀 섞�
   }
 });
 
-test("printSummary: 비TTY면 NO_COLOR 미설정이어도 ANSI 색상 코드가 없다", () => {
+test("printSummary: on a non-TTY there are no ANSI color codes even if NO_COLOR is unset", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -85,7 +85,7 @@ test("printSummary: 비TTY면 NO_COLOR 미설정이어도 ANSI 색상 코드가 
   }
 });
 
-test("printSummary: copiedFiles를 common/타입별로 분류해서 목록과 정확한 개수를 렌더링한다", () => {
+test("printSummary: classifies copiedFiles into common/per-type and renders the list with exact counts", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["spring"], version: "1.0.0",
@@ -97,7 +97,7 @@ test("printSummary: copiedFiles를 common/타입별로 분류해서 목록과 �
   assert.ok(output.includes("PROJECT-SPRING-CI.yml"));
 });
 
-test("printSummary: 자동 갱신된 파일은 '새로 설치됨'이 아니라 '업데이트됨'으로 따로 보여준다", () => {
+test("printSummary: auto-updated files are shown separately as 'updated', not 'newly installed'", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["spring"], version: "1.0.0",
@@ -111,49 +111,49 @@ test("printSummary: 자동 갱신된 파일은 '새로 설치됨'이 아니라 '
   assert.ok(!installed.includes("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("printSummary: copiedFiles가 비어 있으면(전부 skip) '새로 설치됨' 줄 자체를 출력하지 않는다", () => {
+test("printSummary: when copiedFiles is empty (everything skipped) the 'newly installed' line is not printed at all", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["spring"], version: "1.0.0", copiedFiles: [] });
   });
   assert.ok(!output.includes("📦 새로 설치됨"));
 });
 
-test("printSummary: copiedFiles 미지정 시에도 예외 없이 동작한다(기본값 빈 배열)", () => {
+test("printSummary: works without throwing when copiedFiles is not given (default empty array)", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["basic"], version: "1.0.0" });
   });
   assert.ok(!output.includes("📦 새로 설치됨"));
 });
 
-test("printSummary: flutter 타입 + versionCode 지정 시 빌드 번호 줄을 출력한다", () => {
+test("printSummary: flutter type + versionCode prints the build number line", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["flutter"], version: "1.2.39", versionCode: 71 });
   });
   assert.ok(output.includes("빌드 번호: 71"));
 });
 
-test("printSummary: react-native-expo 타입도 빌드 번호 줄을 출력한다", () => {
+test("printSummary: react-native-expo type also prints the build number line", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["react-native-expo"], version: "1.0.0", versionCode: 5 });
   });
   assert.ok(output.includes("빌드 번호: 5"));
 });
 
-test("printSummary: 빌드 번호 개념이 없는 타입(spring)은 versionCode가 있어도 줄을 출력하지 않는다", () => {
+test("printSummary: a type without a build number concept (spring) prints no line even with versionCode", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["spring"], version: "1.0.0", versionCode: 1 });
   });
   assert.ok(!output.includes("빌드 번호"));
 });
 
-test("printSummary: versionCode 미지정 시에도 예외 없이 동작하고 빌드 번호 줄이 없다", () => {
+test("printSummary: works without throwing when versionCode is not given and has no build number line", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["flutter"], version: "1.2.39" });
   });
   assert.ok(!output.includes("빌드 번호"));
 });
 
-test("printSummary: Flutter 스토어 배포 파일을 '새로 생성'과 '기존 파일 유지'로 나눠 보여주고 ExportOptions 안내를 덧붙인다", () => {
+test("printSummary: splits Flutter store deploy files into 'newly created' and 'existing kept' and appends the ExportOptions notice", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["flutter"], version: "1.0.0",
@@ -169,7 +169,7 @@ test("printSummary: Flutter 스토어 배포 파일을 '새로 생성'과 '기�
   assert.ok(output.includes("__TEAM_ID__") && output.includes("__BUNDLE_ID__") && output.includes("__PROVISIONING_PROFILE_NAME__"));
 });
 
-test("printSummary: ExportOptions.plist를 새로 만들지 않았으면(이미 있음) 플레이스홀더 안내를 출력하지 않는다", () => {
+test("printSummary: does not print the placeholder notice when ExportOptions.plist was not newly created (already exists)", () => {
   const output = captureStderr(() => {
     printSummary({ mode: "full", types: ["flutter"], version: "1.0.0", flutterApp: { created: [], kept: ["ios/ExportOptions.plist"] } });
   });
@@ -177,7 +177,7 @@ test("printSummary: ExportOptions.plist를 새로 만들지 않았으면(이미 
   assert.ok(!output.includes("__TEAM_ID__"));
 });
 
-test("printSummary: 선택 해제한 스토어 배포 워크플로우의 정리 결과(삭제/.bak 백업)를 보여준다", () => {
+test("printSummary: shows the cleanup result (deleted/.bak backup) of deselected store deploy workflows", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["flutter"], version: "1.0.0",
@@ -192,7 +192,7 @@ test("printSummary: 선택 해제한 스토어 배포 워크플로우의 정리 
   assert.ok(output.includes("PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml → PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml.bak"));
 });
 
-test("printSummary: flutterApp·storeCleanup이 없거나 비어 있으면 해당 블록을 출력하지 않는다", () => {
+test("printSummary: does not print the block when flutterApp/storeCleanup is absent or empty", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["flutter"], version: "1.0.0",
@@ -203,7 +203,7 @@ test("printSummary: flutterApp·storeCleanup이 없거나 비어 있으면 해�
   assert.ok(!output.includes("스토어 배포 정리"));
 });
 
-test("printSummary: 배포 방식 변경 정리(cleanup) 출력은 그대로 유지된다", () => {
+test("printSummary: deploy-method change cleanup output stays unchanged", () => {
   const output = captureStderr(() => {
     printSummary({
       mode: "full", types: ["spring"], version: "1.0.0",

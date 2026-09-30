@@ -1,6 +1,6 @@
 // tests/node/stale-workflows.test.js
-// payload에서 이름이 바뀌거나 빠진 옛 워크플로우는 업데이트 때 정리한다 — 남겨두면 옛 트리거로 계속 돈다.
-// 규칙은 배포 방식 정리와 같다: 손대지 않은 파일은 삭제, 손댄 파일은 .bak, 마법사가 설치한 기록이 없는 파일은 그대로.
+// Old workflows renamed or removed in the payload are cleaned up on update — left alone they keep running on old triggers.
+// Same rule as deploy style cleanup: untouched files are deleted, edited files become .bak, files with no wizard install record are left as is.
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
@@ -25,7 +25,7 @@ function ctx() {
   });
 }
 
-// 예전 버전이 설치한 파일을 흉내낸다 — 관리 마커 + baseline 기록.
+// Simulates a file installed by an old version — managed marker + baseline record.
 function plantOld(target, name, body, { recorded = true } = {}) {
   const text = `${MANAGED_WORKFLOW_MARKER}\nname: ${body}\non: push\n`;
   writeFileSync(join(target, WF, name), text);
@@ -38,7 +38,7 @@ function plantOld(target, name, body, { recorded = true } = {}) {
   return join(target, WF, name);
 }
 
-test("업데이트: payload에 없는 옛 워크플로우 — 미수정은 삭제, 수정본은 .bak, 기록 없는 파일은 유지", () => {
+test("update: old workflows absent from the payload — unedited deleted, edited copies .bak, files without a record kept", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-stale-"));
   try {
     runFull(ctx(), PAYLOAD, target);
@@ -47,7 +47,7 @@ test("업데이트: payload에 없는 옛 워크플로우 — 미수정은 삭�
     writeFileSync(edited, readFileSync(edited, "utf8") + "# my edit\n");
     const userCopy = plantOld(target, "MY-APP-DEPLOY.yaml", "my-copy", { recorded: false });
 
-    // 업데이트 전 status가 알려 준다
+    // status reports it before the update
     assert.deepStrictEqual(runStatus(PAYLOAD, target).staleFiles,
       ["PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml", "PROJECT-PYTHON-OLD-TRIGGER.yaml"]);
 
@@ -56,18 +56,18 @@ test("업데이트: payload에 없는 옛 워크플로우 — 미수정은 삭�
     assert.deepStrictEqual(r.staleCleanup.backedUp, ["PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml"]);
     assert.ok(!existsSync(untouched));
     assert.ok(!existsSync(edited) && existsSync(`${edited}.bak`));
-    assert.ok(existsSync(userCopy), "마법사가 설치한 기록이 없는 파일은 건드리지 않는다");
-    assert.ok(r.gitignoreUpdated, ".bak이 생겼으므로 .gitignore를 갱신한다");
+    assert.ok(existsSync(userCopy), "a file with no wizard install record is not touched");
+    assert.ok(r.gitignoreUpdated, "a .bak was created so .gitignore is updated");
     assert.match(postInstallNotices(r).join("\n"), /PROJECT-PYTHON-OLD-TRIGGER\.yaml — 삭제/);
 
     const bl = JSON.parse(readFileSync(join(target, BASELINE_PATH), "utf8"));
     assert.ok(!bl.files["PROJECT-PYTHON-OLD-TRIGGER.yaml"] && !bl.files["PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml"],
-      "정리한 파일의 기준점도 baseline에서 뺀다");
+      "the reference of a cleaned-up file is also removed from the baseline");
     assert.deepStrictEqual(runStatus(PAYLOAD, target).staleFiles, []);
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("업데이트: 현재 payload에 있는 파일은 옛 워크플로우로 보지 않는다", () => {
+test("update: files present in the current payload are not treated as old workflows", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-stale-"));
   try {
     runFull(ctx(), PAYLOAD, target);

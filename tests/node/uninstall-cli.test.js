@@ -24,7 +24,7 @@ test("parseArgs: purge flags set their respective booleans", () => {
 
 function emptyTarget() {
   const target = mkdtempSync(join(tmpdir(), "paw-uninstall-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // root marker to avoid zero path candidates
   return target;
 }
 
@@ -35,8 +35,8 @@ test("run(): --mode uninstall --force removes only workflows/scripts by default"
     await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
-    // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다 — 이 테스트는
-    // uninstall의 gitignore 정리 동작 자체를 검증하는 것이 목적이므로 직접 만들어 둔다.
+    // Full mode creates .gitignore only when a conflict backup actually appears — this test
+    // aims to verify uninstall's gitignore cleanup itself, so it is created directly.
     ensureGitignore(target);
     const code = await run(["--mode", "uninstall", "--force"], { cwd: target });
     assert.strictEqual(code, 0);
@@ -56,8 +56,8 @@ test("run(): --mode uninstall --force --purge-readme --purge-gitignore --purge-v
     await run(["--mode", "full", "--force", "--type", "node"], {
       cwd: target, clock: { now: "2026-08-01 00:00:00", today: "2026-08-01" },
     });
-    // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다 — 이 테스트는
-    // --purge-gitignore가 실제로 지우는지를 검증하는 것이 목적이므로 직접 만들어 둔다.
+    // Full mode creates .gitignore only when a conflict backup actually appears — this test
+    // aims to verify that --purge-gitignore really removes it, so it is created directly.
     ensureGitignore(target);
     const code = await run(
       ["--mode", "uninstall", "--force", "--purge-readme", "--purge-gitignore", "--purge-version"],

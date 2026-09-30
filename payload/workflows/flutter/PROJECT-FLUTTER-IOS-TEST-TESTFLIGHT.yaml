@@ -81,7 +81,7 @@ jobs:
       branch_valid: ${{ steps.verify_branch.outputs.valid }}
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
@@ -229,7 +229,7 @@ jobs:
       commit_hash: ${{ steps.release_notes.outputs.commit_hash }}
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
@@ -512,7 +512,7 @@ jobs:
       step2_end_time: ${{ steps.progress_step2.outputs.end_time }}
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
@@ -888,7 +888,7 @@ jobs:
       needs.build-ios-test.result == 'success'
 
     steps:
-      # Fetch the message catalog from the default branch first — the feature branch being built may predate it
+      # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
       - name: Checkout messages
         uses: actions/checkout@v7
         with:

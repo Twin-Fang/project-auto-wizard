@@ -3,9 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert";
 import * as engine from "../../src/ui/readline-engine.js";
 
-// keySession()/text()의 raw-mode 진입 조건(stdin.isTTY)을 통과시키기 위해 테스트 동안만
-// process.stdin의 isTTY/setRawMode를 오버라이드한다. stdin.on("end"/"keypress", ...) 리스너는
-// Promise executor 내부에서 동기적으로 등록되므로, 함수 호출 직후 emit해도 안전하다.
+// To pass the raw-mode entry condition (stdin.isTTY) of keySession()/text(), override
+// process.stdin's isTTY/setRawMode only for the duration of the test. The stdin.on("end"/"keypress", ...) listeners are
+// registered synchronously inside the Promise executor, so emitting right after the call is safe.
 function withFakeTty(fn) {
   const stdin = process.stdin;
   const stdout = process.stdout;
@@ -14,7 +14,7 @@ function withFakeTty(fn) {
   const originalWrite = stdout.write;
   stdin.isTTY = true;
   stdin.setRawMode = () => stdin;
-  stdout.write = () => true; // 렌더링 출력으로 테스트 로그가 지저분해지는 것 방지
+  stdout.write = () => true; // keep rendering output from cluttering the test log
   return Promise.resolve()
     .then(fn)
     .finally(() => {
@@ -24,11 +24,11 @@ function withFakeTty(fn) {
     });
 }
 
-// timeout 지정 필수: 수정 전 코드는 "end" 리스너가 없어 Promise가 영원히 pending되므로,
-// timeout이 없으면 FAIL이 아니라 node --test 전체가 멈춘다(hang). 수정 후에는 즉시 resolve되어
-// 여유 있게 통과한다.
-// EOF 뒤에는 입력이 다시 올 수 없으므로 CANCEL(머무르기/기본값)이 아니라 중단이어야 한다.
-test("text(): stdin이 종료(EOF)되면 PromptAbortError로 중단된다", { timeout: 2000 }, async () => {
+// A timeout is required: the pre-fix code had no "end" listener, so the Promise stayed pending forever,
+// and without a timeout the whole node --test run hangs instead of failing. After the fix it resolves immediately
+// and passes with room to spare.
+// No more input can arrive after EOF, so this must abort rather than CANCEL (stay/default).
+test("text(): aborts with PromptAbortError when stdin ends (EOF)", { timeout: 2000 }, async () => {
   await withFakeTty(async () => {
     const p = engine.text({ message: "이름을 입력하세요", defaultValue: "기본값" });
     process.stdin.emit("end");
@@ -36,7 +36,7 @@ test("text(): stdin이 종료(EOF)되면 PromptAbortError로 중단된다", { ti
   });
 });
 
-test("select(): stdin이 종료(EOF)되면 PromptAbortError로 중단된다", { timeout: 2000 }, async () => {
+test("select(): aborts with PromptAbortError when stdin ends (EOF)", { timeout: 2000 }, async () => {
   await withFakeTty(async () => {
     const p = engine.select({
       message: "선택하세요",
@@ -47,7 +47,7 @@ test("select(): stdin이 종료(EOF)되면 PromptAbortError로 중단된다", { 
   });
 });
 
-test("text(): 정상 완료 후에는 'end' 리스너가 해제되어 리스너가 누적되지 않는다", async () => {
+test("text(): after normal completion the 'end' listener is removed so listeners do not accumulate", async () => {
   await withFakeTty(async () => {
     const before = process.stdin.listenerCount("end");
     const p = engine.text({ message: "이름을 입력하세요", defaultValue: "기본값" });
@@ -60,7 +60,7 @@ test("text(): 정상 완료 후에는 'end' 리스너가 해제되어 리스너�
   });
 });
 
-test("text(): Ctrl+D 키 입력은 raw mode에서 keypress로 들어오지만 중단으로 처리된다", async () => {
+test("text(): Ctrl+D arrives as a keypress in raw mode but is handled as an abort", async () => {
   await withFakeTty(async () => {
     const p = engine.text({ message: "이름을 입력하세요", defaultValue: "기본값" });
     process.stdin.emit("keypress", "", { name: "d", ctrl: true, sequence: "" });
@@ -68,7 +68,7 @@ test("text(): Ctrl+D 키 입력은 raw mode에서 keypress로 들어오지만 �
   });
 });
 
-test("select(): Ctrl+D 키 입력은 중단으로 처리된다", async () => {
+test("select(): Ctrl+D is handled as an abort", async () => {
   await withFakeTty(async () => {
     const p = engine.select({
       message: "선택하세요",
@@ -79,14 +79,14 @@ test("select(): Ctrl+D 키 입력은 중단으로 처리된다", async () => {
   });
 });
 
-// Ctrl+C는 ESC(기본값 선택)와 달라야 한다 — 같게 처리하면 중단하려던 사용자의 레포에 설치가 강행된다.
+// Ctrl+C must differ from ESC (pick default) — treating them the same would force the install onto the repo of a user who meant to abort.
 for (const [name, call] of [
   ["select", () => engine.select({ message: "m", options: [{ value: "a", label: "A" }] })],
   ["multiselect", () => engine.multiselect({ message: "m", options: [{ value: "a", label: "A" }] })],
   ["confirm", () => engine.confirm({ message: "m" })],
   ["text", () => engine.text({ message: "m", defaultValue: "d" })],
 ]) {
-  test(`${name}(): Ctrl+C는 PromptAbortError, ESC는 CANCEL`, async () => {
+  test(`${name}(): Ctrl+C is PromptAbortError, ESC is CANCEL`, async () => {
     await withFakeTty(async () => {
       const aborted = call();
       process.stdin.emit("keypress", "\x03", { name: "c", ctrl: true, sequence: "\x03" });

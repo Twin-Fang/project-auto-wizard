@@ -1,6 +1,7 @@
 // 한국어 메시지: 인자 파싱, --help, 진입점(bin/, src/index.js, src/cli, src/context.js).
 export default {
   "cli.lang.invalid": "지원하지 않는 언어: '{value}' ({source}). 지원 언어: {supported}",
+  "cli.lang.defaultNotice": "워크플로우 메시지의 기본 언어가 영어로 바뀌었습니다. 한국어를 유지하려면 --lang ko를 사용하세요.",
   "cli.lang.missing": "--lang 값이 필요합니다. 지원 언어: {supported}",
   "cli.lang.help": "메시지 언어: {supported} (기본: en)",
   "cli.bin.nodeVersion": "Node.js 20.12 이상이 필요합니다 (현재: {current})",

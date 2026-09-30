@@ -1,5 +1,5 @@
-// Task 16 게이트 — 브랜치 모드별 워크플로우 설치 매트릭스.
-// | 모드        | VERSION-CONTROL | AUTO-CHANGELOG | RELEASE-PUBLISH |
+// Gate: workflow install matrix per branch mode.
+// | mode        | VERSION-CONTROL | AUTO-CHANGELOG | RELEASE-PUBLISH |
 // | pr-flow     | ✅              | ✅             | ✅              |
 // | trunk-based | ❌              | ❌             | ✅              |
 import { test } from "node:test";
@@ -46,10 +46,10 @@ test("trunk-based installs RELEASE-PUBLISH only (roles absorbed)", () => {
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 
-test("spring 기본 설치: CI와 서버 배포 워크플로우가 함께 설치되고 nexus 계열은 없다", () => {
+test("spring default install: CI and server deploy workflows are installed together and no nexus ones", () => {
   const t = install({ types: ["spring"] });
   try {
-    assert.ok(existsSync(WF(t, "PROJECT-SPRING-CI.yml")), "Spring CI는 항상 설치된다");
+    assert.ok(existsSync(WF(t, "PROJECT-SPRING-CI.yml")), "Spring CI is always installed");
     assert.ok(existsSync(WF(t, "PROJECT-SPRING-SIMPLE-CICD.yaml")));
     assert.ok(!existsSync(WF(t, "PROJECT-SPRING-NEXUS-CI.yml")));
     assert.ok(!existsSync(WF(t, "PROJECT-SPRING-NEXUS-PUBLISH.yml")));
@@ -57,7 +57,7 @@ test("spring 기본 설치: CI와 서버 배포 워크플로우가 함께 설치
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 
-test("spring + 배포 안 함(none): 서버 배포는 빠지지만 CI는 남는다", () => {
+test("spring + no deploy (none): server deploy is dropped but CI stays", () => {
   const t = install({ types: ["spring"], deployStyle: "none" });
   try {
     assert.ok(existsSync(WF(t, "PROJECT-SPRING-CI.yml")));
@@ -66,7 +66,7 @@ test("spring + 배포 안 함(none): 서버 배포는 빠지지만 CI는 남는�
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
 
-test("공통 설치에는 SECRET-FILE-UPLOAD 워크플로우가 없다", () => {
+test("the common install has no SECRET-FILE-UPLOAD workflow", () => {
   const t = install({});
   try {
     assert.ok(!existsSync(WF(t, "PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml")));

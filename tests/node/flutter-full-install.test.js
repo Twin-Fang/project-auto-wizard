@@ -1,5 +1,5 @@
 // tests/node/flutter-full-install.test.js
-// runFull 통합 — 실제 payload로 Flutter 앱 파일 생성과 선택 해제된 스토어 워크플로우 정리를 검증한다.
+// runFull integration — verifies Flutter app file creation and cleanup of deselected store workflows with the real payload.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
@@ -17,7 +17,7 @@ const TESTFLIGHT = "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml";
 const TESTFLIGHT_TEST = "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml";
 const APP_FILES = ["android/fastlane/Fastfile.playstore", "ios/fastlane/Fastfile", "ios/ExportOptions.plist"];
 
-// sub: Flutter 프로젝트 루트(레포 기준). "."이면 단일 레포, "app"이면 모노레포.
+// sub: Flutter project root (relative to the repo). "." means a single repo, "app" a monorepo.
 function flutterTarget(sub = ".") {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-full-"));
   mkdirSync(join(target, sub), { recursive: true });
@@ -36,7 +36,7 @@ function install(target, { types = ["flutter"], paths = new Map([["flutter", "."
 
 const workflows = (target) => readdirSync(join(target, WF_DIR));
 
-test("신규 설치: Flutter 앱 파일 3개가 만들어지고 created로 보고된다", () => {
+test("fresh install: three Flutter app files are created and reported as created", () => {
   const target = flutterTarget();
   try {
     const r = install(target);
@@ -47,7 +47,7 @@ test("신규 설치: Flutter 앱 파일 3개가 만들어지고 created로 보�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("기존 파일 유지: 이미 있는 앱 파일은 덮어쓰지 않고 재실행하면 전부 kept다", () => {
+test("keeps existing files: existing app files are not overwritten and all are kept on rerun", () => {
   const target = flutterTarget();
   try {
     mkdirSync(join(target, "ios"), { recursive: true });
@@ -63,17 +63,17 @@ test("기존 파일 유지: 이미 있는 앱 파일은 덮어쓰지 않고 재�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("모노레포: Flutter 앱 파일이 paths.flutter 아래에 만들어진다", () => {
+test("monorepo: Flutter app files are created under paths.flutter", () => {
   const target = flutterTarget("app");
   try {
     const r = install(target, { paths: new Map([["flutter", "app"]]) });
     assert.deepStrictEqual([...r.flutterApp.created].sort(), APP_FILES.map((rel) => `app/${rel}`).sort());
     for (const rel of APP_FILES) assert.ok(existsSync(join(target, "app", rel)), rel);
-    assert.ok(!existsSync(join(target, "android")) && !existsSync(join(target, "ios")), "레포 루트에는 만들지 않는다");
+    assert.ok(!existsSync(join(target, "android")) && !existsSync(join(target, "ios")), "must not be created at the repo root");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("Flutter가 아닌 프로젝트: 앱 파일도 정리도 없다", () => {
+test("non-Flutter project: no app files and no cleanup", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-full-react-"));
   try {
     writeFileSync(join(target, "package.json"), '{"name":"web","version":"1.0.0"}\n');
@@ -84,7 +84,7 @@ test("Flutter가 아닌 프로젝트: 앱 파일도 정리도 없다", () => {
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("flutterStore가 null이면 이전에 깐 스토어 워크플로우를 지우지 않는다 (현행 동작)", () => {
+test("when flutterStore is null, previously installed store workflows are not deleted (current behavior)", () => {
   const target = flutterTarget();
   try {
     install(target, { flutterStore: ["android", "ios"] });
@@ -94,7 +94,7 @@ test("flutterStore가 null이면 이전에 깐 스토어 워크플로우를 지�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("선택 해제: 손대지 않은 iOS 워크플로우는 삭제하고 Fastfile·ExportOptions는 남긴다", () => {
+test("deselect: an untouched iOS workflow is deleted while Fastfile and ExportOptions are kept", () => {
   const target = flutterTarget();
   try {
     install(target, { flutterStore: ["android", "ios"] });
@@ -105,14 +105,14 @@ test("선택 해제: 손대지 않은 iOS 워크플로우는 삭제하고 Fastfi
     const files = workflows(target);
     assert.ok(files.includes(PLAY));
     assert.ok(!files.includes(TESTFLIGHT) && !files.includes(TESTFLIGHT_TEST));
-    assert.ok(!files.some((f) => f.endsWith(".bak")), "미수정이면 .bak 없이 깔끔히 삭제");
-    // 사용자 소유 파일은 삭제하지 않는다
+    assert.ok(!files.some((f) => f.endsWith(".bak")), "an unmodified file is cleanly deleted without .bak");
+    // User-owned files are not deleted
     assert.ok(existsSync(join(target, "ios/fastlane/Fastfile")));
     assert.ok(existsSync(join(target, "ios/ExportOptions.plist")));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("선택 해제: 사용자가 수정한 워크플로우는 지우지 않고 .bak으로 보존한다", () => {
+test("deselect: a user-modified workflow is preserved as .bak instead of being deleted", () => {
   const target = flutterTarget();
   try {
     install(target, { flutterStore: ["android", "ios"] });
@@ -123,12 +123,12 @@ test("선택 해제: 사용자가 수정한 워크플로우는 지우지 않고 
     assert.deepStrictEqual(r.storeCleanup.backedUp, [TESTFLIGHT]);
     assert.deepStrictEqual(r.storeCleanup.removed, [TESTFLIGHT_TEST]);
     assert.match(readFileSync(`${p}.bak`, "utf8"), /내가 고친 부분/);
-    assert.ok(!workflows(target).includes(TESTFLIGHT), "트리거는 죽어야 한다");
-    assert.strictEqual(r.gitignoreUpdated, true, ".bak이 생겼으므로 .gitignore 갱신 대상이다");
+    assert.ok(!workflows(target).includes(TESTFLIGHT), "the trigger must be disabled");
+    assert.strictEqual(r.gitignoreUpdated, true, "a .bak was created, so .gitignore must be updated");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("선택 해제한 파일은 baseline에서도 빠져 다음 실행에서 '사용자가 지웠다'로 오인되지 않는다", () => {
+test("a deselected file is also dropped from the baseline so the next run does not mistake it for 'deleted by the user'", () => {
   const target = flutterTarget();
   try {
     install(target, { flutterStore: ["android", "ios"] });
@@ -143,19 +143,19 @@ test("선택 해제한 파일은 baseline에서도 빠져 다음 실행에서 '�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("스토어 대상을 none([])으로 바꾸면 스토어 워크플로우가 전부 정리되고 앱 파일은 새로 만들지 않는다", () => {
+test("switching store targets to none([]) cleans up all store workflows and creates no new app files", () => {
   const target = flutterTarget();
   try {
     install(target, { flutterStore: ["android", "ios"] });
     const r = install(target, { flutterStore: [] });
     assert.deepStrictEqual([...r.storeCleanup.removed].sort(), [PLAY, TESTFLIGHT, TESTFLIGHT_TEST].sort());
     assert.deepStrictEqual(r.flutterApp.created, []);
-    assert.deepStrictEqual(r.flutterApp.kept, [], "none이면 대상 자체가 없다");
-    assert.ok(existsSync(join(target, "android/fastlane/Fastfile.playstore")), "이미 만든 사용자 파일은 남긴다");
+    assert.deepStrictEqual(r.flutterApp.kept, [], "with none there is no target at all");
+    assert.ok(existsSync(join(target, "android/fastlane/Fastfile.playstore")), "user files already created are kept");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("신규 설치에서 flutterStore [ios]만 고르면 iOS 앱 파일만 만들어진다", () => {
+test("in a fresh install, choosing only flutterStore [ios] creates only iOS app files", () => {
   const target = flutterTarget();
   try {
     const r = install(target, { flutterStore: ["ios"] });

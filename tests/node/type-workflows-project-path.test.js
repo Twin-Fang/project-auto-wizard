@@ -1,7 +1,7 @@
 // tests/node/type-workflows-project-path.test.js
-// 모노레포(--paths)에서 Spring·React·Next·Python·Go 워크플로우가 레포 루트가 아니라 타입별 하위 폴더에서
-// 빌드하는지 고정한다. PROJECT_PATH는 설치 때 auto:project-path 마커로 치환되고, 빌드 명령·Docker context가
-// 그 값을 따라야 한다.
+// In a monorepo (--paths), pins that the Spring, React, Next, Python and Go workflows build in the per-type subfolder
+// rather than the repo root. PROJECT_PATH is substituted via the auto:project-path marker at install, and the build commands and Docker context
+// must follow that value.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync, readdirSync } from "node:fs";
@@ -22,7 +22,7 @@ const FILES = TYPES.flatMap((type) =>
 
 const read = (file) => readFileSync(join(WORKFLOWS_DIR, file), "utf8");
 
-// `- name: <name>` 스텝 블록들 (다음 스텝·job 전까지)
+// `- name: <name>` step blocks (up to the next step or job)
 function stepBlocks(text, name) {
   const lines = text.split("\n");
   const blocks = [];
@@ -41,18 +41,18 @@ function stepBlocks(text, name) {
   return blocks;
 }
 
-test("대상 워크플로우 목록이 비어 있지 않다", () => {
+test("the target workflow list is not empty", () => {
   assert.ok(FILES.length >= 15, `got ${FILES.length}`);
 });
 
 for (const file of FILES) {
   const text = read(file);
 
-  test(`${file}: PROJECT_PATH가 auto:project-path 마커로 선언된다`, () => {
+  test(`${file}: PROJECT_PATH is declared with the auto:project-path marker`, () => {
     assert.match(text, /^ {2}PROJECT_PATH: "\."\s+# @wizard auto:project-path$/m);
   });
 
-  test(`${file}: Docker context가 레포 루트('.')로 고정돼 있지 않다`, () => {
+  test(`${file}: Docker context is not pinned to the repo root ('.')`, () => {
     assert.doesNotMatch(text, /^\s*context: \.\s*$/m);
     for (const line of text.split("\n").filter((l) => /^\s*context: /.test(l))) {
       assert.match(line, /context: \$\{\{ env\.PROJECT_PATH \}\}/, line);
@@ -60,19 +60,19 @@ for (const file of FILES) {
   });
 }
 
-test("CI 빌드 job은 PROJECT_PATH를 작업 디렉터리로 쓴다", () => {
+test("the CI build job uses PROJECT_PATH as its working directory", () => {
   for (const file of ["go/PROJECT-GO-CI.yaml", "next/PROJECT-NEXT-CI.yaml", "python/PROJECT-PYTHON-CI.yaml", "react/PROJECT-REACT-CI.yaml", "spring/PROJECT-SPRING-CI.yml"]) {
-    assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults 누락`);
+    assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults missing`);
   }
 });
 
-test("React·Next CICD build job은 PROJECT_PATH를 작업 디렉터리로 쓴다", () => {
+test("the React/Next CICD build job uses PROJECT_PATH as its working directory", () => {
   for (const file of ["react/PROJECT-REACT-CICD.yaml", "next/PROJECT-NEXT-CICD.yaml"]) {
-    assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults 누락`);
+    assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults missing`);
   }
 });
 
-test("Spring 배포 워크플로우의 Gradle 스텝은 PROJECT_PATH에서 실행된다", () => {
+test("Gradle steps of the Spring deploy workflows run in PROJECT_PATH", () => {
   const cases = [
     ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
     ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
@@ -83,13 +83,13 @@ test("Spring 배포 워크플로우의 Gradle 스텝은 PROJECT_PATH에서 실�
     const text = read(file);
     for (const name of names) {
       const blocks = stepBlocks(text, name);
-      assert.ok(blocks.length > 0, `${file}: '${name}' 스텝 없음`);
-      for (const b of blocks) assert.ok(b.includes(WD), `${file}: '${name}' working-directory 누락`);
+      assert.ok(blocks.length > 0, `${file}: step '${name}' not found`);
+      for (const b of blocks) assert.ok(b.includes(WD), `${file}: '${name}' working-directory missing`);
     }
   }
 });
 
-test("Go·Python 배포/프리뷰의 .env는 PROJECT_PATH 안에 만든다 (Docker context에 포함돼야 한다)", () => {
+test("the .env of Go/Python deploy/preview is created inside PROJECT_PATH (it must be in the Docker context)", () => {
   const cases = [
     ["go/PROJECT-GO-SIMPLE-CICD.yaml", "Create .env file"],
     ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", "Create .env file"],
@@ -98,12 +98,12 @@ test("Go·Python 배포/프리뷰의 .env는 PROJECT_PATH 안에 만든다 (Dock
   ];
   for (const [file, name] of cases) {
     const blocks = stepBlocks(read(file), name);
-    assert.ok(blocks.length > 0, `${file}: '${name}' 스텝 없음`);
-    for (const b of blocks) assert.ok(b.includes(WD), `${file}: '${name}' working-directory 누락`);
+    assert.ok(blocks.length > 0, `${file}: step '${name}' not found`);
+    for (const b of blocks) assert.ok(b.includes(WD), `${file}: '${name}' working-directory missing`);
   }
 });
 
-test("모노레포에서 서버 배포·프리뷰의 이미지·컨테이너 이름에 타입 접미사가 붙는다 (타입끼리 덮어쓰지 않는다)", () => {
+test("in a monorepo, image and container names of server deploy/preview get a type suffix (types do not overwrite each other)", () => {
   const cases = {
     go: ["go/PROJECT-GO-PR-PREVIEW.yaml", "go/PROJECT-GO-SIMPLE-CICD.yaml"],
     python: ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", "python/PROJECT-PYTHON-SIMPLE-CICD.yaml"],
@@ -118,8 +118,8 @@ test("모노레포에서 서버 배포·프리뷰의 이미지·컨테이너 이
     const expr = `\${{ env.PROJECT_PATH != '.' && format('{0}-${type}', env.PROJECT_NAME) || env.PROJECT_NAME }}`;
     for (const file of files) {
       const text = read(file);
-      assert.ok(!text.includes("${{ env.PROJECT_NAME }}"), `${file}: 접미사 없는 PROJECT_NAME 참조가 남아 있습니다`);
-      assert.ok(text.includes(expr), `${file}: 타입 접미사 표현식 누락`);
+      assert.ok(!text.includes("${{ env.PROJECT_NAME }}"), `${file}: a PROJECT_NAME reference without a suffix remains`);
+      assert.ok(text.includes(expr), `${file}: type suffix expression missing`);
     }
   }
 });

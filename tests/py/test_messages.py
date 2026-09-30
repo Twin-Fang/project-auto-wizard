@@ -84,6 +84,17 @@ class TestLanguageResolution(unittest.TestCase):
         d = self._in_dir('language: "ko"\n')
         self.assertEqual(_run("lang", cwd=d, env={messages.LANG_ENV: "xx"}).stdout.strip(), "ko")
 
+    def test_falls_back_to_github_workspace_version_yml(self):
+        # A step with a working-directory (monorepo) runs outside the repo root
+        root = self._in_dir('language: "ko"\n')
+        sub = self._in_dir()
+        self.assertEqual(_run("lang", cwd=sub, env={"GITHUB_WORKSPACE": str(root)}).stdout.strip(), "ko")
+
+    def test_local_version_yml_wins_over_workspace(self):
+        root = self._in_dir('language: "ko"\n')
+        sub = self._in_dir('language: "en"\n')
+        self.assertEqual(_run("lang", cwd=sub, env={"GITHUB_WORKSPACE": str(root)}).stdout.strip(), "en")
+
     def test_language_key_must_be_a_top_level_line(self):
         d = self._in_dir('metadata:\n  language: "ko"\n')
         self.assertEqual(_run("lang", cwd=d).stdout.strip(), "en")
@@ -110,6 +121,17 @@ class TestLookup(unittest.TestCase):
 
     def test_missing_key_returns_the_key(self):
         self.assertEqual(messages.t("x.nope", "ko"), "x.nope")
+
+    def test_tn_uses_singular_key_only_for_one(self):
+        messages.CATALOG["en"].update({"x.n": "{n} items", "x.n_one": "{n} item"})
+        messages.CATALOG["ko"].update({"x.n": "{n}개", "x.n_one": "{n}개"})
+        self.assertEqual(messages.tn("x.n", 1, "en"), "1 item")
+        self.assertEqual(messages.tn("x.n", 2, "en"), "2 items")
+        self.assertEqual(messages.tn("x.n", 0, "en"), "0 items")
+        self.assertEqual(messages.tn("x.n", 1, "ko"), "1개")
+
+    def test_tn_without_singular_key_uses_plain_key(self):
+        self.assertEqual(messages.tn("x.a", 1, "en", name="A"), "Hello A")
 
     def test_dump_filters_by_prefix_and_fills_english(self):
         self.assertEqual(messages.dump("x.", "ko")["x.only_en"], "English only")

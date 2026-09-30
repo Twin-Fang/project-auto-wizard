@@ -102,11 +102,12 @@ jobs:
       custom_branch: ${{ steps.parse.outputs.custom_branch }}
       is_custom_branch: ${{ steps.parse.outputs.is_custom_branch }}
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -203,11 +204,12 @@ jobs:
       needs.check-command.outputs.is_custom_branch != 'true'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -824,11 +826,12 @@ jobs:
       found: ${{ steps.extract.outputs.found }}
       issue_number: ${{ steps.extract.outputs.issue_number }}
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -936,11 +939,12 @@ jobs:
       needs.get-branch-from-issue.outputs.found == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -1602,11 +1606,12 @@ jobs:
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/wizard') && contains(github.event.comment.body, 'server destroy'))
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -1745,11 +1750,12 @@ jobs:
     if: needs.check-command.outputs.is_valid == 'true' && needs.check-command.outputs.command == 'status'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -1910,11 +1916,12 @@ jobs:
       needs.check-command.outputs.is_custom_branch == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -2485,11 +2492,12 @@ jobs:
       needs.check-command.outputs.is_custom_branch == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -2625,11 +2633,12 @@ jobs:
       needs.check-command.outputs.is_custom_branch == 'true'
     runs-on: ubuntu-latest
     steps:
-      # Messages come from the default branch so they are available before the PR branch is checked out
+      # Messages come from the same revision as this workflow (the PR merge commit on pull_request, otherwise the
+      # default branch) so they exist even before the default branch has them, and before the PR branch is checked out
       - name: Checkout messages
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml

@@ -35,7 +35,7 @@ import urllib.error
 import urllib.request
 
 import issue_helper
-from messages import t, use_utf8_output
+from messages import t, tn, use_utf8_output
 
 
 # ----------------------------- Common utilities -----------------------------
@@ -558,7 +558,7 @@ def cmd_update_from_summary() -> int:
 
         parse_method = 'markdown' if categories else 'markdown_failed'
         if categories:
-            print(t("changelog.parse_ok", n=len(categories)))
+            print(tn("changelog.parse_ok", len(categories)))
         else:
             print(t("changelog.parse_failed"))
 
@@ -584,7 +584,7 @@ def cmd_update_from_summary() -> int:
         for key, value in categories.items():
             title = value.get('title', key)
             items_count = len(value.get('items', []))
-            print(t("changelog.result_category_item", title=title, n=items_count))
+            print(tn("changelog.result_category_item", items_count, title=title))
 
         # Update CHANGELOG.json
         try:

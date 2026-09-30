@@ -1,6 +1,6 @@
 // tests/node/uninstall-flutter-app.test.js
-// 완전 삭제·purge는 마법사가 만든 Flutter 앱 파일(Fastfile·ExportOptions.plist) 중
-// 사용자가 손대지 않은 것만 지운다. 원래 있던 파일과 값을 채운 파일은 남긴다.
+// Full removal and purge delete only those wizard-created Flutter app files (Fastfile, ExportOptions.plist)
+// that the user has not touched. Pre-existing files and files with filled-in values are kept.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -16,7 +16,7 @@ import { planRemoval } from "../../src/core/removal-plan.js";
 const PAYLOAD = resolvePayloadRoot();
 const ALL_ON = { workflows: true, scripts: true, readme: false, gitignore: false, versionYml: false };
 
-// app/ 아래 Flutter 앱이 있는 모노레포에 설치한다
+// Install into a monorepo with the Flutter app under app/
 function installFlutter(prepare = () => {}) {
   const target = mkdtempSync(join(tmpdir(), "paw-uninstall-fa-"));
   mkdirSync(join(target, "app", "lib"), { recursive: true });
@@ -32,7 +32,7 @@ function installFlutter(prepare = () => {}) {
   return target;
 }
 
-test("uninstall: 마법사가 만든 미수정 Flutter 앱 파일과 빈 폴더를 지운다", () => {
+test("uninstall: removes unmodified wizard-created Flutter app files and empty folders", () => {
   const target = installFlutter();
   try {
     assert.ok(existsSync(join(target, "app/ios/fastlane/Fastfile")));
@@ -40,15 +40,15 @@ test("uninstall: 마법사가 만든 미수정 Flutter 앱 파일과 빈 폴더�
     assert.deepStrictEqual([...r.appFiles].sort(), [
       "app/android/fastlane/Fastfile.playstore", "app/ios/ExportOptions.plist", "app/ios/fastlane/Fastfile",
     ]);
-    for (const rel of r.appFiles) assert.ok(!existsSync(join(target, rel)), `${rel} 남음`);
-    // 마법사가 만든 폴더(app/ios, app/android)도 비었으면 사라진다. Flutter 루트는 남는다.
+    for (const rel of r.appFiles) assert.ok(!existsSync(join(target, rel)), `${rel} remains`);
+    // Wizard-created folders (app/ios, app/android) also disappear when empty. The Flutter root stays.
     assert.ok(!existsSync(join(target, "app/ios")));
     assert.ok(!existsSync(join(target, "app/android")));
     assert.ok(existsSync(join(target, "app/pubspec.yaml")));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("uninstall: 값을 채운 파일과 원래 있던 파일은 남긴다", () => {
+test("uninstall: keeps files with filled-in values and pre-existing files", () => {
   const target = installFlutter((t) => {
     mkdirSync(join(t, "app/android/fastlane"), { recursive: true });
     writeFileSync(join(t, "app/android/fastlane/Fastfile.playstore"), "# my own fastfile\n");
@@ -58,12 +58,12 @@ test("uninstall: 값을 채운 파일과 원래 있던 파일은 남긴다", () 
     writeFileSync(plist, readFileSync(plist, "utf8").replace("__TEAM_ID__", "ABCDE12345"));
     const r = runUninstall({}, PAYLOAD, target, ALL_ON);
     assert.deepStrictEqual(r.appFiles, ["app/ios/fastlane/Fastfile"]);
-    assert.ok(existsSync(plist), "값을 채운 ExportOptions.plist는 남아야 한다");
+    assert.ok(existsSync(plist), "the filled-in ExportOptions.plist must remain");
     assert.strictEqual(readFileSync(join(target, "app/android/fastlane/Fastfile.playstore"), "utf8"), "# my own fastfile\n");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("uninstall: 줄바꿈만 CRLF로 바뀐 파일은 미수정으로 본다", () => {
+test("uninstall: a file whose only change is CRLF line endings counts as unmodified", () => {
   const target = installFlutter();
   try {
     const p = join(target, "app/ios/fastlane/Fastfile");
@@ -72,7 +72,7 @@ test("uninstall: 줄바꿈만 CRLF로 바뀐 파일은 미수정으로 본다", 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("uninstall: 워크플로우 항목을 고르지 않으면 Flutter 앱 파일도 남긴다", () => {
+test("uninstall: without selecting the workflows item, Flutter app files are kept too", () => {
   const target = installFlutter();
   try {
     const r = runUninstall({}, PAYLOAD, target, { ...ALL_ON, workflows: false });
@@ -81,7 +81,7 @@ test("uninstall: 워크플로우 항목을 고르지 않으면 Flutter 앱 파�
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("purge: 마법사가 만든 미수정 Flutter 앱 파일을 지운다", () => {
+test("purge: removes unmodified wizard-created Flutter app files", () => {
   const target = installFlutter();
   try {
     const r = executePurge(PAYLOAD, target, {});
@@ -91,7 +91,7 @@ test("purge: 마법사가 만든 미수정 Flutter 앱 파일을 지운다", () 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("planRemoval: baseline의 레포 밖 경로는 무시한다", () => {
+test("planRemoval: ignores baseline paths outside the repo", () => {
   const target = installFlutter();
   try {
     const bp = join(target, ".github/.wizard/baseline.json");
