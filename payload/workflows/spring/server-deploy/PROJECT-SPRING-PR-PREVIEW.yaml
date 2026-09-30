@@ -225,6 +225,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -752,7 +753,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
         env:
           PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
@@ -992,6 +993,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -1583,7 +1585,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.check_branch.outputs.exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
@@ -2089,6 +2091,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -2599,7 +2602,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.check_branch.outputs.exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
         env:
           PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}

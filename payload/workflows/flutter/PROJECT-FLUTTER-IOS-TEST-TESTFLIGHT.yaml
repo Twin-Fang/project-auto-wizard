@@ -251,6 +251,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         working-directory: ${{ github.workspace }}
         run: |
           [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
@@ -471,7 +472,7 @@ jobs:
           retention-days: 1
 
       - name: Progress update - prepare failed
-        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        if: failure() && steps.load_messages.outcome == 'success' && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
         env:
           PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
@@ -556,6 +557,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         working-directory: ${{ github.workspace }}
         run: |
           [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
@@ -875,7 +877,7 @@ jobs:
             core.setOutput('end_time', now.toString());
 
       - name: Update the progress comment on build failure
-        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        if: failure() && steps.load_messages.outcome == 'success' && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
         env:
           PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
@@ -968,6 +970,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         working-directory: ${{ github.workspace }}
         run: |
           [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
@@ -1086,7 +1089,7 @@ jobs:
           fi
 
       - name: Notify on Failure
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         run: |
           m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           m ios_test_tf.upload_failed
@@ -1169,7 +1172,7 @@ jobs:
             console.log(msg('ios_test_tf.log_all_done', { elapsed: totalElapsed }));
 
       - name: Final progress update - failure
-        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
+        if: failure() && steps.load_messages.outcome == 'success' && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
         env:
           PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}

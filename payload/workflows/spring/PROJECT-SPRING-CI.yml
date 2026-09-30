@@ -65,6 +65,7 @@ jobs:
         fetch-depth: 0
 
     - name: Load messages
+      id: load_messages
       run: |
         [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
@@ -119,28 +120,38 @@ jobs:
 
     - name: Generate Build Report
       id: report
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       run: |
         [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         STATUS_OK="$(m wf_spring_ci.status_ok)"
         STATUS_FAIL="$(m wf_spring_ci.status_fail)"
+        STATUS_NOT_RUN="$(m wf_spring_ci.status_not_run)"
         COMPILE_STATUS="$STATUS_OK"
         TEST_STATUS="$STATUS_OK"
         BUILD_STATUS="$STATUS_OK"
         
         COMPILE_EXIT_CODE="${{ steps.compile.outputs.compile_exit_code }}"
-        if [ "$COMPILE_EXIT_CODE" != "0" ] && [ "$COMPILE_EXIT_CODE" != "" ]; then
+        TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
+        BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
+
+        # An empty exit code means the step never ran; a failed compile means gradle never got to run the tests
+        # or package the jar, so their non-zero exit codes are not failures of those steps themselves
+        if [ -z "$COMPILE_EXIT_CODE" ]; then
+          COMPILE_STATUS="$STATUS_NOT_RUN"
+        elif [ "$COMPILE_EXIT_CODE" != "0" ]; then
           COMPILE_STATUS="$STATUS_FAIL"
         fi
-        
-        TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
-        if [ "$TEST_EXIT_CODE" != "0" ] && [ "$TEST_EXIT_CODE" != "" ]; then
+
+        if [ -z "$TEST_EXIT_CODE" ] || { [ -n "$COMPILE_EXIT_CODE" ] && [ "$COMPILE_EXIT_CODE" != "0" ]; }; then
+          TEST_STATUS="$STATUS_NOT_RUN"
+        elif [ "$TEST_EXIT_CODE" != "0" ]; then
           TEST_STATUS="$STATUS_FAIL"
         fi
-        
-        BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
-        if [ "$BUILD_EXIT_CODE" != "0" ] && [ "$BUILD_EXIT_CODE" != "" ]; then
+
+        if [ -z "$BUILD_EXIT_CODE" ] || { [ -n "$COMPILE_EXIT_CODE" ] && [ "$COMPILE_EXIT_CODE" != "0" ]; }; then
+          BUILD_STATUS="$STATUS_NOT_RUN"
+        elif [ "$BUILD_EXIT_CODE" != "0" ]; then
           BUILD_STATUS="$STATUS_FAIL"
         fi
         
@@ -160,7 +171,7 @@ jobs:
 
     - name: Extract Error Details
       id: errors
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       run: |
         [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
@@ -174,7 +185,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ]; then
+        if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ] && [ "${{ steps.compile.outputs.compile_exit_code }}" = "0" ]; then
           echo "test_errors<<EOF" >> $GITHUB_OUTPUT
           m wf_spring_ci.err_test_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -184,7 +195,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ]; then
+        if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ] && [ "${{ steps.compile.outputs.compile_exit_code }}" = "0" ]; then
           echo "build_errors<<EOF" >> $GITHUB_OUTPUT
           m wf_spring_ci.err_build_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -341,7 +352,7 @@ jobs:
           }
 
     - name: Create Check Run
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       uses: actions/github-script@v9
       env:
         PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}

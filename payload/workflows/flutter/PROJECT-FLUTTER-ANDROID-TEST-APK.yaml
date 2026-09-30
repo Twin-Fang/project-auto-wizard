@@ -366,6 +366,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         working-directory: ${{ github.workspace }}
         run: |
           [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
@@ -1041,7 +1042,7 @@ jobs:
             }
 
       - name: Final progress update - failure
-        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
+        if: failure() && steps.load_messages.outcome == 'success' && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
         env:
           PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -1164,7 +1165,7 @@ jobs:
           m apk_test.notify_artifact_hint
 
       - name: Notify on Failure
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         run: |
           m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           m apk_test.notify_fail
