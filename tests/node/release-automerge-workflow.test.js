@@ -54,7 +54,7 @@ test("manual-merge step: renames the PR with the release-confirm subject, warns 
   const body = step[0];
   assert.match(body, /if: steps\.automerge_option\.outputs\.release_automerge == 'false'/);
   assert.match(body, /SUBJECT="chore\(release\): v\$\{VERSION\} \(PR #\$\{PR_NUMBER\}\)"/);
-  assert.match(body, /gh pr edit "\$PR_NUMBER" --title "\$SUBJECT"[\s\S]*?\|\|/, "a failed rename must not fail the run");
+  assert.match(body, /gh api -X PATCH "repos\/\$\{GITHUB_REPOSITORY\}\/pulls\/\$\{PR_NUMBER\}" -f title="\$SUBJECT"/, "the rename goes through the REST endpoint");
   assert.match(body, /<!-- release-automerge-off -->/);
   assert.match(body, /contains\(\\"\$MARKER\\"\)/, "an existing guidance comment is detected by its marker");
   assert.ok(!/gh pr merge/.test(body), "the manual-merge step must never merge");

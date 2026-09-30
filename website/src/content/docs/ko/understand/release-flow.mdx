@@ -54,6 +54,14 @@ import FlowDiagram from '../../../../components/FlowDiagram.astro';
 
 merge commit 방식으로 automerge를 켜고, 안 되면 직접 머지로 폴백합니다. 방금 push한 head를 GitHub이 반영할 때까지 백오프로 재시도하며, 이미 머지된 PR은 성공으로 봅니다.
 
+#### 릴리스 PR을 직접 머지하려면
+
+automerge는 기본으로 켜져 있습니다. 사람이 직접 머지하고 싶다면 `version.yml`의 `release_automerge: false`로 바꾸거나 `--no-release-automerge`로 다시 설치하세요. 그러면 워크플로우가 automerge와 머지 대기 잡을 건너뛰고, 릴리스 PR 제목을 `chore(release): vX.Y.Z (PR #N)`으로 바꾼 뒤 안내 댓글을 한 번 남깁니다.
+
+- 그 워크플로우 실행이 끝난 뒤에 머지하세요. 버전 확정과 PR 제목 변경이 그 실행에서 이뤄집니다.
+- **Create a merge commit**을 쓰세요. 릴리스 게이트는 머지 커밋 메시지(PR 제목 포함)의 `chore(release):`를 읽습니다. *Squash and merge*는 다음 릴리스 노트가 기대는 이력을 바꾸고, *Rebase and merge*는 표식을 없앱니다.
+- 자동 제목 변경이 실패하면 댓글이 릴리스가 발행되려면 어떤 머지 메시지를 지정해야 하는지 알려 줍니다.
+
 ### 5. 태그와 GitHub Release
 
 릴리스 브랜치 push에서 `PROJECT-COMMON-RELEASE-PUBLISH`는 head 커밋 메시지가 릴리스 확정 패턴 `chore(release):`과 일치할 때만 진행합니다. `vX.Y.Z` 태그를 push하고 GitHub Release를 만듭니다. 릴리스 노트는 CHANGELOG 항목에 GitHub이 생성한 노트(기여자, 비교 링크)를 더한 것입니다. 태그와 Release를 따로 확인하므로, 절반만 발행된 릴리스도 재실행하면 마저 발행됩니다.

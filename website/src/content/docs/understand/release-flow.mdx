@@ -54,6 +54,14 @@ The new version is written to `version.yml` and to each type's version file, the
 
 The workflow enables automerge with a merge commit, falls back to a direct merge, and retries with backoff while GitHub catches up with the freshly pushed head. An already-merged PR counts as success.
 
+#### Merging the release PR yourself
+
+Automerge is on by default. To keep a human in the loop, set `release_automerge: false` in `version.yml` (or reinstall with `--no-release-automerge`). The workflow then skips automerge and the wait-for-merge job, renames the release PR to `chore(release): vX.Y.Z (PR #N)` and leaves one guidance comment.
+
+- Merge after that workflow run has finished, because it confirms the version and renames the PR.
+- Use **Create a merge commit**. The release gate reads `chore(release):` from the merge commit message, which includes the PR title. *Squash and merge* rewrites history that the next release notes are built from, and *Rebase and merge* drops the marker.
+- If the automatic rename fails, the comment tells you which merge message to set so the release is still published.
+
 ### 5. Tag and GitHub Release
 
 On the push to the release branch, `PROJECT-COMMON-RELEASE-PUBLISH` only proceeds when the head commit message matches the release pattern `chore(release):`. It pushes the `vX.Y.Z` tag and creates the GitHub Release. The release notes are the CHANGELOG entry plus GitHub's generated notes (contributors and compare link). Tag and Release are checked separately, so a half-finished release is completed on re-run.
