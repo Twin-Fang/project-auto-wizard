@@ -333,7 +333,7 @@ jobs:
             NEW_NAME="${PROJECT_NAME}-${NEW_COLOR}"
             OLD_NAME="${PROJECT_NAME}-${OLD_COLOR}"
 
-            echo "🎨 active=${ACTIVE:-none} → new=${NEW_NAME}, old=${OLD_NAME}"
+            m traefik_active active="${ACTIVE:-none}" new="${NEW_NAME}" old="${OLD_NAME}"
 
             # 3. Clean up a leftover container in the same (idle) slot
             m idle_slot_cleanup name="${NEW_NAME}"

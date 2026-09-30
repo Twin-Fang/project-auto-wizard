@@ -75,7 +75,8 @@ jobs:
 
       - name: List repository contents
         run: |
-          echo "Repository checked out"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.repo_checked_out
           ls -la
 
       # Debug keystore setup - this workflow signs with DEBUG_KEYSTORE (password android, alias androiddebugkey)
@@ -104,29 +105,31 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
-            echo ".env file created"
+            m wf_flutter.dotenv_created
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Setup Keystore and key.properties
         if: steps.signing.outputs.mode == 'keystore'
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           mkdir -p android/app/keystore
           # Reuse the keystore validated in the previous step
           cp ~/.android/debug.keystore android/app/keystore/key.jks
-          echo "Keystore created from DEBUG_KEYSTORE"
+          m wf_flutter.keystore_from_debug
           ls -la android/app/keystore
           echo "storeFile=app/keystore/key.jks" > android/key.properties
           echo "storePassword=android" >> android/key.properties
           echo "keyAlias=androiddebugkey" >> android/key.properties
           echo "keyPassword=android" >> android/key.properties
-          echo "key.properties created"
+          m wf_flutter.key_properties_created
           ls -la android/
 
       # Create google-services.json (optional) - no empty file is written when the Secret is empty
@@ -134,12 +137,13 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             mkdir -p android/app
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "✅ google-services.json created"
+            m wf_flutter.google_services_created
           else
-            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+            m wf_flutter.google_services_skipped
           fi
 
       - name: Set up Flutter
@@ -151,7 +155,8 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          echo "Flutter setup completed"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.flutter_setup_done
           flutter --version
 
       - name: Cache Flutter dependencies
@@ -173,11 +178,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
-          echo "Dependencies installed"
+          m wf_flutter.deps_installed
           ls -la
 
       - name: Setup Gradle
@@ -187,7 +193,7 @@ jobs:
           # The default flutter create .gitignore does not commit gradlew - flutter build creates it when missing
           if [ -f gradlew ]; then
             chmod +x gradlew
-            echo "Gradle wrapper permissions set"
+            m wf_flutter.gradle_perm
           else
             m flutter_a.gradlew_missing
           fi
@@ -200,7 +206,8 @@ jobs:
 
       - name: Verify Java version
         run: |
-          echo "Java setup completed"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.java_setup_done
           java -version
 
       - name: Get version info and calculate short commit hash
@@ -223,15 +230,17 @@ jobs:
       # APK build (keeps the release build - built directly with flutter)
       - name: Build APK
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter build apk --release ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           ls -la build/app/outputs/flutter-apk/ || true
-          echo "APK built"
+          m wf_flutter.apk_built
 
       - name: Rename and Prepare APK
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           mkdir -p ./android/app/build/outputs/apk/release/
           mv ./build/app/outputs/flutter-apk/app-release.apk ./android/app/build/outputs/apk/release/${{ env.APP_ARTIFACT_NAME }}-v${{ env.VERSION }}-${{ env.SHORT_COMMIT_HASH }}.apk
-          echo "APK renamed to ${{ env.APP_ARTIFACT_NAME }}-v${{ env.VERSION }}-${{ env.SHORT_COMMIT_HASH }}.apk"
+          m wf_flutter.apk_renamed name="${{ env.APP_ARTIFACT_NAME }}-v${{ env.VERSION }}-${{ env.SHORT_COMMIT_HASH }}.apk"
           ls -la ./android/app/build/outputs/apk/release/
 
       - name: Upload APK as Artifact
@@ -253,14 +262,16 @@ jobs:
 
       - name: List repository contents for deploy
         run: |
-          echo "Repository checked out for deploy"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.repo_checked_out_deploy
           ls -la
 
       - name: Install dependencies
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           sudo apt-get update
           sudo apt-get install -y smbclient jq
-          echo "SMB and jq dependencies installed"
+          m wf_flutter.smb_deps_installed
 
       - name: Download build artifacts
         uses: actions/download-artifact@v8
@@ -270,36 +281,40 @@ jobs:
 
       - name: List downloaded structure (Debug)
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           ls -alR android/app/build/outputs
-          echo "Downloaded structure listed"
+          m wf_flutter.download_listed
 
       - name: Find APK file
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           APK_FILE=$(find android/app/build/outputs/ -name "*.apk" | head -n 1)
           echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
           APK_NAME=$(basename "$APK_FILE")
           echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
-          echo "APK file found: $APK_FILE"
+          m wf_flutter.apk_file_found file="$APK_FILE"
 
       - name: Upload files to server via SMB
         env:
           SMB_USERNAME: ${{ secrets.SERVER_USER }}
           SMB_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           SMB_SERVER=${{ secrets.SERVER_HOST }}
           SMB_PORT=${{ env.SMB_PORT }}
           SMB_SHARE=${{ env.SMB_SHARE }}
           SMB_PATH="/${{ env.APP_ARTIFACT_NAME }}${{ env.SMB_PATH_ANDROID }}"
-          echo "Uploading APK file ${{ env.APK_NAME }} to SMB..."
-          echo "SMB Path: $SMB_PATH"
+          m wf_flutter.smb_uploading name="${{ env.APK_NAME }}"
+          m wf_flutter.smb_path path="$SMB_PATH"
           smbclient "//$SMB_SERVER/$SMB_SHARE" -p "$SMB_PORT" -U "$SMB_USERNAME%$SMB_PASSWORD" -m SMB3 -d 10 -c "mkdir $SMB_PATH; cd $SMB_PATH; put ${{ env.APK_FILE }} ${{ env.APK_NAME }}"
-          echo "APK uploaded to SMB"
+          m wf_flutter.smb_uploaded
 
       - name: Update CICD history JSON
         env:
           SMB_USERNAME: ${{ secrets.SERVER_USER }}
           SMB_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           export TZ='Asia/Seoul'
           BUILD_DATE=$(date +"%Y-%m-%d %H:%M")
           FILE_SIZE=$(stat -c%s "${{ env.APK_FILE }}")
@@ -321,12 +336,12 @@ jobs:
           SMB_PATH="/${{ env.APP_ARTIFACT_NAME }}${{ env.SMB_PATH_ANDROID }}"
 
           smbclient "//$SMB_SERVER/$SMB_SHARE" -p "$SMB_PORT" -U "$SMB_USERNAME%$SMB_PASSWORD" -m SMB3 -d 10 -c "cd $SMB_PATH; get $HISTORY_FILE" || echo '{"files": []}' > $HISTORY_FILE
-          echo "Downloaded or initialized $HISTORY_FILE"
+          m wf_flutter.history_loaded file="$HISTORY_FILE"
           cat $HISTORY_FILE
 
           jq --argjson new_build "$NEW_BUILD_INFO" '.files += [$new_build]' $HISTORY_FILE > updated.json
-          echo "Updated $HISTORY_FILE with new build info"
+          m wf_flutter.history_updated file="$HISTORY_FILE"
           cat updated.json
 
           smbclient "//$SMB_SERVER/$SMB_SHARE" -p "$SMB_PORT" -U "$SMB_USERNAME%$SMB_PASSWORD" -m SMB3 -d 10 -c "cd $SMB_PATH; put updated.json $HISTORY_FILE"
-          echo "Updated $HISTORY_FILE uploaded to SMB"
+          m wf_flutter.history_uploaded file="$HISTORY_FILE"

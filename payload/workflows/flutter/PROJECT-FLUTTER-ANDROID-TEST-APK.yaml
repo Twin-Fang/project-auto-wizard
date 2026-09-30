@@ -368,14 +368,15 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
-            echo "✅ $ENV_FILE_PATH file created"
+            m wf_flutter.env_file_created file="$ENV_FILE_PATH"
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Setup Release Keystore
@@ -433,12 +434,13 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             mkdir -p android/app
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "✅ google-services.json created"
+            m wf_flutter.google_services_created
           else
-            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+            m wf_flutter.google_services_skipped
           fi
 
       - name: Set up Flutter
@@ -450,7 +452,8 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          echo "✅ Flutter setup completed"
+          m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
+          m wf_flutter.flutter_setup_done_ok
           flutter --version
 
       - name: Cache Flutter dependencies
@@ -472,11 +475,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
-          echo "✅ Dependencies installed"
+          m wf_flutter.deps_installed_ok
 
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
@@ -485,7 +489,7 @@ jobs:
           # The default flutter create .gitignore does not commit gradlew — flutter build creates it when missing
           if [ -f gradlew ]; then
             chmod +x gradlew
-            echo "✅ Gradle wrapper permissions set"
+            m wf_flutter.gradle_perm_ok
           else
             m apk_test.gradlew_missing
           fi
@@ -498,7 +502,8 @@ jobs:
 
       - name: Verify Java version
         run: |
-          echo "✅ Java setup completed"
+          m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
+          m wf_flutter.java_setup_done_ok
           java -version
 
       - name: Progress - prepare done
@@ -617,7 +622,7 @@ jobs:
           m apk_test.flutter_build_log
           flutter build apk --release ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
           ls -la ./build/app/outputs/flutter-apk/ || true
-          echo "✅ APK built"
+          m wf_flutter.apk_built_ok
 
       - name: Rename and Prepare APK
         run: |
@@ -625,7 +630,7 @@ jobs:
           mkdir -p ./android/app/build/outputs/apk/release/
           APK_NAME="${{ steps.apk_filename.outputs.apk_name }}"
           mv ./build/app/outputs/flutter-apk/app-release.apk ./android/app/build/outputs/apk/release/${APK_NAME}
-          echo "✅ APK renamed to ${APK_NAME}"
+          m wf_flutter.apk_renamed_ok name="${APK_NAME}"
           ls -la ./android/app/build/outputs/apk/release/
 
           # Check the APK file size
