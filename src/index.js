@@ -6,11 +6,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
-import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
+import { parseArgs, parsePathsCsv, CliError, TYPE_CLI_FLAGS } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
 import { fallbackStyleTypes } from "./core/deploy-style.js";
-import { resolveFlutterOptions } from "./core/flutter-options.js";
-import { inferInstalledStores } from "./core/installed-stores.js";
+import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
@@ -108,8 +107,7 @@ async function runInner(argv, {
     const ignored = [
       [opts.types.length, "--type"], [opts.version, "--project-version"], [opts.pathsCsv, "--paths"],
       [opts.mainBranch, "--main-branch"], [opts.developBranch, "--develop-branch"], [opts.deployStyle, "--deploy-style"],
-      [opts.flutterEnvMode, "--flutter-env-mode"], [opts.flutterStore, "--flutter-store"],
-      [opts.androidDeployMode, "--android-deploy-mode"], [opts.iosDeployMode, "--ios-deploy-mode"],
+      ...TYPE_CLI_FLAGS.map((f) => [opts[f.field], f.flag]),
     ].filter(([v]) => v).map(([, flag]) => flag);
     if (ignored.length) {
       console.error(`⚠️  대화형 모드에서는 ${ignored.join(", ")}를 사용하지 않습니다 — 질문에서 고르거나 --mode full --force와 함께 쓰세요.`);
@@ -317,20 +315,10 @@ async function runInner(argv, {
     }
   }
 
-  // Flutter 옵션 — CLI 플래그 → version.yml 저장값 → 기본값(신규 dart-define, 기존 설치 dotenv 보존).
-  // Flutter 타입이 없는 프로젝트에서는 렌더·치환 단계가 전부 무시한다.
-  // 스토어 저장값이 없는 기존 Flutter 설치는 설치돼 있는 스토어 워크플로우로 추론한다(대화형과 같은 결론).
-  // 추론하지 않으면 미결정이 "둘 다"로 확정 저장되어, 지웠던 플랫폼의 워크플로우·fastlane 파일이 되살아난다.
-  const workflowsDir = join(cwd, PATHS.workflowsDir);
-  const inferredStores = opts.flutterStore == null && existing?.types?.includes("flutter")
-    && existing.options?.flutterStore == null && existsSync(workflowsDir)
-    ? inferInstalledStores(workflowsDir) : null;
-  const flutterOptions = resolveFlutterOptions({
-    cli: {
-      envMode: opts.flutterEnvMode, stores: opts.flutterStore ?? inferredStores,
-      androidDeployMode: opts.androidDeployMode, iosDeployMode: opts.iosDeployMode,
-    },
-    existing,
+  // 타입 전용 옵션 — CLI 플래그 → version.yml 저장값 → 기본값을 타입 훅이 정한다. 해당 타입이 없으면 비어 있다.
+  // (Flutter는 저장값이 없는 기존 설치의 스토어를 설치된 워크플로우로 추론한다 — 대화형과 같은 결론.)
+  const typeOptions = mergeHookResults(types, "resolveOptions", {
+    opts, existing, workflowsDir: join(cwd, PATHS.workflowsDir),
   });
 
   // 고른 배포 방식 — 플래그 → 저장값 → 기본값. 실제 설치되는 방식으로의 정리는 컨텍스트 조립에서 한다.
@@ -338,7 +326,7 @@ async function runInner(argv, {
 
   const context = buildInstallContext({
     payload, existing, templateVersion: readTemplateVersion(), types, deployStyle: chosenDeployStyle,
-    flutterOptions,
+    typeOptions,
     // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
     releaseOptions: resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
     mode: opts.mode, force: opts.force, version, versionCode, branch,
@@ -346,7 +334,7 @@ async function runInner(argv, {
     paths,
     repoName,
     // @wizard ask/auto 토큰 값을 계산하는 resolver
-    resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
+    resolvers: makeResolvers(cwd, repoName, paths, typeOptions),
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
@@ -395,18 +383,11 @@ async function runInner(argv, {
   });
   for (const n of postInstallNotices(result)) console.error(n.startsWith(" ") ? n : `⚠️  ${n}`);
   // store_submit 배포 모드는 main push마다 심사를 자동 제출한다 — 비대화형에서도 같은 경고를 보여준다
-  // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다).
-  // Flutter 타입이 아니거나 해당 스토어를 선택하지 않은 프로젝트에는 뜨면 안 된다.
-  const { stores } = flutterOptions;
-  const warnings = [];
-  if (types.includes("flutter") && (stores === null || stores.includes("android"))) {
-    warnings.push(prompts.deployModeWarning(flutterOptions.androidDeployMode));
-  }
-  if (types.includes("flutter") && (stores === null || stores.includes("ios"))) {
-    warnings.push(prompts.deployModeWarning(flutterOptions.iosDeployMode));
-  }
-  for (const w of warnings) {
-    if (w) console.error(`⚠️  ${w}`);
+  // (대화형 경로는 ui/prompts.js#deployModeWarning을 선택 시점에 note로 보여준다). 타입 훅이 해당 타입에만 낸다.
+  for (const { hook } of hooksFor(types, "installNotices")) {
+    for (const w of hook(typeOptions)) {
+      if (w) console.error(`⚠️  ${w}`);
+    }
   }
   return 0;
 }
