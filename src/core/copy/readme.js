@@ -22,18 +22,49 @@ export const README_STATUS_LABEL = {
 const defaultHeading = (lang) => t("copy.readme.versionHeading", { version: "0" }, lang).replace(/^##\s*/, "").replace(/\s*:\s*v0$/, "");
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Finds a version line whose heading is exactly another language's bundled default, so a re-run under a
-// different language can switch it. A heading the user edited never matches and is left alone.
-// Returns the regex match (the "## <heading> : " prefix with its index) or null.
-function findStaleHeading(content) {
-  const current = defaultHeading();
-  for (const lang of SUPPORTED_LANGUAGES) {
-    const heading = defaultHeading(lang);
-    if (heading === current) continue;
-    const m = new RegExp("^## " + escapeRe(heading) + " : (?=v[0-9])", "m").exec(content);
-    if (m) return m;
+// Text of the history link line in a given language (without the trailing newline).
+const historyLink = (lang) => t("copy.readme.historyLink", {}, lang);
+
+// Rewrites the wizard-made block (marker line, heading line, blank line, history link line) that was written
+// in another language so it matches the current one. Only text that exactly equals another language's bundled
+// default is replaced: a heading or link the user edited is left alone, and so is anything not directly
+// under the marker (code-block examples, a README without the marker).
+// Returns the new content, or null when nothing needs to change.
+function refreshBlockLanguage(content) {
+  const currentHeading = defaultHeading();
+  const currentLink = historyLink();
+  const markerRe = new RegExp("^" + escapeRe(MARKER_LINE.trimEnd()) + "[ \\t]*\\r?\\n", "gm");
+  let out = "";
+  let last = 0;
+  let changed = false;
+  for (let m = markerRe.exec(content); m; m = markerRe.exec(content)) {
+    // An odd number of fence lines before the marker means it sits inside a code block (an example).
+    if ((content.slice(0, m.index).match(/^[ \t]*(```|~~~)/gm) || []).length % 2 === 1) continue;
+    const start = m.index + m[0].length;
+    let rest = content.slice(start);
+    let head = "";
+    // Heading line directly under the marker.
+    for (const lang of SUPPORTED_LANGUAGES) {
+      const heading = defaultHeading(lang);
+      if (heading === currentHeading) continue;
+      const hm = new RegExp("^## " + escapeRe(heading) + " : (?=v[0-9])").exec(rest);
+      if (hm) { head = "## " + currentHeading + " : "; rest = rest.slice(hm[0].length); changed = true; break; }
+    }
+    out += content.slice(last, start) + head;
+    last = start + (content.slice(start).length - rest.length);
+    // History link line: heading line, one blank line, then the link.
+    const lm = /^([^\r\n]*\r?\n\r?\n)([^\r\n]*)/.exec(rest);
+    if (lm) {
+      const linkStart = last + lm[1].length;
+      const isStale = SUPPORTED_LANGUAGES.some((lang) => historyLink(lang) !== currentLink && lm[2] === historyLink(lang));
+      if (isStale) {
+        out += content.slice(last, linkStart) + currentLink;
+        last = linkStart + lm[2].length;
+        changed = true;
+      }
+    }
   }
-  return null;
+  return changed ? out + content.slice(last) : null;
 }
 
 // Skip when README.md is missing, or when a marker or version line exists. Otherwise append to the end.
@@ -43,7 +74,7 @@ export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
-  if (findStaleHeading(content)) return "heading-updated";
+  if (refreshBlockLanguage(content) !== null) return "heading-updated";
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
   return "added";
@@ -53,10 +84,8 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
   const status = planVersionSection(targetRoot);
   const p = join(targetRoot, "README.md");
   if (status === "heading-updated") {
-    // Swap only the heading words; the version text after the colon stays as the workflow wrote it.
-    const content = readFileSync(p, "utf8");
-    const m = findStaleHeading(content);
-    writeFileSync(p, content.slice(0, m.index) + "## " + defaultHeading() + " : " + content.slice(m.index + m[0].length));
+    // Swap only the bundled default wording; version text after the colon stays as the workflow wrote it.
+    writeFileSync(p, refreshBlockLanguage(readFileSync(p, "utf8")));
     return status;
   }
   if (status !== "added") return status;
