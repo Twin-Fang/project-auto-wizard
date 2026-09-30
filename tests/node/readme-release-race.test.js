@@ -4,10 +4,11 @@
 // steps do not depend on a README push.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const payloadPath = (n) => join("payload", "workflows", "common", `PROJECT-COMMON-${n}.yaml`);
 const dogfoodPath = (n) => join(".github", "workflows", `PROJECT-COMMON-${n}.yaml`);
@@ -89,7 +90,7 @@ test("race setup: the legacy pull --rebase loop fails on the README conflict", (
     assert.notStrictEqual(r.status, 0, "the legacy loop must fail to reproduce the conflict");
     assert.match(r.stdout + r.stderr, /CONFLICT \(content\): Merge conflict in README\.md/);
   } finally {
-    rmSync(env.root, { recursive: true, force: true });
+    rmTmp(env.root);
   }
 });
 
@@ -106,7 +107,7 @@ for (const name of ["RELEASE-PUBLISH", "VERSION-CONTROL"]) {
       assert.match(env.git(env.root, "--git-dir=remote.git show main:version.yml"), /1\.0\.1/);
       assert.strictEqual(env.git(env.root, "--git-dir=remote.git log -1 --pretty=%s main").trim(), "chore(version): release v1.0.1 docs [skip ci]");
     } finally {
-      rmSync(env.root, { recursive: true, force: true });
+      rmTmp(env.root);
     }
   });
 
@@ -124,7 +125,7 @@ for (const name of ["RELEASE-PUBLISH", "VERSION-CONTROL"]) {
       assert.strictEqual(r.status, 0, `${r.stdout}\n${r.stderr}`);
       assert.match(env.git(env.root, "--git-dir=remote.git log --pretty=%s main"), /feat: other/);
     } finally {
-      rmSync(env.root, { recursive: true, force: true });
+      rmTmp(env.root);
     }
   });
 }
@@ -146,7 +147,7 @@ test("README-VERSION-UPDATE: a date refresh that lost the race to a release comm
     assert.match(r.stdout, /wf_readme\.conflict_skip_stale/);
     assert.match(env.git(env.root, "--git-dir=remote.git show main:README.md"), /v1\.0\.1/);
   } finally {
-    rmSync(env.root, { recursive: true, force: true });
+    rmTmp(env.root);
   }
 });
 
@@ -164,7 +165,7 @@ test("README-VERSION-UPDATE: the same version already on the remote is skipped, 
     assert.strictEqual(r.status, 0, `${r.stdout}\n${r.stderr}`);
     assert.match(r.stdout, /wf_readme\.conflict_skip_same/);
   } finally {
-    rmSync(env.root, { recursive: true, force: true });
+    rmTmp(env.root);
   }
 });
 

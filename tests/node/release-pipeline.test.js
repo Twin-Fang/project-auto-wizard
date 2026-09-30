@@ -6,6 +6,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "nod
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const payloadPath = (n) => join("payload", "workflows", "common", `PROJECT-COMMON-${n}.yaml`);
 const dogfoodPath = (n) => join(".github", "workflows", `PROJECT-COMMON-${n}.yaml`);
@@ -57,7 +58,7 @@ test("npm pack does not ship pyc under payload (measured)", (t) => {
     assert.ok(paths.includes("payload/scripts/tool.py"), `sources must be shipped: ${paths}`);
     assert.ok(!paths.some((p) => p.includes("__pycache__") || p.endsWith(".pyc")), `pyc was shipped: ${paths}`);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmTmp(dir);
   }
 });
 
@@ -157,7 +158,7 @@ test("feeding the collected output to classify-bump makes a body-footer commit m
     assert.strictEqual(bump.status, 0, bump.stderr);
     assert.strictEqual(bump.stdout.trim().split("\n").pop(), "major");
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmTmp(dir);
   }
 });
 
@@ -223,7 +224,7 @@ function runExpectedVersion(t, { mode, semverAuto, commits, withVersionYml = tru
     assert.strictEqual(r.status, 0, r.stderr);
     return r.stdout;
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmTmp(dir);
   }
 }
 
@@ -400,7 +401,7 @@ test("release PR version confirmation does not skip versions across reruns, extr
     git("commit", "-q", "--allow-empty", "-m", "fix: change after publish");
     assert.strictEqual(confirm(), "0.4.1", "bumps fresh from the published version");
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmTmp(root);
   }
 });
 
@@ -453,7 +454,7 @@ test("the VERSION-CONTROL safety-net path updates CHANGELOG from commits since t
     assert.ok(!notes.includes("feature shipped in the previous release"), "a commit from before the last tag leaked in");
     assert.ok(!notes.includes("앱 안정성"), "fell back to the fixed phrase");
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmTmp(dir);
   }
 });
 

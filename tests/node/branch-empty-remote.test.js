@@ -4,12 +4,13 @@ import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "../../src/index.js";
 import { detectDefaultBranch } from "../../src/core/detect-fs.js";
 import { printSummary } from "../../src/ui/summary.js";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" });
 
@@ -45,7 +46,7 @@ test("detectDefaultBranch: does not accept the empty remote's '(unknown)' as a b
     assert.strictEqual(warns.length, 1);
     assert.match(warns[0], /trunk/);
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });
 
@@ -57,7 +58,7 @@ test("detectDefaultBranch: without origin, returns main with no warning", () => 
     assert.strictEqual(detectDefaultBranch(dir, { warn: (m) => warns.push(m) }), "main");
     assert.strictEqual(warns.length, 0);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmTmp(dir);
   }
 });
 
@@ -76,7 +77,7 @@ test("run(--force): with an empty remote, workflows/version.yml have no '(unknow
     assert.match(out, /원격 기본 브랜치를 확인할 수 없어/);
     assert.match(out, /git push origin main:develop/);
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });
 
@@ -89,7 +90,7 @@ test("run(--force): a previously stored '(unknown)' branch is not used as the st
     await captureStderr(() => run(["--mode", "full", "--force", "--type", "node"], { cwd: dir }));
     assert.ok(!readFileSync(vyPath, "utf8").includes("(unknown)"));
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });
 
