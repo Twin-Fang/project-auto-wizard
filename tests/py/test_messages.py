@@ -100,6 +100,84 @@ class TestLanguageResolution(unittest.TestCase):
         self.assertEqual(_run("lang", cwd=d).stdout.strip(), "en")
 
 
+class TestInstalledLayout(unittest.TestCase):
+    """The script is copied to <repo>/.github/scripts; run that copy so the repo's own version.yml never leaks in."""
+
+    def _repo(self, version_yml=None):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        root = Path(d.name)
+        scripts = root / ".github" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "messages.py").write_bytes(SCRIPT.read_bytes())
+        if version_yml is not None:
+            (root / "version.yml").write_bytes(version_yml if isinstance(version_yml, bytes) else version_yml.encode("utf-8"))
+        return root
+
+    def _lang(self, root, cwd=None, env=None):
+        full_env = {k: v for k, v in os.environ.items() if k not in (messages.LANG_ENV, "GITHUB_WORKSPACE")}
+        full_env.update(env or {})
+        r = subprocess.run(
+            [sys.executable, str(root / ".github" / "scripts" / "messages.py"), "lang"],
+            cwd=cwd or root, env=full_env, capture_output=True, text=True, encoding="utf-8",
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.strip()
+
+    def test_shared_cases_match_the_cli(self):
+        cases = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "lang-cases.json").read_text(encoding="utf-8"))
+        for c in cases:
+            with self.subTest(c["name"]):
+                root = self._repo(None if c["content"] is None else c["content"].encode("utf-8"))
+                env = {messages.LANG_ENV: c["env"]} if c["env"] is not None else {}
+                self.assertEqual(self._lang(root, env=env), c["expected"])
+
+    def test_non_utf8_version_yml_does_not_crash(self):
+        # cp949 bytes around an ASCII language line, and a file that is not text at all
+        self.assertEqual(self._lang(self._repo(b"# \xb0\xed\n\xff\xfe\nlanguage: ko\n")), "ko")
+        self.assertEqual(self._lang(self._repo(b"\xff\xfe language: ko")), "en")
+
+    def test_unreadable_version_yml_falls_back_to_english(self):
+        root = self._repo()
+        (root / "version.yml").mkdir()  # a directory raises OSError on open
+        self.assertEqual(self._lang(root), "en")
+
+    def test_finds_repo_root_from_a_subfolder(self):
+        root = self._repo('language: "ko"\n')
+        sub = root / "packages" / "app"
+        sub.mkdir(parents=True)
+        self.assertEqual(self._lang(root, cwd=sub), "ko")
+
+    def test_cwd_wins_over_script_location_and_workspace(self):
+        root = self._repo('language: "ko"\n')
+        other = self._repo('language: "en"\n')
+        self.assertEqual(self._lang(root, cwd=other, env={"GITHUB_WORKSPACE": str(root)}), "en")
+
+    def test_script_location_wins_over_workspace(self):
+        root = self._repo('language: "ko"\n')
+        elsewhere = self._repo('language: "en"\n')
+        with tempfile.TemporaryDirectory() as empty:
+            self.assertEqual(self._lang(root, cwd=empty, env={"GITHUB_WORKSPACE": str(elsewhere)}), "ko")
+
+    def test_workspace_is_the_last_resort(self):
+        root = self._repo()  # script location has no version.yml
+        ws = self._repo('language: "ko"\n')
+        with tempfile.TemporaryDirectory() as empty:
+            self.assertEqual(self._lang(root, cwd=empty, env={"GITHUB_WORKSPACE": str(ws)}), "ko")
+
+    def test_version_yml_without_language_does_not_block_later_candidates(self):
+        root = self._repo('version: "1.0.0"\n')
+        ws = self._repo('language: "ko"\n')
+        self.assertEqual(self._lang(root, env={"GITHUB_WORKSPACE": str(ws)}), "ko")
+
+    def test_unsupported_env_is_ignored_and_saved_value_used(self):
+        # The CLI rejects such a value up front; a script must keep working
+        root = self._repo('language: "ko"\n')
+        for bad in ("ko_KR", "xx", "  "):
+            with self.subTest(bad):
+                self.assertEqual(self._lang(root, env={messages.LANG_ENV: bad}), "ko")
+
+
 class TestLookup(unittest.TestCase):
     def setUp(self):
         catalog = {"en": {"x.a": "Hello {name}", "x.only_en": "English only", "x.json": "{\"k\": {v}}"},
