@@ -1093,6 +1093,7 @@ EN = {
     # --- wf_spring_ci ---
     "wf_spring_ci.status_ok": "✅ Success",
     "wf_spring_ci.status_fail": "❌ Failed",
+    "wf_spring_ci.status_not_run": "⏸️ Not run (an earlier step failed)",
     "wf_spring_ci.err_compile_header": "## 🚨 Compile errors",
     "wf_spring_ci.err_compile_missing": "Could not find the error log.",
     "wf_spring_ci.err_test_header": "## 🧪 Test failures",
@@ -2362,6 +2363,7 @@ KO = {
     # --- wf_spring_ci ---
     "wf_spring_ci.status_ok": "✅ 성공",
     "wf_spring_ci.status_fail": "❌ 실패",
+    "wf_spring_ci.status_not_run": "⏸️ 실행 안 됨 (이전 단계 실패)",
     "wf_spring_ci.err_compile_header": "## 🚨 컴파일 에러",
     "wf_spring_ci.err_compile_missing": "에러 로그를 찾을 수 없습니다.",
     "wf_spring_ci.err_test_header": "## 🧪 테스트 실패",

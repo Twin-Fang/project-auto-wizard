@@ -121,6 +121,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -219,6 +221,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -226,6 +229,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -648,7 +653,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
         env:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
@@ -762,6 +767,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -873,6 +880,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -880,6 +888,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1387,7 +1397,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.check_branch.outputs.exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
@@ -1496,6 +1506,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1686,6 +1698,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1876,6 +1890,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
@@ -1883,6 +1898,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -2407,7 +2424,7 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.branch_info.outputs.branch_exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.branch_info.outputs.branch_exists == 'true'
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
@@ -2513,6 +2530,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -2718,6 +2737,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"

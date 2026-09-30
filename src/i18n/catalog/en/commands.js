@@ -30,7 +30,7 @@ export default {
   "cmd.doctor.scripts.label": "Installed scripts",
   "cmd.doctor.scripts.purpose": "Scripts the installed workflows call",
   "cmd.doctor.scripts.missing": "Missing from .github/scripts/: {files}",
-  "cmd.doctor.scripts.impact": "Workflow steps that call them fail with a raw python error, and some steps pass without noticing.",
+  "cmd.doctor.scripts.impact": "Workflow steps that call them stop with a clear error (messages.py is missing) instead of carrying on.",
   "cmd.doctor.scripts.action": "Restore them with: npx project-auto-wizard --mode full --force",
   "cmd.doctor.gh.purpose": "For reading repo settings",
   "cmd.doctor.gh.notFound": "The gh CLI was not found.",

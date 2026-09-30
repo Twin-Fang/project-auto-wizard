@@ -82,6 +82,7 @@ jobs:
       issue_number: ${{ steps.issue_info.outputs.issue_number }}
       branch_name: ${{ steps.issue_info.outputs.branch_name }}
       commit_hash: ${{ steps.build_info.outputs.commit_hash }}
+      commit_sha: ${{ steps.build_info.outputs.commit_sha }}
       pr_number: ${{ steps.build_info.outputs.pr_number }}
       build_number: ${{ steps.build_info.outputs.build_number }}
       progress_comment_id: ${{ steps.progress_comment.outputs.comment_id }}
@@ -312,7 +313,8 @@ jobs:
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          COMMIT_SHA="${{ github.sha }}"
+          # github.sha is the default-branch commit for repository_dispatch; report the commit actually checked out
+          COMMIT_SHA=$(git rev-parse HEAD)
           COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
           BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
@@ -331,6 +333,7 @@ jobs:
           fi
 
           echo "commit_hash=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
@@ -363,6 +366,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         working-directory: ${{ github.workspace }}
         run: |
           [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
@@ -741,7 +745,7 @@ jobs:
           BUILD_NUMBER="${{ needs.prepare-test-build.outputs.build_number }}"
           PR_NUMBER="${{ needs.prepare-test-build.outputs.pr_number }}"
           BRANCH_NAME="$PAW_BRANCH_NAME"
-          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHA="${{ needs.prepare-test-build.outputs.commit_sha }}"
           COMMIT_SHORT="${{ needs.prepare-test-build.outputs.commit_hash }}"
           BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
@@ -1038,7 +1042,7 @@ jobs:
             }
 
       - name: Final progress update - failure
-        if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
+        if: failure() && steps.load_messages.outcome == 'success' && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
         env:
           PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -1161,7 +1165,7 @@ jobs:
           m apk_test.notify_artifact_hint
 
       - name: Notify on Failure
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         run: |
           m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           m apk_test.notify_fail

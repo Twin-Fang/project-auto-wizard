@@ -30,7 +30,7 @@ export default {
   "cmd.doctor.scripts.label": "설치된 스크립트",
   "cmd.doctor.scripts.purpose": "설치된 워크플로우가 호출하는 스크립트",
   "cmd.doctor.scripts.missing": ".github/scripts/ 에 없음: {files}",
-  "cmd.doctor.scripts.impact": "이 스크립트를 호출하는 스텝이 python 원시 오류로 실패하고, 일부 스텝은 누락을 모른 채 통과합니다.",
+  "cmd.doctor.scripts.impact": "이 스크립트를 호출하는 스텝은 누락을 알리는 오류(messages.py is missing)로 명확히 실패합니다.",
   "cmd.doctor.scripts.action": "복구: npx project-auto-wizard --mode full --force",
   "cmd.doctor.gh.purpose": "레포 설정 조회용",
   "cmd.doctor.gh.notFound": "gh CLI를 찾을 수 없습니다.",

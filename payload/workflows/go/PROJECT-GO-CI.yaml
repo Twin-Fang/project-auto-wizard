@@ -62,13 +62,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # A module without dependencies has no go.sum; caching against a missing file only makes setup-go warn
+      - name: Check for go.sum
+        id: gosum
+        run: echo "exists=$([ -f go.sum ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       # Automatically use the go directive version from go.mod
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.PROJECT_PATH }}/go.mod
           cache-dependency-path: ${{ env.PROJECT_PATH }}/go.sum
-          cache: true
+          cache: ${{ steps.gosum.outputs.exists == 'true' }}
 
       - name: Verify go build
         run: go build ./...
