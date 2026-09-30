@@ -51,7 +51,7 @@ class TestSyncSpring(SyncTestCase):
 
 
 class TestSyncSpringIndentedVersion(SyncTestCase):
-    """들여쓴 `version =`(플러그인 설정 블록 등)은 프로젝트 버전이 아니다."""
+    """An indented `version =` (plugin config block etc.) is not the project version."""
 
     def _gradle(self, body):
         tmp = self.make_tmp("spring")
@@ -171,7 +171,7 @@ class TestSyncMaven(SyncTestCase):
         self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.1")
         text = (Path(tmp) / "pom.xml").read_text(encoding="utf-8")
         self.assertIn("<artifactId>my-service</artifactId>\n  <version>1.4.1</version>", text)
-        # 부모 BOM·의존성·주석의 버전은 그대로
+        # Versions in the parent BOM, dependencies and comments stay untouched
         self.assertIn("<version>3.4.0</version>", text)
         self.assertIn("<artifactId>lib</artifactId>\n      <version>1.4.0</version>", text)
         self.assertIn("<!-- <version>0.0.0</version> -->", text)
@@ -249,7 +249,7 @@ class TestSyncReact(SyncTestCase):
 
 
 class TestSyncJsonKeepsFormatting(SyncTestCase):
-    # 버전 한 줄만 바뀌어야 한다 — 들여쓰기를 고정값으로 다시 쓰면 매 릴리스가 파일 전체 diff가 된다.
+    # Only the version line may change — rewriting indentation with a fixed value would turn every release into a whole-file diff.
     def _sync_with(self, text):
         tmp = self.make_tmp("react")
         pkg = Path(tmp) / "package.json"
@@ -435,7 +435,7 @@ def last_line(r):
 
 
 class TestVersionSuffixesAndSources(SyncTestCase):
-    """설치 시 감지와 같은 규칙으로 읽고, 올린 뒤에도 파일이 유효한지 확인한다."""
+    """Reads with the same rules as install-time detection and checks the file is still valid after bumping."""
 
     def test_gradle_snapshot_is_read_as_core_and_kept_on_increment(self):
         tmp = self.make_tmp("spring")
@@ -478,7 +478,7 @@ class TestVersionSuffixesAndSources(SyncTestCase):
         self.assertEqual(last_line(run(["get-code"], tmp)), "4")
         r = run(["increment"], tmp)
         self.assertEqual(r.returncode, 0, r.stderr)
-        # 프리릴리스 표식은 그 버전 전용이라 새 버전에는 붙이지 않는다.
+        # A prerelease marker belongs to that version only, so it is not carried to the new version.
         self.assertIn("version: 1.2.4+5", pubspec.read_text(encoding="utf-8"))
 
     def test_package_json_prerelease_is_read_as_core(self):
@@ -502,7 +502,7 @@ class TestVersionSuffixesAndSources(SyncTestCase):
         gradle = Path(tmp) / "android" / "app" / "build.gradle"
         gradle.write_text(re.sub(r'versionName\s+"[^"]*"', 'versionName "1.0"', gradle.read_text(encoding="utf-8")),
                           encoding="utf-8")
-        # 네이티브 파일에 x.y.z가 없으면 version.yml 값을 쓴다 (설치 때는 package.json 값이 들어가 있다).
+        # Without x.y.z in the native file, use the version.yml value (at install time the package.json value is put there).
         self.assertEqual(last_line(run(["get"], tmp)), "0.3.0")
         self.assertIn('versionName "0.3.0"', gradle.read_text(encoding="utf-8"))
 
@@ -526,7 +526,7 @@ if __name__ == "__main__":
 
 
 class TestGetReconcilesFilesToCore(SyncTestCase):
-    """get은 값을 읽기만 하는 것처럼 보여도, 동기화 단계가 파일을 x.y.z 코어로 다시 맞춘다."""
+    """Even though get looks read-only, the sync step re-aligns the file to the x.y.z core."""
 
     def test_get_rewrites_package_json_prerelease_to_core(self):
         tmp = self.make_tmp("react")
@@ -534,7 +534,7 @@ class TestGetReconcilesFilesToCore(SyncTestCase):
         data = json.loads(pkg.read_text(encoding="utf-8"))
         data["version"] = "2.0.0-beta.1"
         pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        # version.yml이 이미 같은 코어 버전이면 동기화 단계가 파일을 코어로 다시 쓴다.
+        # If version.yml already has the same core version, the sync step rewrites the file to the core.
         run(["set", "2.0.0"], tmp)
         pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         self.assertEqual(last_line(run(["get"], tmp)), "2.0.0")
