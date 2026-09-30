@@ -7,7 +7,7 @@ const files = readdirSync("payload/workflows", { recursive: true })
   .filter((f) => /\.ya?ml$/.test(String(f)))
   .map((f) => join("payload/workflows", String(f)));
 
-// 타입별 워크플로우 이식 완료 — common 6 + 타입별 23
+// Per-type workflow port complete: 6 common + 23 per type
 test("payload workflows exist", () => assert.ok(files.length >= 20, `expected >= 20, got ${files.length}`));
 
 test("no hardcoded branch literals outside placeholders", () => {
@@ -45,9 +45,9 @@ test("no .sh script references in payload", () => {
 });
 
 // ---------------------------------------------------------------
-// heredoc이 블록 스칼라(`run: |`)를 이탈해 YAML 파싱이 깨지는
-// 회귀를 막는 가드. 완전한 YAML 파서가 아니라, "블록 스칼라 본문이
-// 컬럼 0 등으로 갑자기 얕아지는" 이번 버그 클래스에 특화된 검사다.
+// Guard against the regression where a heredoc escapes its block scalar (`run: |`)
+// and breaks YAML parsing. Not a full YAML parser: it targets this bug class,
+// where the block scalar body suddenly dedents to column 0 or similar.
 // ---------------------------------------------------------------
 const COMMENT_LINE = /^\s*#/;
 const STRUCTURAL_RESUME = /^\s*(-\s|[A-Za-z_][\w./-]*:(\s|$))/;
@@ -79,7 +79,7 @@ function findBlockScalarIndentationViolations(text) {
   return violations;
 }
 
-test("findBlockScalarIndentationViolations는 컬럼 0으로 이탈한 heredoc 본문을 잡아낸다", () => {
+test("findBlockScalarIndentationViolations catches a heredoc body that escaped to column 0", () => {
   const fixture = [
     "jobs:",
     "  test:",
@@ -95,7 +95,7 @@ test("findBlockScalarIndentationViolations는 컬럼 0으로 이탈한 heredoc �
   assert.strictEqual(violations[0].line, 7);
 });
 
-test("findBlockScalarIndentationViolations는 올바르게 들여쓴 heredoc에 오탐하지 않는다", () => {
+test("findBlockScalarIndentationViolations does not false-positive on a properly indented heredoc", () => {
   const fixture = [
     "jobs:",
     "  test:",
@@ -111,7 +111,7 @@ test("findBlockScalarIndentationViolations는 올바르게 들여쓴 heredoc에 
   assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
 });
 
-test("findBlockScalarIndentationViolations는 같은 스텝의 형제 키(if: 등)로 끝나는 블록 스칼라에 오탐하지 않는다", () => {
+test("findBlockScalarIndentationViolations does not false-positive on a block scalar ending at a sibling key of the same step (e.g. if:)", () => {
   const fixture = [
     "jobs:",
     "  test:",
@@ -124,12 +124,12 @@ test("findBlockScalarIndentationViolations는 같은 스텝의 형제 키(if: �
   assert.strictEqual(findBlockScalarIndentationViolations(fixture).length, 0);
 });
 
-test("payload 워크플로우 전체에 블록 스칼라 이탈(#40) 회귀가 없다", () => {
+test("no payload workflow has a block scalar escape regression", () => {
   for (const f of files) {
     const violations = findBlockScalarIndentationViolations(readFileSync(f, "utf8"));
     if (violations.length > 0) {
       const first = violations[0];
-      assert.fail(`${f}:${first.line} — 블록 스칼라 본문이 이탈했습니다: ${first.content}`);
+      assert.fail(`${f}:${first.line} — block scalar body escaped its indentation: ${first.content}`);
     }
   }
 });
@@ -146,7 +146,7 @@ test("AUTO-CHANGELOG-CONTROL exists in payload", () => {
   assert.ok(files.includes(changelogPath), `${changelogPath} missing`);
 });
 
-test("AUTO-CHANGELOG-CONTROL grants copilot-requests: write (GitHub Models 종료, #134)", () => {
+test("AUTO-CHANGELOG-CONTROL grants copilot-requests: write (GitHub Models retired)", () => {
   const body = readFileSync(changelogPath, "utf8");
   assert.ok(body.includes("copilot-requests: write"));
   assert.ok(!body.includes("models: read"));
@@ -164,19 +164,19 @@ test("AUTO-CHANGELOG-CONTROL passes PR title via --pr-title env (no inline inter
   assert.ok(!body.includes('--pr-title "${{'), "PR title must not be inline-interpolated into the shell");
 });
 
-test("AUTO-CHANGELOG-CONTROL의 AI 요약 step은 조건 없이 항상 실행된다", () => {
+test("the AI summary step in AUTO-CHANGELOG-CONTROL always runs unconditionally", () => {
   const body = readFileSync(changelogPath, "utf8");
   const lines = body.split("\n");
   const idx = lines.findIndex((l) => l.includes("Generate summary with the AI engine chain"));
-  assert.ok(idx >= 0, "AI 요약 step이 있어야 한다");
+  assert.ok(idx >= 0, "the AI summary step must exist");
   const stepBlock = lines.slice(idx, idx + 4).join("\n");
-  assert.ok(!/^\s*if:/m.test(stepBlock), "AI 요약 step에는 게이팅 조건이 없어야 한다");
+  assert.ok(!/^\s*if:/m.test(stepBlock), "the AI summary step must have no gating condition");
 });
 
-test("AUTO-CHANGELOG-CONTROL에 PR body 폴링 대기 로직이 없다", () => {
+test("AUTO-CHANGELOG-CONTROL has no PR body polling wait logic", () => {
   const body = readFileSync(changelogPath, "utf8");
-  assert.ok(!body.includes("MAX_POLLS"), "폴링 루프가 제거되어야 한다");
-  assert.ok(!body.includes("POLL_INTERVAL"), "폴링 간격이 제거되어야 한다");
+  assert.ok(!body.includes("MAX_POLLS"), "the polling loop must be removed");
+  assert.ok(!body.includes("POLL_INTERVAL"), "the polling interval must be removed");
 });
 
 test("AUTO-CHANGELOG-CONTROL collects issues merged into develop for release PR auto-close", () => {
@@ -185,13 +185,13 @@ test("AUTO-CHANGELOG-CONTROL collects issues merged into develop for release PR 
   assert.ok(body.includes("gh pr list --state merged --base {{DEVELOP_BRANCH}}"));
 });
 
-test("AUTO-CHANGELOG-CONTROL 릴리스 문서 커밋 전에 이슈 취합 임시파일도 정리한다 (실패 시 커밋 유출 방지)", () => {
+test("AUTO-CHANGELOG-CONTROL also cleans up the issue-collection temp files before committing release docs (prevents leaking them into the commit on failure)", () => {
   const body = readFileSync(changelogPath, "utf8");
   const idx = body.indexOf("Commit release docs to the PR head branch");
-  assert.ok(idx > -1, "Commit release docs 스텝을 찾지 못했습니다");
+  assert.ok(idx > -1, "Commit release docs step not found");
   const stepBlock = body.slice(idx, idx + 800);
-  assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt가 정리 목록에 없습니다");
-  assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json이 정리 목록에 없습니다");
+  assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt is missing from the cleanup list");
+  assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json is missing from the cleanup list");
 });
 
 // ---------------------------------------------------------------
@@ -226,15 +226,15 @@ test("RELEASE-PUBLISH merges GitHub generate-notes into the release notes", () =
   assert.ok(body.includes("generate-notes"));
 });
 
-// 게이트가 닫혀 릴리스가 스킵되는 것 자체는 정상이지만, version.yml이
-// 최신 태그보다 앞선 채 스킵되면 그 버전은 npm에 영영 닿지 않는다. 0.1.26~0.1.31
-// 여섯 버전이 모든 워크플로우가 초록불인 채로 이렇게 사라졌다.
-test("RELEASE-PUBLISH fails loudly when version.yml has drifted ahead of the newest tag (issue #61)", () => {
+// A closed gate skipping the release is itself normal, but if version.yml
+// stays ahead of the latest tag while skipped, that version never reaches npm. Versions 0.1.26 to 0.1.31
+// vanished this way while every workflow stayed green.
+test("RELEASE-PUBLISH fails loudly when version.yml has drifted ahead of the newest tag", () => {
   const body = readFileSync(releasePath, "utf8");
   assert.ok(body.includes("Drift guard"), "drift guard block missing");
   assert.ok(body.includes("git tag --list 'v*' --sort=-v:refname"), "newest tag lookup missing");
   assert.ok(body.includes("GITHUB_STEP_SUMMARY"), "job summary warning missing");
-  // 조용히 넘어가지 않는다는 것이 이 가드의 전부다 — exit 1이 빠지면 의미가 없다
+  // The whole point of this guard is not to pass silently — without exit 1 it is meaningless
   assert.ok(/::error::[^\n]*ahead of the newest tag/.test(body), "error annotation missing");
 });
 
@@ -269,35 +269,35 @@ test("RELEASE-PUBLISH passes --diff-stat-file to ai-summary", () => {
   assert.ok(body.includes("--diff-stat-file diff_stat.txt"));
 });
 
-// Release는 WORKFLOW_PAT으로 발행해야 후속 워크플로우(npm 배포)가 트리거된다.
-// GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 깨우지 못한다.
-// PAT이 없는 사용자 레포에서도 릴리스 자체는 동작해야 하므로 폴백이 필수다.
-test("RELEASE-PUBLISH의 Release 생성은 WORKFLOW_PAT 폴백을 쓴다", () => {
+// The Release must be published with WORKFLOW_PAT so that downstream workflows (npm publish) are triggered.
+// Events created by GITHUB_TOKEN cannot wake other workflows per GitHub policy.
+// The release itself must still work in user repos without a PAT, so the fallback is required.
+test("RELEASE-PUBLISH creates the Release with a WORKFLOW_PAT fallback", () => {
   const p = join("payload", "workflows", "common", "PROJECT-COMMON-RELEASE-PUBLISH.yaml");
   const text = readFileSync(p, "utf8");
   const idx = text.indexOf("name: Create GitHub Release");
-  assert.ok(idx > -1, "Create GitHub Release 스텝을 찾지 못했습니다");
+  assert.ok(idx > -1, "Create GitHub Release step not found");
   const block = text.slice(idx, idx + 700);
   assert.match(
     block,
     /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/,
-    "Release 생성 스텝이 WORKFLOW_PAT 폴백을 쓰지 않습니다",
+    "Release creation step does not use the WORKFLOW_PAT fallback",
   );
 });
 
-// 도그푸딩 레포 규칙 — payload를 고치면 이 레포의 .github 사본도 함께 고쳐야 한다.
-test("RELEASE-PUBLISH의 도그푸딩 사본도 같은 토큰 폴백을 쓴다", () => {
+// Dogfooding repo rule: when the payload changes, the .github copy must change too.
+test("the dogfooding copy of RELEASE-PUBLISH uses the same token fallback", () => {
   const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "utf8");
   const idx = text.indexOf("name: Create GitHub Release");
-  assert.ok(idx > -1, "Create GitHub Release 스텝을 찾지 못했습니다");
+  assert.ok(idx > -1, "Create GitHub Release step not found");
   const block = text.slice(idx, idx + 700);
   assert.match(block, /GH_TOKEN:\s*\$\{\{\s*secrets\.WORKFLOW_PAT\s*\|\|\s*github\.token\s*\}\}/);
 });
 
 // ---------------------------------------------------------------
-// PROJECT-FLUTTER-CI: Android 빌드는 서명 불필요한 debug APK를 사용해야
-// 한다 (keystore 없이 --release 실행 시 release 서명이
-// 구성된 프로젝트에서 항상 빌드 실패)
+// PROJECT-FLUTTER-CI: the Android build must use a debug APK, which needs no
+// signing (running --release without a keystore always fails the build in
+// projects with release signing configured)
 // ---------------------------------------------------------------
 const flutterCiPath = join(
   "payload/workflows/flutter",
@@ -308,44 +308,44 @@ test("PROJECT-FLUTTER-CI exists in payload", () => {
   assert.ok(files.includes(flutterCiPath), `${flutterCiPath} missing`);
 });
 
-test("PROJECT-FLUTTER-CI의 Android 빌드는 --release를 사용하지 않는다", () => {
+test("the Android build in PROJECT-FLUTTER-CI does not use --release", () => {
   const body = readFileSync(flutterCiPath, "utf8");
   assert.ok(
     !body.includes("flutter build apk --release"),
-    "keystore 없이 --release로 빌드하면 release 서명이 구성된 프로젝트에서 항상 실패한다"
+    "building with --release without a keystore always fails in projects with release signing configured"
   );
 });
 
-test("PROJECT-FLUTTER-CI의 Android 빌드는 --debug를 사용한다", () => {
+test("the Android build in PROJECT-FLUTTER-CI uses --debug", () => {
   const body = readFileSync(flutterCiPath, "utf8");
   assert.ok(body.includes("flutter build apk --debug"));
 });
 
 // ---------------------------------------------------------------
-// build-ios 잡에 iOS 플랫폼 SDK 설치 스텝이 없어 "Platform Not
-// Installed"로 빌드 실패 — Select Xcode version 직후 설치 스텝 필요.
+// The build-ios job has no iOS platform SDK install step, so the build fails with "Platform Not
+// Installed" — an install step is needed right after Select Xcode version.
 // ---------------------------------------------------------------
-test("FLUTTER-CI의 build-ios 잡은 Select Xcode version 직후 iOS 플랫폼을 설치한다", () => {
+test("the build-ios job in FLUTTER-CI installs the iOS platform right after Select Xcode version", () => {
   const body = readFileSync(flutterCiPath, "utf8");
   const selectXcodeIdx = body.indexOf("name: Select Xcode version");
   const installPlatformIdx = body.indexOf("name: Install iOS device platform");
-  assert.ok(selectXcodeIdx > -1, "Select Xcode version 스텝을 찾지 못했습니다");
-  assert.ok(installPlatformIdx > -1, "Install iOS device platform 스텝을 찾지 못했습니다");
+  assert.ok(selectXcodeIdx > -1, "Select Xcode version step not found");
+  assert.ok(installPlatformIdx > -1, "Install iOS device platform step not found");
   assert.ok(
     installPlatformIdx > selectXcodeIdx,
-    "Install iOS device platform 스텝이 Select Xcode version 스텝보다 먼저 나오면 안 됩니다",
+    "the Install iOS device platform step must not come before the Select Xcode version step",
   );
 });
 
-test("FLUTTER-CI의 iOS 플랫폼 설치 스텝은 xcodebuild -downloadPlatform iOS를 실행한다", () => {
+test("the iOS platform install step in FLUTTER-CI runs xcodebuild -downloadPlatform iOS", () => {
   const body = readFileSync(flutterCiPath, "utf8");
   assert.ok(body.includes("xcodebuild -downloadPlatform iOS"));
 });
 
 // ---------------------------------------------------------------
-// build_runner를 쓰는 프로젝트(freezed/riverpod_generator/drift/
-// json_serializable)가 CI에서 생성 파일(*.g.dart/*.freezed.dart) 부재로
-// 실패하지 않도록, flutter pub get 직후 조건부 코드 생성이 있어야 한다.
+// So that projects using build_runner (freezed/riverpod_generator/drift/
+// json_serializable) do not fail in CI for missing generated files (*.g.dart/*.freezed.dart),
+// conditional code generation must run right after flutter pub get.
 // ---------------------------------------------------------------
 function assertBuildRunnerGuardFollowsEveryPubGet(path) {
   const body = readFileSync(path, "utf8");
@@ -355,9 +355,9 @@ function assertBuildRunnerGuardFollowsEveryPubGet(path) {
   assert.strictEqual(
     matches.length,
     pubGetCount,
-    `${path}: flutter pub get가 ${pubGetCount}곳인데 build_runner 조건부 코드 생성 가드는 ${matches.length}곳뿐입니다`
+    `${path}: ${pubGetCount} flutter pub get call(s) but only ${matches.length} build_runner conditional codegen guard(s)`
   );
-  assert.ok(pubGetCount > 0, `${path}: flutter pub get이 존재해야 합니다`);
+  assert.ok(pubGetCount > 0, `${path}: flutter pub get must exist`);
 }
 
 const flutterFirebaseCicdPath = join(
@@ -365,7 +365,7 @@ const flutterFirebaseCicdPath = join(
   "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml"
 );
 
-test("PROJECT-FLUTTER-ANDROID-FIREBASE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-ANDROID-FIREBASE-CICD: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterFirebaseCicdPath);
 });
 
@@ -374,7 +374,7 @@ const flutterPlaystoreCicdPath = join(
   "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"
 );
 
-test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterPlaystoreCicdPath);
 });
 
@@ -383,7 +383,7 @@ const flutterSelfhostedCicdPath = join(
   "PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml"
 );
 
-test("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterSelfhostedCicdPath);
 });
 
@@ -392,11 +392,11 @@ const flutterTestApkPath = join(
   "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml"
 );
 
-test("PROJECT-FLUTTER-ANDROID-TEST-APK: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-ANDROID-TEST-APK: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterTestApkPath);
 });
 
-test("PROJECT-FLUTTER-CI: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-CI: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterCiPath);
 });
 
@@ -405,7 +405,7 @@ const flutterIosTestflightPath = join(
   "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"
 );
 
-test("PROJECT-FLUTTER-IOS-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestflightPath);
 });
 
@@ -414,13 +414,13 @@ const flutterIosTestTestflightPath = join(
   "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml"
 );
 
-test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: flutter pub get 직후 build_runner 조건부 코드 생성이 있다 (#42)", () => {
+test("PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT: conditional build_runner codegen runs right after flutter pub get", () => {
   assertBuildRunnerGuardFollowsEveryPubGet(flutterIosTestTestflightPath);
 });
 
 // ---------------------------------------------------------------
-// ISSUE-HELPER: 외부 Chuseok22/github-issue-helper 액션 의존 제거,
-// 로컬 payload 기능으로 흡수
+// ISSUE-HELPER: drop the dependency on the external Chuseok22/github-issue-helper action,
+// absorbing it into a local payload feature
 // ---------------------------------------------------------------
 const issueHelperPath = join("payload/workflows/common", "PROJECT-COMMON-ISSUE-HELPER.yaml");
 
@@ -428,57 +428,57 @@ test("PROJECT-COMMON-ISSUE-HELPER exists in payload", () => {
   assert.ok(files.includes(issueHelperPath), `${issueHelperPath} missing`);
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER는 외부 액션을 호출하지 않는다", () => {
+test("PROJECT-COMMON-ISSUE-HELPER does not call an external action", () => {
   const body = readFileSync(issueHelperPath, "utf8");
-  // 출처 표기 주석(Chuseok22/github-issue-helper 언급)은 남아도 된다 — 여기서 금지하는 것은
-  // 그 액션을 "호출"(uses:)하는 것이지, 출처를 "언급"하는 것이 아니다.
+  // A source-attribution comment (mentioning Chuseok22/github-issue-helper) may remain — what is forbidden here is
+  // "calling" that action (uses:), not "mentioning" its origin.
   assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"));
   assert.ok(body.includes("python3 .github/scripts/issue_helper.py run"));
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER의 create_branch 기본값은 false다", () => {
+test("PROJECT-COMMON-ISSUE-HELPER defaults create_branch to false", () => {
   const body = readFileSync(issueHelperPath, "utf8");
   assert.match(body, /ISSUE_HELPER_CREATE_BRANCH:\s*"false"/);
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER의 base_branch는 하드코딩된 브랜치명이 아니라 플레이스홀더를 쓴다", () => {
+test("PROJECT-COMMON-ISSUE-HELPER uses a placeholder for base_branch, not a hardcoded branch name", () => {
   const body = readFileSync(issueHelperPath, "utf8");
   assert.match(body, /ISSUE_HELPER_BASE_BRANCH:\s*"\{\{MAIN_BRANCH\}\}"/);
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER는 issues opened/edited에 반응한다", () => {
+test("PROJECT-COMMON-ISSUE-HELPER reacts to issues opened/edited", () => {
   const body = readFileSync(issueHelperPath, "utf8");
   assert.match(body, /on:\s*\n\s*issues:\s*\n\s*types:\s*\[opened,\s*edited]/);
 });
 
-test("PROJECT-COMMON-ISSUE-HELPER의 permissions.contents는 write로 고정되어 있다 (issue #118)", () => {
+test("PROJECT-COMMON-ISSUE-HELPER pins permissions.contents to write", () => {
   const body = readFileSync(issueHelperPath, "utf8");
-  // ISSUE_HELPER_CREATE_BRANCH="true"일 때 git/refs API로 브랜치를 생성하려면 write가 필요하고,
-  // 이 값은 마법사 재실행 없이 설치 후 직접 켤 수도 있어 조건부 승격이 불가능하다 — 항상 write로 고정.
+  // Creating a branch via the git/refs API when ISSUE_HELPER_CREATE_BRANCH="true" needs write,
+  // and users can also turn this on by hand after install without rerunning the wizard, so conditional escalation is impossible — always pinned to write.
   assert.match(body, /permissions:\s*\n\s*issues:\s*write\s*\n\s*contents:\s*write/);
 });
 
-test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER도 permissions.contents가 write다 (issue #118)", () => {
+test("the dogfooding copy of PROJECT-COMMON-ISSUE-HELPER also has permissions.contents: write", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
   assert.match(body, /permissions:\s*\n\s*issues:\s*write\s*\n\s*contents:\s*write/);
 });
 
 // ---------------------------------------------------------------
-// FLUTTER_ROOT가 subosito/flutter-action의 SDK 경로 export와
-// 이름이 충돌해 아티팩트 경로가 SDK 디렉토리를 가리키고, 업로드가
-// 비어 배포 잡이 실패한다. FLUTTER_PROJECT_DIR로 개명하고, 경로가
-// 비었을 때 즉시 실패하도록 모든 upload-artifact 스텝에
-// if-no-files-found: error를 강제한다.
+// FLUTTER_ROOT collides in name with the SDK path export of subosito/flutter-action,
+// so the artifact path points at the SDK directory, the upload comes up
+// empty, and the deploy job fails. Rename it to FLUTTER_PROJECT_DIR and force
+// if-no-files-found: error on every upload-artifact step so that an empty
+// path fails immediately.
 // ---------------------------------------------------------------
 function assertFlutterRootRenamedToProjectDir(path) {
   const body = readFileSync(path, "utf8");
   assert.ok(
     !body.includes("FLUTTER_ROOT"),
-    `${path}: FLUTTER_ROOT가 남아있으면 subosito/flutter-action의 SDK 경로 export와 충돌합니다`
+    `${path}: a leftover FLUTTER_ROOT collides with the SDK path export of subosito/flutter-action`
   );
   assert.ok(
     /^\s*FLUTTER_PROJECT_DIR:\s*"\."/m.test(body),
-    `${path}: FLUTTER_PROJECT_DIR env 정의를 찾지 못했습니다`
+    `${path}: FLUTTER_PROJECT_DIR env definition not found`
   );
 }
 
@@ -486,100 +486,100 @@ function assertUploadArtifactStepsFailOnMissingFiles(path) {
   const body = readFileSync(path, "utf8");
   const steps = body.split(/\n(?=      - name: )/);
   const uploadSteps = steps.filter((s) => s.includes("uses: actions/upload-artifact"));
-  assert.ok(uploadSteps.length > 0, `${path}: upload-artifact 스텝을 찾지 못했습니다`);
+  assert.ok(uploadSteps.length > 0, `${path}: no upload-artifact step found`);
   for (const step of uploadSteps) {
-    const stepName = (step.match(/^ {6}- name: (.+)$/m) || [, "(이름 없음)"])[1];
+    const stepName = (step.match(/^ {6}- name: (.+)$/m) || [, "(unnamed)"])[1];
     assert.ok(
       step.includes("if-no-files-found: error"),
-      `${path}: '${stepName}' 스텝에 if-no-files-found: error가 없습니다`
+      `${path}: step '${stepName}' is missing if-no-files-found: error`
     );
   }
 }
 
-test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: FLUTTER_ROOT was renamed to FLUTTER_PROJECT_DIR", () => {
   assertFlutterRootRenamedToProjectDir(flutterPlaystoreCicdPath);
 });
 
-test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+test("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD: every upload-artifact step sets if-no-files-found: error", () => {
   assertUploadArtifactStepsFailOnMissingFiles(flutterPlaystoreCicdPath);
 });
 
-test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT가 FLUTTER_PROJECT_DIR로 개명되었다 (#50)", () => {
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: FLUTTER_ROOT was renamed to FLUTTER_PROJECT_DIR", () => {
   assertFlutterRootRenamedToProjectDir(flutterIosTestflightPath);
 });
 
-test("PROJECT-FLUTTER-IOS-TESTFLIGHT: upload-artifact 스텝 전부가 if-no-files-found: error를 지정한다 (#50)", () => {
+test("PROJECT-FLUTTER-IOS-TESTFLIGHT: every upload-artifact step sets if-no-files-found: error", () => {
   assertUploadArtifactStepsFailOnMissingFiles(flutterIosTestflightPath);
 });
 
 // ---------------------------------------------------------------
-// 도그푸딩 사본 — payload를 고치면 .github 사본도 함께 고쳐야 한다.
+// Dogfooding copy — when the payload changes, the .github copy must change too.
 // ---------------------------------------------------------------
-test("이 레포에는 더 이상 외부 Chuseok22/github-issue-helper 액션 호출이 없다", () => {
+test("this repo no longer calls the external Chuseok22/github-issue-helper action", () => {
   const selfHostedFiles = readdirSync(".github/workflows")
     .filter((f) => /\.ya?ml$/.test(f))
     .map((f) => join(".github/workflows", f));
   for (const f of selfHostedFiles) {
     const body = readFileSync(f, "utf8");
-    // 출처 표기 주석은 허용 — uses:로 실제 호출하는 것만 금지
-    assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"), `${f}: 외부 액션 호출이 남아있음`);
+    // Source-attribution comments are allowed — only actual calls via uses: are forbidden
+    assert.ok(!body.includes("uses: Chuseok22/github-issue-helper"), `${f}: external action call still present`);
   }
 });
 
-test("도그푸딩 사본 PROJECT-COMMON-ISSUE-HELPER는 {{MAIN_BRANCH}}가 치환되어 있고 base 브랜치가 develop이다", () => {
+test("the dogfooding copy of PROJECT-COMMON-ISSUE-HELPER has {{MAIN_BRANCH}} substituted and develop as the base branch", () => {
   const text = readFileSync(join(".github", "workflows", "PROJECT-COMMON-ISSUE-HELPER.yaml"), "utf8");
-  assert.ok(!text.includes("{{MAIN_BRANCH}}"), "플레이스홀더가 치환되지 않았습니다");
+  assert.ok(!text.includes("{{MAIN_BRANCH}}"), "placeholder was not substituted");
   assert.match(text, /ISSUE_HELPER_BASE_BRANCH:\s*"develop"/);
 });
 
-test("도그푸딩 사본 issue_helper.py는 payload 원본과 동일하다", () => {
+test("the dogfooding copy of issue_helper.py is identical to the payload original", () => {
   const payloadSrc = readFileSync(join("payload", "scripts", "issue_helper.py"), "utf8");
   const selfHostedSrc = readFileSync(join(".github", "scripts", "issue_helper.py"), "utf8");
   assert.strictEqual(selfHostedSrc, payloadSrc);
 });
 
 // ---------------------------------------------------------------
-// WORKFLOW_PAT 없이도 릴리스 파이프라인 후속 트리거가 끊기지 않도록,
-// GITHUB_TOKEN으로도 항상 새 실행을 만드는 workflow_dispatch 신호를 세 지점에
-// 추가했다. 아래 테스트는 그 신호 발행 로직이 실제로 존재하는지,
-// WORKFLOW_PAT 폴백이 아닌 기본 토큰을 쓰는지, payload와 self-copy가
-// (의도된 1곳 제외) 동기화됐는지를 고정한다.
+// So that downstream release pipeline triggers do not break without WORKFLOW_PAT,
+// workflow_dispatch signals, which always create a new run even with GITHUB_TOKEN, were added at three points.
+// The tests below pin that the signal-emitting logic actually exists,
+// that it uses the default token rather than the WORKFLOW_PAT fallback, and that the payload and self-copy
+// are in sync (except for one intended spot).
 // ---------------------------------------------------------------
 
-// 잡 정의(`\n  wait-for-merge-and-trigger-release:`)를 찾는다 — 헤더 주석에도
-// 같은 이름이 산문으로 등장하므로 plain indexOf는 주석을 먼저 잡아버린다.
+// Find the job definition (`\n  wait-for-merge-and-trigger-release:`) — the same name
+// also appears as prose in the header comment, so a plain indexOf would hit the comment first.
 const WAIT_JOB_DEFINITION = "\n  wait-for-merge-and-trigger-release:";
 
-test("AUTO-CHANGELOG-CONTROL: automerge 병합 완료를 폴링해 RELEASE-PUBLISH를 트리거하는 잡이 changelog-and-merge와 분리되어 있다 (#90)", () => {
+test("AUTO-CHANGELOG-CONTROL: the job that polls for automerge completion and triggers RELEASE-PUBLISH is separate from changelog-and-merge", () => {
   const body = readFileSync(changelogPath, "utf8");
-  assert.ok(body.includes("needs: changelog-and-merge"), "changelog-and-merge에 의존하는 별도 잡이 있어야 한다 (같은 잡 내 폴링은 데드락 위험)");
-  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "RELEASE-PUBLISH를 workflow_dispatch로 트리거해야 한다 (실제 파일명 PROJECT-COMMON-RELEASE-PUBLISH.yaml과 일치해야 함)");
+  assert.ok(body.includes("needs: changelog-and-merge"), "a separate job depending on changelog-and-merge must exist (polling within the same job risks deadlock)");
+  assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "RELEASE-PUBLISH must be triggered via workflow_dispatch (must match the actual filename PROJECT-COMMON-RELEASE-PUBLISH.yaml)");
   const idx = body.indexOf(WAIT_JOB_DEFINITION);
-  assert.ok(idx > -1, "wait-for-merge-and-trigger-release 잡 정의를 찾지 못했습니다");
+  assert.ok(idx > -1, "wait-for-merge-and-trigger-release job definition not found");
   const jobBlock = body.slice(idx, idx + 2000);
   assert.ok(
     /GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock),
-    "WORKFLOW_PAT 폴백이 아니라 기본 github.token을 써야 한다 (GITHUB_TOKEN으로도 workflow_dispatch는 항상 트리거된다)"
+    "must use the default github.token, not the WORKFLOW_PAT fallback (workflow_dispatch always triggers even with GITHUB_TOKEN)"
   );
 });
 
-test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 병합 대기 + 트리거 잡이 있다 (#90)", () => {
+test("the dogfooding copy of AUTO-CHANGELOG-CONTROL has the same merge-wait + trigger job", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
   assert.ok(body.includes("needs: changelog-and-merge"));
   assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main"));
   const idx = body.indexOf(WAIT_JOB_DEFINITION);
-  assert.ok(idx > -1, "wait-for-merge-and-trigger-release 잡 정의를 찾지 못했습니다");
+  assert.ok(idx > -1, "wait-for-merge-and-trigger-release job definition not found");
   const jobBlock = body.slice(idx, idx + 2000);
   assert.ok(/GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/.test(jobBlock));
 });
 
-test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL에도 동일한 이슈 취합 스텝이 있다", () => {
+test("the dogfooding copy of AUTO-CHANGELOG-CONTROL has the same issue-collection step", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
   assert.ok(body.includes("collect-issue-closes"));
   assert.ok(body.includes("gh pr list --state merged --base develop"));
 });
 
-test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL도 릴리스 문서 커밋 전에 이슈 취합 임시파일을 정리한다", () => {
+test("the dogfooding copy of AUTO-CHANGELOG-CONTROL also cleans up the issue-collection temp files before committing release docs", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
   const idx = body.indexOf("Commit release docs to the PR head branch");
   assert.ok(idx > -1);
@@ -588,21 +588,21 @@ test("도그푸딩 사본 AUTO-CHANGELOG-CONTROL도 릴리스 문서 커밋 전�
   assert.ok(stepBlock.includes("merged_prs.json"));
 });
 
-test("VERSION-CONTROL: safety-net bump이 push된 경우에만 RELEASE-PUBLISH를 트리거한다 (#90, 이슈 #61 자동 복구)", () => {
+test("VERSION-CONTROL: triggers RELEASE-PUBLISH only when the safety-net bump was pushed", () => {
   const p = join("payload", "workflows", "common", "PROJECT-COMMON-VERSION-CONTROL.yaml");
   const body = readFileSync(p, "utf8");
-  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "workflow_dispatch 호출을 위한 actions: write 권한이 필요하다");
+  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "actions: write permission is required for the workflow_dispatch call");
   assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
   const idx = body.indexOf("name: Trigger RELEASE-PUBLISH");
-  assert.ok(idx > -1, "Trigger RELEASE-PUBLISH 스텝을 찾지 못했습니다");
+  assert.ok(idx > -1, "Trigger RELEASE-PUBLISH step not found");
   const stepBlock = body.slice(idx, idx + 300);
   assert.ok(
     stepBlock.includes("steps.commit_push.outputs.pushed == 'true'"),
-    "실제로 push가 일어난 경우에만(변경 없음일 때는 스킵) 트리거해야 한다"
+    "must trigger only when a push actually happened (skip when there is no change)"
   );
 });
 
-test("도그푸딩 사본 VERSION-CONTROL에도 동일한 조건부 트리거가 있다 (#90)", () => {
+test("the dogfooding copy of VERSION-CONTROL has the same conditional trigger", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-VERSION-CONTROL.yaml"), "utf8");
   assert.ok(/^\s*actions:\s*write\s*$/m.test(body));
   assert.ok(body.includes("gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main"));
@@ -612,18 +612,18 @@ test("도그푸딩 사본 VERSION-CONTROL에도 동일한 조건부 트리거가
   assert.ok(stepBlock.includes("steps.commit_push.outputs.pushed == 'true'"));
 });
 
-// NPM-PUBLISH.yaml은 payload에 없는 이 저장소 전용 워크플로우다 — payload
-// 템플릿에 그 호출이 섞여 들어가면 마법사로 설치된 모든 레포가 존재하지
-// 않는 워크플로우를 매 릴리스마다 호출 시도하게 된다.
-test("RELEASE-PUBLISH payload 템플릿에는 NPM-PUBLISH 호출이 없다 (#90) — 사용자 레포에는 그 워크플로우가 없다", () => {
+// NPM-PUBLISH.yaml is a workflow specific to this repository and absent from the payload — if a call to it
+// leaked into the payload template, every repo installed via the wizard would try on each release to call a
+// workflow that does not exist.
+test("the RELEASE-PUBLISH payload template has no NPM-PUBLISH call — user repos do not have that workflow", () => {
   const body = readFileSync(releasePath, "utf8");
-  // 의도된 비대칭을 설명하는 헤더 주석은 "NPM-PUBLISH"를 언급해도 된다 —
-  // 여기서 금지하는 것은 그 워크플로우를 실제로 "호출"하는 것이다.
-  assert.ok(!body.includes("gh workflow run NPM-PUBLISH"), "payload/workflows/common/PROJECT-COMMON-RELEASE-PUBLISH.yaml에 NPM-PUBLISH 호출이 있으면 안 된다");
+  // The header comment explaining the intended asymmetry may mention "NPM-PUBLISH" —
+  // what is forbidden here is actually "calling" that workflow.
+  assert.ok(!body.includes("gh workflow run NPM-PUBLISH"), "payload/workflows/common/PROJECT-COMMON-RELEASE-PUBLISH.yaml must not contain an NPM-PUBLISH call");
 });
 
-test("도그푸딩 사본 RELEASE-PUBLISH는 Release 생성 직후 NPM-PUBLISH를 workflow_dispatch로 트리거한다 (#90)", () => {
+test("the dogfooding copy of RELEASE-PUBLISH triggers NPM-PUBLISH via workflow_dispatch right after creating the Release", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-RELEASE-PUBLISH.yaml"), "utf8");
-  assert.ok(body.includes("gh workflow run NPM-PUBLISH.yaml"), "NPM-PUBLISH를 workflow_dispatch로 호출해야 한다");
-  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "workflow_dispatch 호출을 위한 actions: write 권한이 필요하다");
+  assert.ok(body.includes("gh workflow run NPM-PUBLISH.yaml"), "NPM-PUBLISH must be called via workflow_dispatch");
+  assert.ok(/^\s*actions:\s*write\s*$/m.test(body), "actions: write permission is required for the workflow_dispatch call");
 });

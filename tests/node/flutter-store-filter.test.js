@@ -127,7 +127,7 @@ test("copyWorkflows: a modified deselected store workflow is not touched even by
   try {
     copyWorkflows(flutterContext({ flutterStore: null }), PAYLOAD, target);
     // User-edited copy with a @wizard marker: without the guard, configureEnv would overwrite it with "app" and erase the marker.
-    const mine = 'name: 내 워크플로우\nenv:\n  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root\n';
+    const mine = 'name: my workflow\nenv:\n  FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root\n';
     const p = join(target, WF_DIR, TESTFLIGHT);
     writeFileSync(p, mine);
 

@@ -41,6 +41,22 @@ When you add a feature or fix a bug, add a test that covers the behavior in the 
 - **Generated payload workflows** (files registered in `templates/workflows/targets.mjs`), such as the Go/Python PR preview, the single-server deploy (SIMPLE-CICD) and the React/Next deploy (CICD), must not be edited directly. Edit the fragments or values under `templates/workflows/`, run `npm run generate:workflows`, and commit the regenerated files together. `npm run generate:workflows:check` only compares and writes nothing; `npm test` runs the same check (`tests/node/workflow-generator.test.js`).
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `chore:`, ...). English is preferred for the description. Example: `feat: retry login on failure`
 
+## Language policy
+
+English is the default language of this repo: code comments, test names and messages, workflow YAML
+comments, scripts and documentation are written in English. Korean is allowed only where it is
+product content:
+
+- the `ko` message catalogs (`src/i18n/catalog/ko/`, the `ko` catalog in `payload/scripts/messages.py`)
+  and the `_ko` fields in `payload/config/` (`wizard-prompts.yml`, `breaking-changes.json`)
+- translated documents (`README.ko.md`, the `ko` locale of the docs site under `website/src/content/docs/ko/`)
+- past entries of `CHANGELOG.md` / `CHANGELOG.json` and the historical notes in `.issue/`
+- test literals that check `ko` output or Korean input data
+
+`tests/node/no-stray-hangul.test.js` scans every tracked file and fails on Hangul outside this
+allow-list. The failure message shows the file and line; translate the text, or, if the Korean is
+legitimate product content, add the path (or a line pattern) to the allow-list in that test.
+
 ## Pull request rules
 
 1. Branch from `develop`, not `main`.

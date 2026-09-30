@@ -203,16 +203,16 @@ test("README anchors linked by older CLI versions remain in every README", () =>
 
 test("printDoctorReport: problem items expand in the order symptom, impact, action, doc", () => {
   const output = render([{
-    name: "Workflow permissions", purpose: "버전 커밋 자동 push", status: "WARN",
-    value: "현재 read 입니다.",
-    impact: ["릴리스가 중단됩니다."],
-    actions: ["레포 Settings → Actions → General", '"Read and write permissions" 선택'],
+    name: "Workflow permissions", purpose: "auto-push version commit", status: "WARN",
+    value: "Currently read.",
+    impact: ["The release stops."],
+    actions: ["Repo Settings → Actions → General", '"Read and write permissions" option'],
     doc: DOC.postInstall,
   }]);
-  assert.ok(output.includes("[!] Workflow permissions — 버전 커밋 자동 push"));
-  const iValue = output.indexOf("현재 read 입니다.");
-  const iImpact = output.indexOf("릴리스가 중단됩니다.");
-  const iAction = output.indexOf("레포 Settings");
+  assert.ok(output.includes("[!] Workflow permissions — auto-push version commit"));
+  const iValue = output.indexOf("Currently read.");
+  const iImpact = output.indexOf("The release stops.");
+  const iAction = output.indexOf("Repo Settings");
   const iDoc = output.indexOf("자세히:");
   assert.ok(iValue < iImpact && iImpact < iAction && iAction < iDoc, "order is not symptom -> impact -> action -> doc");
   assert.ok(output.includes(DOC.postInstall));
@@ -220,27 +220,27 @@ test("printDoctorReport: problem items expand in the order symptom, impact, acti
 
 test("printDoctorReport: healthy items collapse to one line", () => {
   const output = render([
-    { name: "gh CLI", purpose: "레포 설정 조회용", status: "OK", value: "gh version 2.96.0" },
+    { name: "gh CLI", purpose: "for repo settings lookup", status: "OK", value: "gh version 2.96.0" },
   ]);
   const line = output.split("\n").find((l) => l.includes("gh CLI"));
   assert.ok(line.includes("[✓]"));
-  assert.ok(line.includes("레포 설정 조회용"));
+  assert.ok(line.includes("for repo settings lookup"));
   assert.ok(line.includes("gh version 2.96.0"));
 });
 
 // Pin that the tool reports only what it found, without judging whether installing is OK.
 test("printDoctorReport: summary reports the problem count instead of a verdict", () => {
-  const clean = render([{ name: "gh CLI", purpose: "레포 설정 조회용", status: "OK", value: "설치됨" }]);
+  const clean = render([{ name: "gh CLI", purpose: "for repo settings lookup", status: "OK", value: "installed" }]);
   assert.ok(clean.includes("문제를 찾지 못했습니다"));
 
   const warned = render([
-    { name: "A", purpose: "가", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
-    { name: "B", purpose: "나", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
+    { name: "A", purpose: "a", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
+    { name: "B", purpose: "b", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
   ]);
   assert.ok(warned.includes("2개 항목에서 문제를 찾았습니다"));
   assert.ok(warned.includes("나중에 설정해도 됩니다"));
 
-  const failed = render([{ name: "gh 인증", purpose: "권한", status: "FAIL", value: "x", impact: ["y"], actions: ["z"] }]);
+  const failed = render([{ name: "gh 인증", purpose: "permission", status: "FAIL", value: "x", impact: ["y"], actions: ["z"] }]);
   assert.ok(failed.includes("일부 점검은 실행하지 못했습니다"));
 });
 

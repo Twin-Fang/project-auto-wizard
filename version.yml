@@ -28,7 +28,7 @@
 version: "0.13.3"
 version_code: 61  # app build number
 project_types: ["node"] # first entry is primary
-project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
+project_paths: # per-type project folders (relative to repo root)
   node: "." # package.json
 metadata:
   last_updated: "2026-09-30"

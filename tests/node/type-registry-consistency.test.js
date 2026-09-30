@@ -41,7 +41,7 @@ test("every type except basic has a representative marker (paths-resolve KNOWN_M
 });
 
 test("the supported-type list in --help equals VALID_TYPES", () => {
-  // The type list runs from the "지원:" line up to just before the next option line (starting with --).
+  // The type list runs from the ko "supported types" line up to just before the next option line (starting with --).
   const m = helpText().match(/지원:([\s\S]*?)\n\s*(?:-\w, )?--/);
   assert.ok(m, "could not find the '지원:' list in --help");
   assert.deepStrictEqual(typeTokens(m[1]), VALID);
@@ -139,7 +139,7 @@ test("detectBy and detectOrder declarations are intact", () => {
 test("each type is auto-detected as declared in the registry", () => {
   for (const t of TYPES.filter((x) => x.detectBy === "markers")) {
     for (const m of t.markers) {
-      assert.ok(detectTypesFromMarkers({ has: (f) => f === m }).includes(t.id), `${t.id}: ${m}alone must be enough to detect it`);
+      assert.ok(detectTypesFromMarkers({ has: (f) => f === m }).includes(t.id), `${t.id}: ${m} alone must be enough to detect it`);
     }
   }
   for (const t of TYPES.filter((x) => x.detectBy === "package")) {

@@ -137,9 +137,9 @@ test("detectVersionFromFiles: the fallback warning uses the hint supplied by the
   const warned = [];
   detectVersionFromFiles({
     read: () => null, readJson: () => null, gitTag: "",
-    warn: (m) => warned.push(m), hint: "수정하기 > 버전에서 고칠 수 있습니다.",
+    warn: (m) => warned.push(m), hint: "You can fix it under Edit > Version.",
   });
-  assert.match(warned[0], /수정하기 > 버전/);
+  assert.match(warned[0], /Edit > Version/);
   assert.doesNotMatch(warned[0], /--project-version/, "the interactive flow must not point to a CLI flag");
 });
 

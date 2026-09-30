@@ -16,7 +16,7 @@ function render(info) {
 
 test("printAnalysisCard: showOptional and flutter type print the env, store, and deploy mode lines", () => {
   const text = render({
-    mode: "full", modeLabel: "전체 설치", types: ["flutter"], version: "1.0.0", branch: "main",
+    mode: "full", modeLabel: "Full install", types: ["flutter"], version: "1.0.0", branch: "main",
     showOptional: true,
     flutter: { envMode: "dotenv", stores: ["android", "ios"], androidDeployMode: "store_only", iosDeployMode: "store_submit" },
     envModeDefault: "dart-define",

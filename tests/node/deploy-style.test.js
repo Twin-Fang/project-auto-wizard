@@ -38,11 +38,11 @@ test("isDeployWorkflow: only the CD workflow itself is selectable", () => {
 });
 
 test("activateDeployTrigger: revives only the commented-out push trigger in the on block", () => {
-  const before = `name: X\n\non:\n  # push:\n  #   branches:\n  #     - main\n  workflow_dispatch:\n\nenv:\n  # 설명 주석은 그대로\n  A: "1"\n`;
+  const before = `name: X\n\non:\n  # push:\n  #   branches:\n  #     - main\n  workflow_dispatch:\n\nenv:\n  # comment stays as-is\n  A: "1"\n`;
   const after = activateDeployTrigger(before);
   assert.match(after, /^on:\n  push:\n    branches:\n      - main\n  workflow_dispatch:$/m,
     "inner indentation hierarchy must be preserved");
-  assert.match(after, /  # 설명 주석은 그대로/, "comments outside the on block must not be touched");
+  assert.match(after, /  # comment stays as-is/, "comments outside the on block must not be touched");
 });
 
 test("activateDeployTrigger: leaves an already-enabled trigger as is (idempotent)", () => {
@@ -141,12 +141,12 @@ test("runFull: a previous CD edited by the user is moved to .bak instead of dele
   try {
     install(target, "simple");
     const p = join(target, ".github/workflows", SIMPLE);
-    writeFileSync(p, readFileSync(p, "utf8") + "\n# 내가 고친 부분\n");
+    writeFileSync(p, readFileSync(p, "utf8") + "\n# my own edit\n");
 
     const r = install(target, "nginx");
     assert.deepStrictEqual(r.cleanup.backedUp, [SIMPLE]);
     assert.deepStrictEqual(r.cleanup.removed, []);
-    assert.match(readFileSync(`${p}.bak`, "utf8"), /내가 고친 부분/, "the edits must be preserved");
+    assert.match(readFileSync(`${p}.bak`, "utf8"), /my own edit/, "the edits must be preserved");
     assert.ok(!readdirSync(join(target, ".github/workflows")).includes(SIMPLE), "the trigger must be disabled");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
@@ -175,7 +175,7 @@ test("runFull: reinstalling with the same style finishes quietly without false c
 
 test("deployFilter: unknown values converge to the default instead of passing everything", () => {
   // endsWith("") is always true, so returning an empty suffix would silently turn a bad value into "install every CD".
-  const keep = deployFilter("잘못된값");
+  const keep = deployFilter("invalid-value");
   assert.ok(keep(SIMPLE));
   assert.ok(!keep(NGINX));
   assert.ok(!keep(TRAEFIK));
@@ -203,7 +203,7 @@ test("deployFilter('none'): excludes the 3 CDs, the PR preview and the react/nex
 test("adding 'none' leaves the existing detection logic intact — isDeployWorkflow is unchanged and unknown values still converge to simple", () => {
   assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
   assert.ok(!isDeployWorkflow(PREVIEW));
-  const keepUnknown = deployFilter("잘못된값");
+  const keepUnknown = deployFilter("invalid-value");
   assert.ok(keepUnknown(SIMPLE));
   assert.ok(!keepUnknown(NGINX));
   assert.ok(!keepUnknown(TRAEFIK));

@@ -16,7 +16,7 @@ function withTarget(fn) {
 test("stampFrom: converts 'YYYY-MM-DD HH:MM:SS' into a filename stamp", () => {
   assert.strictEqual(stampFrom("2026-08-26 12:03:41"), "20260826-120341");
   assert.strictEqual(stampFrom("2026-08-26T12:03:41"), "20260826-120341");
-  assert.strictEqual(stampFrom("깨진 값"), "unknown");
+  assert.strictEqual(stampFrom("broken value"), "unknown");
 });
 
 test("logFilename: extension is .log and the filename includes milliseconds and the action", () => {
@@ -86,10 +86,10 @@ test("initLogger: does not overwrite an existing .gitignore", () => {
   withTarget((target) => {
     const dir = join(target, LOG_DIR);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, ".gitignore"), "# 사용자가 직접 쓴 것\n");
+    writeFileSync(join(dir, ".gitignore"), "# written by the user\n");
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
     log.info("detect", "type", "spring");
-    assert.strictEqual(readFileSync(join(dir, ".gitignore"), "utf8"), "# 사용자가 직접 쓴 것\n");
+    assert.strictEqual(readFileSync(join(dir, ".gitignore"), "utf8"), "# written by the user\n");
   });
 });
 

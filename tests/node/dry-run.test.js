@@ -159,7 +159,7 @@ test("printDryRun: existing store deploy files are marked as kept and separated 
   const payload = payloadWithFlutterApp();
   try {
     mkdirSync(join(target, "app/android/fastlane"), { recursive: true });
-    writeFileSync(join(target, "app/android/fastlane/Fastfile.playstore"), "# 내가 고친 Fastfile\n");
+    writeFileSync(join(target, "app/android/fastlane/Fastfile.playstore"), "# my edited Fastfile\n");
     const plan = planDryRun("full", flutterContext(target, ["android", "ios"]), payload, target);
     assert.deepStrictEqual(plan.flutterApp.kept, ["app/android/fastlane/Fastfile.playstore"]);
     assert.deepStrictEqual(plan.flutterApp.created, ["app/ios/fastlane/Fastfile", "app/ios/ExportOptions.plist"]);
@@ -268,7 +268,7 @@ test("planDryRun: a modified CD shows the .bak move and .gitignore creation in t
     const payload = resolvePayloadRoot();
     runFull(baseContext({ types: ["spring"], deployStyle: "simple" }), payload, target);
     const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
-    writeFileSync(simple, readFileSync(simple, "utf8") + "# 직접 수정\n");
+    writeFileSync(simple, readFileSync(simple, "utf8") + "# manual edit\n");
     const next = baseContext({ types: ["spring"], deployStyle: "traefik" });
     const plan = planDryRun("full", next, payload, target);
     assert.deepStrictEqual(plan.cleanup.cleanup.backedUp, ["PROJECT-SPRING-SIMPLE-CICD.yaml"]);
