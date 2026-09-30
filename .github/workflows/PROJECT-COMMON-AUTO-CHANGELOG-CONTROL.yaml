@@ -460,19 +460,30 @@ jobs:
           # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
           # still passes the RELEASE-PUBLISH gate. A failed rename only warns: the run must not fail here.
           SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
-          if gh pr edit "$PR_NUMBER" --title "$SUBJECT"; then
+          # The REST endpoint is used instead of `gh pr edit`, which goes through GraphQL and can fail on token scopes.
+          RENAMED=true
+          if gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -f title="$SUBJECT" > /dev/null; then
             echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
           else
+            RENAMED=false
             echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
           fi
 
           # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
+          # If the comment list cannot be read we cannot tell whether it exists, so skip rather than post a duplicate.
           MARKER='<!-- release-automerge-off -->'
-          EXISTING=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" 2>/dev/null | head -1 || true)
-          if [ -z "$EXISTING" ]; then
+          if ! COMMENT_IDS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
+            echo "::warning::$(m wf_changelog.automerge_off_list_failed pr_number="$PR_NUMBER")"
+          elif [ -z "$COMMENT_IDS" ]; then
             BODY="$MARKER
           $(m wf_changelog.automerge_off_comment)"
+            # A failed rename means the merge message will not carry the release marker unless the maintainer sets it.
+            if [ "$RENAMED" = false ]; then
+              BODY="$BODY
+
+          $(m wf_changelog.automerge_off_rename_hint subject="$SUBJECT")"
+            fi
             gh pr comment "$PR_NUMBER" --body "$BODY" \
               || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
           fi

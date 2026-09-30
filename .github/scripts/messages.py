@@ -1314,8 +1314,10 @@ EN = {
     "wf_changelog.automerge_enabled": "automerge enabled: {subject}",
     "wf_changelog.automerge_unavailable": "automerge unavailable — merged directly: {subject}",
     "wf_changelog.automerge_off": "release_automerge is off — PR renamed to \"{subject}\"; merge it yourself",
+    "wf_changelog.automerge_off_list_failed": "Could not read the comments of PR #{pr_number}; skipped the merge guidance comment to avoid a duplicate",
+    "wf_changelog.automerge_off_rename_hint": "The PR title could not be updated automatically. Before merging, set the merge commit message (or the PR title) to `{subject}` so the release is published.",
     "wf_changelog.automerge_rename_failed": "Could not update PR #{pr_number} (title or guidance comment); the release still needs \"chore(release):\" in the merge commit message",
-    "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Merge this PR yourself when you are ready to release, using **Create a merge commit**. Do not use *Squash and merge* or *Rebase and merge*: the release gate reads `chore(release):` from the resulting commit message, and squashing or rebasing also rewrites the history that the next release notes are built from.",
+    "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Wait until this workflow run has finished (it confirms the version and renames the PR), then merge this PR yourself when you are ready to release, using **Create a merge commit**. Do not use *Squash and merge* or *Rebase and merge*: the release gate reads `chore(release):` from the resulting commit message, and squashing or rebasing also rewrites the history that the next release notes are built from.",
     "wf_changelog.merge_retry": "merge attempt {attempt}/{max_attempts} failed — retrying in {wait}s",
     "wf_changelog.merge_gave_up": "PR merge failed after {max_attempts} attempts (allow_merge_commit={allow_merge_commit}) — check branch protection rules, required checks, and token permissions",
     # --- wf_readme ---
@@ -2587,8 +2589,10 @@ KO = {
     "wf_changelog.automerge_enabled": "automerge 활성화: {subject}",
     "wf_changelog.automerge_unavailable": "automerge를 쓸 수 없어 직접 병합했습니다: {subject}",
     "wf_changelog.automerge_off": "release_automerge가 꺼져 있어 PR 제목을 \"{subject}\"로 바꿨습니다. 직접 머지하세요",
+    "wf_changelog.automerge_off_list_failed": "PR #{pr_number}의 댓글을 읽지 못해 중복을 피하려고 머지 안내 댓글을 건너뛰었습니다",
+    "wf_changelog.automerge_off_rename_hint": "PR 제목을 자동으로 바꾸지 못했습니다. 릴리스가 발행되도록 머지하기 전에 머지 커밋 메시지(또는 PR 제목)를 `{subject}`로 지정하세요.",
     "wf_changelog.automerge_rename_failed": "PR #{pr_number}의 제목 또는 안내 댓글을 갱신하지 못했습니다. 릴리스가 되려면 머지 커밋 메시지에 \"chore(release):\"가 있어야 합니다",
-    "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 릴리스할 준비가 되면 **Create a merge commit**으로 직접 머지하세요. *Squash and merge*와 *Rebase and merge*는 쓰지 마세요. 릴리스 게이트가 결과 커밋 메시지의 `chore(release):`를 읽고, squash나 rebase는 다음 릴리스 노트가 기대는 커밋 이력까지 바꿉니다.",
+    "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 이 워크플로우 실행이 끝난 뒤(버전 확정과 PR 제목 변경이 끝난 뒤) 릴리스할 준비가 되면 **Create a merge commit**으로 직접 머지하세요. *Squash and merge*와 *Rebase and merge*는 쓰지 마세요. 릴리스 게이트가 결과 커밋 메시지의 `chore(release):`를 읽고, squash나 rebase는 다음 릴리스 노트가 기대는 커밋 이력까지 바꿉니다.",
     "wf_changelog.merge_retry": "병합 시도 {attempt}/{max_attempts} 실패 — {wait}초 후 다시 시도합니다",
     "wf_changelog.merge_gave_up": "PR 병합이 {max_attempts}회 시도 후에도 실패했습니다 (allow_merge_commit={allow_merge_commit}) — 브랜치 보호 규칙, 필수 체크, 토큰 권한을 확인하세요",
     # --- wf_readme ---

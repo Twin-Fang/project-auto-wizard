@@ -12,7 +12,7 @@ Read-only. It compares local files. Only when an older `version.yml` has no save
 It shows:
 
 - installed template version, project types and branch mode
-- options: `semver_auto`, `copilot_ai`, `deploy_style` (when a type has server deploys), and for Flutter the environment variable mode, store targets and deploy modes
+- options: `semver_auto`, `copilot_ai`, `release_automerge` (an unset one is shown with the value it resolves to), `deploy_style` (when a type has server deploys), and for Flutter the environment variable mode, store targets and deploy modes
 - workflow files you changed since installation
 - workflows left over from an older version that the current payload no longer ships
 - when an install record exists, how many files the next update would apply automatically, keep, or report as conflicts
