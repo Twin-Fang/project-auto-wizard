@@ -403,7 +403,7 @@ jobs:
           BRANCH_NAME="${{ steps.issue_info.outputs.branch_name }}"
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
-          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           echo "commit_hash=$COMMIT_SHORT" >> $GITHUB_OUTPUT
 

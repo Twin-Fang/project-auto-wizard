@@ -76,6 +76,17 @@ class TestLanguageResolution(unittest.TestCase):
         d = self._in_dir('language: "fr"\n')
         self.assertEqual(_run("lang", cwd=d).stdout.strip(), "en")
 
+    def test_unsupported_language_logs_a_fallback_notice_on_stderr_only(self):
+        d = self._in_dir('language: "fr"\n')
+        r = _run("lang", cwd=d)
+        self.assertEqual(r.stdout.strip(), "en")
+        self.assertIn("'fr'", r.stderr)
+        self.assertIn("falling back to 'en'", r.stderr)
+
+    def test_supported_language_logs_no_notice(self):
+        d = self._in_dir('language: "ko"\n')
+        self.assertEqual(_run("lang", cwd=d).stderr, "")
+
     def test_env_overrides_version_yml(self):
         d = self._in_dir('language: "en"\n')
         self.assertEqual(_run("lang", cwd=d, env={messages.LANG_ENV: "ko"}).stdout.strip(), "ko")

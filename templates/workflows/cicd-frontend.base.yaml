@@ -284,7 +284,7 @@ jobs:
             m "${{ env.PAW_M_cicd_summary_branch }}" branch="$BRANCH"
             m "${{ env.PAW_M_cicd_summary_container }}" container="$CONTAINER_NAME"
             m "${{ env.PAW_M_cicd_summary_port }}" port="$PORT"
-            m "${{ env.PAW_M_cicd_summary_time }}" time="$(date '+%Y-%m-%d %H:%M:%S')"
+            m "${{ env.PAW_M_cicd_summary_time }}" time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ""
             m "${{ env.PAW_M_cicd_summary_url }}" url="http://${{ secrets.SERVER_HOST }}:${PORT}"
 

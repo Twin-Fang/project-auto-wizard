@@ -180,7 +180,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
           echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
-          echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+          echo "TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
           echo "PROJECT_TYPE=${{ env.PROJECT_TYPE }}" >> $GITHUB_ENV
 
       - name: Generate release notes
@@ -440,7 +440,7 @@ jobs:
           # pubspec.yaml stays in x.y.z format; VERSION_CODE is managed automatically in version.yml
           m flutter_a.running_flutter_build
           m flutter_a.command_flutter_build_appbundle_release version_name="$VERSION_NAME" version_code="$VERSION_CODE"
-          m flutter_a.build_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
+          m flutter_a.build_start_time cmd1="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           flutter build appbundle \
             --release \

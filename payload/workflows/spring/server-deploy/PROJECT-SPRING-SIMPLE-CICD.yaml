@@ -429,7 +429,7 @@ jobs:
             m simple_summary_branch branch="$BRANCH"
             m simple_summary_container name="$CONTAINER_NAME"
             m simple_summary_port port="$PORT"
-            m simple_summary_time time="$(date '+%Y-%m-%d %H:%M:%S')"
+            m simple_summary_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ""
             m simple_access_url url="http://${{ secrets.SERVER_HOST }}:${PORT}"
 
