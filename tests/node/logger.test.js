@@ -1,5 +1,6 @@
 // tests/node/logger.test.js
 // 설치 로그 재설계 — 로거 코어 회귀.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";

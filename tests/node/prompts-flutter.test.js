@@ -1,6 +1,7 @@
 // Flutter 마법사 선택지 3개(환경변수 방식·스토어 배포 대상·배포 모드)와 수정 메뉴 항목.
 // node --test 실행 환경은 stdin이 TTY가 아니므로 readline-engine이 initialIndex/initialValues를
 // 그대로 돌려준다 — "질문 없이 넘어갈 때의 값"이 곧 각 함수의 기본값이다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import {

@@ -1,6 +1,7 @@
 // tests/node/copilot-ai-option.test.js
 // Copilot AI 요약 opt-in 옵션(copilot_ai). 기본값은 항상 false이고,
 // 저장값이 있으면 재질문하지 않으며, 키가 없는 기존 설치는 조용히 true가 되지 않는다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";

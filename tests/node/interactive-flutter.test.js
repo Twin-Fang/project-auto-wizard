@@ -3,6 +3,7 @@
 // 저장값이 있으면 재질문하지 않으며, 기존 설치는 설치된 스토어 워크플로우로 초기 선택을 추론한다.
 // 스텁 io 방식은 interactive-branch-strategy.test.js와 같다. 답변은 version.yml(저장)과
 // 설치된 워크플로우 파일(스토어 필터)로 검증한다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";

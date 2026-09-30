@@ -1,5 +1,6 @@
 // 문서·도움말의 명령 예시가 현재 파서로 그대로 실행 가능한지 확인한다.
 // 모드·옵션을 없애거나 이름을 바꿀 때 예시가 함께 갱신되지 않으면 여기서 걸린다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";

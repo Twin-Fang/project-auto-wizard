@@ -1,3 +1,4 @@
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { hooksFor, typeInfo, mergeHookResults } from "../../src/core/types.js";

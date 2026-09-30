@@ -1,5 +1,6 @@
 // tests/node/logger-copy.test.js
 // 파일별 복사 결정이 사유와 함께 로그에 남는지 회귀.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";

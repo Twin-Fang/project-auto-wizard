@@ -1,4 +1,5 @@
 // tests/node/args-validation.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";

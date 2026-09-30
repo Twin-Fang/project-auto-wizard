@@ -1,5 +1,6 @@
 // tests/node/branch-empty-remote.test.js
 // 빈 원격(remote add만 하고 push 전)·원격 없음에서의 릴리스/개발 브랜치 처리.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { execFileSync } from "node:child_process";

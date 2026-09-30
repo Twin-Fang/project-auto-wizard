@@ -1,6 +1,7 @@
 // tests/node/install-settings.test.js
 // 설치 설정 해석 단계 공통화 — CLI(--force)와 대화형(기본 답변)이 같은 레포에서 같은 설치 결과를 내고,
 // 대화형 질문의 순서·문구가 바뀌지 않는지 고정한다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";

@@ -1,4 +1,5 @@
 // tests/node/summary-output.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { printSummary } from "../../src/ui/summary.js";

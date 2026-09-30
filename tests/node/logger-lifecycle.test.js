@@ -1,5 +1,6 @@
 // tests/node/logger-lifecycle.test.js
 // 진입점 배선 — 어떤 모드가 로그를 남기고 어떤 모드가 남기지 않는지 회귀.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
