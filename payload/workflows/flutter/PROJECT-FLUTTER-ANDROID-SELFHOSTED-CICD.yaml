@@ -1,46 +1,46 @@
 # project-auto-wizard:managed-workflow
-# Flutter Android 자체 서버(SMB) 배포 워크플로우
+# Flutter Android self-hosted server (SMB) deploy workflow
 #
-# {{MAIN_BRANCH}} 브랜치 푸시 시 Android APK를 빌드하고
-# 자체 서버(예: Synology NAS·NAS·Linux)의 SMB 공유에 APK를 배포합니다.
+# On a push to the {{MAIN_BRANCH}} branch, builds the Android APK and
+# deploys it to an SMB share on your own server (e.g. Synology NAS, Linux).
 #
-# 필수 GitHub Secrets
-# ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
-# DEBUG_KEYSTORE (선택): 서명용 keystore (base64, 비밀번호 android · alias androiddebugkey) — 없으면 빌드마다 새 debug 키로 서명
+# Required GitHub Secrets
+# ENV_FILE or ENV: contents of the .env file (either one; ENV_FILE takes precedence)
+# DEBUG_KEYSTORE (선택): signing keystore (base64, password android, alias androiddebugkey) - if missing, each build is signed with a fresh debug key
 # GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
-# SERVER_HOST: 서버 호스트(SMB 접속 주소)
-# SERVER_USER: SMB 사용자명
-# SERVER_PASSWORD: SMB 비밀번호
+# SERVER_HOST: server host (SMB address)
+# SERVER_USER: SMB user name
+# SERVER_PASSWORD: SMB password
 
 name: PROJECT-Android-SelfHosted-CICD
 
 on:
   push:
     branches: ["{{MAIN_BRANCH}}"]
-    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
-  workflow_dispatch: # 수동 실행 옵션 추가
+    # @wizard paths-anchor (in a monorepo the installer injects a paths filter here)
+  workflow_dispatch: # add a manual run option
 
-# 프로젝트별 설정 (아래 값들을 수정하세요)
+# Project settings (edit the values below)
 env:
-  # 프로젝트 이름 (APK 파일명, 아티팩트명, 히스토리 파일명에 사용)
+  # Project name (used in the APK file name, artifact name, and history file name)
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
-  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
-  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  # Flutter SDK version - leave empty to use the latest stable channel (matches the SDK constraint of a fresh flutter create project).
+  # To pin a version, write it like "3.38.9". It must satisfy the environment.sdk range in pubspec.yaml.
   FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
-  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
+  # Flutter root path (relative to the repo root): "." for a single repo, "app" etc. for a monorepo - set automatically at install
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
-  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  # How env vars are passed (dart-define | dotenv) - set automatically from the install-time choice
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
-  # SMB 서버 설정 (자체 서버 — Synology NAS·Linux 등)
-  SMB_PORT: "44445" # 기본 445
+  # SMB server settings (your own server - Synology NAS, Linux, etc.)
+  SMB_PORT: "44445" # default 445
   SMB_SHARE: "web"
-  SMB_PATH_IOS: "/your-project/ios/download" # SMB 경로: /{APP_ARTIFACT_NAME}/ios/download 형식으로 사용
+  SMB_PATH_IOS: "/your-project/ios/download" # SMB path: used in the form /{APP_ARTIFACT_NAME}/ios/download
 jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    # CHANGELOG 워크플로우가 성공한 경우에만 실행
+    # Run only when the CHANGELOG workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     defaults:
       run:
@@ -52,52 +52,54 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 업로드 Secret이 없으면 빌드를 다 마친 뒤 SMB 업로드에서야 실패하므로, 빠진 이름을 먼저 알려 주고 멈춘다
-      # 배포 job과 같은 조건 — 배포하지 않는 브랜치의 수동 실행은 빌드만 한다
-      # DEBUG_KEYSTORE·GOOGLE_SERVICES_JSON은 선택이라 점검하지 않는다
-      - name: 배포 사전 점검 (Secret)
+      # Without the upload Secrets the run would only fail at the SMB upload after the whole build, so report the missing names first and stop
+      # Same condition as the deploy job - a manual run on a non-deploy branch only builds
+      # DEBUG_KEYSTORE and GOOGLE_SERVICES_JSON are optional, so they are not checked
+      - name: Pre-deploy check (Secrets)
         if: github.ref == 'refs/heads/{{MAIN_BRANCH}}'
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in SERVER_HOST SERVER_USER SERVER_PASSWORD; do
             [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
           done
           if [ -n "$MISSING" ]; then
-            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            echo "::error title=$(m flutter_a.precheck_missing_title)::$(m flutter_a.precheck_missing_body missing="$MISSING")"
             exit 1
           fi
-          echo "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다"
+          m flutter_a.precheck_passed
 
       - name: List repository contents
         run: |
           echo "Repository checked out"
           ls -la
 
-      # Debug Keystore 설정 — 이 워크플로우는 DEBUG_KEYSTORE(비밀번호 android, alias androiddebugkey)로 서명한다
+      # Debug keystore setup - this workflow signs with DEBUG_KEYSTORE (password android, alias androiddebugkey)
       - name: Setup Debug Keystore
         id: signing
         env:
           DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
-          # 내부 배포용이라 Secret이 없어도 빌드는 진행한다 — 러너가 새로 만든 debug 키로 서명되므로
-          # 빌드마다 서명이 달라져 기존 설치본 위에 업데이트할 수 없다는 점을 경고로 남긴다.
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # This is for internal distribution, so the build proceeds even without the Secret - the runner signs with a freshly created debug key,
+          # so the signature differs per build and cannot update an existing install; leave that as a warning.
           if [ -z "$DEBUG_KEYSTORE" ]; then
-            echo "::warning::DEBUG_KEYSTORE Secret이 비어 있어 러너 기본 debug 키로 서명합니다 (빌드마다 서명이 달라집니다)"
+            echo "::warning::$(m flutter_a.debug_keystore_empty)"
             echo "mode=default" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # 값이 있는데 깨진 keystore는 조용히 넘기지 않고 여기서 실패한다
+          # A keystore that is set but broken is not skipped silently; fail here
           mkdir -p ~/.android
           printf '%s' "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore
           keytool -list -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
           echo "mode=keystore" >> "$GITHUB_OUTPUT"
-          echo "Debug Keystore created (DEBUG_KEYSTORE로 서명)"
+          m flutter_a.debug_keystore_created
 
-      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -116,7 +118,7 @@ jobs:
         if: steps.signing.outputs.mode == 'keystore'
         run: |
           mkdir -p android/app/keystore
-          # 앞 단계에서 검증한 keystore를 그대로 쓴다
+          # Reuse the keystore validated in the previous step
           cp ~/.android/debug.keystore android/app/keystore/key.jks
           echo "Keystore created from DEBUG_KEYSTORE"
           ls -la android/app/keystore
@@ -127,7 +129,7 @@ jobs:
           echo "key.properties created"
           ls -la android/
 
-      # google-services.json 생성 (선택) — 비어 있으면 빈 파일을 만들지 않는다
+      # Create google-services.json (optional) - no empty file is written when the Secret is empty
       - name: Create google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -181,12 +183,13 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # The default flutter create .gitignore does not commit gradlew - flutter build creates it when missing
           if [ -f gradlew ]; then
             chmod +x gradlew
             echo "Gradle wrapper permissions set"
           else
-            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+            m flutter_a.gradlew_missing
           fi
 
       - name: Set up Java
@@ -203,6 +206,7 @@ jobs:
       - name: Get version info and calculate short commit hash
         id: version_info
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           CURRENT_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
           VERSION=$(echo $CURRENT_VERSION | cut -d'+' -f1)
           BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
@@ -213,10 +217,10 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "SHORT_COMMIT_HASH=$SHORT_COMMIT_HASH" >> $GITHUB_ENV
 
-          echo "현재 버전: $CURRENT_VERSION"
-          echo "짧은 커밋 해시: $SHORT_COMMIT_HASH"
+          m flutter_a.current_version current_version="$CURRENT_VERSION"
+          m flutter_a.short_commit_hash short_commit_hash="$SHORT_COMMIT_HASH"
 
-      # APK 빌드 (릴리스 빌드 유지 — flutter로 직접 빌드)
+      # APK build (keeps the release build - built directly with flutter)
       - name: Build APK
         run: |
           flutter build apk --release ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}

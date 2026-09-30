@@ -1,56 +1,56 @@
 # project-auto-wizard:managed-workflow
-# Flutter iOS TestFlight 자동 배포 워크플로우
+# Flutter iOS TestFlight deploy workflow
 #
-# 이 워크플로우는 Flutter iOS 앱을 빌드하여 TestFlight에 자동 배포합니다.
+# Builds the Flutter iOS app and deploys it to TestFlight automatically.
 #
-# 설정 파일(ios/fastlane/Fastfile, ios/ExportOptions.plist)은 project-auto-wizard가
-# 없을 때만 설치하며, 이미 있으면 덮어쓰지 않습니다.
+# The config files (ios/fastlane/Fastfile, ios/ExportOptions.plist) are installed by
+# project-auto-wizard only when missing; existing files are never overwritten.
 #
-# 빌드 파이프라인:
-#   1. flutter build ios --no-codesign (Flutter 빌드)
-#   2. xcodebuild archive (Xcode 아카이브 생성)
-#   3. xcodebuild -exportArchive (IPA 생성, ExportOptions.plist 사용)
-#   4. fastlane deploy (ios/fastlane/Fastfile 사용, DEPLOY_MODE에 따라 TestFlight/심사 제출)
+# Build pipeline:
+#   1. flutter build ios --no-codesign (Flutter build)
+#   2. xcodebuild archive (create the Xcode archive)
+#   3. xcodebuild -exportArchive (create the IPA using ExportOptions.plist)
+#   4. fastlane deploy (uses ios/fastlane/Fastfile; TestFlight or review submission depending on DEPLOY_MODE)
 #
-# 필수 GitHub Secrets
+# Required GitHub Secrets
 #
-# Apple 인증서 & 프로비저닝 프로파일:
-# APPLE_CERTIFICATE_BASE64: .p12 인증서 (base64 인코딩)
-# APPLE_CERTIFICATE_PASSWORD: .p12 인증서 비밀번호
-# APPLE_PROVISIONING_PROFILE_BASE64: .mobileprovision 파일 (base64 인코딩)
-# IOS_PROVISIONING_PROFILE_NAME: 프로비저닝 프로파일 이름
+# Apple certificate & provisioning profile:
+# APPLE_CERTIFICATE_BASE64: .p12 certificate (base64 encoded)
+# APPLE_CERTIFICATE_PASSWORD: .p12 certificate password
+# APPLE_PROVISIONING_PROFILE_BASE64: .mobileprovision file (base64 encoded)
+# IOS_PROVISIONING_PROFILE_NAME: provisioning profile name
 #
 # App Store Connect API:
-# APP_STORE_CONNECT_API_KEY_ID: API Key ID (10자리)
-# APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID 형식)
-# APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 파일 (base64 인코딩)
-# IOS_BUNDLE_ID (Secret 우선, 없으면 Variable): 앱 번들 ID —
-#   store_prepare/store_submit을 쓰면 필수(비어 있으면 Fastfile이 명확한 오류로 중단)
+# APP_STORE_CONNECT_API_KEY_ID: API Key ID (10 characters)
+# APP_STORE_CONNECT_ISSUER_ID: Issuer ID (UUID format)
+# APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 file (base64 encoded)
+# IOS_BUNDLE_ID (Secret first, otherwise Variable): app bundle ID —
+#   required when using store_prepare/store_submit (the Fastfile stops with a clear error if empty)
 #
-# 환경 설정 (선택):
-# ENV_FILE (선택): .env 파일 내용
-# SECRETS_XCCONFIG (선택): ios/Flutter/Secrets.xcconfig 내용
+# Environment settings (optional):
+# ENV_FILE (선택): contents of the .env file
+# SECRETS_XCCONFIG (선택): contents of ios/Flutter/Secrets.xcconfig
 #
-# 초기 설정 방법
+# Initial setup
 #
-# 1. GitHub Secrets 설정 (위 목록 참고)
+# 1. Configure the GitHub Secrets (see the list above)
 #
-# 2. ios/ExportOptions.plist의 플레이스홀더(팀 ID·번들 ID·프로비저닝 프로파일 이름)를 채워 커밋:
+# 2. Fill in the placeholders in ios/ExportOptions.plist (team ID, bundle ID, provisioning profile name) and commit:
 #    git add ios/
-#    git commit -m "chore: iOS TestFlight 배포 설정"
+#    git commit -m "chore: add iOS TestFlight deploy settings"
 #
-# 3. {{MAIN_BRANCH}} 브랜치로 푸시하여 배포 시작
+# 3. Push to the {{MAIN_BRANCH}} branch to start a deploy
 
 name: PROJECT-iOS-TestFlight-Deploy
 
 on:
   push:
     branches: ["{{MAIN_BRANCH}}"]
-    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
+    # @wizard paths-anchor (in a monorepo the installer injects a paths filter here)
   workflow_dispatch:
     inputs:
       deploy_mode:
-        description: "배포 모드 (store_only=TestFlight까지 / store_prepare=ASC 제출직전 / store_submit=심사 자동제출)"
+        description: "Deploy mode (store_only=up to TestFlight / store_prepare=right before ASC submission / store_submit=auto-submit for review)"
         required: false
         default: "store_only"  # @wizard auto:ios-deploy-mode
         type: choice
@@ -59,30 +59,30 @@ on:
           - store_prepare
           - store_submit
 
-# 프로젝트별 설정 (아래 값들을 수정하세요)
+# Project settings (edit the values below)
 env:
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
-  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  # How env vars are passed (dart-define | dotenv) — set automatically from the value chosen at install
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
-  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
-  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  # Flutter SDK version — leave empty to use the latest stable channel (matches the SDK constraint of a fresh flutter create project).
+  # To pin a version, write it like "3.38.9". It must satisfy environment.sdk in pubspec.yaml.
   FLUTTER_VERSION: ""
   XCODE_VERSION: "26.0"
   PROJECT_TYPE: "flutter"
 
-  # 환경 파일 설정
-  # dotenv 모드에서 .env 파일을 만들 경로 (Flutter 루트 기준)
+  # Env file settings
+  # Where to create the .env file in dotenv mode (relative to the Flutter root)
   ENV_FILE_PATH: ".env"
 
-  # TestFlight Changelog 설정
+  # TestFlight changelog settings
   SKIP_WAITING_FOR_BUILD_PROCESSING: "false"
 
-  # 배포 모드 (store_only | store_prepare | store_submit)
+  # Deploy mode (store_only | store_prepare | store_submit)
   DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.IOS_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:ios-deploy-mode
 
 jobs:
   prepare-build:
-    name: 환경 설정 및 준비
+    name: Set up environment
     runs-on: macos-26
     defaults:
       run:
@@ -104,8 +104,8 @@ jobs:
       - name: Pull latest changes
         run: git pull origin {{MAIN_BRANCH}}
 
-      # 인증서 import·빌드 전에 설정 누락을 한 번에 알려 준다 — 없으면 macOS 러너에서 한참 빌드한 뒤에야 엉뚱한 단계에서 실패한다
-      - name: 배포 설정 사전 검증
+      # Report every missing setting up front, before importing certificates or building — otherwise the macOS runner builds for a long time and fails at an unrelated step
+      - name: Validate deploy settings
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
@@ -114,6 +114,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           FAILED=0
           MISSING=""
           for name in APPLE_CERTIFICATE_BASE64 APPLE_PROVISIONING_PROFILE_BASE64 IOS_PROVISIONING_PROFILE_NAME \
@@ -121,23 +122,23 @@ jobs:
             [ -n "${!name}" ] || MISSING="$MISSING $name"
           done
           if [ -n "$MISSING" ]; then
-            echo "::error::필수 GitHub Secret이 비어 있습니다:$MISSING (워크플로우 상단 주석 참고)"
+            echo "::error::$(m ios_testflight.secrets_missing missing="$MISSING")"
             FAILED=1
           fi
           if [ ! -f ios/ExportOptions.plist ]; then
-            echo "::error::ios/ExportOptions.plist가 없습니다 — 저장소에 추가(커밋)하세요."
+            echo "::error::$(m ios_testflight.export_options_missing)"
             FAILED=1
           elif grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist; then
-            echo "::error::ios/ExportOptions.plist에 채워지지 않은 플레이스홀더가 남아 있습니다 — 팀 ID·번들 ID·프로비저닝 프로파일 이름으로 바꿔 커밋하세요."
+            echo "::error::$(m ios_testflight.export_options_placeholders)"
             grep -En '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist
             FAILED=1
           fi
           if [ ! -f ios/fastlane/Fastfile ]; then
-            echo "::error::ios/fastlane/Fastfile이 없습니다 — 저장소에 추가(커밋)하세요."
+            echo "::error::$(m ios_testflight.fastfile_missing_error)"
             FAILED=1
           fi
           [ "$FAILED" -eq 0 ] || exit 1
-          echo "✅ 배포 설정 확인 완료"
+          m ios_testflight.preflight_ok
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -195,18 +196,20 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # A default project without plugins has no Podfile — flutter build creates one once a plugin is added
           if [ -f ios/Podfile ]; then
             gem install cocoapods
             (cd ios && pod install)
           else
-            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+            m ios_testflight.podfile_skip
           fi
 
-      - name: 현재 버전 정보 가져오기
+      - name: Get current version
         id: current_version
-        working-directory: ${{ github.workspace }}   # version_manager.py가 레포 루트 version.yml을 읽어야 함
+        working-directory: ${{ github.workspace }}   # version_manager.py must read version.yml at the repo root
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           BUILD_NUMBER=$(python3 .github/scripts/version_manager.py get-code | tail -n 1)
 
@@ -214,12 +217,13 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "project_type=${{ env.PROJECT_TYPE }}" >> $GITHUB_OUTPUT
 
-          echo "📋 버전: $VERSION (빌드번호: $BUILD_NUMBER)"
+          m ios_testflight.version_info version="$VERSION" build="$BUILD_NUMBER"
 
-      - name: 릴리즈 노트 생성
+      - name: Generate release notes
         id: release_notes
-        working-directory: ${{ github.workspace }}   # CHANGELOG.json·changelog_manager.py·final_release_notes.txt(upload 짝)는 레포 루트 기준
+        working-directory: ${{ github.workspace }}   # CHANGELOG.json, changelog_manager.py and final_release_notes.txt (paired with the upload step) are relative to the repo root
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION="${{ steps.current_version.outputs.version }}"
 
           if [ -f "CHANGELOG.json" ]; then
@@ -230,11 +234,11 @@ jobs:
               echo "RELEASE_NOTES_FOUND=true" >> $GITHUB_ENV
             else
               echo "RELEASE_NOTES_FOUND=false" >> $GITHUB_ENV
-              echo "v$VERSION 업데이트" > final_release_notes.txt
+              m ios_testflight.default_notes version="$VERSION" > final_release_notes.txt
             fi
           else
             echo "RELEASE_NOTES_FOUND=false" >> $GITHUB_ENV
-            echo "v$VERSION 업데이트" > final_release_notes.txt
+            m ios_testflight.default_notes version="$VERSION" > final_release_notes.txt
           fi
 
       - name: Upload release notes
@@ -257,9 +261,9 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # iOS 빌드 (xcodebuild 직접 사용)
+  # iOS build (uses xcodebuild directly)
   build-ios:
-    name: iOS 앱 빌드
+    name: Build iOS app
     runs-on: macos-26
     defaults:
       run:
@@ -281,7 +285,7 @@ jobs:
 
       - name: Install iOS device platform
         env:
-          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
           echo "=== iPhoneOS.platform check ==="
@@ -345,12 +349,13 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # A default project without plugins has no Podfile — flutter build creates one once a plugin is added
           if [ -f ios/Podfile ]; then
             gem install cocoapods
             (cd ios && pod install)
           else
-            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+            m ios_testflight.podfile_skip
           fi
 
       - name: Import Code-Signing Certificates
@@ -369,21 +374,22 @@ jobs:
 
       - name: Verify ExportOptions.plist
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cd ios
           if [ ! -f "ExportOptions.plist" ]; then
             exit 1
           fi
-          # 설치기가 만든 템플릿의 플레이스홀더를 채우지 않으면 xcodebuild가 이해하기 어려운 오류로 끝난다
+          # If the placeholders in the installer-generated template are not filled in, xcodebuild ends with a hard-to-read error
           if grep -Eq '__[A-Z][A-Z0-9_]*__' ExportOptions.plist; then
-            echo "❌ ios/ExportOptions.plist에 채워지지 않은 플레이스홀더가 남아 있습니다:"
+            m ios_testflight.plist_placeholders
             grep -En '__[A-Z][A-Z0-9_]*__' ExportOptions.plist
-            echo "팀 ID·번들 ID·프로비저닝 프로파일 이름으로 바꿔 커밋한 뒤 다시 실행하세요."
+            m ios_testflight.plist_placeholders_hint
             exit 1
           fi
 
       - name: Flutter build (no codesign)
         env:
-          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
           flutter build ios --release --no-codesign \
@@ -394,7 +400,7 @@ jobs:
       - name: Create Archive
         env:
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
-          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
           cd ios
@@ -423,9 +429,9 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # TestFlight 배포 (ios/fastlane/Fastfile 사용)
+  # TestFlight deploy (uses ios/fastlane/Fastfile)
   deploy-testflight:
-    name: TestFlight 배포
+    name: Deploy to TestFlight
     runs-on: macos-26
     defaults:
       run:
@@ -458,21 +464,23 @@ jobs:
 
       - name: Verify Fastfile exists
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ ! -f "ios/fastlane/Fastfile" ]; then
-            echo "❌ ios/fastlane/Fastfile이 없습니다!"
-            echo "ios/fastlane/Fastfile을 저장소에 추가(커밋)하세요. 필요한 Secrets는 워크플로우 상단 주석을 참고하세요."
+            m ios_testflight.fastfile_missing
+            m ios_testflight.fastfile_missing_hint
             exit 1
           fi
-          echo "✅ Fastfile 확인됨: ios/fastlane/Fastfile"
+          m ios_testflight.fastfile_ok
 
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/ios
         run: |
-          # 저장소의 Gemfile에 fastlane이 있으면 그대로 쓴다 (Gemfile.lock 커밋 권장). 없으면 생성한다.
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # Use the repository's Gemfile as-is if it lists fastlane (committing Gemfile.lock is recommended). Otherwise generate one.
           if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
-            echo "ℹ️ 저장소의 Gemfile을 사용합니다"
+            m ios_testflight.gemfile_repo
           else
-            # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+            # multi_json: works around an upstream bug where a google-apis transitive dependency omits it from its gemspec (Gem::LoadError)
             printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
           fi
           bundle install
@@ -484,24 +492,25 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           SKIP_WAITING_FOR_BUILD_PROCESSING: ${{ env.SKIP_WAITING_FOR_BUILD_PROCESSING }}
         run: |
-          # IPA 절대경로 탐색
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # Find the IPA by absolute path
           IPA_PATH=$(find "$GITHUB_WORKSPACE/${FLUTTER_PROJECT_DIR}/ios/build/ipa" -name "*.ipa" | head -1)
           echo "📦 Found IPA at: $IPA_PATH"
 
           if [ ! -f "$IPA_PATH" ]; then
-            echo "❌ IPA 파일을 찾을 수 없습니다!"; ls -la ios/build/ipa/ || true; exit 1
+            m ios_testflight.ipa_missing; ls -la ios/build/ipa/ || true; exit 1
           fi
 
-          # Release notes 준비 (final_release_notes.txt·truncate 스크립트는 레포 루트 기준 — working-directory가 FLUTTER_PROJECT_DIR이므로 절대경로 사용)
+          # Prepare release notes (final_release_notes.txt and the truncate script are relative to the repo root — use absolute paths since working-directory is FLUTTER_PROJECT_DIR)
           if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]; then
-            # App Store Connect "What to Test" 한도(4000 바이트)에 맞춰 절단 (마진 두어 3800byte)
+            # Truncate to the App Store Connect "What to Test" limit (4000 bytes), with a margin (3800 bytes)
             python3 "$GITHUB_WORKSPACE/.github/scripts/truncate_release_notes.py" "$GITHUB_WORKSPACE/final_release_notes.txt" 3800 byte
             RELEASE_NOTES=$(cat "$GITHUB_WORKSPACE/final_release_notes.txt")
             echo "📝 Release Notes:"
             echo "$RELEASE_NOTES"
           else
-            RELEASE_NOTES="v${{ needs.prepare-build.outputs.version }} 업데이트"
-            echo "📝 기본 Release Notes: $RELEASE_NOTES"
+            RELEASE_NOTES="$(m ios_testflight.default_notes version="${{ needs.prepare-build.outputs.version }}")"
+            m ios_testflight.default_notes_echo notes="$RELEASE_NOTES"
           fi
 
           export APP_STORE_CONNECT_API_KEY_ID="${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
@@ -521,13 +530,15 @@ jobs:
       - name: Notify TestFlight Upload Success
         if: success()
         run: |
-          echo "✅ TestFlight 업로드 성공!"
-          echo "📱 버전: ${{ needs.prepare-build.outputs.version }}"
-          echo "🔢 빌드번호: ${{ needs.prepare-build.outputs.build_number }}"
-          echo "📝 커밋: ${{ github.sha }}"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m ios_testflight.upload_ok
+          m ios_testflight.upload_version version="${{ needs.prepare-build.outputs.version }}"
+          m ios_testflight.upload_build build="${{ needs.prepare-build.outputs.build_number }}"
+          m ios_testflight.upload_commit sha="${{ github.sha }}"
 
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "❌ TestFlight 업로드 실패!"
-          echo "로그를 확인해주세요."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m ios_testflight.upload_failed
+          m ios_testflight.check_logs
