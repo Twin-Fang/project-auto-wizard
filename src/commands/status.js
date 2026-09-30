@@ -1,11 +1,12 @@
 // status command: read-only install state check. No network access (local file comparison only).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseExisting } from "../core/version-yml.js";
+import { parseExisting, droppedPathLines } from "../core/version-yml.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
 import { PATHS } from "../core/paths.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
+import { findMissingScripts } from "../core/copy/simple.js";
 import { findStaleWorkflows } from "../core/removal-plan.js";
 import { readBaseline } from "../core/baseline.js";
 import { hooksFor, mergeHookResults } from "../core/types.js";
@@ -56,6 +57,9 @@ export function runStatus(payloadRoot, targetRoot = ".") {
       removed: plan.removed.map((f) => f.filename),            // deleted by the user and not restored
     },
     staleFiles: stale,
+    // Installed scripts the workflows need but the repo no longer has; the workflow comparison above cannot see them.
+    missingScripts: findMissingScripts(payloadRoot, targetRoot),
+    droppedPaths: existing.droppedPaths,
   };
 }
 
@@ -88,6 +92,15 @@ export function printStatus(status) {
   if (status.staleFiles?.length) {
     lines.push("", t("cmd.status.stale", { n: status.staleFiles.length }));
     for (const f of status.staleFiles) lines.push(`  - ${f}`);
+  }
+
+  if (status.missingScripts?.length) {
+    lines.push("", t("cmd.status.missingScripts", { n: status.missingScripts.length, dir: PATHS.scriptsDir }));
+    for (const f of status.missingScripts) lines.push(`  - ${f}`);
+    lines.push(t("cmd.status.missingScriptsFix"));
+  }
+  if (status.droppedPaths?.length) {
+    lines.push("", ...droppedPathLines(status.droppedPaths).map((l) => `⚠️  ${l}`));
   }
 
   // What an update would do. Installs without a baseline are all zeros, so nothing is printed.

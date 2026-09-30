@@ -24,6 +24,12 @@ export function planScripts(payloadRoot, targetRoot = ".") {
   return out;
 }
 
+// Bundled scripts that are absent from the repo (deleted by hand or never copied). Workflows call them by path,
+// so a missing one only surfaces as a raw python error in the middle of a run.
+export function findMissingScripts(payloadRoot, targetRoot = ".") {
+  return planScripts(payloadRoot, targetRoot).filter((s) => s.action === "create").map((s) => s.name);
+}
+
 // Scripts are always overwritten with the payload version (+chmod, meaningless but harmless on Windows).
 // User-edited scripts are overwritten too, so per-file results are returned for the caller to log.
 export function copyScripts(payloadRoot, targetRoot = ".") {
