@@ -87,12 +87,13 @@ export function mergeWizardPrompts(base, override) {
   const fields = new Map([...base.fields].map(([k, v]) => [k, { ...v }]));
   for (const [key, entry] of override.fields) {
     const merged = { ...(fields.get(key) || {}) };
-    for (const [f, v] of Object.entries(entry)) {
-      if (v == null || v === "") continue;
-      // A plain field written by the user must win in every language, so bundled variants of it are dropped.
+    const given = Object.entries(entry).filter(([, v]) => v != null && v !== "");
+    // A plain field written by the user must win in every language, so the bundled variants of it are dropped.
+    // This runs before any user value is applied, so the user's own variants survive whatever order they were written in.
+    for (const [f] of given) {
       if (!/_[a-z]{2}$/.test(f)) for (const k of Object.keys(merged)) if (k.startsWith(`${f}_`)) delete merged[k];
-      merged[f] = v;
     }
+    for (const [f, v] of given) merged[f] = v;
     fields.set(key, merged);
   }
   // A plain user name replaces the bundled name of every language (the user wrote it for their own repo);

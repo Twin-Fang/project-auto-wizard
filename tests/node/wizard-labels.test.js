@@ -244,3 +244,28 @@ test("printFieldCard: default (en) prints English question text, ko prints the o
     assert.match(ko, /password 또는 key/);
   } finally { setLanguage(before); }
 });
+
+test("mergeWizardPrompts: user variants survive in either write order, only bundled variants are dropped", async () => {
+  const { mergeWizardPrompts } = await import("../../src/core/wizard-labels.js");
+  const base = parseWizardPrompts(`K:\n  label: "B"\n  label_ko: "번들"\n  help: "H"\n  help_ko: "번들 도움"\n  example: "e"\n  example_ko: "번들 예"\n`);
+  for (const order of [["label_ko", "label"], ["label", "label_ko"]]) {
+    const lines = order.map((f) => `  ${f}: "${f === "label" ? "My name" : "내 이름"}"`).join("\n");
+    const merged = mergeWizardPrompts(base, parseWizardPrompts(`K:\n${lines}\n`));
+    assert.strictEqual(wfField(merged, "x", "K", "label", "ko"), "내 이름", order.join(","));
+    assert.strictEqual(wfField(merged, "x", "K", "label", "en"), "My name", order.join(","));
+    // Untouched fields keep the bundled variants.
+    assert.strictEqual(wfField(merged, "x", "K", "help", "ko"), "번들 도움");
+  }
+  // Same pattern for every suffixed field.
+  for (const f of ["label", "help", "example"]) {
+    for (const order of [[`${f}_ko`, f], [f, `${f}_ko`]]) {
+      const lines = order.map((k) => `  ${k}: "${k.endsWith("_ko") ? "사용자 ko" : "user en"}"`).join("\n");
+      const merged = mergeWizardPrompts(base, parseWizardPrompts(`K:\n${lines}\n`));
+      assert.strictEqual(wfField(merged, "x", "K", f, "ko"), "사용자 ko", `${f} ${order}`);
+      assert.strictEqual(wfField(merged, "x", "K", f, "en"), "user en", `${f} ${order}`);
+    }
+  }
+  // A plain-only user value still overrides the bundled Korean text.
+  const plainOnly = mergeWizardPrompts(base, parseWizardPrompts(`K:\n  label: "Mine"\n`));
+  assert.strictEqual(wfField(plainOnly, "x", "K", "label", "ko"), "Mine");
+});
