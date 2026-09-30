@@ -32,6 +32,7 @@ src/
     deploy-style.js          server deploy style filter (simple / nginx / traefik / none)
     flutter-options.js       Flutter env mode, store targets, store deploy modes
     flutter-hooks.js         Flutter's type hooks (workflow filter, cleanup, app files, status, doctor) wired in types.js
+    flutter-doctor.js        Flutter doctor checks, called through the doctorChecks hook
     removal-plan.js          what counts as "installed by the wizard" (uninstall, purge, stale cleanup)
     version-yml.js           version.yml render/parse
     verify.js                post-install checks (unsubstituted tokens, required secrets)
