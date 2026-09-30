@@ -237,6 +237,7 @@ jobs:
       branch_name: ${{ steps.issue_info.outputs.branch_name }}
       pr_number: ${{ steps.test_version.outputs.pr_number }}
       commit_hash: ${{ steps.release_notes.outputs.commit_hash }}
+      commit_sha: ${{ steps.release_notes.outputs.commit_sha }}
 
     steps:
       # Fetch the message catalog from the triggering ref first — the feature branch being built may predate it
@@ -415,11 +416,13 @@ jobs:
           m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           BUILD_NUMBER="${{ steps.test_version.outputs.build_number }}"
           BRANCH_NAME="$PAW_BRANCH_NAME"
-          COMMIT_SHA="${{ github.sha }}"
+          # github.sha is the default-branch commit for repository_dispatch; report the commit actually checked out
+          COMMIT_SHA=$(git rev-parse HEAD)
           COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
           BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           echo "commit_hash=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
           {
             m ios_test_tf.notes_build build="$BUILD_NUMBER"
@@ -1077,7 +1080,7 @@ jobs:
             m ios_test_tf.upload_pr pr="${{ needs.prepare-test-build.outputs.pr_number }}"
           fi
           m ios_test_tf.upload_branch branch="$PAW_BRANCH_NAME"
-          m ios_test_tf.upload_commit sha="${{ github.sha }}"
+          m ios_test_tf.upload_commit sha="${{ needs.prepare-test-build.outputs.commit_sha }}"
           if [ -n "${{ needs.prepare-test-build.outputs.issue_url }}" ]; then
             m ios_test_tf.upload_issue url="${{ needs.prepare-test-build.outputs.issue_url }}"
           fi
