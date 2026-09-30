@@ -1,0 +1,263 @@
+# project-auto-wizard:managed-workflow
+%%HEADER%%
+#
+# GitHub Secrets
+#   ENV_FILE: .env 파일 내용
+#   DOCKERHUB_USERNAME: DockerHub 사용자명
+#   DOCKERHUB_TOKEN: DockerHub 액세스 토큰
+#   SERVER_HOST: 배포 서버 주소
+#   SERVER_USER: SSH 사용자명
+#   SERVER_PASSWORD: SSH 비밀번호 (SSH_AUTH_METHOD=password일 때)
+#   SSH_KEY: SSH 개인키 .pem 내용 (SSH_AUTH_METHOD=key일 때, AWS EC2 등)
+#   PROJECT_DEPLOY_PORT (선택): 배포 포트 (기본: 3000)
+#
+# 환경변수 (env 섹션에서 설정)
+#   SSH_AUTH_METHOD: SSH 인증 방식 password | key (기본: password)
+#   SSH_PORT (기본: 2022), SSH_COMMAND_TIMEOUT (기본: 600s), SSH_CONNECTION_TIMEOUT (기본: 60s)
+
+name: PROJECT-%%TYPE_UPPER%%-CICD
+
+on:
+  push:
+    branches:
+      - "{{MAIN_BRANCH}}"
+    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
+  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  PROJECT_PATH: "."  # @wizard auto:project-path
+  DOCKER_IMAGE_PREFIX: "%%IMAGE_PREFIX%%"
+  NODE_VERSION: "20.15.0"
+  ENV_FILE_NAME: ".env"
+
+  # SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
+  #   password → SERVER_PASSWORD secret 사용
+  #   key      → SSH_KEY secret 사용 (.pem 파일 전체 내용을 secret 값으로)
+  SSH_AUTH_METHOD: "password"  # @wizard ask:password
+
+  SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
+  SSH_COMMAND_TIMEOUT: "600s"  # SSH 명령 실행 타임아웃
+  SSH_CONNECTION_TIMEOUT: "60s"  # SSH 연결 타임아웃
+
+jobs:
+  build:
+    name: %%BUILD_JOB_NAME%%
+    runs-on: ubuntu-latest
+    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT_PATH }}
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v7
+
+      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
+      - name: 배포 사전 점검 (Secret·Dockerfile)
+        working-directory: ${{ env.PROJECT_PATH }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOCKERFILE: Dockerfile
+        run: |
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          FAILED=false
+          if [ -n "$MISSING" ]; then
+            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            FAILED=true
+          fi
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            FAILED=true
+          fi
+          if [ "$FAILED" = "true" ]; then
+            exit 1
+          fi
+          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/package-lock.json
+
+      - name: 환경변수 파일 생성 (${{ env.ENV_FILE_NAME }})
+        run: |
+          cat << 'EOF' > ./${{ env.ENV_FILE_NAME }}
+          ${{ secrets.ENV_FILE || secrets.ENV }}
+          EOF
+          echo "✅ ${{ env.ENV_FILE_NAME }} 파일 생성 완료"
+
+      - name: npm 의존성 캐싱
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: node_modules 캐싱
+        id: node-modules-cache
+        uses: actions/cache@v6
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: 의존성 설치
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Next.js 빌드 캐싱
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.PROJECT_PATH }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Build with npm
+        run: npm run build
+
+      - name: Docker 빌드환경 설정
+        uses: docker/setup-buildx-action@v3
+
+      - name: DockerHub 로그인
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Cache Docker layers
+        uses: actions/cache@v6
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile') }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Docker 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.PROJECT_PATH }}
+          file: ${{ env.PROJECT_PATH }}/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_NAME }}-${{ env.DOCKER_IMAGE_PREFIX }}:${{ github.ref_name }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Move Docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  deploy:
+    name: 원격 서버 배포
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SSH_AUTH_METHOD: ${{ env.SSH_AUTH_METHOD }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ env.SSH_PORT }}
+          command_timeout: ${{ env.SSH_COMMAND_TIMEOUT }}
+          timeout: ${{ env.SSH_CONNECTION_TIMEOUT }}
+          envs: SSH_AUTH_METHOD
+          script: |
+            set -e
+
+            # 배포 환경 변수 설정
+            echo "🔧 환경변수 설정.."
+            export PATH=$PATH:/usr/local/bin
+            export PW=${{ secrets.SERVER_PASSWORD }}
+
+            # SSH 인증 방식에 따른 sudo 추상화
+            #   password 모드: echo $PW | sudo -S  (Synology 등 sudo 비밀번호 필요 서버)
+            #   key 모드: sudo 직접  (AWS EC2 등 passwordless sudo 서버)
+            SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
+            if [ "${SSH_AUTH_METHOD}" = "key" ]; then
+              SUDO() { sudo "$@"; }
+            else
+              SUDO() { echo "$PW" | sudo -S "$@"; }
+            fi
+            echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
+
+            %%DEPLOY_VARS%%
+
+            %%BRANCH_BLOCK%%
+
+            %%CONFIG_COMMENT%%
+            echo "📋 배포 설정 정보:"
+            echo "  - 브랜치: $BRANCH"
+            echo "  - 프로젝트: $PROJECT_NAME"
+            echo "  - 컨테이너 이름: $CONTAINER_NAME"
+            echo "  - 포트: $PORT"
+            echo "  - Docker 이미지: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}"
+
+            # Docker 이미지 풀 (Pull)
+            echo "⬇️ Docker 이미지 풀%%PULL_MSG%%"
+            SUDO docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}
+
+            # 기존 컨테이너 정리
+            echo "🧹 컨테이너 $CONTAINER_NAME 존재 여부 확인 중..."
+
+            %%EXISTING_COMMENT%%
+            if SUDO docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
+              echo "⚠️ 컨테이너 $CONTAINER_NAME 이(가) 존재합니다. 중지 및 삭제 중..."
+              SUDO docker rm -f $CONTAINER_NAME
+              echo "✅ 컨테이너 $CONTAINER_NAME 이(가) 삭제되었습니다."
+            else
+              echo "ℹ️ 존재하는 컨테이너 $CONTAINER_NAME 이(가) 없습니다."
+            fi
+
+            # 새 컨테이너 실행
+            echo "🚀 새로운 컨테이너 $CONTAINER_NAME 실행 중..."
+
+            %%RUN_COMMENT%%
+            SUDO docker run -d \
+              -p ${PORT}:3000 \
+              --name $CONTAINER_NAME \
+              -e TZ=Asia/Seoul \
+              %%RUN_ENV%%
+              -v /etc/localtime:/etc/localtime:ro \
+              %%RUN_RESTART%%
+              ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}
+
+            # 배포 완료 확인
+            echo "✅ 배포가 성공적으로 완료되었습니다!"
+            echo ""
+            echo "📋 배포 결과 요약:"
+            echo "  🎯 프로젝트: $PROJECT_NAME"
+            echo "  🌿 브랜치: $BRANCH"
+            echo "  🐳 컨테이너: $CONTAINER_NAME"
+            echo "  🌐 포트: $PORT"
+            echo "  ⏰ 배포 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo ""
+            echo "🔗 접속 URL: http://${{ secrets.SERVER_HOST }}:${PORT}"
+
+%%FOOTER%%
