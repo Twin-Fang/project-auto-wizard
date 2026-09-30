@@ -1,4 +1,5 @@
 // tests/node/dry-run.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, readdirSync, readFileSync } from "node:fs";

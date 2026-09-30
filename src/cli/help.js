@@ -1,6 +1,7 @@
 import { TYPE_IDS } from "../core/types.js";
+import { t, getLanguage, SUPPORTED_LANGUAGES } from "../i18n/index.js";
 
-// 지원 타입 목록 — 레지스트리 순서대로 한 줄 40자 안쪽에서 줄바꿈하고, 이어지는 줄은 "지원: " 뒤에 맞춘다.
+// Supported type list: wrapped at 40 characters per line in registry order; continuation lines align after the "Supported:" label.
 function typeListLines(width = 40) {
   const lines = [];
   for (const id of TYPE_IDS) {
@@ -11,44 +12,9 @@ function typeListLines(width = 40) {
   return lines.join(`\n${" ".repeat(33)}`);
 }
 
-// --help 텍스트.
-export const HELP_TEXT = `project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 설치 마법사
-
-사용법:
-  npx project-auto-wizard [옵션]
-
-옵션:
-  -m, --mode MODE          통합 모드 (full | uninstall | status | doctor)
-                           기본: interactive (대화형). full = 설치 및 업데이트
-                           uninstall = 완전 삭제(대화형 체크리스트, --force 시 --purge-*로 opt-in)
-                           status = 설치 상태·드리프트 확인(읽기 전용). doctor = 환경 진단(읽기 전용)
-  -t, --type CSV           프로젝트 타입 csv (예: spring,react,python)
-                           지원: ${typeListLines()}
-      --project-version V  통합 대상의 초기 버전 (예: 1.0.0). 미지정 시 자동 감지
-      --paths "t=p,..."    타입별 프로젝트 경로 (모노레포). 예: flutter=app,react=client
-      --main-branch B      릴리스 브랜치 (기본: 감지된 default branch)
-      --develop-branch B   개발 브랜치 (기본: develop). 릴리스 브랜치와 같으면 trunk-based 모드
-      --deploy-style STYLE           서버 배포 방식: simple | nginx | traefik | none (기본: simple)
-      --flutter-env-mode MODE        Flutter 환경변수 방식: dart-define | dotenv (기본: 신규 설치 dart-define, 기존 설치는 저장값·dotenv 유지)
-      --flutter-store CSV            Flutter 스토어 배포 대상: android,ios | android | ios | none (기본: 둘 다 설치)
-      --android-deploy-mode MODE     Play Store 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
-      --ios-deploy-mode MODE         iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
-      --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
-      --copilot / --no-copilot  Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비)
-      --lang LANG          메시지 언어: en | ko (기본: en)
-      --force              full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용)
-      --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
-      --purge-readme        --mode uninstall --force 시 README.md 버전 섹션도 제거
-      --purge-gitignore     --mode uninstall --force 시 .gitignore 자동 추가 항목도 제거
-      --purge-version       --mode uninstall --force 시 version.yml도 제거
-  -v, --version            project-auto-wizard 버전 출력
-  -h, --help               이 도움말 표시
-
-예시:
-  npx project-auto-wizard --mode full --force --type spring,react
-  npx project-auto-wizard --mode full --force --type flutter --paths "flutter=app"
-  npx project-auto-wizard --mode status
-  npx project-auto-wizard --mode doctor
-  npx project-auto-wizard --mode full --force --type node --dry-run
-  npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignore --purge-version
-`;
+// --help text. Built lazily because the language is only resolved after import time;
+// `lang` lets callers (docs checks) render a specific language regardless of the current one.
+export const helpText = (lang = getLanguage()) => t("cli.help.text", {
+  types: typeListLines(),
+  langHelp: t("cli.lang.help", { supported: SUPPORTED_LANGUAGES.join(" | ") }, lang),
+}, lang);

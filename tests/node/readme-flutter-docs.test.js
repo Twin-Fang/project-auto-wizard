@@ -1,6 +1,7 @@
 // tests/node/readme-flutter-docs.test.js
 // Flutter 문서에 빠지면 안 되는 항목과 doctor가 링크하는 앵커를 가드한다.
 // Flutter 상세는 문서 사이트(한국어)의 Flutter 페이지와 CLI 레퍼런스에 있다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";

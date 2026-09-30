@@ -1,17 +1,18 @@
-// 첫 화면 배너 — 클래식 박스형
+// First-screen banner - classic boxed style
 import { A, paint, visualWidth } from "./ansi.js";
+import { t } from "../i18n/index.js";
 
-const INNER = 56; // 박스 내부 폭
+const INNER = 56; // inner box width
 
 function boxLine(out, content = "") {
   const pad = Math.max(0, INNER - visualWidth(content));
   out(paint("║", A.cyan) + content + " ".repeat(pad) + paint("║", A.cyan) + "\n");
 }
 
-// 대화형 첫 화면 배너 — 박스 타이틀 + 메타 4줄
+// Interactive first-screen banner - boxed title + meta lines
 export function printBanner({ version, modeLabel }, out = (s) => process.stderr.write(s), columns = process.stderr.columns) {
   out("\n");
-  // 상자보다 좁은 터미널에서는 테두리가 접혀 모양이 무너지므로 상자 없이 제목만 찍는다.
+  // On terminals narrower than the box the border wraps and breaks the shape, so print just the title.
   if (columns && columns < INNER + 2) {
     out(`${paint("✦", A.yellow)} ${paint("PROJECT AUTO WIZARD", A.bold)}\n`);
   } else {
@@ -27,7 +28,7 @@ export function printBanner({ version, modeLabel }, out = (s) => process.stderr.
   out("\n");
 }
 
-// 비대화형(--force/CI) 축약 배너 — 1줄 (사용자 확정: 로그 오염 최소 + 버전 추적)
+// Compact banner for non-interactive (--force/CI) runs - one line (minimal log noise, keeps the version traceable)
 export function printBannerCompact({ version, mode }, out = (s) => process.stderr.write(s)) {
-  out(`${paint("✦", A.yellow)} ${paint("project-auto-wizard", A.bold)} v${version} — ${mode} 모드 (--force)\n`);
+  out(`${paint("✦", A.yellow)} ${paint("project-auto-wizard", A.bold)} v${version} — ${t("ui.banner.compact", { mode })}\n`);
 }

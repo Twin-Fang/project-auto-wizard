@@ -1,6 +1,7 @@
 // tests/node/detect-monorepo-paths.test.js
 // 루트에 마커가 없는 모노레포: 옵션 없이 실행하면 하위 폴더를 안내하고,
 // --paths만 주면 그 타입으로 설치해야 한다(basic + project_paths 모순 상태 금지).
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";

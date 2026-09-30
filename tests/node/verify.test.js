@@ -1,6 +1,7 @@
 // tests/node/verify.test.js
 // 설치 후 검증·필요 Secret 안내 회귀.
 // 실행 로그 관련 회귀는 logger*.test.js로 분리됐다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";

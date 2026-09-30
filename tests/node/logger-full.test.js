@@ -1,5 +1,6 @@
 // tests/node/logger-full.test.js
 // full 파이프라인 전 구간이 로그에 남는지 회귀.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";

@@ -2,6 +2,7 @@
 // 같은 설치를 다시 돌리거나 업스트림 갱신을 받을 때 결과가 흔들리지 않아야 한다.
 //  - 무변경 재실행: version.yml deploy 블록·필요 Secret·기록 파일이 그대로
 //  - 자동 갱신: 설치 때 답한 배포 값(deploy 블록)이 템플릿 기본값으로 되돌아가지 않음
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync } from "node:fs";

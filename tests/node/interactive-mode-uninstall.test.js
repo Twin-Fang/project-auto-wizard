@@ -1,4 +1,5 @@
 // tests/node/interactive-mode-uninstall.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs";

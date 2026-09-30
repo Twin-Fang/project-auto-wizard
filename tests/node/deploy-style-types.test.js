@@ -3,6 +3,7 @@
 //  - none: 모든 타입에서 서버 배포 워크플로우(CD·react/next 단일 CD·PR 프리뷰)를 설치하지 않는다
 //  - nginx/traefik: 무중단 워크플로우가 없는 타입(python·go·react·next)은 단일 서버 배포로 설치하고 알린다
 //  - 첫 설치에서 방금 쓴 파일을 "사용자 수정본"으로 오인해 .bak으로 옮기지 않는다
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";

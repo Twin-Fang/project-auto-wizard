@@ -1,5 +1,6 @@
 // tests/node/install-writable.test.js
 // 설치 대상 폴더에 쓸 수 없으면 아무것도 쓰기 전에 읽을 수 있는 에러로 멈춰야 한다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";

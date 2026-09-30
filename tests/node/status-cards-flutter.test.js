@@ -3,6 +3,7 @@
 // printAnalysisCard(src/ui/status-cards.js)가 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포
 // 모드)을 직접 렌더링하는지 단위로 검증한다. interactive.js의 summarize() fallback이 아니라
 // io.analysisCard가 항상 쓰는 이 함수 자체를 대상으로 한다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { printAnalysisCard } from "../../src/ui/status-cards.js";

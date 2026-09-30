@@ -1,0 +1,19 @@
+// English messages: copy area (src/core/copy).
+export default {
+  "copy.readme.status.added": "Appended version section to the end of README.md",
+  "copy.readme.status.skipNoReadme": "README.md not found; version section not added",
+  "copy.readme.status.skipMarker": "Version section already present; left as is",
+  "copy.readme.status.skipVersionLine": "Version line already present; left as is",
+  "copy.readme.versionHeading": "## Latest Version : v{version}",
+  "copy.readme.historyLink": "[View full version history](CHANGELOG.md)",
+  "copy.gitignore.newFileHeader": "# project-auto-wizard: backup files created during conflict handling (safe to ignore)",
+  "copy.workflows.error.noPayloadWorkflows": "Package structure error: could not find the payload/workflows folder.",
+  "copy.workflows.log.keepLocal": "{f} (upstream unchanged, keeping user-edited copy)",
+  "copy.workflows.log.autoUpdate": "{f} (not modified by user, replaced with latest)",
+  "copy.workflows.log.restore": "{f} (deleted by user, restore chosen)",
+  "copy.workflows.log.removedKept": "{f} (deleted by user, not restored)",
+  "copy.workflows.log.backup": "{filename} → {filename}.bak (user decision, replaced with new version)",
+  "copy.workflows.log.template": "{filename} kept + {templateName} created (user decision)",
+  "copy.workflows.log.skipDecided": "{filename} (user decision: keep existing, upstream changes not applied)",
+  "copy.workflows.log.skipForce": "{filename} (--force default: keep existing, upstream changes not applied)",
+};

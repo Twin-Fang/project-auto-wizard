@@ -1,8 +1,9 @@
-// 타입 전용 앱 파일(사용자 소유, 없을 때만 생성) 설치 — 타입 훅(planAppFiles/copyAppFiles)을 돌려 합친다.
-// 어떤 파일이 대상인지는 훅이 정하므로 여기서는 타입 이름을 알지 못한다.
+// Installs type-specific app files (user-owned, created only when missing) by running the type hooks
+// (planAppFiles/copyAppFiles) and merging their results.
+// Which files are targeted is decided by the hooks, so this module knows no type names.
 import { hooksFor, typeInfo } from "../types.js";
 
-// 읽기 전용 — dry-run이 쓴다. 반환: { created:[], kept:[] }
+// Read-only, used by dry-run. Returns { created:[], kept:[] }
 export function planTypeAppFiles(context, payloadRoot, targetRoot = ".") {
   const result = { created: [], kept: [] };
   for (const { hook } of hooksFor(context.types || [], "planAppFiles")) {
@@ -13,7 +14,7 @@ export function planTypeAppFiles(context, payloadRoot, targetRoot = ".") {
   return result;
 }
 
-// onFile(tag, action, relPath): 파일마다 호출되는 로그 콜백. 반환: { created:[], kept:[] }
+// onFile(tag, action, relPath): log callback invoked per file. Returns { created:[], kept:[] }
 export function copyTypeAppFiles(context, payloadRoot, targetRoot = ".", onFile = () => {}) {
   const result = { created: [], kept: [] };
   for (const { id, hook } of hooksFor(context.types || [], "copyAppFiles")) {

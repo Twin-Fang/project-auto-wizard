@@ -1,3 +1,3 @@
-// 사용자 입력 오류 — 호출부(index.js)가 스택 없이 메시지만 출력하고 exit 1로 끝낸다.
-// core 모듈도 던지므로 cli가 아닌 core에 둔다(core → cli 역참조 방지).
+// User input error - the caller (index.js) prints only the message, no stack, and exits 1.
+// Core modules throw it too, so it lives in core rather than cli (avoids a core -> cli back-reference).
 export class CliError extends Error {}

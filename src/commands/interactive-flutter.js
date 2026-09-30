@@ -1,21 +1,22 @@
-// 대화형 마법사의 Flutter 옵션 질문 — 환경변수 방식 · 스토어 배포 대상 · 배포 모드.
-// 상태는 { envMode, stores, androidDeployMode, iosDeployMode } 불변 객체로 주고받는다.
-//   envMode·*DeployMode의 ""와 stores의 null = 미결정 (stores의 빈 배열 = "스토어 배포 안 함"으로 이미 결정됨).
-// 이미 결정된 값은 다시 묻지 않는다 (version.yml 저장값 재질문 생략 규약). ESC(취소)는 항상 기본값:
-// 처음 묻는 질문이면 기본값, 수정 중이면 현재값을 유지한다.
+// Flutter option questions of the interactive wizard - env mode, store deploy targets, deploy mode.
+// State is passed around as an immutable { envMode, stores, androidDeployMode, iosDeployMode } object.
+//   "" for envMode/*DeployMode and null for stores mean undecided (an empty stores array means "no store deploy", already decided).
+// Already-decided values are not asked again (convention: saved version.yml values skip the question). ESC (cancel) always means default:
+// the default for a first-time question, the current value while editing.
 import {
   isEnvMode, isDeployMode, parseStoreList, STORE_PLATFORMS, DEFAULT_DEPLOY_MODE,
 } from "../core/flutter-options.js";
 import { deployModeWarning } from "../ui/prompts.js";
+import { t } from "../i18n/index.js";
 
 export const FLUTTER_EDIT_ITEMS = new Set(["envMode", "flutterStore", "deployMode"]);
 
 const DEPLOY_MODE_KEY = { android: "androidDeployMode", ios: "iosDeployMode" };
 
-// STORE_PLATFORMS 순서로 정렬하고 모르는 값은 버린다 — 플랫폼별 질문 순서를 고정한다.
+// Sort by STORE_PLATFORMS order and drop unknown values - keeps the per-platform question order fixed.
 const normalizeStores = (picked) => STORE_PLATFORMS.filter((platform) => picked.includes(platform));
 
-// 기존 version.yml의 저장값을 상태로 옮긴다. 잘못된 값은 저장이 없는 것으로 보고 다시 묻는다.
+// Move the saved values of the existing version.yml into state. Invalid values are treated as not saved and asked again.
 export function savedFlutterState(existing) {
   const options = existing?.options ?? {};
   return {
@@ -28,13 +29,13 @@ export function savedFlutterState(existing) {
 
 async function askDeployMode(io, platform, initialValue) {
   const picked = await io.selectDeployMode({ platform, initialValue });
-  const mode = isDeployMode(picked) ? picked : initialValue; // ESC = 기본값
+  const mode = isDeployMode(picked) ? picked : initialValue; // ESC = default
   const warning = deployModeWarning(mode);
-  if (warning) io.note?.(warning, "배포 모드");
+  if (warning) io.note?.(warning, t("interactive.flutter.deployModeTitle"));
   return mode;
 }
 
-// 고른 플랫폼 중 배포 모드가 아직 없는 것만 묻는다.
+// Ask only for chosen platforms that have no deploy mode yet.
 async function askUnsetDeployModes(io, state) {
   const next = { ...state };
   for (const platform of state.stores ?? []) {
@@ -44,23 +45,23 @@ async function askUnsetDeployModes(io, state) {
   return next;
 }
 
-// 아직 정해지지 않은 옵션만 묻는다.
-//   envModeDefault  — 신규 설치 dart-define / 기존 설치 dotenv (동작 보존)
-//   inferredStores  — 저장값 없는 기존 설치가 이미 쓰던 스토어 (신규 설치는 CLI 기본값과 같은 전체)
+// Ask only the options that are not decided yet.
+//   envModeDefault  - dart-define for new installs / dotenv for existing installs (preserves behaviour)
+//   inferredStores  - stores an existing install without saved values already used (new installs get all, same as the CLI default)
 export async function askUnsetFlutterOptions(io, state, { envModeDefault, inferredStores }) {
   const next = { ...state };
   if (!next.envMode) {
     const picked = await io.selectEnvMode({ initialValue: envModeDefault });
-    next.envMode = isEnvMode(picked) ? picked : envModeDefault; // ESC = 기본값
+    next.envMode = isEnvMode(picked) ? picked : envModeDefault; // ESC = default
   }
   if (next.stores === null) {
     const picked = await io.selectFlutterStores({ initialValues: inferredStores });
-    next.stores = Array.isArray(picked) ? normalizeStores(picked) : inferredStores; // ESC = 초기 선택
+    next.stores = Array.isArray(picked) ? normalizeStores(picked) : inferredStores; // ESC = initial selection
   }
   return askUnsetDeployModes(io, next);
 }
 
-// 수정하기 메뉴에서 고른 항목 하나를 다시 묻는다. 현재값이 초기 선택이고 ESC는 현재값 유지.
+// Re-ask one item chosen in the edit menu. The current value is the initial selection and ESC keeps it.
 export async function editFlutterOption(io, what, state, envModeDefault) {
   if (what === "envMode") {
     const picked = await io.selectEnvMode({ initialValue: state.envMode || envModeDefault });
@@ -70,18 +71,18 @@ export async function editFlutterOption(io, what, state, envModeDefault) {
     const picked = await io.selectFlutterStores({ initialValues: state.stores ?? [] });
     if (!Array.isArray(picked)) return state;
     const stores = normalizeStores(picked);
-    // 해제된 플랫폼의 배포 모드는 초기화한다 — 그대로 두면 재선택 시 옛 값이 남아 다시 묻지 않는다.
+    // Reset the deploy mode of deselected platforms - otherwise the old value survives re-selection and is never asked again.
     const reset = { ...state, stores };
     for (const platform of STORE_PLATFORMS) {
       if (!stores.includes(platform)) reset[DEPLOY_MODE_KEY[platform]] = "";
     }
-    // 새로 추가되거나 방금 초기화된 플랫폼만 배포 모드를 묻는다 — 이미 정한 플랫폼의 모드는 그대로 둔다.
+    // Ask the deploy mode only for platforms newly added or just reset - modes of already-decided platforms are kept.
     return askUnsetDeployModes(io, reset);
   }
   if (what === "deployMode") {
     const stores = state.stores ?? [];
     if (!stores.length) {
-      io.note?.("스토어 배포 대상을 먼저 선택하세요 ('스토어 배포 대상' 항목).", "배포 모드");
+      io.note?.(t("interactive.flutter.storeFirst"), t("interactive.flutter.deployModeTitle"));
       return state;
     }
     const next = { ...state };

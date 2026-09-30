@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { t, setLanguage, getLanguage, resolveLanguage, SUPPORTED_LANGUAGES } from "../../src/i18n/index.js";
 import { CATALOGS } from "../../src/i18n/catalog/index.js";
 import { parseArgs, CliError } from "../../src/cli/args.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 import { parseExisting, buildVersionYml } from "../../src/core/version-yml.js";
 import { readVersionYmlTemplate } from "../../src/core/assets.js";
 import { run } from "../../src/index.js";
@@ -79,7 +79,7 @@ test("parseArgs: --lang accepts en/ko (case-insensitive) and rejects the rest", 
 });
 
 test("help lists --lang", () => {
-  assert.match(HELP_TEXT, /--lang LANG/);
+  assert.match(helpText(), /--lang LANG/);
 });
 
 // ── version.yml persistence ──────────────────────────────

@@ -1,6 +1,7 @@
 // tests/node/stale-workflows.test.js
 // payload에서 이름이 바뀌거나 빠진 옛 워크플로우는 업데이트 때 정리한다 — 남겨두면 옛 트리거로 계속 돈다.
 // 규칙은 배포 방식 정리와 같다: 손대지 않은 파일은 삭제, 손댄 파일은 .bak, 마법사가 설치한 기록이 없는 파일은 그대로.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";

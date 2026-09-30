@@ -1,10 +1,11 @@
 // 문서·도움말의 명령 예시가 현재 파서로 그대로 실행 가능한지 확인한다.
 // 모드·옵션을 없애거나 이름을 바꿀 때 예시가 함께 갱신되지 않으면 여기서 걸린다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "../../src/cli/args.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
 
@@ -24,7 +25,7 @@ function extractCommands(text) {
 
 const README_FILES = ["README.md", "README.ko.md", "README.zh-CN.md", "README.ja.md"];
 
-for (const [name, text] of [["--help", HELP_TEXT], ...README_FILES.map((f) => [f, read(f)]), ["CONTRIBUTING.md", read("CONTRIBUTING.md")]]) {
+for (const [name, text] of [["--help", helpText()], ...README_FILES.map((f) => [f, read(f)]), ["CONTRIBUTING.md", read("CONTRIBUTING.md")]]) {
   test(`${name}의 명령 예시는 모두 현재 파서로 해석된다`, () => {
     const cmds = extractCommands(text);
     assert.ok(cmds.length > 0, "예시를 하나 이상 찾아야 한다");
@@ -35,7 +36,7 @@ for (const [name, text] of [["--help", HELP_TEXT], ...README_FILES.map((f) => [f
 }
 
 test("문서와 도움말에 제거된 모드·옵션이 남아 있지 않다", () => {
-  const docs = { "--help": HELP_TEXT, ...Object.fromEntries(README_FILES.map((f) => [f, read(f)])), "ROADMAP.md": read("ROADMAP.md") };
+  const docs = { "--help": helpText(), ...Object.fromEntries(README_FILES.map((f) => [f, read(f)])), "ROADMAP.md": read("ROADMAP.md") };
   for (const [name, text] of Object.entries(docs)) {
     for (const stale of ["--mode workflows", "--mode version", "--mode revert", "full/version/workflows", "--no-nexus", "--no-secret-backup"]) {
       assert.ok(!text.includes(stale), `${name}에 '${stale}'가 남아 있다`);

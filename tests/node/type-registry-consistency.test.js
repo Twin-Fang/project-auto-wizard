@@ -1,3 +1,4 @@
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -5,7 +6,7 @@ import { join } from "node:path";
 import { VALID_TYPES } from "../../src/context.js";
 import { ALL_TYPES } from "../../src/ui/prompts.js";
 import { markerForType } from "../../src/core/paths-resolve.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 import {
   TYPES, TYPE_IDS, BUILD_NUMBER_TYPES, SINGLE_SERVER_CD_FILES,
 } from "../../src/core/types.js";
@@ -41,7 +42,7 @@ test("basic을 제외한 모든 타입에 대표 마커가 있다 (paths-resolve
 
 test("--help 지원 타입 목록이 VALID_TYPES와 같다", () => {
   // "지원:" 줄부터 다음 옵션 줄(--로 시작) 직전까지가 타입 목록이다.
-  const m = HELP_TEXT.match(/지원:([\s\S]*?)\n\s*(?:-\w, )?--/);
+  const m = helpText().match(/지원:([\s\S]*?)\n\s*(?:-\w, )?--/);
   assert.ok(m, "--help에서 '지원:' 목록을 찾지 못함");
   assert.deepStrictEqual(typeTokens(m[1]), VALID);
 });

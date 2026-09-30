@@ -1,4 +1,5 @@
 // tests/node/readme-remove.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync } from "node:fs";
@@ -159,3 +160,19 @@ test("addVersionSectionToReadme: CRLF로 끝나는 README에는 줄을 더 넣�
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+// A README that already has a version heading without the marker (hand-written or from an older
+// install) must not get a second section appended - in the en default format and the ko one.
+for (const heading of ["## Latest Version : v1.0.0", "## Current version : v1.0.0", "## recent-version : v1.0.0", "## 최신 버전 : v1.0.0"]) {
+  test(`addVersionSectionToReadme: skips when the README already has "${heading}" without a marker`, () => {
+    const target = mkdtempSync(join(tmpdir(), "paw-readme-vline-"));
+    try {
+      const original = `# my-app\n\n${heading}\n`;
+      writeFileSync(join(target, "README.md"), original);
+      addVersionSectionToReadme("1.0.0", target);
+      assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), original);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+}

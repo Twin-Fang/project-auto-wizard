@@ -1,5 +1,6 @@
 // tests/node/interactive-branch-picker.test.js
 // pickBranch()가 select()에 정렬된 options와 initialIndex를 넘기는지 검증.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { pickBranch } from "../../src/commands/interactive.js";

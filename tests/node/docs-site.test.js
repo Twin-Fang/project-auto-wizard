@@ -1,7 +1,7 @@
 // tests/node/docs-site.test.js
 // 문서 사이트(website/)가 CLI·패키지와 어긋나지 않는지 확인한다.
 //   ① 사이트의 명령 예시가 현재 파서로 해석된다 (옵션 이름을 바꾸고 사이트를 잊는 경우)
-//   ② CLI 레퍼런스에 옮겨 둔 --help 출력이 실제 HELP_TEXT와 같다
+//   ② CLI 레퍼런스에 옮겨 둔 --help 출력이 실제 helpText()와 같다
 //   ③ 사이트 파일이 루트 `node --test` 기본 탐색 패턴에 걸리지 않는다
 //   ④ 사이트가 루트 패키지(의존성 0, npm files)와 Pages 워크플로우 트리거에 섞이지 않는다
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../../src/cli/args.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const DOCS_DIR = join(REPO_ROOT, "website", "src", "content", "docs");
@@ -44,11 +44,11 @@ test("문서 사이트의 명령 예시는 모두 현재 파서로 해석된다"
 });
 
 test("CLI 레퍼런스의 --help 블록은 실제 도움말과 같다", () => {
-  for (const rel of ["reference/cli.md", "ko/reference/cli.md"]) {
+  for (const [rel, lang] of [["reference/cli.md", "en"], ["ko/reference/cli.md", "ko"]]) {
     const text = readFileSync(join(DOCS_DIR, rel), "utf8");
     const m = text.match(/```text\n([\s\S]*?)\n```/);
     assert.ok(m, `${rel}: --help 코드 블록이 없다`);
-    assert.strictEqual(m[1], HELP_TEXT.replace(/\n+$/, ""), `${rel}: --help 출력과 다르다 — 도움말을 바꿨다면 문서도 갱신하세요`);
+    assert.strictEqual(m[1], helpText(lang).replace(/\n+$/, ""), `${rel}: --help 출력과 다르다 — 도움말을 바꿨다면 문서도 갱신하세요`);
   }
 });
 

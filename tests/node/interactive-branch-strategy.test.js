@@ -1,6 +1,7 @@
 // tests/node/interactive-branch-strategy.test.js
 // 브랜치 전략(pr-flow/trunk-based)을 먼저 명시적으로 선택한 뒤,
 // trunk-based면 개발 브랜치 질문을 생략하는지 검증한다.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
