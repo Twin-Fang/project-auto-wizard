@@ -14,7 +14,7 @@ description: React·Next.js 프로젝트의 CI와 CI/CD 워크플로우.
 | `PROJECT-REACT-CI` | 개발 브랜치 PR·push, `workflow_dispatch` | `npm ci`, `npm test`(`test` 스크립트가 있을 때), `npm run build`. `node_modules`와 Next.js 빌드(`.next/cache`)를 캐싱하고, 빌드가 `.next`를 만들었으면 그 크기를 출력. 마지막에 `ci-gate` job. |
 | `PROJECT-REACT-CICD` | 릴리스 브랜치 push, `workflow_dispatch` | Docker 이미지 빌드 후 SSH로 배포. 컨테이너는 `NODE_ENV=production`과 `--restart unless-stopped`로 실행되고 이름은 `<프로젝트>-front-deploy` |
 
-이전 버전은 Next.js 프로젝트에 `PROJECT-NEXT-CI`·`PROJECT-NEXT-CICD`를 설치했습니다. 업데이트하면 React 워크플로우로 교체되며, 수정하지 않은 파일은 삭제되고 수정한 파일은 `.bak`으로 보존됩니다. 배포 컨테이너 이름이 `<프로젝트>-nextjs-deploy`에서 `<프로젝트>-front-deploy`로 바뀌므로, 업데이트 후 첫 배포에서 기존 컨테이너 옆에 새 컨테이너가 뜹니다. 서버에서 이전 컨테이너를 직접 정리하세요.
+이전 버전은 Next.js 프로젝트에 `PROJECT-NEXT-CI`·`PROJECT-NEXT-CICD`를 설치했습니다. 업데이트하면 React 워크플로우로 교체되며, 수정하지 않은 파일은 삭제되고 수정한 파일은 `.bak`으로 보존됩니다. 배포 컨테이너 이름이 `<프로젝트>-nextjs-deploy`에서 `<프로젝트>-front-deploy`로, 이미지 접두어가 `nextjs-container`에서 `front-container`로 바뀌므로 업데이트 후 첫 배포에서 새 이미지를 받습니다. 워크플로우가 새 컨테이너를 띄우기 전에 이전 `nextjs` 컨테이너를 자동으로 지우며, 이전 이미지는 직접 삭제하기 전까지 서버에 남습니다.
 
 ### 배포 방식
 
