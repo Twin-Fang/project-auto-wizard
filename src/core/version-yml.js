@@ -139,6 +139,8 @@ export function parseExisting(content) {
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
+  // The unsupported value that was written (null when the key is absent or valid), so callers can tell "no key" from "unknown value"
+  const languageUnsupported = langRaw && !language ? langRaw : null;
   // project_paths block: `  type: "path"`
   const paths = new Map();
   // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
@@ -190,7 +192,7 @@ export function parseExisting(content) {
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
+    version, versionCode, types, language, languageUnsupported, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }

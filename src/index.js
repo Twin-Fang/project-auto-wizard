@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError, TYPE_CLI_FLAGS } from "./cli/args.js";
 import { helpText } from "./cli/help.js";
-import { resolveLanguage, setLanguage, t, DEFAULT_LANGUAGE, LANG_ENV_VAR, normalizeLanguage } from "./i18n/index.js";
+import { resolveLanguage, setLanguage, t, DEFAULT_LANGUAGE, LANG_ENV_VAR, SUPPORTED_LANGUAGES, normalizeLanguage } from "./i18n/index.js";
 import { fallbackStyleTypes } from "./core/deploy-style.js";
 import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
@@ -102,14 +102,19 @@ async function runInner(argv, {
   let language;
   try {
     const savedVy = join(cwd, "version.yml");
-    const saved = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")).language : null;
+    const savedParsed = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")) : null;
+    const saved = savedParsed?.language ?? null;
     language = resolveLanguage({ flag: opts.lang, env: process.env[LANG_ENV_VAR], saved });
     // An existing install without a saved language now falls back to English: say so once, since
-    // its workflow messages switch from Korean on the next update.
+    // its workflow messages switch from Korean on the next update. A hand-edited unknown value also
+    // falls back to English, but it was never the old default, so it gets its own wording.
     const existingWithoutLanguage = existsSync(savedVy) && !saved;
     const unspecified = !normalizeLanguage(opts.lang) && !normalizeLanguage(process.env[LANG_ENV_VAR]);
     if (existingWithoutLanguage && unspecified && ["full", "interactive"].includes(opts.mode)) {
-      console.error(t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
+      const unknown = savedParsed?.languageUnsupported;
+      console.error(unknown
+        ? t("cli.lang.unsupportedSavedNotice", { value: unknown, supported: SUPPORTED_LANGUAGES.join(", ") }, DEFAULT_LANGUAGE)
+        : t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
     }
   } catch (e) {
     if (e instanceof CliError) { console.error(e.message); return 1; }

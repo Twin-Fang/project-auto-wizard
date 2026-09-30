@@ -180,6 +180,21 @@ test("update of a version.yml without language prints the default-language notic
   }
 });
 
+test("an unsupported saved language gets its own notice, not the 'now default to English' one", async () => {
+  const dir = makeRepo();
+  try {
+    assert.strictEqual(await install(dir), 0);
+    const p = join(dir, "version.yml");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^language:.*$/m, 'language: "fr"'));
+    const out = await capturedInstall(dir);
+    assert.ok(out.includes(t("cli.lang.unsupportedSavedNotice", { value: "fr", supported: "en, ko" }, "en")), out);
+    assert.ok(!out.includes(NOTICE), "must not read as if the install used to be Korean");
+    assert.ok(!(await capturedInstall(dir)).includes("'fr'"), "the value is normalized on update, so the notice appears once");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("no notice when --lang or the environment variable decides the language", async () => {
   const dir = makeRepo();
   try {
