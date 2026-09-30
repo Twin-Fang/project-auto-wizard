@@ -5,8 +5,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { setLanguage } from "../../src/i18n/index.js";
-import { runDoctor, printDoctorReport, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
+import { runDoctor, printDoctorReport, doctorExitCode, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -456,6 +457,28 @@ test("runDoctor: Copilot guidance shows the actual copilot_ai value from version
     assert.match(noteFor(opts("true")), /켜져 있습니다 \(version\.yml의 copilot_ai: true\)/);
     assert.match(noteFor(opts("false")), /꺼져 있습니다 \(version\.yml의 copilot_ai: false\)/);
     assert.match(noteFor('version: "1.0.0"\n'), /기본은 꺼져 있습니다/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("doctorExitCode: 0 without problems (INFO does not count), 1 for any WARN or FAIL", () => {
+  assert.strictEqual(doctorExitCode([]), 0);
+  assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "INFO" }]), 0);
+  assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "WARN" }]), 1);
+  assert.strictEqual(doctorExitCode([{ status: "FAIL" }, { status: "WARN" }]), 1);
+  // The all-healthy fixture (remote checks included) is a clean run.
+  assert.strictEqual(doctorExitCode(runDoctor(REPO_ROOT, { exec: fakeExec(ALL_OK_EXEC) })), 0);
+});
+
+test("--mode doctor exits 1 when a problem is found (gh missing from PATH -> WARN)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    // An empty PATH makes `gh --version` fail; node itself is started by its absolute path.
+    const r = spawnSync(process.execPath, [join(REPO_ROOT, "bin", "project-auto-wizard.js"), "--mode", "doctor"], {
+      cwd: dir, encoding: "utf8", env: { ...process.env, PATH: "", PROJECT_AUTO_WIZARD_LANG: "en" },
+    });
+    assert.strictEqual(r.status, 1, r.stdout + r.stderr);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

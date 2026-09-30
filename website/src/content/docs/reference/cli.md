@@ -37,6 +37,15 @@ Without `--mode`, the wizard runs interactively.
 
 Passing both forms of a toggle (`--semver-auto --no-semver-auto`) is an error.
 
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The run succeeded. For `--mode doctor`, no problem was found (notes marked `[i]` do not count). |
+| `1` | The run failed or was rejected (invalid options, missing `--force`, and so on). For `--mode doctor`, at least one warning (`[!]`) or error (`[✗]`) was found. |
+
+`--mode doctor` does not separate warnings from errors in the exit code. To tolerate warnings in a script, ignore the code (`npx project-auto-wizard --mode doctor || true`).
+
 ## Examples
 
 ```bash
