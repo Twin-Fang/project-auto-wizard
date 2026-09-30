@@ -106,7 +106,7 @@ These must list every type (checked by `tests/node/type-registry-consistency.tes
 
 - `payload/version.yml.template` — "Supported project types" and "Synced files per type" comments
 - `README.md` — the "Supported project types" table
-- `README.ko.md` — the "지원 프로젝트 타입" list
+- `README.ko.md` — the supported-project-types list
 
 Also document the type on the docs site: add `website/src/content/docs/project-types/<id>.md`
 (model it on `go.md`), register it in the `project-types/...` sidebar list in
