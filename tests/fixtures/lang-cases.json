@@ -1,0 +1,134 @@
+[
+  {
+    "name": "no language key",
+    "content": "version: \"1.0.0\"\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "double quoted",
+    "content": "language: \"ko\"\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "single quoted",
+    "content": "language: 'ko'\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "unquoted",
+    "content": "language: ko\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "uppercase",
+    "content": "language: KO\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "padded value",
+    "content": "language:    ko   \n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "trailing comment",
+    "content": "language: \"ko\" # message language: en | ko\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "no space before hash",
+    "content": "language: \"ko\"#x\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "indented key is not top level",
+    "content": "metadata:\n  language: ko\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "locale suffix underscore",
+    "content": "language: ko_KR\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "locale suffix hyphen",
+    "content": "language: \"ko-KR\"\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "unsupported code",
+    "content": "language: fr\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "empty value",
+    "content": "language:\nversion: 1\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "commented line skipped",
+    "content": "# language: ko\nlanguage: en\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "commented line skipped before real one",
+    "content": "# language: en\nlanguage: ko\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "first match wins even if unsupported",
+    "content": "language: fr\nlanguage: ko\n",
+    "env": null,
+    "expected": "en"
+  },
+  {
+    "name": "crlf line endings",
+    "content": "version: \"1\"\r\nlanguage: ko\r\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "crlf with comment",
+    "content": "language: \"ko\" # c\r\n",
+    "env": null,
+    "expected": "ko"
+  },
+  {
+    "name": "env beats saved",
+    "content": "language: en\n",
+    "env": "ko",
+    "expected": "ko"
+  },
+  {
+    "name": "env is normalized",
+    "content": "language: en\n",
+    "env": " KO ",
+    "expected": "ko"
+  },
+  {
+    "name": "empty env is ignored",
+    "content": "language: ko\n",
+    "env": "",
+    "expected": "ko"
+  },
+  {
+    "name": "env supported without file",
+    "content": null,
+    "env": "ko",
+    "expected": "ko"
+  }
+]

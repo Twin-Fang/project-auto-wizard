@@ -180,13 +180,15 @@ jobs:
           # No version line yet — insert a default one
           if [ -z "$VERSION_LINE" ]; then
             echo "no version line found — inserting a new one"
+            # Heading wording follows the configured language; an existing line keeps its own wording
+            DEFAULT_HEADING=$(m wf_readme.default_heading)
 
             if grep -q "^# " README.md; then
               # right after the first title
-              sed -i '/^# /a\\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : '"$VERSION_TEXT" README.md
+              sed -i '/^# /a\\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## '"$DEFAULT_HEADING"' : '"$VERSION_TEXT" README.md
             else
               # at the very top of the file
-              sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : '"$VERSION_TEXT"'\n' README.md
+              sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## '"$DEFAULT_HEADING"' : '"$VERSION_TEXT"'\n' README.md
             fi
             echo "default version line inserted: $VERSION_TEXT"
           else

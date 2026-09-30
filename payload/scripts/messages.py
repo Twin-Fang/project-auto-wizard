@@ -10,8 +10,9 @@ follows the `language` value in version.yml (en | ko, default en).
 
 Language resolution (first match wins):
     1. env PROJECT_AUTO_WIZARD_LANG   (same variable the installer honors)
-    2. `language:` in ./version.yml, else $GITHUB_WORKSPACE/version.yml
-                                      (steps with a working-directory in a monorepo do not run at the repo root)
+    2. `language:` in the first version.yml that has it, looking in: ./version.yml, the repo root
+       relative to this script (../../version.yml), $GITHUB_WORKSPACE/version.yml
+       (steps with a working-directory in a monorepo do not run at the repo root)
     3. "en"
 
 Python usage:
@@ -39,27 +40,62 @@ DEFAULT = "en"
 LANG_ENV = "PROJECT_AUTO_WIZARD_LANG"
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
-_LANG_LINE = re.compile(r"^language:\s*[\"']?([A-Za-z-]+)", re.MULTILINE)
+_LANG_LINE = re.compile(r"^language:\s*(.+)")
 
 
-def get_language(version_yml="version.yml"):
-    """Resolve the message language: env -> version.yml -> default. Unknown values fall back to en."""
-    env = os.environ.get(LANG_ENV, "").strip().lower()
-    if env in SUPPORTED:
-        return env
-    candidates = [version_yml]
+def normalize_language(value):
+    """Trim and lowercase, like the CLI's normalizeLanguage (so ' KO ' == 'ko')."""
+    return str(value if value is not None else "").strip().lower()
+
+
+def parse_saved_language(text):
+    """`language:` value from version.yml text, normalized ('' when absent).
+
+    Mirrors the CLI's parseExisting(): top-level line only, `#` comment lines skipped,
+    first match wins, trailing ` # comment` and quotes removed. The whole value is kept,
+    so 'ko_KR' is unsupported here exactly as it is in the CLI."""
+    for line in str(text or "").split("\n"):
+        if line.startswith("#"):
+            continue
+        m = _LANG_LINE.match(line)
+        if m:
+            return normalize_language(re.sub(r"\s+#.*$", "", m.group(1)).replace('"', "").replace("'", ""))
+    return ""
+
+
+def _version_yml_candidates(version_yml):
+    """Where to look for version.yml: cwd, then the repo root relative to this script, then $GITHUB_WORKSPACE.
+
+    Steps with a working-directory (monorepo) or a scripts run from a subfolder are not at the repo root;
+    the installed script lives in <root>/.github/scripts, so the root is two levels up."""
+    candidates = [version_yml, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "version.yml")]
     workspace = os.environ.get("GITHUB_WORKSPACE", "")
     if workspace:
         candidates.append(os.path.join(workspace, "version.yml"))
-    m = None
-    for path in candidates:
+    return candidates
+
+
+def get_language(version_yml="version.yml"):
+    """Resolve the message language: env -> version.yml -> default.
+
+    Same rules as the CLI (src/i18n): values are normalized and only supported ones count.
+    Unlike the CLI, an unsupported env value is ignored instead of aborting, because a
+    failing message lookup must never break a workflow step. An unreadable or
+    non-UTF-8 version.yml is skipped; the first file that has a `language:` line decides."""
+    env = normalize_language(os.environ.get(LANG_ENV))
+    if env in SUPPORTED:
+        return env
+    saved = ""
+    for path in _version_yml_candidates(version_yml):
         try:
-            with open(path, encoding="utf-8") as f:
-                m = _LANG_LINE.search(f.read())
-        except OSError:
+            # errors="replace" keeps ASCII keys readable in a cp949/latin-1 file, as the CLI's utf8 read does
+            with open(path, encoding="utf-8", errors="replace") as f:
+                saved = parse_saved_language(f.read())
+        except (OSError, ValueError):
             continue
-        break
-    saved = m.group(1).lower() if m else ""
+        # A file without a language line says nothing; keep looking (monorepo subfolder copies etc.)
+        if saved:
+            break
     return saved if saved in SUPPORTED else DEFAULT
 
 
@@ -1020,6 +1056,7 @@ EN = {
     "wf_preview.title_running": "## ✅ Preview environment is running",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## Latest Version : v1.0.0 (2025-08-15)",
+    "wf_readme.default_heading": "Latest Version",
     # --- wf_release ---
     "wf_release.drift_heading": "### ⚠️ Missing release detected",
     "wf_release.drift_version_line": "- version.yml: `{version}`",
@@ -2077,6 +2114,7 @@ KO = {
     "wf_preview.title_running": "## ✅ Preview 환경 실행 중",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## 최신 버전 : v1.0.0 (2025-08-15)",
+    "wf_readme.default_heading": "최신 버전",
     # --- wf_release ---
     "wf_release.drift_heading": "### ⚠️ 릴리스 누락 감지",
     "wf_release.drift_version_line": "- version.yml: `{version}`",
