@@ -81,6 +81,20 @@ export function printDryRun(plan) {
       lines.push(t("cmd.dryRun.full.changed", { n: w.changed.length }));
       for (const f of w.changed) lines.push(`  ~ ${f.filename} [${f.type}]`);
       lines.push(t("cmd.dryRun.full.unchanged", { n: w.unchanged.length }));
+      // Buckets that exist only with a baseline. The real run acts on each of them, so the preview lists them too
+      // (only when non-empty, so installs without a baseline print exactly as before).
+      if (w.upstreamOnly?.length) {
+        lines.push(t("cmd.dryRun.full.autoUpdated", { n: w.upstreamOnly.length }));
+        for (const f of w.upstreamOnly) lines.push(`  ~ ${f.filename} [${f.type}]`);
+      }
+      if (w.localOnly?.length) {
+        lines.push(t("cmd.dryRun.full.localKept", { n: w.localOnly.length }));
+        for (const f of w.localOnly) lines.push(`  = ${f.filename} [${f.type}]`);
+      }
+      if (w.removed?.length) {
+        lines.push(t("cmd.dryRun.full.removed", { n: w.removed.length }));
+        for (const f of w.removed) lines.push(`  - ${f.filename} [${f.type}]`);
+      }
     }
     if (plan.cleanup) {
       const reasons = {
