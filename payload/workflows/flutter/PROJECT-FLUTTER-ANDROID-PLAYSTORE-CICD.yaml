@@ -103,14 +103,15 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
-            echo ".env file created"
+            m wf_flutter.dotenv_created
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Set up Flutter
@@ -245,14 +246,15 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
-            echo ".env file created"
+            m wf_flutter.dotenv_created
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Setup Release Keystore
@@ -297,12 +299,13 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             mkdir -p android/app
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "✅ google-services.json created"
+            m wf_flutter.google_services_created
           else
-            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+            m wf_flutter.google_services_skipped
           fi
 
       - name: Set up Flutter
@@ -660,7 +663,7 @@ jobs:
           m flutter_a.starting_play_store_deployment
           echo "=========================================="
           m flutter_a.deploy_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
-          echo "🔍 GitHub Run Number: ${{ github.run_number }}"
+          m wf_flutter.run_number number="${{ github.run_number }}"
           echo "🔍 GitHub SHA: ${{ github.sha }}"
           
           # Initialize and validate environment variables

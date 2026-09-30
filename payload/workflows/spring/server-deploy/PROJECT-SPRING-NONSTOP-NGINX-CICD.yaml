@@ -316,8 +316,8 @@ jobs:
             m banner_project name="${PROJECT_NAME}"
             m banner_domain domain="${SERVICE_DOMAIN}"
             m banner_image image="${IMAGE}"
-            echo "🎨 Blue=${BLUE_PORT} | Green=${GREEN_PORT}"
-            echo "🔧 Nginx config: ${NGINX_RP_CONF}"
+            m nginx_colors blue="${BLUE_PORT}" green="${GREEN_PORT}"
+            m nginx_conf_path path="${NGINX_RP_CONF}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
             # 1. Pull the latest image
@@ -485,7 +485,7 @@ jobs:
             m nginx_test_ok
             rm -f "${TMP_FILE}"
 
-            echo "🔄 nginx reload"
+            m nginx_reload
             if ! (SUDO systemctl reload nginx); then
               m nginx_reload_fail
               if ! (SUDO systemctl restart nginx); then

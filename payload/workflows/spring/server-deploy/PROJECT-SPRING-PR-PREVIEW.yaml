@@ -2325,7 +2325,7 @@ jobs:
             fi
 
             m wf_preview.r_deploy_done
-            echo "🌐 Preview URL: http://${CONTAINER_NAME}.${DOMAIN_SUFFIX}:${PREVIEW_PORT}"
+            m wf_preview.r_preview_url url="http://${CONTAINER_NAME}.${DOMAIN_SUFFIX}:${PREVIEW_PORT}"
 
       - name: Record deploy completion
         if: steps.check_branch.outputs.exists == 'true'
