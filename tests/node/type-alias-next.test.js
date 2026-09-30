@@ -4,7 +4,7 @@
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";
@@ -132,4 +132,73 @@ test("the React workflows carry the former Next.js differences: conditional .nex
   assert.match(legacy[1], /\$\{PROJECT_NAME\}-nextjs-deploy/);
   assert.match(legacy[2], /docker rm -f "\$LEGACY_NAME" >\/dev\/null 2>&1 \|\| true/);
   assert.ok(cd.indexOf("for LEGACY_NAME") < cd.indexOf("SUDO docker run -d"), "cleanup must run before docker run");
+});
+
+// A monorepo that listed react and next with different folders while they were separate types.
+const MONO_VY = [
+  'version: "1.0.0"',
+  'project_types: ["react", "next", "python"]',
+  "project_paths:",
+  '  react: "client"',
+  '  next: "web"',
+  '  python: "api"',
+  "",
+].join("\n");
+
+test("version.yml: react and next with different folders report the folded-away folder", () => {
+  const r = parseExisting(MONO_VY);
+  assert.deepStrictEqual(r.types, ["react", "python"]);
+  assert.deepStrictEqual([...r.paths], [["react", "client"], ["python", "api"]]);
+  assert.deepStrictEqual(r.droppedPaths, [{ type: "react", name: "next", path: "web", kept: "client" }]);
+  // Same folder written two ways, or no duplicate at all, loses nothing.
+  assert.deepStrictEqual(parseExisting(MONO_VY.replace('next: "web"', 'next: "./client/"')).droppedPaths, []);
+  assert.deepStrictEqual(parseExisting(MONO_VY.replace('  next: "web"\n', "")).droppedPaths, []);
+});
+
+test("update of a react + next monorepo: status and dry-run warn before the folder drops, the install log records it", async () => {
+  const { planDryRun, printDryRun } = await import("../../src/commands/dry-run.js");
+  const { printStatus } = await import("../../src/commands/status.js");
+  const { initLogger, closeLogger, resetLogger, currentLogPath } = await import("../../src/core/logger.js");
+  const target = mkdtempSync(join(tmpdir(), "paw-mono-"));
+  const capture = (fn) => {
+    const orig = console.log; let out = "";
+    console.log = (s) => { out += `${s}\n`; };
+    try { fn(); } finally { console.log = orig; }
+    return out;
+  };
+  try {
+    writeFileSync(join(target, "version.yml"), MONO_VY);
+    mkdirSync(join(target, "client"));
+    writeFileSync(join(target, "client", "package.json"), '{"name":"c","version":"1.0.0","dependencies":{"react":"^18"}}');
+    mkdirSync(join(target, "web"));
+    writeFileSync(join(target, "web", "package.json"), '{"name":"w","version":"1.0.0","dependencies":{"next":"^14"}}');
+
+    const status = runStatus(PAYLOAD, target);
+    assert.strictEqual(status.droppedPaths.length, 1);
+    const statusOut = capture(() => printStatus(status));
+    assert.match(statusOut, /web/);
+    assert.match(statusOut, /--paths react=web/);
+
+    const c = { ...ctx(["react", "python"]), paths: new Map([["react", "client"], ["python", "api"]]) };
+    const plan = planDryRun("full", c, PAYLOAD, target);
+    assert.strictEqual(plan.droppedPaths[0].path, "web");
+    const dryOut = capture(() => printDryRun(plan));
+    assert.match(dryOut, /web/);
+    assert.match(dryOut, /--paths react=web/);
+
+    initLogger(target, { action: "install" });
+    runFull(c, PAYLOAD, target);
+    const logPath = join(target, currentLogPath());
+    closeLogger();
+    assert.match(readFileSync(logPath, "utf8"), /WARN.*web/);
+    // After the rewrite the folder is gone from version.yml and the next run no longer warns.
+    const vy = readFileSync(join(target, "version.yml"), "utf8");
+    assert.ok(!/^\s+next:/m.test(vy));
+    assert.deepStrictEqual(runStatus(PAYLOAD, target).droppedPaths, []);
+  } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
+});
+
+test("a normal react install prints no folder warning anywhere", () => {
+  const r = parseExisting('version: "1.0.0"\nproject_types: ["react"]\nproject_paths:\n  react: "client"\n');
+  assert.deepStrictEqual(r.droppedPaths, []);
 });

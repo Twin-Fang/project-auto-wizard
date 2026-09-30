@@ -6,7 +6,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
 import { CliError } from "../core/errors.js";
 import { PATHS } from "../core/paths.js";
-import { renderVersionYml, parseExisting, sameIgnoringTimestamps } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps, droppedPathLines } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
@@ -70,7 +70,10 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   // Preserve unknown top-level fields of an existing version.yml when regenerating it.
   const vyPath = join(targetRoot, PATHS.versionFile);
   const prevVy = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
-  const extraTopLevel = prevVy != null ? parseExisting(prevVy).extraTopLevel : [];
+  const prevParsed = prevVy != null ? parseExisting(prevVy) : null;
+  const extraTopLevel = prevParsed ? prevParsed.extraTopLevel : [];
+  // Folders folded into one type entry are not managed after this rewrite; leave a trace in the install log.
+  for (const line of droppedPathLines(prevParsed?.droppedPaths)) log.warn("version", "paths", line);
 
   // 2. Generate version.yml (render payload/version.yml.template; full regeneration)
   //    A re-run where only the date lines differ does not rewrite it (idempotent).

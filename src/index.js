@@ -14,7 +14,7 @@ import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
-import { parseExisting } from "./core/version-yml.js";
+import { parseExisting, droppedPathLines } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
@@ -286,6 +286,8 @@ async function runInner(argv, {
   // Load the existing version.yml: the single source of truth for preserving version/version_code/project_paths
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
+  // The dry-run preview prints the same notice itself.
+  if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths)) console.error(`⚠️  ${line}`);
 
   // Detection (CLI args first, otherwise auto-detect; the version.yml-first rule lives inside detectTypes/detectVersion).
   // Pass --paths to detection so a monorepo that gives only --paths and omits --type is installed with those types.

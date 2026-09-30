@@ -1,6 +1,7 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
+import { normalizePath } from "./paths.js";
 import { DEFAULT_LANGUAGE, isSupportedLanguage, normalizeLanguage } from "../i18n/languages.js";
 // Aliased: `t` is used as a local variable name (type, trimmed line) throughout this file.
 import { t as tr } from "../i18n/index.js";
@@ -88,6 +89,14 @@ export function parseTemplateOptions(content) {
   return out;
 }
 
+// User-facing lines for entries parseExisting() folded away: what was kept, what drops out, and how to keep the other folder.
+export function droppedPathLines(droppedPaths = []) {
+  return droppedPaths.flatMap((d) => [
+    tr("core.versionYml.pathMerged", { name: d.name, path: d.path, type: d.type, kept: d.kept }),
+    tr("core.versionYml.pathMergedHint", { type: d.type, path: d.path }),
+  ]);
+}
+
 // Extract values from an existing version.yml (line-based, avoids false hits on comment lines).
 export function parseExisting(content) {
   const text = String(content || "");
@@ -114,13 +123,20 @@ export function parseExisting(content) {
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
   // project_paths block: `  type: "path"`
   const paths = new Map();
+  // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
+  // A type holds one folder, so these are lost on rewrite; callers surface them instead of dropping them silently.
+  const droppedPaths = [];
   let inPaths = false;
   for (const l of text.split("\n")) {
     if (/^project_paths:/.test(l)) { inPaths = true; continue; }
     if (inPaths) {
       const m = l.match(/^\s+([a-z-]+):\s*"([^"]*)"/);
       // The first entry wins when an old name and its current name are both present.
-      if (m) { if (!paths.has(canonicalTypeId(m[1]))) paths.set(canonicalTypeId(m[1]), m[2]); }
+      if (m) {
+        const id = canonicalTypeId(m[1]);
+        if (!paths.has(id)) paths.set(id, m[2]);
+        else if (normalizePath(paths.get(id)) !== normalizePath(m[2])) droppedPaths.push({ type: id, name: m[1], path: m[2], kept: paths.get(id) });
+      }
       else if (/^\S/.test(l)) inPaths = false; // end of indentation -> end of block
     }
   }
@@ -140,7 +156,7 @@ export function parseExisting(content) {
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, templateVersion, options, branches,
+    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }

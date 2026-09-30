@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "../core/detect-fs.js";
-import { parseExisting } from "../core/version-yml.js";
+import { parseExisting, droppedPathLines } from "../core/version-yml.js";
 import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
@@ -49,6 +49,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // Existing version.yml - single source of truth for preserving version/version_code/paths/options
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
+
+  if (existing?.droppedPaths?.length) io.note?.(droppedPathLines(existing.droppedPaths).join("\n"), t("core.versionYml.pathMergedTitle"));
 
   // New install vs update detection
   io.installKind?.({ currentTemplateVersion: existing?.templateVersion || "", templateVersion });
