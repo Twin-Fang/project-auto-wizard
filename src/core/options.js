@@ -34,6 +34,11 @@ export function explicitFromContext(ctx = {}) {
   return Object.fromEntries(OPTIONS.map((o) => [o.name, ctx[o.ctxField] ?? null]));
 }
 
+// The option fields of a context/opts object only (what the interactive wizard receives as its starting values)
+export function optionContextFields(ctx = {}) {
+  return Object.fromEntries(OPTIONS.map((o) => [o.ctxField, ctx[o.ctxField]]));
+}
+
 // Context defaults: null = not decided yet
 export function defaultContextFields() {
   return Object.fromEntries(OPTIONS.map((o) => [o.ctxField, null]));
