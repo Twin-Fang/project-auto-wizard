@@ -304,7 +304,7 @@ jobs:
 
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
-          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           # For repository_dispatch events, use the PR number as the build number
           if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
@@ -725,7 +725,7 @@ jobs:
           BRANCH_NAME="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.branch_name || github.ref_name }}"
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_SHORT="${{ needs.prepare-test-build.outputs.commit_hash }}"
-          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           {
             m apk_test.info_title

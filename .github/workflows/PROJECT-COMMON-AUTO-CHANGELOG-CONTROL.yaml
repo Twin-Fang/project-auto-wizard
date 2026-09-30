@@ -361,9 +361,11 @@ jobs:
       - name: Commit release docs to the PR head branch
         env:
           GH_TOKEN: ${{ github.token }}
+          # Passed through env so shell metacharacters in the branch name are never parsed as commands
+          PAW_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
+          HEAD_BRANCH="$PAW_HEAD_REF"
           VERSION="${{ steps.bump.outputs.new_version }}"
 
           # Working files must not land in the repo

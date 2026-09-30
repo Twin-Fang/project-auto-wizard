@@ -357,16 +357,16 @@ jobs:
       # [End of section 2] Create the environment file
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -378,13 +378,16 @@ jobs:
       - name: Progress - Docker done
         id: docker_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const dockerStart = ${{ steps.progress.outputs.docker_start }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const dockerStart = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START, 10) || Date.now();
             const now = Date.now();
             const dockerElapsed = now - dockerStart;
             const minutes = Math.floor(dockerElapsed / 60000);
@@ -565,21 +568,23 @@ jobs:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_PR_OUTPUTS_REF: ${{ steps.pr.outputs.ref }}
           PAW_IN_STEPS_PR_OUTPUTS_SHA: ${{ steps.pr.outputs.sha }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
-            const deployStart = ${{ steps.docker_progress.outputs.deploy_start }};
+            const deployStart = parseInt(process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START, 10) || Date.now();
             const now = Date.now();
             const deployElapsed = now - deployStart;
             const minutes = Math.floor(deployElapsed / 60000);
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? m('wf_preview.dur_min_sec', {minutes, seconds}) : m('wf_preview.dur_sec', {seconds});
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
             const previewPort = process.env.PREVIEW_PORT;
             const apiDocsPath = process.env.API_DOCS_PATH;
@@ -646,13 +651,14 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -904,13 +910,14 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
 
             console.log(m('wf_preview.log_check_exists', {branchName}));
 
@@ -980,12 +987,13 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const startTime = Date.now();
@@ -1074,18 +1082,18 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -1100,14 +1108,16 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
-            const dockerStart = ${{ steps.progress.outputs.docker_start }};
+            const dockerStart = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START, 10) || Date.now();
             const now = Date.now();
             const dockerElapsed = now - dockerStart;
             const minutes = Math.floor(dockerElapsed / 60000);
@@ -1292,26 +1302,29 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_ISSUE_OUTPUTS_SHA: ${{ steps.issue.outputs.sha }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
             const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
-            const deployStart = ${{ steps.docker_progress.outputs.deploy_start }};
+            const deployStart = parseInt(process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START, 10) || Date.now();
             const now = Date.now();
             const deployElapsed = now - deployStart;
             const minutes = Math.floor(deployElapsed / 60000);
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? m('wf_preview.dur_min_sec', {minutes, seconds}) : m('wf_preview.dur_sec', {seconds});
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
             const previewPort = process.env.PREVIEW_PORT;
             const apiDocsPath = process.env.API_DOCS_PATH;
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
             const domain = `${projectName}-pr-${issueNumber}.${domainSuffix}`;
             const previewUrl = `http://${domain}:${previewPort}`;
             const sha = process.env.PAW_IN_STEPS_ISSUE_OUTPUTS_SHA;
@@ -1376,14 +1389,16 @@ jobs:
         env:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -1608,13 +1623,15 @@ jobs:
             (github.event_name == 'pull_request' && github.event.action == 'closed') ||
             (github.event_name == 'issues' && github.event.action == 'closed'))
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER: ${{ steps.pr_number.outputs.number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const number = parseInt(process.env.PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
 
             const body = [
               m('wf_preview.title_destroyed'),
@@ -1778,7 +1795,7 @@ jobs:
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
             const previewPort = process.env.PREVIEW_PORT;
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
@@ -2075,14 +2092,14 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Resolve container name
         if: steps.branch_info.outputs.branch_exists == 'true'
@@ -2098,7 +2115,7 @@ jobs:
 
       - name: Build & push Docker image
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -2113,14 +2130,16 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
-            const dockerStart = ${{ steps.progress.outputs.docker_start }};
+            const dockerStart = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START, 10) || Date.now();
             const now = Date.now();
             const dockerElapsed = now - dockerStart;
             const minutes = Math.floor(dockerElapsed / 60000);
@@ -2300,22 +2319,24 @@ jobs:
           PAW_IN_STEPS_CONTAINER_OUTPUTS_NAME: ${{ steps.container.outputs.name }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_GET_SHA_OUTPUTS_SHA: ${{ steps.get_sha.outputs.sha }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
-            const deployStart = ${{ steps.docker_progress.outputs.deploy_start }};
+            const deployStart = parseInt(process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START, 10) || Date.now();
             const now = Date.now();
             const deployElapsed = now - deployStart;
             const minutes = Math.floor(deployElapsed / 60000);
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? m('wf_preview.dur_min_sec', {minutes, seconds}) : m('wf_preview.dur_sec', {seconds});
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
             const previewPort = process.env.PREVIEW_PORT;
             const apiDocsPath = process.env.API_DOCS_PATH;
@@ -2384,12 +2405,13 @@ jobs:
         env:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -2549,7 +2571,7 @@ jobs:
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
 
             // Extract the issue number from the branch name (#number pattern)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -2749,7 +2771,7 @@ jobs:
         with:
           script: |
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
 
             // Extract the issue number from the branch name (#number pattern)
             const issueMatch = branchName.match(/#(\d+)/);
@@ -2816,7 +2838,7 @@ jobs:
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const containerName = process.env.PAW_IN_STEPS_CONTAINER_INFO_OUTPUTS_CONTAINER_NAME;
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-go', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-go' : process.env.PROJECT_NAME;
             const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
             const previewPort = process.env.PREVIEW_PORT;
             const domain = `${containerName}.${domainSuffix}`;

@@ -74,11 +74,11 @@ jobs:
         distribution: 'temurin'
 
     - name: Validate Gradle Wrapper
-      uses: gradle/wrapper-validation-action@v2
+      uses: gradle/actions/wrapper-validation@v5
       continue-on-error: true
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+      uses: gradle/actions/setup-gradle@v5
       with:
         gradle-version: wrapper
 
@@ -229,7 +229,7 @@ jobs:
             m('overall', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS }),
             '',
             '---',
-            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+            m('footer', { time: new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC' }),
           ].join('\n');
           
           if (botComment) {
@@ -317,7 +317,7 @@ jobs:
             m('fix_test'),
             '',
             '---',
-            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+            m('footer', { time: new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC' }),
           ].join('\n');
           
           if (botComment) {

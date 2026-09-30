@@ -229,7 +229,7 @@ jobs:
           fi
           m cibuild.node_result_branch branch="$BRANCH_NAME"
           m cibuild.node_result_commit sha="$COMMIT_SHA"
-          m cibuild.node_result_time time="$(date '+%Y-%m-%d %H:%M:%S UTC')"
+          m cibuild.node_result_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""

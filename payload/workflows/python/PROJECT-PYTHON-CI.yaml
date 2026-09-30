@@ -127,11 +127,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.dockerfile.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Verify Docker image build
         if: steps.dockerfile.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
@@ -149,7 +149,7 @@ jobs:
           m cibuild.info_project project="${{ env.PROJECT_NAME }}"
           m cibuild.info_branch branch="${{ github.ref_name }}"
           m cibuild.info_commit sha="${{ github.sha }}"
-          m cibuild.info_time time="$(date '+%Y-%m-%d %H:%M:%S')"
+          m cibuild.info_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
   # CI Gate: the single job to register as a required check
   ci-gate:
