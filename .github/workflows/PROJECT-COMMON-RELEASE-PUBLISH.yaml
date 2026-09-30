@@ -93,11 +93,12 @@ jobs:
       - name: Detect branch mode
         id: mode
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> branches: chain so an
           # unrelated top-level "mode:" key can never hijack the value
           MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
           echo "mode=$MODE" >> $GITHUB_OUTPUT
-          echo "branch mode: $MODE"
+          echo "$(m wf_release.branch_mode mode="$MODE")"
 
       - name: Release gate
         id: gate
@@ -122,11 +123,11 @@ jobs:
 
           echo "proceed=$PROCEED" >> $GITHUB_OUTPUT
           if [ "$PROCEED" = "true" ]; then
-            echo "release gate open (mode=$MODE, event=$EVENT)"
+            echo "$(m wf_release.gate_open mode="$MODE" event="$EVENT")"
             exit 0
           fi
 
-          echo "not a release-confirm push in pr-flow mode — skipping"
+          echo "$(m wf_release.gate_closed)"
 
           # Drift guard: skipping is normal, but a version.yml that
           # has run ahead of the newest tag is not — it means the version was
@@ -137,13 +138,13 @@ jobs:
           LATEST_VERSION="${LATEST_TAG#v}"
 
           if [ -z "$FILE_VERSION" ] || [ -z "$LATEST_VERSION" ]; then
-            echo "drift guard skipped (no version.yml version or no tag yet)"
+            echo "$(m wf_release.drift_skipped)"
             exit 0
           fi
 
           HIGHER=$(printf '%s\n%s\n' "$FILE_VERSION" "$LATEST_VERSION" | sort -V | tail -n 1)
           if [ "$FILE_VERSION" != "$LATEST_VERSION" ] && [ "$HIGHER" = "$FILE_VERSION" ]; then
-            echo "::error::version.yml($FILE_VERSION) is ahead of the newest tag($LATEST_TAG) but no release was published — this version will never reach npm. Recover with: Actions → PROJECT-RELEASE-PUBLISH → Run workflow (workflow_dispatch bypasses this gate)."
+            echo "::error::$(m wf_release.drift_error file_version="$FILE_VERSION" latest_tag="$LATEST_TAG")"
             {
               echo "$(m wf_release.drift_heading)"
               echo ""
@@ -156,7 +157,7 @@ jobs:
             exit 1
           fi
 
-          echo "drift guard ok (version.yml=$FILE_VERSION, latest tag=$LATEST_TAG)"
+          echo "$(m wf_release.drift_ok file_version="$FILE_VERSION" latest_tag="$LATEST_TAG")"
 
       - name: Read semver_auto option from version.yml
         id: semver_options
@@ -165,11 +166,12 @@ jobs:
           steps.mode.outputs.mode == 'trunk-based' &&
           github.event_name == 'push'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "semver_auto:" key can never hijack the value
           SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
-          echo "semver_auto option: $SEMVER_AUTO"
+          echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
       - name: Read copilot_ai option from version.yml
         id: copilot_options
@@ -178,11 +180,12 @@ jobs:
           steps.mode.outputs.mode == 'trunk-based' &&
           github.event_name == 'push'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
           COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
-          echo "copilot_ai option: $COPILOT_AI"
+          echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Install Copilot CLI
         if: >-
@@ -205,13 +208,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # Idempotency: on a re-run of a failed job the checked-out HEAD may
           # already be this workflow's own docs commit — never bump twice.
           # Jump straight to the common tail (tag + release for the current
           # version).
           HEAD_MSG=$(git log -1 --pretty=%s)
           if printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): release v.* docs \[skip ci\]"; then
-            echo "HEAD is already this workflow's release docs commit — skipping re-increment (idempotent re-run)"
+            echo "$(m wf_release.head_is_docs_commit)"
             exit 0
           fi
 
@@ -221,11 +225,11 @@ jobs:
           # release (no previous tag to diff against).
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
-            echo "collecting commits since $LAST_TAG"
+            echo "$(m wf_release.collect_since last_tag="$LAST_TAG")"
             LOG_RANGE="${LAST_TAG}..HEAD"
             DIFF_BASE="$LAST_TAG"
           else
-            echo "no previous tag — collecting the full history"
+            echo "$(m wf_release.collect_all)"
             LOG_RANGE="HEAD"
             DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
           fi
@@ -247,15 +251,15 @@ jobs:
           else
             BUMP="patch"
           fi
-          echo "bump level: $BUMP"
+          echo "$(m wf_common.bump_level bump="$BUMP")"
 
           NEW_VERSION=$(python3 .github/scripts/version_manager.py increment --bump "$BUMP" | tail -n 1)
           if [ -z "$NEW_VERSION" ]; then
-            echo "version bump failed"
+            echo "$(m wf_common.version_bump_failed)"
             exit 1
           fi
           python3 .github/scripts/version_manager.py sync
-          echo "release version: $NEW_VERSION ($BUMP)"
+          echo "$(m wf_release.release_version new_version="$NEW_VERSION" bump="$BUMP")"
 
           python3 .github/scripts/changelog_manager.py ai-summary \
             --commits-file commits.txt \
@@ -288,7 +292,7 @@ jobs:
           git add -u
           git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
           if git diff --staged --quiet; then
-            echo "no changes to commit"
+            echo "$(m wf_common.no_changes)"
           else
             git commit -m "chore(version): release v${NEW_VERSION} docs [skip ci]"
 
@@ -299,18 +303,18 @@ jobs:
 
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
               RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "push attempt $RETRY_COUNT/$MAX_RETRIES..."
+              echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
               if git push origin HEAD:main; then
                 PUSH_SUCCESS=true
-                echo "release docs pushed"
+                echo "$(m wf_release.docs_pushed)"
                 break
               else
-                echo "push failed, syncing with remote..."
+                echo "$(m wf_common.push_failed_syncing)"
                 if git pull --rebase origin main; then
-                  echo "rebase ok, retrying push..."
+                  echo "$(m wf_common.rebase_ok)"
                 else
-                  echo "rebase failed, manual conflict resolution required"
+                  echo "$(m wf_common.rebase_failed)"
                   git rebase --abort 2>/dev/null || true
                   exit 1
                 fi
@@ -318,7 +322,7 @@ jobs:
             done
 
             if [ "$PUSH_SUCCESS" = false ]; then
-              echo "push failed after $MAX_RETRIES attempts"
+              echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
               exit 1
             fi
           fi
@@ -329,9 +333,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           if [ -z "$VERSION" ]; then
-            echo "failed to read version"
+            echo "$(m wf_release.read_version_failed)"
             exit 1
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -343,32 +348,34 @@ jobs:
           # "release created" can be re-run and still publish the release.
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "tag_exists=true" >> $GITHUB_OUTPUT
-            echo "tag v$VERSION already exists — skipping tag push"
+            echo "$(m wf_release.tag_exists version="$VERSION")"
           else
             echo "tag_exists=false" >> $GITHUB_OUTPUT
           fi
 
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "release_exists=true" >> $GITHUB_OUTPUT
-            echo "release v$VERSION already exists — nothing to publish"
+            echo "$(m wf_release.release_exists version="$VERSION")"
           else
             echo "release_exists=false" >> $GITHUB_OUTPUT
-            echo "publishing release v$VERSION"
+            echo "$(m wf_release.publishing version="$VERSION")"
           fi
 
       - name: Create and push tag
         if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.tag_exists != 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION="${{ steps.version.outputs.version }}"
           git tag "v$VERSION"
           git push origin "v$VERSION"
-          echo "tag v$VERSION pushed"
+          echo "$(m wf_release.tag_pushed version="$VERSION")"
 
       - name: Build release notes (changelog export + GitHub generate-notes)
         if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION="${{ steps.version.outputs.version }}"
 
           # AI/changelog notes for this version
@@ -396,7 +403,7 @@ jobs:
             echo "Release v$VERSION" > notes.md
           fi
 
-          echo "release notes assembled ($(wc -c < notes.md) bytes)"
+          echo "$(m wf_release.notes_assembled n="$(wc -c < notes.md)")"
 
       - name: Create GitHub Release
         if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
@@ -407,9 +414,10 @@ jobs:
           # default token.
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION="${{ steps.version.outputs.version }}"
           gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md
-          echo "GitHub Release v$VERSION published"
+          echo "$(m wf_release.published version="$VERSION")"
 
       - name: Trigger NPM-PUBLISH
         if: steps.gate.outputs.proceed == 'true' && steps.version.outputs.release_exists != 'true'
