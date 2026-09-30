@@ -1,32 +1,33 @@
-// breaking-changes 확인 흐름 배선.
-// collectBreaking(순수 비교)은 breaking.js — 이 모듈은 로드(패키지 번들본)·표시·확인 게이트.
+// Wiring for the breaking-changes confirmation flow.
+// collectBreaking (pure comparison) is in breaking.js - this module handles loading (bundled copy), display and the confirmation gate.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { collectBreaking } from "./breaking.js";
+import { collectBreaking, localizedField } from "./breaking.js";
 import { parseExisting } from "./version-yml.js";
+import { t } from "../i18n/index.js";
 
-// 패키지에 동봉된 payload/config 번들본만 읽는다. 원격(main)을 읽으면 같은 패키지 버전이라도
-// 실행 시점마다 결과가 달라지고 설치 중 네트워크 요청이 생긴다. 읽기 실패 시 null(조용히 스킵).
+// Reads only the payload/config copy bundled with the package. Reading remote (main) would make results
+// differ per run even for the same package version, and add a network request during install. null on read failure (silent skip).
 export function loadBreakingJson(payloadRoot) {
   try {
     const p = join(payloadRoot, "config", "breaking-changes.json");
     if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
-  } catch { /* 번들 읽기 실패 — 스킵 */ }
+  } catch { /* bundle read failed - skip */ }
   return null;
 }
 
-// 반환: true=진행, false=사용자 취소.
+// Returns: true = proceed, false = user cancelled.
 // opts:
-//   cwd             - 통합 대상 루트 (기존 version.yml에서 현재 템플릿 버전 읽음)
-//   payloadRoot     - 패키지 payload/ 루트 (번들 breaking-changes.json 위치)
-//   templateVersion - 설치하려는 템플릿 버전 (고정값이 아니라 실제 패키지 버전)
-//   askYesNo        - async(message, defaultYes)→bool. null이면 비대화형: 경고만 출력 후 진행
-//   loader          - 테스트 주입용 (기본 loadBreakingJson)
+//   cwd             - integration target root (current template version is read from the existing version.yml)
+//   payloadRoot     - package payload/ root (where the bundled breaking-changes.json lives)
+//   templateVersion - template version being installed (the actual package version, not a fixed value)
+//   askYesNo        - async(message, defaultYes)->bool. null = non-interactive: print the warning and proceed
+//   loader          - injected by tests (default loadBreakingJson)
 export async function runBreakingCheck({ cwd, payloadRoot, templateVersion, askYesNo = null, loader = loadBreakingJson }) {
   const vy = join(cwd, "version.yml");
-  if (!existsSync(vy)) return true; // 신규 통합 — 비교 기준 없음
+  if (!existsSync(vy)) return true; // New integration - nothing to compare against
   const { templateVersion: current, types } = parseExisting(readFileSync(vy, "utf8"));
-  if (!current) return true; // 템플릿 메타 없음(unknown) — 비교 기준이 없어 스킵
+  if (!current) return true; // No template metadata (unknown) - nothing to compare against, skip
 
   const json = await loader(payloadRoot);
   if (!json) return true;
@@ -34,26 +35,26 @@ export async function runBreakingCheck({ cwd, payloadRoot, templateVersion, askY
   const { critical, warnings } = collectBreaking(json, current, templateVersion, types);
   if (critical.length === 0 && warnings.length === 0) return true;
 
-  // 박스 표시
+  // Box display
   const e = (s = "") => process.stderr.write(s + "\n");
   e("");
   e("╔══════════════════════════════════════════════════════════════════╗");
   e(`║  ⚠️  BREAKING CHANGES (v${current} → v${templateVersion})`);
   e("╠══════════════════════════════════════════════════════════════════╣");
-  for (const c of critical) { e("║"); e(`║  [CRITICAL] ${c.version} - ${c.title || ""}`); e(`║  → ${c.message || ""}`); }
-  for (const w of warnings) { e("║"); e(`║  [WARNING] ${w.version} - ${w.title || ""}`); e(`║  → ${w.message || ""}`); }
+  for (const c of critical) { e("║"); e(`║  [CRITICAL] ${c.version} - ${localizedField(c, "title")}`); e(`║  → ${localizedField(c, "message")}`); }
+  for (const w of warnings) { e("║"); e(`║  [WARNING] ${w.version} - ${localizedField(w, "title")}`); e(`║  → ${localizedField(w, "message")}`); }
   e("║");
   e("╚══════════════════════════════════════════════════════════════════╝");
   e("");
 
   if (critical.length > 0) {
     if (askYesNo) {
-      // 대화형: 명시 확인 없으면 중단 (기본 N)
-      const ok = await askYesNo("위 호환성 변경을 확인했고 계속 진행할까요?", false);
+      // Interactive: abort without explicit confirmation (default N)
+      const ok = await askYesNo(t("core.breakingCheck.confirm"), false);
       if (ok !== true) return false;
     } else {
-      // 비대화형(--force): 게이트로 CI를 죽이지 않고 경고 후 진행 (CI 친화)
-      e("⚠️  CRITICAL 호환성 변경이 있습니다 — 비대화형 실행이라 계속 진행합니다. 위 내용을 꼭 확인하세요.");
+      // Non-interactive (--force): do not kill CI with a gate, warn and proceed (CI friendly)
+      e(t("core.breakingCheck.nonInteractive"));
     }
   }
   return true;

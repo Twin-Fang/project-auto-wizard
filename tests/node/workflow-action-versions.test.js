@@ -1,8 +1,8 @@
 // tests/node/workflow-action-versions.test.js
-// 설치되는 워크플로우가 구버전 GitHub Actions를 쓰면 사용자 레포마다 deprecation 경고가
-// 뜬다. 한 번 올려도 시간이 지나면 다시 뒤처지므로, 최소한 다음 둘은 테스트가 잡는다.
-//   ① 알려진 하한보다 낮은 메이저를 쓰지 않는다
-//   ② 같은 액션이 서로 다른 메이저로 섞이지 않는다 (setup-java가 v3·v4 혼재였다)
+// If installed workflows use outdated GitHub Actions, deprecation warnings appear in every user repo.
+// Even after an upgrade they fall behind again over time, so tests catch at least the following two.
+//   (1) no major below the known floor is used
+//   (2) the same action is not mixed across different majors (setup-java used to mix v3 and v4)
 import { test } from "node:test";
 import assert from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
-// 2026-08-06 기준 최신 메이저. 액션을 올릴 때 이 값도 함께 올린다.
+// Latest majors as of 2026-08-06. Bump these together when upgrading an action.
 const MIN_MAJOR = {
   "actions/checkout": 7,
   "actions/setup-node": 7,
@@ -31,7 +31,7 @@ function walk(dir) {
   });
 }
 
-// payload(사용자에게 배포됨) + 이 레포의 워크플로우(도그푸딩 사본 포함) 전부를 대상으로 한다.
+// Targets the payload (shipped to users) plus this repo's own workflows (including dogfooding copies).
 function allWorkflows() {
   return [...walk(join(REPO_ROOT, "payload", "workflows")), ...walk(join(REPO_ROOT, ".github", "workflows"))];
 }
@@ -45,20 +45,20 @@ function usedActions(text) {
   return out;
 }
 
-test("워크플로우가 하한보다 낮은 메이저 버전의 액션을 쓰지 않는다", () => {
+test("workflows do not use an action with a major version below the floor", () => {
   const stale = [];
   for (const file of allWorkflows()) {
     for (const { action, major } of usedActions(readFileSync(file, "utf8"))) {
       const min = MIN_MAJOR[action];
       if (min !== undefined && major < min) {
-        stale.push(`${file.slice(REPO_ROOT.length)}: ${action}@v${major} (하한 v${min})`);
+        stale.push(`${file.slice(REPO_ROOT.length)}: ${action}@v${major} (floor v${min})`);
       }
     }
   }
-  assert.deepStrictEqual(stale, [], `구버전 액션이 남아 있습니다:\n  ${stale.join("\n  ")}`);
+  assert.deepStrictEqual(stale, [], `outdated actions remain:\n  ${stale.join("\n  ")}`);
 });
 
-test("같은 액션이 서로 다른 메이저 버전으로 섞이지 않는다", () => {
+test("the same action is not mixed across different major versions", () => {
   const seen = new Map();
   for (const file of allWorkflows()) {
     for (const { action, major } of usedActions(readFileSync(file, "utf8"))) {
@@ -69,5 +69,5 @@ test("같은 액션이 서로 다른 메이저 버전으로 섞이지 않는다"
   const mixed = [...seen.entries()]
     .filter(([, majors]) => majors.size > 1)
     .map(([action, majors]) => `${action}: v${[...majors].sort().join(", v")}`);
-  assert.deepStrictEqual(mixed, [], `버전이 섞인 액션이 있습니다:\n  ${mixed.join("\n  ")}`);
+  assert.deepStrictEqual(mixed, [], `actions with mixed versions found:\n  ${mixed.join("\n  ")}`);
 });

@@ -1,8 +1,8 @@
 // tests/node/legacy-naming-guard.test.js
-// 원작자 종속 이름(suh)이 설치물·소스에 다시 들어오는 것을 막는다.
+// Prevents the original-author-specific name (suh) from re-entering installed output and source.
 //
-// docs/는 과거 설계 기록이라 검사하지 않고, tests/는 이 가드 자신이 패턴 문자열을 담고 있어 제외한다.
-// 주석 줄도 검사한다 — 주석에 남은 예시값도 사용자에게 그대로 설치되기 때문이다.
+// docs/ is past design records and is not checked; tests/ is excluded because this guard itself holds the pattern string.
+// Comment lines are checked too — example values left in comments are installed to users as is.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readFileSync, readdirSync } from "node:fs";
@@ -16,7 +16,7 @@ const LEGACY_NAME = /suh/i;
 function allFiles(dir, acc = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    // 바이트코드 캐시는 .gitignore·패키지 제외 대상이라 설치물·소스가 아니다
+    // Bytecode caches are excluded via .gitignore and packaging, so they are neither installed output nor source
     if (entry.isDirectory()) {
       if (entry.name !== "__pycache__") allFiles(path, acc);
     }
@@ -25,16 +25,16 @@ function allFiles(dir, acc = []) {
   return acc;
 }
 
-test("payload·src·.github에 원작자 종속 이름(suh)이 남아 있지 않다", () => {
+test("no original-author-specific name (suh) remains in payload, src, or .github", () => {
   const hits = [];
   for (const dir of SCAN_DIRS) {
     for (const file of allFiles(join(REPO_ROOT, dir))) {
       const rel = file.slice(REPO_ROOT.length + 1);
-      if (LEGACY_NAME.test(rel)) hits.push(`${rel} — 파일 경로`);
+      if (LEGACY_NAME.test(rel)) hits.push(`${rel} — file path`);
       readFileSync(file, "utf8").split(/\r?\n/).forEach((line, i) => {
         if (LEGACY_NAME.test(line)) hits.push(`${rel}:${i + 1}  ${line.trim()}`);
       });
     }
   }
-  assert.deepStrictEqual(hits, [], `종속 이름이 남아 있습니다:\n  ${hits.join("\n  ")}`);
+  assert.deepStrictEqual(hits, [], `author-specific name remains:\n  ${hits.join("\n  ")}`);
 });

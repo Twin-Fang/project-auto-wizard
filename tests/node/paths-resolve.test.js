@@ -1,3 +1,4 @@
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -13,8 +14,8 @@ function tmpRepo(prefix) {
   return dir;
 }
 
-// ── resolveProjectPaths() 호출부 CliError 캐치 ──────────────
-test("run(): --paths에 지원하지 않는 타입을 지정하면 스택트레이스 없이 exit 1로 깔끔하게 거부된다", async () => {
+// ── resolveProjectPaths() call-site CliError catch ──────────────
+test("run(): an unsupported type in --paths is rejected cleanly with exit 1 and no stack trace", async () => {
   const target = tmpRepo("paw-paths-resolve-");
   try {
     const code = await run(
@@ -27,8 +28,8 @@ test("run(): --paths에 지원하지 않는 타입을 지정하면 스택트레�
   }
 });
 
-// ── --paths로 지정한 경로의 존재 여부 검증 ──────────────────────
-test("resolveProjectPaths: --paths로 지정한 경로가 존재하지 않으면 CliError로 거부한다", async () => {
+// ── Existence check for paths given via --paths ──────────────────────
+test("resolveProjectPaths: rejects with CliError when the path given via --paths does not exist", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     await assert.rejects(
@@ -44,7 +45,7 @@ test("resolveProjectPaths: --paths로 지정한 경로가 존재하지 않으면
   }
 });
 
-test("resolveProjectPaths: --paths로 지정한 경로가 실제로 존재하면 그대로 확정된다", async () => {
+test("resolveProjectPaths: a path given via --paths that actually exists is confirmed as is", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     mkdirSync(join(root, "client"));
@@ -59,15 +60,15 @@ test("resolveProjectPaths: --paths로 지정한 경로가 실제로 존재하면
   }
 });
 
-// ── 모노레포 경로 후보 0개/2개 이상 구분 거부 ────────────────────
-test("resolveProjectPaths: 경로 후보가 0개(감지 실패)면 CliError로 거부한다", async () => {
+// ── Monorepo path candidates: rejecting 0 vs 2+ distinctly ────────────────────
+test("resolveProjectPaths: rejects with CliError when there are 0 path candidates (detection failed)", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
-    // pubspec.yaml은 있지만 lib/가 없어 flutter 후보 필터에서 걸러짐 → 후보 0개
+    // pubspec.yaml exists but lib/ does not, so it is filtered out of the flutter candidates → 0 candidates
     mkdirSync(join(root, "app"));
     writeFileSync(join(root, "app", "pubspec.yaml"), "name: demo\n");
-    // 타입만이 아니라 "찾지 못했습니다" 메시지까지 확인해 2개 이상(모호함) 분기와
-    // 뒤섞이지 않는지 검증한다 (에러 타입만 보면 두 분기 메시지를 바꿔도 통과해버림).
+    // Check the "not found" message, not just the type, to verify this branch is not
+    // mixed up with the 2+ (ambiguous) branch (checking only the error type would pass even if both branch messages were swapped).
     await assert.rejects(
       () => resolveProjectPaths({
         root, types: ["flutter"], paths: new Map(),
@@ -80,15 +81,15 @@ test("resolveProjectPaths: 경로 후보가 0개(감지 실패)면 CliError로 �
   }
 });
 
-test("resolveProjectPaths: 경로 후보가 2개 이상(모호함)이면 CliError로 거부한다", async () => {
+test("resolveProjectPaths: rejects with CliError when there are 2+ path candidates (ambiguous)", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     mkdirSync(join(root, "client"));
     writeFileSync(join(root, "client", "package.json"), "{}\n");
     mkdirSync(join(root, "admin"));
     writeFileSync(join(root, "admin", "package.json"), "{}\n");
-    // "모호합니다" 메시지와 후보 목록(admin, client)까지 포함되는지 확인해 0개(감지 실패)
-    // 분기와 뒤섞이지 않는지 검증한다.
+    // Check that the "ambiguous" message and the candidate list (admin, client) are included, to verify
+    // it is not mixed up with the 0-candidate (detection failed) branch.
     await assert.rejects(
       () => resolveProjectPaths({
         root, types: ["react"], paths: new Map(),
@@ -101,7 +102,7 @@ test("resolveProjectPaths: 경로 후보가 2개 이상(모호함)이면 CliErro
   }
 });
 
-test("resolveProjectPaths: 경로 후보가 정확히 1개면 정상적으로 자동 확정된다(회귀 확인)", async () => {
+test("resolveProjectPaths: exactly 1 path candidate is confirmed automatically (regression check)", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     mkdirSync(join(root, "client"));
@@ -116,8 +117,8 @@ test("resolveProjectPaths: 경로 후보가 정확히 1개면 정상적으로 �
   }
 });
 
-// ── 재현 커맨드 5개 최종 회귀 확인 ──────────────────────────
-test("이슈 재현 ①(M3): --paths react=does-not-exist는 exit 1로 거부된다", async () => {
+// ── Final regression check of the 5 reproduction commands ──────────────────────────
+test("repro 1 (M3): --paths react=does-not-exist is rejected with exit 1", async () => {
   const target = tmpRepo("paw-issue21-");
   try {
     const code = await run(
@@ -131,7 +132,7 @@ test("이슈 재현 ①(M3): --paths react=does-not-exist는 exit 1로 거부된
   }
 });
 
-test("이슈 재현 ②(M4, 후보 0개): flutter인데 lib/ 없이 pubspec.yaml만 있으면 exit 1로 거부된다", async () => {
+test("repro 2 (M4, 0 candidates): flutter with only pubspec.yaml and no lib/ is rejected with exit 1", async () => {
   const target = tmpRepo("paw-issue21-");
   try {
     mkdirSync(join(target, "app"));
@@ -146,7 +147,7 @@ test("이슈 재현 ②(M4, 후보 0개): flutter인데 lib/ 없이 pubspec.yaml
   }
 });
 
-test("이슈 재현 ②(M4, 후보 2개 이상): react 마커가 있는 디렉터리 2개면 exit 1로 거부된다", async () => {
+test("repro 2 (M4, 2+ candidates): two directories with the react marker are rejected with exit 1", async () => {
   const target = tmpRepo("paw-issue21-");
   try {
     mkdirSync(join(target, "client"));
@@ -163,7 +164,7 @@ test("이슈 재현 ②(M4, 후보 2개 이상): react 마커가 있는 디렉�
   }
 });
 
-test("이슈 재현 ③(L5): --paths \"re act=.\"는 --type과 동일하게 정규화되어 정상 설치된다", async () => {
+test("repro 3 (L5): --paths \"re act=.\" is normalized the same as --type and installs normally", async () => {
   const target = tmpRepo("paw-issue21-");
   try {
     const code = await run(
@@ -176,7 +177,7 @@ test("이슈 재현 ③(L5): --paths \"re act=.\"는 --type과 동일하게 정�
   }
 });
 
-test("이슈 재현 ④(L6): --main-branch \"\"는 exit 1로 거부된다", async () => {
+test("repro 4 (L6): --main-branch \"\" is rejected with exit 1", async () => {
   const target = tmpRepo("paw-issue21-");
   try {
     const code = await run(
@@ -189,11 +190,11 @@ test("이슈 재현 ④(L6): --main-branch \"\"는 exit 1로 거부된다", asyn
   }
 });
 
-test("markerForType (paths-resolve): go는 go.mod를 반환한다 (KNOWN_MARKER_TYPES 회귀)", () => {
+test("markerForType (paths-resolve): go returns go.mod (KNOWN_MARKER_TYPES regression)", () => {
   assert.strictEqual(markerForType("go"), "go.mod");
 });
 
-test("findTypePathCandidates: 루트의 go.mod를 후보로 찾는다 (namesByType 회귀)", () => {
+test("findTypePathCandidates: finds go.mod at the root as a candidate (namesByType regression)", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     writeFileSync(join(root, "go.mod"), "module example.com/fx\n\ngo 1.23\n");
@@ -204,7 +205,7 @@ test("findTypePathCandidates: 루트의 go.mod를 후보로 찾는다 (namesByTy
   }
 });
 
-test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확정된다 (KNOWN_MARKER_TYPES 회귀)", async () => {
+test("resolveProjectPaths: go.mod at the root is confirmed automatically as '.' (KNOWN_MARKER_TYPES regression)", async () => {
   const root = mkdtempSync(join(tmpdir(), "paw-paths-resolve-"));
   try {
     writeFileSync(join(root, "go.mod"), "module example.com/fx\n\ngo 1.23\n");
@@ -218,9 +219,9 @@ test("resolveProjectPaths: go.mod이 루트에 있으면 자동으로 '.'로 확
   }
 });
 
-// ── 대화형 직접 입력 루프 탈출 ──────────────────────────────
-// 마커 파일이 아직 없는 타입을 추가해도 Enter만으로 진행할 수 있어야 한다 (무한 반복 금지).
-test("resolveProjectPaths(대화형): 마커가 없어도 Enter(기본값)만으로 루트 경로로 확정된다", async () => {
+// ── Escaping the interactive manual-input loop ──────────────────────────────
+// Even when a type without a marker file is added, Enter alone must be enough to proceed (no infinite loop).
+test("resolveProjectPaths (interactive): even without a marker, Enter (the default) alone confirms the root path", async () => {
   const target = tmpRepo("paw-paths-loop-");
   try {
     let asked = 0;
@@ -228,7 +229,7 @@ test("resolveProjectPaths(대화형): 마커가 없어도 Enter(기본값)만으
       log: () => {},
       text: async ({ defaultValue }) => { asked++; return defaultValue; },
       confirm: async ({ initialValue }) => initialValue,
-      select: async () => { throw new Error("후보가 없으면 select를 부르지 않는다"); },
+      select: async () => { throw new Error("select must not be called when there are no candidates"); },
     };
     const result = await resolveProjectPaths({ root: target, types: ["spring"], tty: true, io });
     assert.strictEqual(result.get("spring"), ".");
@@ -238,7 +239,7 @@ test("resolveProjectPaths(대화형): 마커가 없어도 Enter(기본값)만으
   }
 });
 
-test("resolveProjectPaths(대화형): '아니오'를 고르면 다시 묻고, ESC는 입력한 경로를 그대로 쓴다", async () => {
+test("resolveProjectPaths (interactive): choosing 'No' asks again, and ESC uses the entered path as is", async () => {
   const target = tmpRepo("paw-paths-loop-");
   try {
     const inputs = ["server", "api"];
@@ -255,7 +256,7 @@ test("resolveProjectPaths(대화형): '아니오'를 고르면 다시 묻고, ES
   }
 });
 
-test("resolveProjectPaths(대화형): 레포 밖 경로를 입력하면 쓰지 않고 다시 묻는다", async () => {
+test("resolveProjectPaths (interactive): a path outside the repo is not used and is asked again", async () => {
   const target = tmpRepo("paw-paths-outside-");
   try {
     const inputs = ["../other-repo", "server"];

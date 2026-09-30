@@ -1,27 +1,29 @@
-// .gitignore 보장 — 마법사 자신이 만드는 충돌 백업 부산물(*.bak, *.template.yaml)만 대상으로 한다.
-// 마법사가 설치하는 것과 무관한 개인 개발환경 설정(IDE 등)은 마법사 책임 범위 밖.
-// 배너 블록은 종료 마커(BANNER_END)로 범위가 명확히 구분되어 있어, 그 안에 사용자가 다른 줄을
-// 끼워넣어도 REQUIRED_ENTRIES만 정확히 개별 제거하고 나머지는 보존한다.
-// 주의(의도된 트레이드오프): 이 수정 이전 버전으로 설치되어 종료 마커가 없는 배너가 이미 있는
-// 레포에서는, 배너 직후 REQUIRED_ENTRIES가 연속으로 이어지는 동안만 제거하는 구 방식으로
-// 폴백한다 — 이전 결정이 "이미 설치된 레포의 .gitignore는 소급 처리하지 않고 사용자 판단에
-// 맡긴다"고 명시하므로 별도 마이그레이션 로직을 추가하지 않는다.
+// .gitignore guarantee: covers only the conflict backup by-products the wizard itself creates
+// (*.bak, *.template.yaml). Personal dev-environment settings (IDE etc.) unrelated to what the wizard
+// installs are outside its responsibility.
+// The banner block is clearly delimited by the end marker (BANNER_END), so even if the user inserts other
+// lines inside it, only the REQUIRED_ENTRIES are removed individually and everything else is preserved.
+// Note (intended trade-off): in repos installed before this change, where the banner has no end marker,
+// we fall back to the old approach of removing only while REQUIRED_ENTRIES follow the banner consecutively.
+// An earlier decision states that .gitignore of already installed repos is not retroactively processed and is
+// left to the user, so no separate migration logic is added.
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { t, SUPPORTED_LANGUAGES } from "../../i18n/index.js";
 
-// 마법사가 설치하는 것과 무관한 개인 개발환경 항목(/.idea 등)은 마법사 책임 밖이므로 제거.
-// 대신 마법사 자신의 충돌 처리(workflows.js backup/template 결정)가
-// 실제로 만들어내는 부산물만 gitignore 대상으로 삼는다.
+// Personal dev-environment entries (/.idea etc.) are outside the wizard's responsibility, so they are excluded.
+// Only the by-products the wizard's own conflict handling (workflows.js backup/template decisions)
+// actually creates are gitignore targets.
 const REQUIRED_ENTRIES = ["*.bak", "*.template.yaml"];
 
-// 항목 정규화: 주석 제거·트림·앞 / 제거·앞 ./ 제거·뒤 / 제거. 빈값이면 원본.
+// Normalizes an entry: strip comment, trim, strip leading /, leading ./ and trailing /. Returns the original if empty.
 export function normalizeGitignoreEntry(entry) {
   let e = String(entry);
-  e = e.replace(/#.*$/, "");        // 주석 제거
-  e = e.trim();                      // 앞뒤 공백
-  e = e.replace(/^\//, "");         // 앞 /
-  e = e.replace(/^\.\//, "");       // 앞 ./
-  e = e.replace(/\/$/, "");         // 뒤 /
+  e = e.replace(/#.*$/, "");        // strip comment
+  e = e.trim();                      // surrounding whitespace
+  e = e.replace(/^\//, "");         // leading /
+  e = e.replace(/^\.\//, "");       // leading ./
+  e = e.replace(/\/$/, "");         // trailing /
   return e === "" ? String(entry) : e;
 }
 
@@ -35,13 +37,18 @@ function entryExists(target, content) {
   return false;
 }
 
-const NEW_FILE_CONTENT =
-  "# project-auto-wizard: 충돌 처리 시 생성되는 백업 파일 (안전하게 무시해도 됩니다)\n" +
+const newFileContent = (lang) =>
+  t("copy.gitignore.newFileHeader", {}, lang) + "\n" +
   "*.bak\n" +
   "*.template.yaml\n";
+// The header comment depends on the language it was written in, so a file created in one language must
+// still be recognized under another: check every supported language's variant.
+const NEW_FILE_CONTENT = () => newFileContent(undefined);
+const matchingNewFileContent = (content) =>
+  [NEW_FILE_CONTENT(), ...SUPPORTED_LANGUAGES.map(newFileContent)].find((c) => content.startsWith(c)) ?? null;
 
-// 쓰지 않고 판정만 한다 — 실제 갱신과 --dry-run 미리보기가 같은 판정을 쓰게 한다.
-// 반환: {created, added:[...]}
+// Only decides without writing, so the real update and the --dry-run preview share one decision.
+// Returns: {created, added:[...]}
 export function planGitignore(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
   if (!existsSync(p)) return { created: true, added: REQUIRED_ENTRIES.slice() };
@@ -49,21 +56,21 @@ export function planGitignore(targetRoot = ".") {
   return { created: false, added: REQUIRED_ENTRIES.filter((e) => !entryExists(e, content)) };
 }
 
-// 반환: {created, added:[...]}
+// Returns: {created, added:[...]}
 export function ensureGitignore(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
   const plan = planGitignore(targetRoot);
   if (plan.created) {
-    writeFileSync(p, NEW_FILE_CONTENT);
+    writeFileSync(p, NEW_FILE_CONTENT());
     return plan;
   }
   const toAdd = plan.added;
   if (toAdd.length === 0) return plan;
   let content = readFileSync(p, "utf8");
 
-  // BANNER는 "\n"으로 시작한다. 파일 끝에 개행이 없으면 그 "\n"이 마지막 줄을 끝내는 역할을 하고,
-  // 개행이 있으면 빈 줄 하나가 된다. 어느 쪽이든 제거 시 BANNER 앞까지 자르면 원문 그대로 돌아온다.
-  // (개행을 따로 보충하면 제거 후에도 원래 없던 끝 개행이 남는다.)
+  // BANNER starts with "\n". If the file lacks a trailing newline that "\n" terminates the last line;
+  // otherwise it becomes one blank line. Either way, cutting up to BANNER on removal restores the original text.
+  // (Adding a newline separately would leave a trailing newline that was not there originally.)
   content += BANNER;
   for (const e of toAdd) content += e + "\n";
   content += BANNER_END;
@@ -71,42 +78,44 @@ export function ensureGitignore(targetRoot = ".") {
   return { created: false, added: toAdd };
 }
 
-// ensureGitignore가 기존 파일에 배너 블록을 추가할 때 항상 이 정확한 시퀀스로 시작한다
-// ("\n" + 3줄 배너), 그리고 REQUIRED_ENTRIES 뒤에 BANNER_END로 끝난다. 배너~BANNER_END
-// 범위 안에서 REQUIRED_ENTRIES와 일치하는 줄만 개별 제거하고, 사용자가 그 사이/뒤에 추가한
-// 줄은 절대 건드리지 않는다.
+// When ensureGitignore adds a banner block to an existing file it always starts with this exact sequence
+// ("\n" + 3-line banner) and ends with BANNER_END after REQUIRED_ENTRIES. Only lines matching
+// REQUIRED_ENTRIES inside the banner..BANNER_END range are removed individually; lines the user added
+// between or after them are never touched.
+// The banner text is English in every language, so detection needs no language handling.
 const BANNER =
   "\n" +
   "# ====================================================================\n" +
   "# project-auto-wizard: Auto-added entries\n" +
   "# ====================================================================\n";
 
-// REQUIRED_ENTRIES 뒤에 오는 종료 마커 — 배너 블록의 "끝"을 명확히 구분해, 그 사이에 사용자가
-// 다른 줄을 끼워넣어도 removeAutoAddedEntriesFromGitignore가 정확한 범위 안에서 개별 제거할 수
-// 있게 한다. ensureGitignore가 기존 파일에 배너를 추가할 때만 함께 쓴다
-// (신규 파일 생성 케이스는 NEW_FILE_CONTENT를 통째로 쓰고 종료 마커는 쓰지 않는다 —
-// startsWith 전체 prefix 매칭이라 별도 마커가 필요 없다).
+// End marker after REQUIRED_ENTRIES: it clearly delimits the "end" of the banner block so that
+// removeAutoAddedEntriesFromGitignore can remove entries individually within the exact range even if the user
+// inserted other lines between them. Used only when ensureGitignore adds a banner to an existing file
+// (the new-file case writes NEW_FILE_CONTENT as a whole and no end marker; it is matched
+// by the full startsWith prefix, so no separate marker is needed).
 const BANNER_END = "# ==== project-auto-wizard: end of auto-added entries ====\n";
 
-// .gitignore에 마법사가 추가한 항목이 있는지 확인 (체크리스트 노출 판단용).
-// 두 케이스: (1) 원래 없던 파일을 통째로(또는 그 뒤에 사용자가 이어 쓴 형태로) 새로 만든 경우
-// (2) 기존 파일에 배너 블록을 붙인 경우.
+// Checks whether the wizard added entries to .gitignore (to decide on showing the checklist).
+// Two cases: (1) a file that did not exist was created as a whole (or with user content appended after it)
+// (2) a banner block was attached to an existing file.
 export function hasAutoAddedEntries(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
   if (!existsSync(p)) return false;
   const content = readFileSync(p, "utf8");
-  return content.startsWith(NEW_FILE_CONTENT) || content.includes(BANNER);
+  return matchingNewFileContent(content) !== null || content.includes(BANNER);
 }
 
-// 반환: 'removed' | 'file-deleted' | 'skip-no-gitignore' | 'skip-not-found'
+// Returns: 'removed' | 'file-deleted' | 'skip-no-gitignore' | 'skip-not-found'
 export function removeAutoAddedEntriesFromGitignore(targetRoot = ".") {
   const p = join(targetRoot, ".gitignore");
   if (!existsSync(p)) return "skip-no-gitignore";
   const content = readFileSync(p, "utf8");
 
-  // 원래 파일이 없었는데 마법사가 통째로 만든 경우 — 그 뒤에 사용자가 이어서 추가한 내용만 보존.
-  if (content.startsWith(NEW_FILE_CONTENT)) {
-    const remainder = content.slice(NEW_FILE_CONTENT.length);
+  // The file did not exist and the wizard created it as a whole: keep only what the user appended after it.
+  const created = matchingNewFileContent(content);
+  if (created !== null) {
+    const remainder = content.slice(created.length);
     if (remainder === "") {
       rmSync(p);
       return "file-deleted";
@@ -115,14 +124,13 @@ export function removeAutoAddedEntriesFromGitignore(targetRoot = ".") {
     return "removed";
   }
 
-  // 기존 파일에 배너 블록이 붙은 경우.
+  // A banner block was attached to an existing file.
   const idx = content.indexOf(BANNER);
   if (idx === -1) return "skip-not-found";
   const afterBanner = idx + BANNER.length;
 
-  // 종료 마커가 있으면(이 수정 이후 설치분) 그 범위 안에서 REQUIRED_ENTRIES만 개별적으로
-  // 제거하고, 사용자가 그 사이에 끼워넣은 줄은 순서·연속 여부와 무관하게 그대로 보존한다
-  //.
+  // If the end marker exists (installed after this change), remove only REQUIRED_ENTRIES individually
+  // within that range and keep any lines the user inserted between them, regardless of order or adjacency.
   const endIdx = content.indexOf(BANNER_END, afterBanner);
   if (endIdx !== -1) {
     const region = content.slice(afterBanner, endIdx).split("\n");
@@ -133,14 +141,14 @@ export function removeAutoAddedEntriesFromGitignore(targetRoot = ".") {
     return "removed";
   }
 
-  // 종료 마커가 없는 구버전 설치(이 수정 이전) — 배너 직후 REQUIRED_ENTRIES가 연속으로
-  // 이어지는 동안만 제거하는 기존 방식으로 폴백한다 (동일한 소급 미처리 원칙).
+  // Old install without an end marker (before this change): fall back to the old approach of removing only
+  // while REQUIRED_ENTRIES follow the banner consecutively (same no-retroactive-processing principle).
   const lines = content.slice(afterBanner).split("\n");
   let consumed = 0;
   for (const line of lines) {
     const isKnownEntry = REQUIRED_ENTRIES.some((e) => normalizeGitignoreEntry(line) === normalizeGitignoreEntry(e));
     if (!isKnownEntry) break;
-    consumed += line.length + 1; // +1: split이 삼킨 "\n"
+    consumed += line.length + 1; // +1: the "\n" swallowed by split
   }
   writeFileSync(p, content.slice(0, idx) + content.slice(afterBanner + consumed));
   return "removed";

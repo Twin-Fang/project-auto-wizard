@@ -1,5 +1,5 @@
 // tests/node/uninstall-restore.test.js
-// 완전 삭제 후 파일시스템이 설치 전과 같아야 한다 — 끝 개행 차이나 빈 폴더가 남지 않는다.
+// After a full removal the filesystem must equal its pre-install state — no trailing newline differences or leftover empty folders.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, existsSync, rmSync, writeFileSync, readFileSync } from "node:fs";
@@ -27,7 +27,7 @@ function install(prepare = () => {}) {
   return target;
 }
 
-test("gitignore: 끝 개행이 없던 파일은 추가·제거 후 원문 그대로 돌아온다", () => {
+test("gitignore: a file without a trailing newline returns byte-for-byte after add and remove", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-gi-noeol-"));
   try {
     writeFileSync(join(target, ".gitignore"), "build/");
@@ -39,7 +39,7 @@ test("gitignore: 끝 개행이 없던 파일은 추가·제거 후 원문 그대
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("gitignore: 끝 개행이 있던 파일도 원문 그대로 돌아온다", () => {
+test("gitignore: a file with a trailing newline also returns byte-for-byte", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-gi-eol-"));
   try {
     writeFileSync(join(target, ".gitignore"), "build/\n");
@@ -49,7 +49,7 @@ test("gitignore: 끝 개행이 있던 파일도 원문 그대로 돌아온다", 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("uninstall: 마법사가 만든 .github 폴더가 비면 함께 지운다", () => {
+test("uninstall: removes the wizard-created .github folder when it becomes empty", () => {
   const target = install();
   try {
     runUninstall({}, PAYLOAD, target, ALL);
@@ -59,7 +59,7 @@ test("uninstall: 마법사가 만든 .github 폴더가 비면 함께 지운다",
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("uninstall: 사용자 파일이 남은 .github 폴더는 지우지 않는다", () => {
+test("uninstall: keeps a .github folder that still has user files", () => {
   const target = install((t) => {
     mkdirSync(join(t, ".github/workflows"), { recursive: true });
     writeFileSync(join(t, ".github/workflows/my-ci.yaml"), "name: my-ci\n");
@@ -69,11 +69,11 @@ test("uninstall: 사용자 파일이 남은 .github 폴더는 지우지 않는�
     runUninstall({}, PAYLOAD, target, ALL);
     assert.ok(existsSync(join(target, ".github/workflows/my-ci.yaml")));
     assert.ok(existsSync(join(target, ".github/CODEOWNERS")));
-    assert.ok(!existsSync(join(target, ".github/scripts")), "비게 된 scripts 폴더는 정리한다");
+    assert.ok(!existsSync(join(target, ".github/scripts")), "a scripts folder that became empty is cleaned up");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("purge: 비게 된 .github 폴더를 정리한다", () => {
+test("purge: cleans up a .github folder that became empty", () => {
   const target = install();
   try {
     executePurge(PAYLOAD, target);

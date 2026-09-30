@@ -6,7 +6,7 @@ tmp/
 .idea/
 .worktrees/
 
-# 문서 사이트(website/) 빌드 산출물
+# Docs site (website/) build output
 website/node_modules/
 website/dist/
 website/.astro/
@@ -14,5 +14,8 @@ website/.astro/
 # ====================================================================
 # project-auto-wizard: Auto-added entries
 # ====================================================================
-# 로컬 설계·계획 문서
+# Local design and planning docs
 /docs
+
+# Local copies of issue drafts
+.issue/

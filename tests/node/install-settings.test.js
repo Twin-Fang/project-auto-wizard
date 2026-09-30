@@ -1,6 +1,7 @@
 // tests/node/install-settings.test.js
-// 설치 설정 해석 단계 공통화 — CLI(--force)와 대화형(기본 답변)이 같은 레포에서 같은 설치 결과를 내고,
-// 대화형 질문의 순서·문구가 바뀌지 않는지 고정한다.
+// Shared install-settings resolution: the CLI (--force) and interactive (default answers) produce the same install result on the same repo,
+// and the order and wording of the interactive questions stay unchanged.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -19,7 +20,7 @@ const FIXTURES = {
   flutter: { "pubspec.yaml": "name: my_app\nversion: 1.0.0+7\n" },
 };
 
-// 레포명이 결과 파일에 들어가므로 두 경로 모두 같은 이름의 폴더에서 실행한다.
+// The repo name ends up in the result files, so run both paths in a folder with the same name.
 function project(kind) {
   const base = mkdtempSync(join(tmpdir(), "paw-settings-"));
   const dir = join(base, "my-repo");
@@ -29,7 +30,7 @@ function project(kind) {
   return { base, dir };
 }
 
-// 설치 로그는 경로마다 남기는 방식이 달라 비교에서 뺀다.
+// Install logs are recorded differently per path, so exclude them from the comparison.
 function snapshot(dir) {
   const out = {};
   const walk = (p) => {
@@ -43,7 +44,7 @@ function snapshot(dir) {
   return out;
 }
 
-// 모든 질문을 순서대로 기록하고 초기값(Enter)으로 답한다.
+// Record every question in order and answer with the initial value (Enter).
 function recordingIo() {
   const seq = [];
   const rec = (name, answer) => async (...a) => { seq.push(name); return answer(...a); };
@@ -64,7 +65,7 @@ function recordingIo() {
   return { io, seq };
 }
 
-test("기본값 설치 결과가 CLI와 대화형에서 같다 (spring)", async () => {
+test("default install result is the same for CLI and interactive (spring)", async () => {
   const cli = project("spring");
   const inter = project("spring");
   try {
@@ -77,7 +78,7 @@ test("기본값 설치 결과가 CLI와 대화형에서 같다 (spring)", async 
   }
 });
 
-test("기본값 설치 결과가 CLI와 대화형에서 같다 (flutter)", async () => {
+test("default install result is the same for CLI and interactive (flutter)", async () => {
   const cli = project("flutter");
   const inter = project("flutter");
   try {
@@ -90,7 +91,7 @@ test("기본값 설치 결과가 CLI와 대화형에서 같다 (flutter)", async
   }
 });
 
-test("대화형 질문 순서·문구: spring 신규 설치", async () => {
+test("interactive question order and wording: fresh spring install", async () => {
   const { dir, base } = project("spring");
   try {
     const { io, seq } = recordingIo();
@@ -111,7 +112,7 @@ test("대화형 질문 순서·문구: spring 신규 설치", async () => {
   }
 });
 
-test("대화형 질문 순서·문구: flutter 신규 설치", async () => {
+test("interactive question order and wording: fresh flutter install", async () => {
   const { dir, base } = project("flutter");
   try {
     const { io, seq } = recordingIo();
@@ -132,7 +133,7 @@ test("대화형 질문 순서·문구: flutter 신규 설치", async () => {
   }
 });
 
-test("배포 방식: 명시값 → 저장값 → 기본값, 서버 배포가 없는 타입은 null", () => {
+test("deploy method: explicit value, then stored value, then default; null for types without server deploy", () => {
   const payload = resolvePayloadRoot();
   assert.strictEqual(savedDeployStyle(null), "");
   assert.strictEqual(savedDeployStyle({ options: { deployStyle: "bogus" } }), "");

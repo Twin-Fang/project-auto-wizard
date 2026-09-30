@@ -98,6 +98,7 @@ no usable version (Node falls back to `0.0.1` with a warning, Python to the `ver
 
 Only needed when the type's workflows introduce new `ask` keys, need a type-specific wording
 (`<id>.KEY`), or when a new workflow name should get a short display name in `_workflow_names`.
+The plain `label`/`help`/`example` and `_workflow_names` are English; add `label_ko`/`help_ko` and `_workflow_names_ko` for Korean.
 
 ## 5. Docs and templates
 
@@ -105,7 +106,7 @@ These must list every type (checked by `tests/node/type-registry-consistency.tes
 
 - `payload/version.yml.template` — "Supported project types" and "Synced files per type" comments
 - `README.md` — the "Supported project types" table
-- `README.ko.md` — the "지원 프로젝트 타입" list
+- `README.ko.md` — the supported-project-types list
 
 Also document the type on the docs site: add `website/src/content/docs/project-types/<id>.md`
 (model it on `go.md`), register it in the `project-types/...` sidebar list in

@@ -62,7 +62,7 @@ test("PROJECT-COMMON-AI-PR-SUMMARY.yaml links the related issue via branch name"
   }
 });
 
-test("도그푸딩 사본 AI-PR-SUMMARY에도 동일한 이슈 자동 연결 스텝이 있다", () => {
+test("the dogfooding copy of AI-PR-SUMMARY also has the same ticket auto-link step", () => {
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AI-PR-SUMMARY.yaml"), "utf8");
   assert.ok(body.includes("extract-branch-issue"));
   assert.ok(body.includes("link-pr-issues"));

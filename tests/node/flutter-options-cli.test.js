@@ -1,4 +1,4 @@
-// 비대화형 경로의 Flutter 옵션 결정 — CLI > 저장값 > 기본값, 신규 dart-define / 기존 dotenv 보존.
+// Flutter option resolution on the non-interactive path — CLI > stored value > default; new installs get dart-define, existing ones keep dotenv.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
@@ -22,7 +22,7 @@ const optionsOf = (target) => parseExisting(versionYmlOf(target)).options;
 const install = (target, extraArgs = [], opts = {}) =>
   run([...BASE_ARGS, ...extraArgs], { cwd: target, clock: CLOCK, ...opts });
 
-test("신규 설치: env_mode는 dart-define, 스토어는 미결정(둘 다), 배포 모드는 store_only로 기록한다", async () => {
+test("fresh install: env_mode is dart-define, stores are undecided (both), and deploy mode is recorded as store_only", async () => {
   const target = flutterTarget();
   try {
     assert.strictEqual(await install(target, ["--type", "flutter"]), 0);
@@ -36,10 +36,10 @@ test("신규 설치: env_mode는 dart-define, 스토어는 미결정(둘 다), �
   }
 });
 
-test("기존 설치(version.yml 있음, env_mode 저장값 없음): dotenv를 보존한다", async () => {
+test("existing install (version.yml present, no stored env_mode): keeps dotenv", async () => {
   const target = flutterTarget();
   try {
-    // 이전에 만들어진 version.yml — Flutter 옵션 4개 키가 없다.
+    // version.yml created earlier — lacks the 4 Flutter option keys.
     writeFileSync(join(target, "version.yml"), [
       'version: "1.0.0"',
       "version_code: 1",
@@ -56,7 +56,7 @@ test("기존 설치(version.yml 있음, env_mode 저장값 없음): dotenv를 �
   }
 });
 
-test("CLI 플래그는 저장되고, 플래그 없이 재실행해도 유지되며, 다시 지정하면 덮어쓴다", async () => {
+test("CLI flags are saved, kept on a rerun without flags, and overwritten when specified again", async () => {
   const target = flutterTarget();
   try {
     await install(target, [
@@ -70,7 +70,7 @@ test("CLI 플래그는 저장되고, 플래그 없이 재실행해도 유지되�
       ["dotenv", "ios", "store_submit", "store_prepare"],
     );
 
-    await install(target); // 플래그 없음 — 저장값 유지
+    await install(target); // no flags — stored values kept
     options = optionsOf(target);
     assert.deepStrictEqual(
       [options.envMode, options.flutterStore, options.androidDeployMode, options.iosDeployMode],
@@ -82,17 +82,17 @@ test("CLI 플래그는 저장되고, 플래그 없이 재실행해도 유지되�
     assert.deepStrictEqual(
       [options.envMode, options.flutterStore, options.androidDeployMode, options.iosDeployMode],
       ["dart-define", "none", "store_submit", "store_prepare"],
-      "지정한 플래그만 덮어쓰고 나머지는 저장값을 유지한다",
+      "only the specified flags overwrite; the rest keep their stored values",
     );
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-// 회귀 방지 — store_submit 경고는 Flutter 타입이고 해당 스토어를
-// 선택했을 때만 떠야 한다. android_deploy_mode만 보고 판단하면 Flutter 타입이 아니거나 android
-// 스토어를 선택하지 않은 프로젝트에서도 잘못 떠버린다.
-test("store_submit 경고: Flutter 타입이 아닌 프로젝트에는 --android-deploy-mode를 줘도 뜨지 않는다", async () => {
+// Regression guard — the store_submit warning must appear only for the Flutter type and
+// only when that store is selected. Judging by android_deploy_mode alone would wrongly show it for non-Flutter types or
+// projects that did not select the android store.
+test("store_submit warning: not shown for a non-Flutter project even when --android-deploy-mode is given", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-options-node-"));
   writeFileSync(join(target, "package.json"), "{}\n");
   const originalError = console.error;
@@ -101,14 +101,14 @@ test("store_submit 경고: Flutter 타입이 아닌 프로젝트에는 --android
   try {
     const code = await install(target, ["--type", "node", "--android-deploy-mode", "store_submit"]);
     assert.strictEqual(code, 0);
-    assert.ok(!stderr.includes("심사가 자동 제출"), `Flutter 타입이 아니면 store_submit 경고가 없어야 한다, got: ${stderr}`);
+    assert.ok(!stderr.includes("심사가 자동 제출"), `a non-Flutter type must have no store_submit warning, got: ${stderr}`);
   } finally {
     console.error = originalError;
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("store_submit 경고: Flutter 타입이지만 android 스토어를 선택하지 않으면 android 경고가 뜨지 않는다", async () => {
+test("store_submit warning: for the Flutter type without the android store selected, no android warning is shown", async () => {
   const target = flutterTarget();
   const originalError = console.error;
   let stderr = "";
@@ -119,14 +119,14 @@ test("store_submit 경고: Flutter 타입이지만 android 스토어를 선택�
       "--android-deploy-mode", "store_submit", "--ios-deploy-mode", "store_only",
     ]);
     assert.strictEqual(code, 0);
-    assert.ok(!stderr.includes("심사가 자동 제출"), `android를 선택하지 않았으면 store_submit 경고가 없어야 한다, got: ${stderr}`);
+    assert.ok(!stderr.includes("심사가 자동 제출"), `without android selected there must be no store_submit warning, got: ${stderr}`);
   } finally {
     console.error = originalError;
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("Flutter 타입이 없으면 옵션 키를 기록하지 않는다", async () => {
+test("without the Flutter type, option keys are not recorded", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-options-node-"));
   writeFileSync(join(target, "package.json"), "{}\n");
   try {
@@ -137,13 +137,13 @@ test("Flutter 타입이 없으면 옵션 키를 기록하지 않는다", async (
   }
 });
 
-test("resolvers에 옵션이 전달되어 @wizard auto/fallback 토큰이 설치본에 반영된다", async () => {
+test("options are passed to resolvers and the @wizard auto/fallback tokens are reflected in the installed copy", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-flutter-options-wiring-"));
   const payload = mkdtempSync(join(tmpdir(), "paw-flutter-options-payload-"));
   try {
     mkdirSync(join(target, "app"));
     writeFileSync(join(target, "app", "pubspec.yaml"), "name: fixture\nversion: 1.0.0+1\n");
-    // 실제 payload 사본에 토큰 3종만 담은 검증용 워크플로우를 얹는다 — 배선(index → makeResolvers)만 본다.
+    // Overlay a verification workflow holding only the 3 tokens onto the real payload copy — this checks only the wiring (index → makeResolvers).
     cpSync(resolvePayloadRoot(), payload, { recursive: true });
     writeFileSync(join(payload, "workflows", "flutter", "PROJECT-FLUTTER-WIRING-CHECK.yaml"), [
       "name: WIRING CHECK",
@@ -174,23 +174,23 @@ test("resolvers에 옵션이 전달되어 @wizard auto/fallback 토큰이 설치
     assert.match(installed, /^ {2}ENV_MODE: "dotenv"$/m);
     assert.match(installed, /^ {2}ANDROID_MODE: \$\{\{ github\.event\.inputs\.deploy_mode \|\| vars\.ANDROID_DEPLOY_MODE \|\| 'store_submit' \}\}$/m);
     assert.match(installed, /^ {2}IOS_MODE: \$\{\{ github\.event\.inputs\.deploy_mode \|\| vars\.IOS_DEPLOY_MODE \|\| 'store_prepare' \}\}$/m);
-    assert.ok(!installed.includes("@wizard"), "마커 주석이 남으면 안 된다");
+    assert.ok(!installed.includes("@wizard"), "no marker comment may remain");
   } finally {
     rmSync(target, { recursive: true, force: true });
     rmSync(payload, { recursive: true, force: true });
   }
 });
 
-test("스토어 저장값 없는 기존 설치: 설치된 스토어 워크플로우로 추론해 지운 플랫폼 파일을 되살리지 않는다", async () => {
+test("existing install without a stored store value: does not infer from installed store workflows and revive deleted platform files", async () => {
   const target = flutterTarget();
   try {
     mkdirSync(join(target, "lib"));
     writeFileSync(join(target, "version.yml"), 'version: "1.0.0"\nversion_code: 1\nproject_types: ["flutter"]\n');
     mkdirSync(join(target, ".github", "workflows"), { recursive: true });
-    writeFileSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "# 기존 설치본\n");
+    writeFileSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "# existing install\n");
     assert.strictEqual(await install(target, ["--type", "flutter"]), 0);
     assert.strictEqual(optionsOf(target).flutterStore, "android");
-    assert.ok(!existsSync(join(target, "ios", "fastlane", "Fastfile")), "선택하지 않은 iOS fastlane 파일을 만들면 안 된다");
+    assert.ok(!existsSync(join(target, "ios", "fastlane", "Fastfile")), "must not create iOS fastlane files that were not selected");
     assert.ok(!existsSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml")));
   } finally {
     rmSync(target, { recursive: true, force: true });

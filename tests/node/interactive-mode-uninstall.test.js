@@ -1,4 +1,5 @@
 // tests/node/interactive-mode-uninstall.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs";
@@ -37,14 +38,14 @@ function stubIo({ multiselectReturn, confirmReturn }) {
   };
 }
 
-test("runInteractive: selecting 완전 삭제 then confirming removes the checked items", async () => {
+test("runInteractive: selecting the full-removal option then confirming removes the checked items", async () => {
   const target = installFixture();
   try {
     const { io, outros } = stubIo({ multiselectReturn: ["workflows", "scripts"], confirmReturn: true });
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
     assert.ok(!existsSync(join(target, ".github/scripts/version_manager.py")));
-    assert.ok(existsSync(join(target, "version.yml"))); // readme/gitignore/versionYml 미선택 -> 보존
+    assert.ok(existsSync(join(target, "version.yml"))); // readme/gitignore/versionYml not selected -> preserved
     assert.ok(outros.some((t) => t.includes("완전 삭제")));
   } finally {
     rmSync(target, { recursive: true, force: true });
@@ -58,7 +59,7 @@ test("runInteractive: declining the final uninstall confirm leaves everything in
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
     assert.ok(existsSync(join(target, ".github/scripts/version_manager.py")));
-    assert.deepStrictEqual(outros, []); // 취소했는데 "완전 삭제를 마쳤습니다"가 출력되면 안 됨
+    assert.deepStrictEqual(outros, []); // after cancelling, the "finished full removal" message must not be printed
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

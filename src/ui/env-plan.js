@@ -1,5 +1,5 @@
-// @wizard env 계획 질문 UI — ask 키 수집, 필드 카드 출력, 전부 기본값/일부만 변경 선택.
-// io 주입식 — 테스트는 {select, multiselect, text} 스텁을 넘긴다. 기본은 readline-engine 실물.
+// @wizard env plan question UI - collects ask keys, prints field cards, lets the user keep all defaults or change some.
+// io is injected - tests pass {select, multiselect, text} stubs. The default is the real readline-engine.
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { stdin, stderr } from "node:process";
@@ -10,14 +10,15 @@ import { loadWizardPrompts, wfField, workflowDisplayName } from "../core/wizard-
 import { deployFilter, payloadWorkflowNames, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { buildTypeRootFilter, readSavedDeployValues } from "../core/copy/workflows.js";
 import * as engine from "./readline-engine.js";
+import { t } from "../i18n/index.js";
 
 const CANCEL = engine.CANCEL;
 
-// 진행 안내는 stderr로 출력 (stdout 파이프 오염 방지).
+// Progress output goes to stderr (keeps stdout pipes clean).
 const defaultLog = (s = "") => stderr.write(s + "\n");
 
-// 사용처 문자열 조립.
-// usages: [{type, workflowName}] — 타입이 여러 개면 타입만 "t1·t2", 하나면 "타입 name1·name2".
+// Build the usage string.
+// usages: [{type, workflowName}] - with several types only "t1·t2", with one type "type name1·name2".
 export function scopeString(usages = []) {
   const types = []; const names = [];
   for (const { type, workflowName } of usages) {
@@ -28,19 +29,19 @@ export function scopeString(usages = []) {
   return `${types.join("·")} ${names.join("·")}`.trim();
 }
 
-// ask KEY 수집 — 실제 설치되는 워크플로우와 같은 소스를 스캔한다.
-// payloadRoot: 패키지 payload/ 루트. types: 설치 대상 타입 목록.
+// Collect ask KEYs - scans the same sources as the workflows that actually get installed.
+// payloadRoot: package payload/ root. types: target types to install.
 // opts:
-//   resolvers    - @접두 기본값(@repo 등) 해석용 (수집 시점에 해석)
-//   flutterStore - Flutter 스토어 대상(string[]|null). 배열이면 선택 해제된 스토어 워크플로우는 스캔에서 제외 (null=현행)
-//   prompts      - wizard-labels 파싱 객체 (워크플로우 표시명용, null이면 확장자 제거 폴백)
-//   saved        - Map<type, Map<key,value>>: version.yml deploy 블록 저장값. 있으면 그 값을 기본값으로 보여준다
-//                  (업데이트 때 "기본값 그대로"를 고르면 설치 때 답한 값이 유지되어야 한다)
-// 반환: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
+//   resolvers    - resolves @-prefixed defaults (@repo etc.) at collection time
+//   flutterStore - Flutter store targets (string[]|null). An array excludes workflows of deselected stores from the scan (null = current behaviour)
+//   prompts      - parsed wizard-labels object (for workflow display names; falls back to the extension-stripped name when null)
+//   saved        - Map<type, Map<key,value>>: values saved in the version.yml deploy block. When present they are shown as defaults
+//                  (choosing "keep defaults" on an update must preserve the values answered at install time)
+// Returns: { keys:[], defaults:Map<key,default>, typeDefaults:Map<"type|key",default>,
 //        usages:Map<key,[{type,workflowName}]> }
 export function collectAsks(payloadRoot, types = [], opts = {}) {
   const { resolvers = {}, deployStyle = "", flutterStore = null, prompts = null, saved = new Map() } = opts;
-  // 설치하지 않을 배포 워크플로우의 질문까지 묻지 않는다 — 질문 수는 설치 범위를 따라간다.
+  // Do not ask about deploy workflows that will not be installed - the number of questions follows the install scope.
   const available = payloadWorkflowNames(payloadRoot);
   const keepDeploy = deployFilter(deployStyle, available);
   const baseDir = join(payloadRoot, PAYLOAD.workflowsDir);
@@ -49,18 +50,18 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   const typeDefaults = new Map();
   const usages = new Map();
 
-  // 스캔 단위: [타입, 폴더]. common/ 최상위는 타입 선택과 무관하게 항상 설치되므로(복사 엔진과
-  // 동일 규칙) 무조건 스캔한다.
+  // Scan units: [type, folder]. The top level of common/ is always installed regardless of the chosen types
+  // (same rule as the copy engine), so it is always scanned.
   const units = [];
   const commonDir = join(baseDir, "common");
   if (exists(commonDir)) units.push(["common", commonDir, null]);
   for (const type of types) {
     const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
     if (!exists(typeDir)) continue;
-    // 복사 엔진과 동일한 폴더 구성: 타입 직하위 + ("배포 안 함"이 아닐 때만) server-deploy.
-    // go/python·react/next처럼 서버 배포 워크플로우가 타입 루트에 바로 있는 타입도 같은 배포 방식
-    // 필터로 거른다 — "배포 안 함"이면 CD·PR 프리뷰 전용 ask 키(DEPLOY_PORT, SSH_AUTH_METHOD 등)를 묻지 않는다.
-    // Flutter는 선택 해제된 스토어 워크플로우(PLAYSTORE·TESTFLIGHT)도 같은 필터로 걸러 질문 범위가 설치 범위와 같다.
+    // Same folder layout as the copy engine: type root + server-deploy (only when deploy is not "none").
+    // Types such as go/python and react/next keep server deploy workflows directly in the type root; they go
+    // through the same deploy-style filter - with "no deploy", CD/PR-preview ask keys (DEPLOY_PORT, SSH_AUTH_METHOD, ...) are not asked.
+    // Flutter also filters out deselected store workflows (PLAYSTORE, TESTFLIGHT) so the question scope equals the install scope.
     units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore, available)]);
     if (deployStyle !== NO_DEPLOY_STYLE) {
       units.push([type, serverDeployDir, keepDeploy]);
@@ -77,13 +78,13 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
       for (const line of content.split(/\r?\n/)) {
         const p = parseWizardLine(line);
         if (!p || p.action !== "ask") continue;
-        // 타입별 기본값: @접두면 resolver 해석, 아니면 리터럴
+        // Per-type default: resolved via resolver when @-prefixed, otherwise a literal
         const rawDefault = p.arg.startsWith("@")
           ? resolveToken(p.arg.slice(1), type, resolvers)
           : p.arg;
-        // 리터럴 기본값 안에 __PROJECT_NAME__ 등이 박혀 있으면실제 repoName으로
-        // 풀어준다 — substituteEnv()가 설치 파일에 적용하는 것과 동일한 치환이라야 마법사
-        // 화면 표시와 실제 설치 결과가 어긋나지 않는다.
+        // If a literal default embeds __PROJECT_NAME__ etc., expand it to the real repoName -
+        // it must be the same substitution substituteEnv() applies to installed files, otherwise the
+        // wizard display and the actual install result would diverge.
         const savedValue = saved.get(type)?.get(p.key);
         const typeDefault = savedValue != null && savedValue !== ""
           ? savedValue
@@ -99,14 +100,14 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
   return { keys, defaults, typeDefaults, usages };
 }
 
-// KEY가 처음 등장한 type — 라벨 조회 시 타입 오버라이드 우선순위용
+// The type where KEY first appears - used for type-override priority when looking up labels
 function firstTypeFor(usages, key) {
   return usages.get(key)?.[0]?.type ?? "";
 }
 
-// 최종 답변 목록 — 완료 요약과 설치 로그가 같은 데이터를 쓰도록 여기서 만든다.
-// isDefault는 "기본값 그대로인가"다. 나중에 배포가 안 될 때 제일 먼저 확인하게 되는 정보라
-// 값만 남기면 부족하다.
+// Final answer list - built here so the completion summary and the install log share the same data.
+// isDefault means "left at the default". It is the first thing checked when a deploy later fails,
+// so keeping only the value is not enough.
 function buildAnswers(prompts, asks, values, useDefaults) {
   return asks.keys.map((key) => {
     const def = asks.defaults.get(key) ?? "";
@@ -121,54 +122,54 @@ function buildAnswers(prompts, asks, values, useDefaults) {
   });
 }
 
-// KEY 1개를 'label·사용처·설명·예시·기본값' 카드로 출력.
-// info: { default, usages } — idx/tot 있으면 "(i/t)" 진행 표시. log 주입 가능(테스트 무음화).
+// Print one KEY as a 'label, usage, description, example, default' card.
+// info: { default, usages } - with idx/tot a "(i/t)" progress marker is shown. log is injectable (silences tests).
 export function printFieldCard(prompts, key, info, idx = null, tot = null, log = defaultLog) {
-  const t = info.usages?.[0]?.type ?? "";
-  const label = wfField(prompts, t, key, "label");
-  const help = wfField(prompts, t, key, "help");
-  const ex = wfField(prompts, t, key, "example");
+  const type = info.usages?.[0]?.type ?? "";
+  const label = wfField(prompts, type, key, "label");
+  const help = wfField(prompts, type, key, "help");
+  const ex = wfField(prompts, type, key, "example");
   const scope = scopeString(info.usages || []);
   const head = idx != null && tot != null
     ? `   ▸ (${idx}/${tot}) ${label}  [${scope}]`
     : `   ▸ ${label}  [${scope}]`;
   log(head);
   if (help) log(`       ${help}`);
-  if (ex) log(`       예) ${ex}`);
-  log(`       기본값: ${info.default ?? ""}`);
+  if (ex) log(t("ui.env-plan.card.example", { example: ex }));
+  log(t("ui.env-plan.card.default", { value: info.default ?? "" }));
   log("");
 }
 
-// ask 필드의 기본값이 정확히 "true"/"false"면 boolean 필드로 간주한다.
-// 마커 문법(@wizard ask:...)을 바꾸지 않고 리터럴 값 형태만으로 판단 — 별도 타입 표기가 필요 없다.
+// An ask field whose default is exactly "true"/"false" is treated as a boolean field.
+// Decided from the literal value alone without changing the marker syntax (@wizard ask:...) - no separate type annotation needed.
 function isBooleanDefault(value) {
   return value === "true" || value === "false";
 }
 
-// 형식이 정해진 ask 값 검증 — 잘못된 값은 설치는 통과하고 배포 단계에서야 실패하므로 입력 시점에 다시 묻는다.
-// 반환: 오류 문구(문제 없으면 "").
+// Validate ask values with a fixed format - a bad value passes install and only fails at deploy time, so re-ask at input time.
+// Returns: the error message ("" when fine).
 export function validateAskValue(key, value) {
   const v = String(value);
   if (/_PORT$/.test(key)) {
     const n = Number(v);
-    return /^\d+$/.test(v) && n >= 1 && n <= 65535 ? "" : "1~65535 사이의 숫자로 입력하세요.";
+    return /^\d+$/.test(v) && n >= 1 && n <= 65535 ? "" : t("ui.env-plan.validate.port");
   }
   if (key === "SSH_AUTH_METHOD") {
-    return v === "password" || v === "key" ? "" : "password 또는 key 중 하나로 입력하세요.";
+    return v === "password" || v === "key" ? "" : t("ui.env-plan.validate.sshAuth");
   }
   if (key === "JAVA_VERSION") {
-    return /^\d+(\.\d+)*$/.test(v) ? "" : "JDK 버전 숫자로 입력하세요 (예: 21, 17).";
+    return /^\d+(\.\d+)*$/.test(v) ? "" : t("ui.env-plan.validate.javaVersion");
   }
   return "";
 }
 
-// 지정 KEY들을 하나씩 입력받아 values에 기록.
-// 빈 입력(Enter)/ESC → KEY 공통 기본값 유지.
+// Prompt for the given KEYs one by one and record them in values.
+// Empty input (Enter) / ESC keeps the KEY's shared default.
 async function promptEach(io, prompts, asks, todoKeys, values, log) {
   const tot = todoKeys.length;
   if (tot === 0) return;
   log("");
-  log("   값을 입력하세요. 그대로 두려면 아무것도 입력하지 말고 Enter를 누르면 기본값이 적용됩니다.");
+  log(t("ui.env-plan.each.intro"));
   log("");
   let i = 0;
   for (const key of todoKeys) {
@@ -178,36 +179,36 @@ async function promptEach(io, prompts, asks, todoKeys, values, log) {
     const label = wfField(prompts, firstTypeFor(asks.usages, key), key, "label");
     let input;
     if (isBooleanDefault(def)) {
-      const answer = await io.confirm({ message: `↳ ${label} — 활성화할까요?`, initialValue: def === "true" });
+      const answer = await io.confirm({ message: t("ui.env-plan.each.enable", { label }), initialValue: def === "true" });
       input = answer === CANCEL ? def : (answer ? "true" : "false");
     } else {
       for (;;) {
-        input = await io.text({ message: `↳ 값 입력 (Enter=기본값 «${def}» 유지):`, defaultValue: def });
+        input = await io.text({ message: t("ui.env-plan.each.input", { def }), defaultValue: def });
         if (input === CANCEL || input == null) { input = def; break; }
         input = String(input).trim();
         if (input === "") { input = def; break; }
         const problem = validateAskValue(key, input);
         if (!problem) break;
-        log(`         ⚠️  '${input}' — ${problem}`);
+        log(t("ui.env-plan.each.invalid", { input, problem }));
       }
     }
     values.set(key, input);
-    log(`         → ${label} = ${input}`);
+    log(t("ui.env-plan.each.result", { label, input }));
     log("");
   }
 }
 
-// 배포 env 설정 계획.
-// 반환: { values: Map<key,value>, useDefaults: boolean, answers: [{key,label,value,isDefault,scope}] }
-//  - useDefaults=true  → 호출부는 substituteEnv에 그대로 넘기면 타입별 기본값 경로
-//  - useDefaults=false → values에 담긴 키만 사용자 확정값으로 치환, 나머지는 기본값
-//    (⚠️ substituteEnv는 useDefaults=false일 때만 values를 참조하므로 이 플래그를 반드시 함께 전달)
-// 인자:
-//   payloadRoot/types/resolvers/flutterStore — collectAsks와 동일 의미
-//   targetRoot — wizard-prompts.yml 1차 탐색 위치(기본 ".")
-//   force      — true면 질문 없이 전부 기본값
-//   io         — {select, multiselect, text} 주입 (기본 readline-engine). 테스트 스텁 지점.
-//   log        — 카드·안내 출력 함수 주입 (기본 stderr)
+// Deploy env setup plan.
+// Returns: { values: Map<key,value>, useDefaults: boolean, answers: [{key,label,value,isDefault,scope}] }
+//  - useDefaults=true  -> the caller passes it straight to substituteEnv, taking the per-type default path
+//  - useDefaults=false -> only keys in values are replaced with user-confirmed values, the rest use defaults
+//    (WARNING: substituteEnv reads values only when useDefaults=false, so always pass this flag along)
+// Arguments:
+//   payloadRoot/types/resolvers/flutterStore - same meaning as collectAsks
+//   targetRoot - first place to look for wizard-prompts.yml (default ".")
+//   force      - when true, take all defaults without asking
+//   io         - injected {select, multiselect, text} (default readline-engine). Test stub point.
+//   log        - injected card/notice output function (default stderr)
 export async function promptEnvPlan({
   payloadRoot, types = [], io = null, force = false, resolvers = {},
   deployStyle = "", flutterStore = null, targetRoot = ".", repoName = "", log = defaultLog,
@@ -217,11 +218,11 @@ export async function promptEnvPlan({
   const asks = collectAsks(payloadRoot, types, { resolvers, deployStyle, flutterStore, prompts, saved });
   const defaults = asks.defaults;
 
-  // 수집 키 0개 → 질문 자체가 없음
+  // No collected keys -> nothing to ask
   if (asks.keys.length === 0) return { values: new Map(), useDefaults: true, answers: [] };
 
-  // 비대화형: force 또는 (io 미주입 && 비TTY) → 전부 기본값
-  // io가 주입돼 있으면(테스트/상위 마법사) TTY 여부와 무관하게 대화형으로 진행한다.
+  // Non-interactive: force or (no io injected && non-TTY) -> all defaults
+  // With io injected (tests / parent wizard) it runs interactively regardless of TTY.
   const interactive = !force && (io != null || stdin.isTTY);
   if (!interactive) {
     const values = new Map(defaults);
@@ -230,57 +231,57 @@ export async function promptEnvPlan({
 
   const ui = io ?? engine;
 
-  // 기본값 미리보기 카드 전체 출력
+  // Print the full default-preview cards
   log("");
-  log("▶ 워크플로우 환경설정을 채웁니다");
+  log(t("ui.env-plan.intro.title"));
   log("");
-  log("   설치되는 워크플로우가 사용할 값입니다. 항목마다 '무엇에 쓰이는지·설명·예시'와");
-  log("   기본값을 함께 보여드립니다. 그대로 둬도 되고, 원하는 것만 바꿀 수 있습니다.");
+  log(t("ui.env-plan.intro.line1"));
+  log(t("ui.env-plan.intro.line2"));
   log("");
   const tot = asks.keys.length;
   asks.keys.forEach((key, i) => {
     printFieldCard(prompts, key, { default: defaults.get(key), usages: asks.usages.get(key) || [] }, i + 1, tot, log);
   });
-  log("   ─────────────────────────────────────────────");
+  log(t("ui.env-plan.intro.rule"));
 
   const choice = await ui.select({
-    message: "어떻게 채울까요?",
+    message: t("ui.env-plan.choice.message"),
     options: [
-      { value: "all", label: "① 위 기본값 그대로 전부 설치 (입력 없이 바로 진행)" },
-      { value: "each", label: "② 하나씩 직접 입력 (모든 항목을 순서대로)" },
-      { value: "some", label: "③ 몇 개만 골라서 바꾸기 (고른 것만 입력 · 나머지는 기본값)" },
+      { value: "all", label: t("ui.env-plan.choice.all") },
+      { value: "each", label: t("ui.env-plan.choice.each") },
+      { value: "some", label: t("ui.env-plan.choice.some") },
     ],
   });
-  // ESC/취소 → 전부 기본값
+  // ESC/cancel -> all defaults
   if (choice === CANCEL || choice == null || choice === "all") {
     const values = new Map(defaults);
     return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
 
-  // 사용자가 확정한 키만 values에 담는다 — substituteEnv(useDefaults:false)가
-  // values에 없는 키는 타입별 기본값으로 채운다(기본값 위에 답한 값만 덮어쓰는 것과 같다).
+  // Keep only user-confirmed keys in values - substituteEnv(useDefaults:false) fills keys
+  // missing from values with the per-type defaults (same as overriding defaults with just the answered values).
   const values = new Map();
   if (choice === "each") {
     await promptEach(ui, prompts, asks, asks.keys, values, log);
     return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };
   }
 
-  // some: 바꿀 항목만 멀티선택 → 고른 것만 입력
+  // some: multi-select the items to change -> prompt only for those
   const options = asks.keys.map((key) => ({
     value: key,
-    label: `${wfField(prompts, firstTypeFor(asks.usages, key), key, "label")}  (기본: ${defaults.get(key)})`,
+    label: t("ui.env-plan.some.option", { label: wfField(prompts, firstTypeFor(asks.usages, key), key, "label"), def: defaults.get(key) }),
   }));
   const selected = await ui.multiselect({
-    message: "바꿀 항목을 고르세요 (Space로 선택 · Enter로 확정)",
+    message: t("ui.env-plan.some.message"),
     options,
     initialValues: [],
   });
-  // ESC/빈 선택 → 전부 기본값
+  // ESC/empty selection -> all defaults
   if (selected === CANCEL || !Array.isArray(selected) || selected.length === 0) {
     const values = new Map(defaults);
     return { values, useDefaults: true, answers: buildAnswers(prompts, asks, values, true) };
   }
-  // 수집 키 순서 유지 + 수집된 키만 인정
+  // Keep collection order + accept only collected keys
   const todo = asks.keys.filter((k) => selected.includes(k));
   await promptEach(ui, prompts, asks, todo, values, log);
   return { values, useDefaults: false, answers: buildAnswers(prompts, asks, values, false) };

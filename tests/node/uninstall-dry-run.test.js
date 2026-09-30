@@ -1,4 +1,5 @@
 // tests/node/uninstall-dry-run.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs";
@@ -22,8 +23,8 @@ function installFixture() {
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
   });
   runFull(ctx, resolvePayloadRoot(), target);
-  // full 모드는 충돌 백업이 실제로 생겼을 때만 .gitignore를 만든다 — 이 픽스처는
-  // dry-run의 gitignore 미리보기 자체를 검증하는 것이 목적이므로 직접 만들어 둔다.
+  // Full mode creates .gitignore only when a conflict backup actually appears — this fixture
+  // aims to verify the dry-run gitignore preview itself, so it is created directly.
   ensureGitignore(target);
   return target;
 }

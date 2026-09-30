@@ -1,7 +1,7 @@
 // tests/node/payload-workflow-permissions.test.js
-// doctor가 Workflow permissions를 INFO로 낮출 수 있는 근거를 고정한다.
-// 레포의 default_workflow_permissions가 read여도 마법사 워크플로우가 정상 동작하는 이유는
-// 각 워크플로우가 자체 permissions를 선언하기 때문이다 — 이 전제가 깨지면 doctor 문구도 거짓이 된다.
+// Pins the basis on which doctor can downgrade Workflow permissions to INFO.
+// The wizard workflows work even when the repo's default_workflow_permissions is read
+// because each workflow declares its own permissions — if this premise breaks, the doctor message becomes false too.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
@@ -11,17 +11,17 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const COMMON_DIR = join(REPO_ROOT, "payload", "workflows", "common");
 
-test("payload 공통 워크플로우는 모두 permissions를 명시한다", () => {
+test("every payload common workflow declares permissions explicitly", () => {
   const files = readdirSync(COMMON_DIR).filter((n) => n.endsWith(".yaml") || n.endsWith(".yml"));
-  assert.ok(files.length > 0, "payload/workflows/common에 워크플로우가 없습니다");
+  assert.ok(files.length > 0, "no workflows in payload/workflows/common");
   for (const f of files) {
     const text = readFileSync(join(COMMON_DIR, f), "utf8");
-    assert.match(text, /^permissions:/m, `${f}에 최상위 permissions 선언이 없습니다`);
+    assert.match(text, /^permissions:/m, `${f} has no top-level permissions declaration`);
   }
 });
 
-// 커밋·push를 수행하는 워크플로우는 contents: write가 반드시 있어야 한다.
-test("커밋을 push하는 공통 워크플로우는 contents: write를 선언한다", () => {
+// Workflows that commit and push must have contents: write.
+test("common workflows that push commits declare contents: write", () => {
   const NEEDS_WRITE = [
     "PROJECT-COMMON-VERSION-CONTROL.yaml",
     "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
@@ -30,15 +30,15 @@ test("커밋을 push하는 공통 워크플로우는 contents: write를 선언�
   ];
   for (const f of NEEDS_WRITE) {
     const text = readFileSync(join(COMMON_DIR, f), "utf8");
-    assert.match(text, /^permissions:[\s\S]*?^\s+contents:\s*write/m, `${f}에 contents: write가 없습니다`);
+    assert.match(text, /^permissions:[\s\S]*?^\s+contents:\s*write/m, `${f} lacks contents: write`);
   }
 });
 
-// 타입별 워크플로우도 같다 — GITHUB_TOKEN으로 댓글·push 같은 쓰기를 하는데 permissions가 없으면
-// 레포 기본 권한(read)에서 실패한다. 설치 요약·README의 "기본값 Read로 충분" 안내가 거짓이 된다.
+// The same applies to per-type workflows — writing (comments, push) with GITHUB_TOKEN without permissions
+// fails under the repo default permission (read). The install summary and README claim that "default Read is enough" would become false.
 const WRITE_OPS = /github\.rest\.(issues|pulls|repos)\.(create|update|delete)\w*|git push|gh (pr|issue) (comment|merge|create)|gh release create|gh workflow run/;
 
-test("쓰기 작업을 하는 payload 워크플로우는 모두 permissions를 선언한다", () => {
+test("every payload workflow that performs writes declares permissions", () => {
   const root = join(REPO_ROOT, "payload", "workflows");
   const files = readdirSync(root, { recursive: true }).filter((n) => /\.ya?ml$/.test(n));
   let checked = 0;
@@ -46,7 +46,7 @@ test("쓰기 작업을 하는 payload 워크플로우는 모두 permissions를 �
     const text = readFileSync(join(root, f), "utf8");
     if (!WRITE_OPS.test(text)) continue;
     checked++;
-    assert.match(text, /^\s*permissions:/m, `${f}는 쓰기 작업을 하지만 permissions 선언이 없습니다`);
+    assert.match(text, /^\s*permissions:/m, `${f} performs writes but has no permissions declaration`);
   }
   assert.ok(checked > 0);
 });

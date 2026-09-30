@@ -1,7 +1,7 @@
-// 대화형 마법사.
-// io 주입으로 테스트 가능. 실제 실행은 src/ui/prompts.js 함수를 io로 넘긴다.
-// 새 시각 층(banner/detectionLog/analysisCard/installKind/summary)과 저수준 엔진(engineIo)은
-// io의 "옵셔널 멤버" — 스텁이 생략하면 해당 층만 건너뛰고 실행 계약은 동일하다.
+// Interactive wizard.
+// Testable through io injection. The real run passes the src/ui/prompts.js functions as io.
+// The visual layers (banner/detectionLog/analysisCard/installKind/summary) and the low-level engine (engineIo)
+// are "optional members" of io - a stub that omits them just skips that layer; the execution contract is the same.
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
@@ -28,115 +28,117 @@ import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { currentLogPath, hasLegacyMdLogs } from "../core/logger.js";
+import { t, getLanguage } from "../i18n/index.js";
 
 const CANCEL = prompts.CANCEL;
 
-const SEMVER_AUTO_QUESTION = "자동 버전 승격을 사용하시겠습니까? (커밋 타입에 따라 major/minor/patch 자동 결정)";
-const COPILOT_AI_QUESTION = "Copilot으로 AI 요약을 생성하시겠습니까? (GitHub Copilot AI Credits가 소비되며, 사용할 수 없으면 자동으로 규칙 기반 요약으로 전환됩니다)";
+// Resolved lazily so the text follows the language chosen at run time.
+const semverAutoQuestion = () => t("interactive.question.semverAuto");
+const copilotAiQuestion = () => t("interactive.question.copilotAi");
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
 
-// io 기본값 = 실제 prompts. 테스트는 스텁 io 주입.
+// io defaults to the real prompts. Tests inject a stub io.
 export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot, clock, io = prompts } = {}) {
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
   const templateVersion = readTemplateVersion();
 
-  // 시작 배너. 스텁엔 banner 없음 → intro 폴백.
-  if (io.banner) io.banner({ version: templateVersion, modeLabel: "대화형 통합 마법사" });
-  else io.intro?.("project-auto-wizard — 대화형 통합 마법사");
+  // Start banner. Stubs have no banner -> fall back to intro.
+  if (io.banner) io.banner({ version: templateVersion, modeLabel: t("interactive.banner.modeLabel") });
+  else io.intro?.(t("interactive.intro"));
 
-  // 기존 version.yml — version/version_code/paths/옵션 보존의 단일 진실
+  // Existing version.yml - single source of truth for preserving version/version_code/paths/options
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
-  // 신규/업데이트 판별
+  // New install vs update detection
   io.installKind?.({ currentTemplateVersion: existing?.templateVersion || "", templateVersion });
 
-  // 1) 모드 선택
-  // status/doctor — 읽기 전용이라 감지·breaking 게이트가 필요 없다. 결과를 보여준 뒤 메뉴로
-  // 돌아온다: 진단의 목적이 설치 준비이므로 확인 → 설치를 한 세션에서 끝내야 한다.
-  // CLI 경로(index.js의 --mode status/doctor)는 단발 명령이므로 지금처럼 즉시 종료한다.
+  // 1) Mode selection
+  // status/doctor are read-only, so no detection or breaking gate is needed. After showing the result we
+  // return to the menu: the point of diagnosis is install preparation, so check -> install should finish in one session.
+  // The CLI path (--mode status/doctor in index.js) is a one-shot command, so it exits immediately as before.
   let mode;
   for (let round = 0; ; round++) {
     mode = await io.selectMode({ again: round > 0 });
-    if (mode === CANCEL || mode == null) { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
+    if (mode === CANCEL || mode == null) { io.cancelMessage?.(t("interactive.cancel.install")); return 0; }
     if (mode === "status") { printStatus(runStatus(payload, cwd)); continue; }
     if (mode === "doctor") { printDoctorReport(runDoctor(cwd)); continue; }
     break;
   }
 
-  // uninstall 모드 — 대화형 체크리스트로 항목별 opt-in 후 삭제. 감지·breaking 게이트 불필요.
-  // runUninstallFlow는 취소/항목없음 시 null을 반환한다 — 그때는 완료 outro를 찍지 않는다.
+  // uninstall mode - delete after per-item opt-in through an interactive checklist. No detection or breaking gate needed.
+  // runUninstallFlow returns null on cancel / nothing to remove - then the completion outro is not printed.
   if (mode === "uninstall") {
     const result = await runUninstallFlow(payload, cwd, io);
-    if (result) io.outro?.("완전 삭제를 마쳤습니다.");
+    if (result) io.outro?.(t("interactive.outro.uninstall"));
     return 0;
   }
 
-  // Breaking Changes 게이트 (모든 모드 공통, 대화형은 확인 질문)
+  // Breaking Changes gate (common to all modes, a confirmation question in interactive mode)
   const proceed = await runBreakingCheck({
     cwd, payloadRoot: payload, templateVersion,
     askYesNo: (msg, def) => io.askYesNo(msg, def),
   });
-  if (!proceed) { io.cancelMessage?.("통합을 안전하게 취소했습니다."); return 0; }
+  if (!proceed) { io.cancelMessage?.(t("interactive.cancel.integration")); return 0; }
 
-  // full/version/workflows — 감지 (version은 기존 version.yml 최우선)
-  // 감지 경고는 즉시 찍지 않고 모았다가 감지 박스 안에서 출력한다 — 종전에는 경고가 박스보다
-  // 먼저 나와 앞선 질문에 대한 경고처럼 보였다. 안내 문구도 대화형용으로 바꾼다.
+  // full/version/workflows - detection (the existing version.yml takes top priority for version)
+  // Detection warnings are collected and printed inside the detection box instead of immediately - they used to
+  // appear before the box and look like warnings about the previous question. The hint text is also adapted for interactive mode.
   const detectWarnings = [];
   let types = detectTypes(cwd);
   let version = resolveVersion({
     cwd, existing, types,
     warn: (m) => detectWarnings.push(m),
-    hint: "다음 화면의 '수정하기 > 버전'에서 바로 고칠 수 있습니다.",
+    hint: t("interactive.hint.version"),
   });
-  // 경로가 확정된 뒤 모노레포 하위 폴더에서 다시 감지할지 — 저장값·직접 입력한 값은 건드리지 않는다.
+  // Whether to re-detect in a monorepo subfolder once paths are settled - saved values and hand-typed values are left alone.
   let versionAutoDetected = !existing?.version;
   let branch = detectDefaultBranch(cwd, {
     warn: (m) => detectWarnings.push(m),
-    hint: "다르면 뒤의 '릴리스 브랜치' 질문에서 바꿀 수 있습니다.",
+    hint: t("interactive.hint.branch"),
   });
   const repoName = detectRepoName(cwd);
-  // 선택 워크플로우 초기값: CLI 플래그(--copilot 등) → version.yml 저장 옵션
-  // 플래그로 정한 값은 질문을 생략한다 — 비대화형과 같은 우선순위.
+  // Initial values of optional workflows: CLI flags (--copilot etc.) -> options saved in version.yml
+  // Values set by a flag skip the question - same priority as non-interactive mode.
   let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
     { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
-  // 서버 배포 방식 — 저장값(version.yml)이 있으면 재질문하지 않는다 (semver_auto와 같은 규약).
+  // Server deploy style - not asked again when a saved value (version.yml) exists (same convention as semver_auto).
   let deployStyle = savedDeployStyle(existing);
   const showOptional = mode === "full";
   const realTty = process.stdout.isTTY === true;
 
-  // Flutter 옵션 — 저장값이 있으면 재질문하지 않는다 (deploy_style과 같은 규약).
-  // 저장값 없는 기존 설치는 동작 보존을 위해 dotenv를 초기 선택으로, 스토어는 설치된 워크플로우로 추론한다.
-  // 환경변수 기본값 규칙(신규=dart-define, 기존 설치·저장값 없음=dotenv)은 resolveFlutterOptions가 단일 진실이다.
+  // Flutter options - not asked again when a saved value exists (same convention as deploy_style).
+  // Existing installs without saved values start with dotenv to preserve behaviour, and stores are inferred from the installed workflows.
+  // The env default rule (new = dart-define, existing install without saved value = dotenv) lives only in resolveFlutterOptions.
   let flutter = savedFlutterState(existing);
   const flutterAsk = {
     envModeDefault: resolveFlutterOptions({
       cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
     }).envMode,
-    // 신규 설치의 초기 선택은 CLI 기본값(--flutter-store 미지정 = 둘 다)과 같아야 한다 — 경로에 따라 설치 결과가 달라지면 안 된다.
+    // The initial selection of a new install must equal the CLI default (--flutter-store unspecified = both) - the install result must not depend on the path taken.
     inferredStores: existing && flutter.stores === null ? inferInstalledStores(join(cwd, PATHS.workflowsDir)) : [...STORE_PLATFORMS],
   };
-  // 이미 정해진 값은 건너뛰므로 여러 번 불러도 같은 질문이 반복되지 않는다.
+  // Already-decided values are skipped, so calling this several times never repeats a question.
   const askFlutterOptions = async () => {
     if (types.includes("flutter")) flutter = await askUnsetFlutterOptions(io, flutter, flutterAsk);
   };
-  // 서버 배포 방식 — 서버 배포(CD) 워크플로우가 있는 타입(spring·go·python 등)일 때만 묻는다.
-  // 그 외 타입에는 설치 결과에 영향이 없는 질문이라 묻지도 기록하지도 않는다.
+  // Server deploy style - asked only for types that have server-deploy (CD) workflows (spring, go, python, ...).
+  // For other types the question does not affect the install result, so it is neither asked nor recorded.
   const hasServerDeploy = () => hasServerDeployWorkflows(payload, types);
   const askDeployStyle = async () => {
     if (isDeployStyle(deployStyle) || !hasServerDeploy()) return;
     const picked = await io.selectDeployStyle({ nonstop: hasNonstopWorkflows(payload, types) });
-    deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = 기본값
+    deployStyle = isDeployStyle(picked) ? picked : DEFAULT_DEPLOY_STYLE; // ESC = default
   };
 
-  // 감지 로그. markers = 실제로 존재를 확인한 파일.
+  // Detection log. markers = files whose existence was actually confirmed.
   let markers = detectMarkers(cwd, types);
   io.detectionLog?.({ types, version, branch, markers, warnings: detectWarnings });
 
-  // 타입 확정 — 감지는 추정이므로 다른 질문보다 먼저 확인받는다. 종전에는 확정 UI가
-  // '수정하기 > 프로젝트 타입' 두 단계 뒤에 숨어 있어, 타입이 틀린 채로 설치가 끝나는 일이 많았다.
-  // 타입이 뒤에 나올 질문(선택 워크플로우·경로·env)의 범위를 정하므로 순서상 여기가 맞다.
-  // 저장값이 있는 업데이트 설치와 비대화형에서는 묻지 않는다 — 기존 동작 그대로.
+  // Confirm types - detection is a guess, so get confirmation before any other question. The confirmation UI used to be
+  // hidden two steps deep in 'Edit > Project type', so installs often finished with the wrong type.
+  // Types decide the scope of the later questions (optional workflows, paths, env), so this is the right place in the order.
+  // Not asked for update installs with saved values and in non-interactive mode - unchanged behaviour.
   if (showOptional && !existing?.types?.length) {
     const picked = await io.confirmTypes({ types, markers });
     if (!isCancel(picked) && Array.isArray(picked) && picked.length) {
@@ -148,37 +150,37 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  // 배포 방식·Flutter 옵션·semver/Copilot 질문 — 선택 항목을 묻는 경우(showOptional)만
+  // Deploy style, Flutter options, semver/Copilot questions - only when optional items are asked (showOptional)
   if (showOptional) {
     await askDeployStyle();
 
-    // Flutter 옵션 — 환경변수 방식 → 스토어 배포 대상 → 플랫폼별 배포 모드.
+    // Flutter options - env mode -> store deploy targets -> per-platform deploy mode.
     await askFlutterOptions();
 
-    // 신규 질문 — 자동 semver 승격 (기본 ON). 저장값 있으면 재질문 생략.
-    // version.yml을 쓰지 않는 workflows 모드에서는 답변이 무의미하므로 full에서만 질문한다.
+    // Auto semver bump question (default ON). Skipped when a saved value exists.
+    // In workflows mode version.yml is not written and the answer is meaningless, so it is asked only in full.
     if (mode === "full" && includeSemverAuto === null) {
-      const y2 = await io.askYesNo(SEMVER_AUTO_QUESTION, true);
+      const y2 = await io.askYesNo(semverAutoQuestion(), true);
       includeSemverAuto = y2 === true;
     }
 
-    // Copilot AI 요약 — AI Credits를 소비하므로 opt-in(기본 No). 저장값 있으면 재질문 생략.
+    // Copilot AI summary - consumes AI Credits, so opt-in (default No). Skipped when a saved value exists.
     if (mode === "full" && includeCopilotAi === null) {
-      const y3 = await io.askYesNo(COPILOT_AI_QUESTION, false);
+      const y3 = await io.askYesNo(copilotAiQuestion(), false);
       includeCopilotAi = y3 === true;
     }
   }
-  // 질문이 실제로 나온 경우(위 full 모드 질문) 답변을 그대로 존중하고, 안 나온 옵션만 기본값으로 채운다
-  // — CLI 경로(index.js)와 같은 함수라 같은 규칙이다.
+  // When a question was actually asked (the full-mode questions above) its answer is respected, and only options that were not asked
+  // are filled with defaults - same function as the CLI path (index.js), hence the same rule.
   ({ includeSemverAuto, includeCopilotAi } = resolveReleaseOptions(
     { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi }, existing));
   const showOptionToggles = mode === "full";
 
-  // 확인/수정 루프 — ESC는 '머무르기' (명시적 '아니오'만 종료)
+  // Confirm/edit loop - ESC means 'stay' (only an explicit 'No' exits)
   let paths = new Map();
   let confirmed = false;
   while (!confirmed) {
-    // 프로젝트 분석 개요 카드. 스텁엔 없음 → note 폴백.
+    // Project analysis overview card. Stubs have none -> fall back to note.
     if (io.analysisCard) {
       io.analysisCard({
         mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault,
@@ -188,40 +190,40 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
       io.note?.(summarize({
         mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault,
         options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
-      }), "프로젝트 분석 결과");
+      }), t("interactive.summary.title"));
     }
     const choice = await io.confirmProjectMenu();
-    if (choice === "cancel") { io.cancelMessage?.("설치를 취소했습니다."); return 0; }
-    if (isCancel(choice) || choice == null) continue; // ESC = 머무르기 (루프 재출력)
+    if (choice === "cancel") { io.cancelMessage?.(t("interactive.cancel.install")); return 0; }
+    if (isCancel(choice) || choice == null) continue; // ESC = stay (redraw the loop)
     if (choice === "continue") { confirmed = true; break; }
-    // edit 루프
+    // edit loop
     let editing = true;
     while (editing) {
       const what = await io.editMenu({ showFlutter: showOptional && types.includes("flutter"), showOptions: showOptionToggles });
       if (isCancel(what) || what === "done") { editing = false; break; }
       if (what === "type") {
-        const t = await io.selectTypes(types);
-        if (!isCancel(t) && Array.isArray(t) && t.length) {
-          // 타입 집합이 실제로 바뀌면 경로 재해석 대상으로 초기화 (정렬 집합 비교)
+        const picked = await io.selectTypes(types);
+        if (!isCancel(picked) && Array.isArray(picked) && picked.length) {
+          // If the type set really changed, reset it so paths are re-resolved (sorted-set comparison)
           const oldSorted = [...types].sort().join(",");
-          types = t.filter((x) => VALID_TYPES.includes(x));
+          types = picked.filter((x) => VALID_TYPES.includes(x));
           if ([...types].sort().join(",") !== oldSorted) paths = new Map();
         }
       } else if (what === "version") {
-        const v = await io.askText("새 버전 (예: 1.0.0)", version);
+        const v = await io.askText(t("interactive.edit.versionPrompt"), version);
         if (!isCancel(v) && v !== version) {
-          // semver 형식 검증
+          // semver format check
           if (/^\d+\.\d+\.\d+$/.test(v)) { version = v; versionAutoDetected = false; }
-          else io.note?.("버전 형식이 올바르지 않습니다 (x.y.z 형태) — 기존 값을 유지합니다.", "⚠ 버전");
+          else io.note?.(t("interactive.edit.versionInvalid"), t("interactive.edit.versionInvalidTitle"));
         }
       } else if (what === "branch") {
-        branch = await askBranchName(io, "기본 브랜치", branch, isCancel);
+        branch = await askBranchName(io, t("interactive.edit.branchPrompt"), branch, isCancel);
       } else if (what === "semverAuto") {
-        // 저장값이 있으면 처음 질문을 건너뛰므로, 한 번 정한 값을 바꿀 수 있는 곳은 여기뿐이다.
-        const y = await io.askYesNo(SEMVER_AUTO_QUESTION, includeSemverAuto);
+        // A saved value skips the first question, so this is the only place to change a value once decided.
+        const y = await io.askYesNo(semverAutoQuestion(), includeSemverAuto);
         if (typeof y === "boolean") includeSemverAuto = y;
       } else if (what === "copilotAi") {
-        const y = await io.askYesNo(COPILOT_AI_QUESTION, includeCopilotAi);
+        const y = await io.askYesNo(copilotAiQuestion(), includeCopilotAi);
         if (typeof y === "boolean") includeCopilotAi = y;
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
@@ -229,13 +231,13 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     }
   }
 
-  // 편집 루프에서 뒤늦게 flutter 타입이 추가된 경우에도 옵션을 확정한다 — 이미 정해진 값은 다시 묻지 않는다.
-  // 서버 배포 타입이 뒤늦게 추가된 경우도 같다.
+  // Settle the options even when the flutter type was added late in the edit loop - already-decided values are not asked again.
+  // The same goes for a server-deploy type added late.
   if (showOptional) {
     await askDeployStyle();
     await askFlutterOptions();
   }
-  // 질문이 나오지 않은 경우(비 full 모드 등)도 동작 보존 기본값으로 채워 워크플로우 치환이 어긋나지 않게 한다.
+  // Even when no question was asked (non-full modes etc.) fill in behaviour-preserving defaults so workflow substitution stays consistent.
   const flutterOptions = {
     envMode: flutter.envMode || flutterAsk.envModeDefault,
     stores: flutter.stores,
@@ -243,9 +245,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     iosDeployMode: flutter.iosDeployMode || DEFAULT_DEPLOY_MODE,
   };
 
-  // 브랜치 설정. full/workflows만 질문, version은 기본값 기록.
-  // 저장값(version.yml metadata.template.branches)이 있으면 재질문 없이 재사용 (업데이트 모드).
-  // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)이 있으면 저장값이 없는 것으로 보고 다시 묻는다.
+  // Branch setup. Only full/workflows ask; version records the defaults.
+  // A saved value (version.yml metadata.template.branches) is reused without asking (update mode).
+  // A detection-failure value saved by an earlier version ("(unknown)" etc.) counts as not saved and is asked again.
   const savedBranches = existing?.branches
     && isValidBranchName(existing.branches.main) && isValidBranchName(existing.branches.develop)
     ? existing.branches : null;
@@ -255,114 +257,115 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   let developMissing = false;
   if (showOptional && !savedBranches) {
     const remoteBranches = await detectRemoteBranches(cwd);
-    // 두 질문에 같은 이름을 입력해야만 trunk-based가 되는 암묵적 규칙 대신,
-    // 전략을 먼저 명시적으로 고르게 한다. 취소/그 외 값은 기존 기본 동작과 같은 pr-flow로 폴백
-    // (selectDeployStyle의 "ESC = 기본값" 패턴과 동일).
+    // Instead of the implicit rule that trunk-based only happens when the same name is typed for both questions,
+    // let the user pick the strategy explicitly first. Cancel / any other value falls back to pr-flow, the existing default
+    // (same "ESC = default" pattern as selectDeployStyle).
     const strategyPick = await io.selectBranchStrategy();
     const strategy = strategyPick === "trunk-based" ? "trunk-based" : "pr-flow";
-    const mainB = await pickBranch(io, `릴리스 브랜치를 선택하세요 (기본: ${branch})`, branch, remoteBranches, isCancel);
-    // trunk-based면 개발 브랜치 질문 자체를 생략 — 유일한 브랜치(main)를 그대로 develop으로 쓴다.
+    const mainB = await pickBranch(io, t("interactive.branch.releasePrompt", { branch }), branch, remoteBranches, isCancel);
+    // For trunk-based the development-branch question is skipped - the only branch (main) doubles as develop.
     const devB = strategy === "trunk-based"
       ? mainB
-      : await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
+      : await pickBranch(io, t("interactive.branch.developPrompt"), "develop", remoteBranches, isCancel);
     branches = resolveBranchConfig({ mainBranch: mainB, developBranch: devB, defaultBranch: branch });
     if (branches.mode === "trunk-based") {
-      io.note?.(`릴리스 브랜치(${branches.main}) 하나만 사용하는 trunk-based 모드로 설치합니다 (RELEASE-PUBLISH 단독).`, "브랜치 모드");
+      io.note?.(t("interactive.branch.trunkNote", { main: branches.main }), t("interactive.branch.modeTitle"));
     } else if (!remoteBranches.length) {
-      // 원격이 없거나 비어 있으면 push할 기준이 없다 — 만들지 않았다는 사실과 방법을 알린다.
+      // With no remote or an empty one there is nothing to push against - report that it was not created and how to do it.
       developMissing = true;
-      io.note?.(developMissingNotice(branches), "브랜치");
+      io.note?.(developMissingNotice(branches), t("interactive.branch.title"));
     } else if (!remoteBranches.includes(branches.develop)) {
       const r = await ensureDevelopBranch({
         develop: branches.develop, remoteBranches, cwd,
         confirm: (msg) => io.askYesNo(msg, true),
-        log: (m) => io.note?.(m, "브랜치"),
+        log: (m) => io.note?.(m, t("interactive.branch.title")),
       });
       developMissing = r.created !== true || r.pushed === false;
     }
   }
 
-  // 경로 확정 (저장값·후보 스캔·질문)
+  // Settle paths (saved values, candidate scan, questions)
   if (mode === "full") {
     paths = await resolveProjectPaths({
       root: cwd, types, paths, existingPaths: existing?.paths ?? new Map(),
       force: false, tty: realTty, io: io.engineIo ?? {},
     });
   } else {
-    for (const t of types) if (t !== "basic" && !paths.has(t)) paths.set(t, existing?.paths.get(t) || ".");
+    for (const ty of types) if (ty !== "basic" && !paths.has(ty)) paths.set(ty, existing?.paths.get(ty) || ".");
   }
 
-  // 모노레포는 버전·빌드 번호 파일이 타입 폴더 안에 있다 — 경로가 확정된 지금 그 폴더에서 감지한다.
+  // In a monorepo the version/build-number files live inside the type folder - detect there now that paths are settled.
   if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
     version = detectVersion(cwd, { types, paths, warn: () => {} });
   }
   const versionCode = resolveVersionCode({ cwd, existing, types, paths });
 
-  // @wizard env 계획 질문 (full/workflows만)
+  // @wizard env plan questions (full/workflows only)
   const resolvers = makeResolvers(cwd, repoName, paths, flutterOptions);
   let envValues = new Map(), envUseDefaults = true, envAnswers = [];
   if (showOptional) {
     const plan = await promptEnvPlan({
       payloadRoot: payload, types, io: io.engineIo ?? null, force: false,
       resolvers, deployStyle, targetRoot: cwd, repoName,
-      flutterStore: flutterOptions.stores, // 선택 해제된 스토어 워크플로우의 ask 질문은 묻지 않는다
+      flutterStore: flutterOptions.stores, // ask questions of deselected store workflows are not asked
     });
     envValues = plan.values;
     envUseDefaults = plan.useDefaults;
-    envAnswers = plan.answers || []; // 완료 요약·설치 로그가 같은 답변 데이터를 쓴다
+    envAnswers = plan.answers || []; // the completion summary and install log share the same answer data
   }
 
   const { now, today } = clock || utcNow();
   const ctx = buildInstallContext({
     payload, existing, templateVersion, types,
-    // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
+    // Even if the saved value is zero-downtime, a single-server deploy is installed when the chosen types lack that style - record the style actually installed.
     deployStyle: resolveDeployStyle({ payload, types, explicit: deployStyle, existing }),
     typeOptions: flutterOptions,
     releaseOptions: { includeSemverAuto, includeCopilotAi },
     mode, force: true, version, versionCode, branch, branches, paths,
     repoName, resolvers, envValues, envUseDefaults, now, today,
-    // 설치 로그·완료 요약이 쓰는 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
+    language: baseCtx.language ?? existing?.language ?? getLanguage(),
+    // Extra context used by the install log and completion summary - does not change the install behaviour itself.
     markers, envAnswers, detectWarnings,
   });
 
-  // 사용자가 답해야 하는 것만 묻는다. baseline 3-way가 자동으로 안전한 경우를
-  // 걸러내므로, 여기 오는 것은 (a) 양쪽이 다 바뀐 진짜 충돌과 (b) 사용자가 지운 파일뿐이다.
+  // Ask only what the user has to answer. The baseline 3-way merge filters out the automatically
+  // safe cases, so what reaches here is (a) real conflicts where both sides changed and (b) files the user deleted.
   let hooks = {};
   if (showOptional && io.engineIo?.select) {
     const { conflicts, removed } = surveyWorkflows(ctx, payload, cwd);
 
-    // (b) 지운 파일 — 조용히 되살리지 않는다. 되살리는 쪽이 기본이 아니라는 점이 핵심이다.
+    // (b) Deleted files - never restored silently. The key point is that restoring is not the default.
     const restoreRemoved = new Set();
     if (removed.length) {
       io.note?.(removed.map((r) => `  - ${r.filename}`).join("\n"),
-        `이전 설치에는 있었지만 지금 없는 워크플로우 (${removed.length}개)`);
+        t("interactive.removed.title", { count: removed.length }));
       for (const { filename } of removed) {
         const sel = await io.engineIo.select({
-          message: `${filename} — 직접 지우신 것으로 보입니다. 다시 추가할까요?`,
+          message: t("interactive.removed.message", { filename }),
           options: [
-            { value: "keep", label: "추가하지 않음 — 지운 상태 유지 (기본)" },
-            { value: "restore", label: "다시 추가 — 최신 버전으로 설치" },
+            { value: "keep", label: t("interactive.removed.keep") },
+            { value: "restore", label: t("interactive.removed.restore") },
           ],
         });
-        if (!isCancel(sel) && sel === "restore") restoreRemoved.add(filename); // ESC = 유지
+        if (!isCancel(sel) && sel === "restore") restoreRemoved.add(filename); // ESC = keep
       }
     }
 
-    // (a) 진짜 충돌 3지선 — 타입당 1회 결정을 파일에 캐시 적용
+    // (a) Real conflicts, three choices - one decision per type, applied to its files via a cache
     const decisions = new Map();
     if (conflicts.length) {
       const perType = new Map();
       for (const { filename, type } of conflicts) {
         if (!perType.has(type)) {
           const sel = await io.engineIo.select({
-            message: `내 수정과 업스트림 변경이 겹칩니다 (${type}) — 어떻게 할까요?`,
+            message: t("interactive.conflict.message", { type }),
             options: [
-              { value: "skip", label: "건너뛰기 — 기존 파일 유지 (기본)" },
-              { value: "backup", label: ".bak 백업 후 새 버전으로 교체" },
-              { value: "template", label: "기존 유지 + 새 버전을 .template.yaml로 참고 추가" },
+              { value: "skip", label: t("interactive.conflict.skip") },
+              { value: "backup", label: t("interactive.conflict.backup") },
+              { value: "template", label: t("interactive.conflict.template") },
             ],
           });
-          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = 건너뛰기
+          perType.set(type, isCancel(sel) || sel == null ? "skip" : sel); // ESC = skip
         }
         decisions.set(filename, perType.get(type));
       }
@@ -372,7 +375,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
 
   const result = runFull(ctx, payload, cwd, hooks);
 
-  // 완료 요약
+  // Completion summary
   io.summary?.({
     mode, types, version, versionCode, branches, developMissing,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
@@ -391,30 +394,30 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     scripts: result?.scripts ?? null,
   });
   const notices = postInstallNotices(result, { interactive: true });
-  if (notices.length) io.note?.(notices.join("\n"), "이전 워크플로우 정리");
-  io.outro?.(`통합 완료 — ${mode} 모드로 설치했습니다.`);
+  if (notices.length) io.note?.(notices.join("\n"), t("interactive.notices.title"));
+  io.outro?.(t("interactive.outro.done", { mode }));
   return 0;
 }
 
-// 브랜치 선택 — 원격 목록이 있으면 select(+직접 입력), 없으면 텍스트 입력. ESC/빈값 = 기본값.
-// def를 최우선으로, main/develop을 그다음으로 정렬하고 커서를 def에 고정한다.
+// Branch selection - select (+ manual entry) when a remote list exists, otherwise text input. ESC/empty = default.
+// def sorts first, main/develop next, and the cursor is pinned to def.
 export async function pickBranch(io, message, def, remoteBranches, isCancel) {
   if (io.engineIo?.select && remoteBranches.length) {
     const sorted = sortBranchesForSelection(remoteBranches, def);
     const options = [];
-    if (!sorted.includes(def)) options.push({ value: def, label: `${def} (기본값 — 없으면 새로 생성)` });
-    for (const b of sorted) options.push({ value: b, label: b === def ? `${b} (기본값)` : b });
-    options.push({ value: "__custom__", label: "직접 입력..." });
+    if (!sorted.includes(def)) options.push({ value: def, label: t("interactive.branch.defaultNew", { name: def }) });
+    for (const b of sorted) options.push({ value: b, label: b === def ? t("interactive.branch.defaultMark", { name: b }) : b });
+    options.push({ value: "__custom__", label: t("interactive.branch.custom") });
     const initialIndex = Math.max(0, options.findIndex((o) => o.value === def));
     const sel = await io.engineIo.select({ message, options, initialIndex });
-    if (sel === "__custom__") return askBranchName(io, "브랜치 이름", def, isCancel);
+    if (sel === "__custom__") return askBranchName(io, t("interactive.branch.namePrompt"), def, isCancel);
     return isCancel(sel) || sel == null ? def : sel;
   }
   return askBranchName(io, message, def, isCancel);
 }
 
-// 브랜치 이름 텍스트 입력 — 앞뒤 공백을 떼고, 비었거나 ESC면 기본값, 쓸 수 없는 이름이면 다시 묻는다.
-// 입력값이 워크플로우 트리거에 그대로 들어가므로 공백 포함 이름 등은 워크플로우가 영영 돌지 않는다.
+// Branch name text input - trim whitespace, use the default when empty or ESC, ask again for unusable names.
+// The value goes into the workflow trigger as is, so names with spaces etc. would keep the workflow from ever running.
 async function askBranchName(io, message, def, isCancel) {
   for (;;) {
     const v = await io.askText(message, def);
@@ -422,40 +425,40 @@ async function askBranchName(io, message, def, isCancel) {
     const name = String(v ?? "").trim();
     if (!name) return def;
     if (isValidBranchName(name)) return name;
-    io.note?.(`'${name}'은(는) 브랜치 이름으로 쓸 수 없습니다 (공백·특수문자·'..' 등 불가) — 다시 입력하세요.`, "⚠ 브랜치");
+    io.note?.(t("interactive.branch.invalid", { name }), t("interactive.branch.invalidTitle"));
   }
 }
 
 function summarize({ mode, types, version, branch, showOptional, flutter, envModeDefault, options = null }) {
   const lines = [
-    `통합 모드 : ${modeLabel(mode)}`,
-    `프로젝트 타입 : ${types.join(", ")}${types.length > 1 ? " (멀티)" : ""}`,
-    `버전 : ${version}`,
-    `기본 브랜치 : ${branch}`,
+    t("interactive.summary.mode", { value: modeLabel(mode) }),
+    t("interactive.summary.types", { value: `${types.join(", ")}${types.length > 1 ? t("interactive.summary.multi") : ""}` }),
+    t("interactive.summary.version", { value: version }),
+    t("interactive.summary.branch", { value: branch }),
   ];
   if (showOptional) {
     if (types.includes("flutter")) {
       const stores = flutter.stores ?? [];
       const modeParts = stores.map((p) => `${p}=${(p === "android" ? flutter.androidDeployMode : flutter.iosDeployMode) || DEFAULT_DEPLOY_MODE}`);
-      lines.push(`환경변수 방식 : ${flutter.envMode || envModeDefault}`);
-      lines.push(`스토어 배포 대상 : ${stores.length ? stores.join(", ") : "없음"}`);
-      lines.push(`배포 모드 : ${modeParts.length ? modeParts.join(" ") : "없음"}`);
+      lines.push(t("interactive.summary.envMode", { value: flutter.envMode || envModeDefault }));
+      lines.push(t("interactive.summary.stores", { value: stores.length ? stores.join(", ") : t("interactive.summary.none") }));
+      lines.push(t("interactive.summary.deployMode", { value: modeParts.length ? modeParts.join(" ") : t("interactive.summary.none") }));
     }
   }
   if (options) {
-    lines.push(`자동 버전 승격 : ${options.semverAuto ? "켜짐" : "꺼짐"}`);
-    lines.push(`Copilot AI 요약 : ${options.copilotAi ? "켜짐" : "꺼짐"}`);
+    lines.push(t("interactive.summary.semverAuto", { value: options.semverAuto ? t("interactive.summary.on") : t("interactive.summary.off") }));
+    lines.push(t("interactive.summary.copilotAi", { value: options.copilotAi ? t("interactive.summary.on") : t("interactive.summary.off") }));
   }
   return lines.join("\n");
 }
 
 function modeLabel(m) {
-  return { full: "전체 설치", version: "버전 관리만", workflows: "워크플로우만" }[m] || m;
+  return { full: t("interactive.modeLabel.full"), version: t("interactive.modeLabel.version"), workflows: t("interactive.modeLabel.workflows") }[m] || m;
 }
 
 function utcNow(date = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
   const d = `${date.getUTCFullYear()}-${p(date.getUTCMonth() + 1)}-${p(date.getUTCDate())}`;
-  const t = `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}`;
-  return { now: `${d} ${t}`, today: d };
+  const tm = `${p(date.getUTCHours())}:${p(date.getUTCMinutes())}:${p(date.getUTCSeconds())}`;
+  return { now: `${d} ${tm}`, today: d };
 }

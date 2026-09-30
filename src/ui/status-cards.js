@@ -1,75 +1,81 @@
-// 첫 화면 상태 표시 층 — 감지 로그 · 분석 카드 · 신규/업데이트 판별
-// (Breaking Changes 박스는 core/breaking-check.js가 담당)
+// First-screen status layer - detection log, analysis card, new-install/update detection
+// (the Breaking Changes box is handled by core/breaking-check.js)
 import { A, paint } from "./ansi.js";
+import { t } from "../i18n/index.js";
 import { DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
 
 const GUT = paint("│", A.gray);
 const HEAD = paint("◆", A.cyan);
 const OK = paint("✓", A.green);
 
-// 감지 로그 — 무엇을 근거로 어떤 타입을 감지했는지
-// markers: Map<type, 실제 발견 파일>.
-// warnings: 감지 도중 나온 경고. 감지 함수를 먼저 호출한 뒤 박스를 그리는 구조라 경고가
-//           박스 위로 새어나가 앞선 질문에 대한 경고처럼 보였다 — 박스 안에서 출력한다.
+// Detection log - which type was detected and on what evidence
+// markers: Map<type, file actually found>.
+// warnings: warnings raised during detection. Detection runs before the box is drawn, so warnings
+//           used to leak above the box and look like they belonged to the previous question - print them inside the box.
 export function printDetectionLog({ types = [], version = "", branch = "", markers = new Map(), warnings = [] },
   out = (s) => process.stderr.write(s)) {
-  out(`${paint("┌", A.gray)}  🔍 프로젝트를 살펴보는 중...\n`);
+  out(`${paint("┌", A.gray)}  ${t("ui.status-cards.detect.title")}\n`);
   if (types.length && !(types.length === 1 && types[0] === "basic")) {
-    for (const t of types) {
-      const marker = markers.get(t);
-      out(`${GUT}  ${OK} ${marker ? `${marker} 발견 → ` : ""}${paint(t, A.bold)} 감지\n`);
+    for (const type of types) {
+      const marker = markers.get(type);
+      const found = marker
+        ? t("ui.status-cards.detect.foundWithMarker", { marker, type: paint(type, A.bold) })
+        : t("ui.status-cards.detect.found", { type: paint(type, A.bold) });
+      out(`${GUT}  ${OK} ${found}\n`);
     }
   } else {
-    out(`${GUT}  ${paint("─", A.dim)} 마커 파일 없음 → ${paint("basic", A.bold)} (직접 선택 가능)\n`);
+    out(`${GUT}  ${paint("─", A.dim)} ${t("ui.status-cards.detect.none", { type: paint("basic", A.bold) })}\n`);
   }
-  out(`${GUT}  ${OK} 버전: ${paint(`v${version}`, A.green)} · 브랜치: ${paint(branch, A.green)}\n`);
+  out(`${GUT}  ${OK} ${t("ui.status-cards.detect.versionBranch", { version: paint(`v${version}`, A.green), branch: paint(branch, A.green) })}\n`);
   for (const w of warnings) out(`${GUT}  ${paint(w, A.yellow)}\n`);
   out(`${GUT}\n`);
 }
 
-// 프로젝트 분석 개요 카드
+// Project analysis overview card
 export function printAnalysisCard({ mode = "", modeLabel = "", types = [], version = "", branch = "",
   paths = new Map(), showOptional = false,
   flutter = null, envModeDefault = "", options = null },
   out = (s) => process.stderr.write(s)) {
-  out(`${HEAD}  ${paint("프로젝트 분석 결과", A.bold)}\n`);
-  const row = (icon, label, value) => out(`${GUT}  ${icon} ${label.padEnd(10)} ${value}\n`);
-  row("📂", types.length > 1 ? "타입(멀티)" : "타입", paint(types.join(", ") || "basic", A.bold));
-  row("🌙", "버전", paint(`v${version}`, A.green));
-  row("🌿", "브랜치", branch);
-  if (modeLabel || mode) row("💫", "통합 모드", modeLabel || mode);
+  out(`${HEAD}  ${paint(t("ui.status-cards.card.title"), A.bold)}\n`);
+  // Label column width differs per language (English labels are longer than the Korean ones)
+  const labelWidth = Number(t("ui.status-cards.card.labelWidth"));
+  const row = (icon, label, value) => out(`${GUT}  ${icon} ${label.padEnd(labelWidth)} ${value}\n`);
+  row("📂", types.length > 1 ? t("ui.status-cards.card.typeMulti") : t("ui.status-cards.card.type"), paint(types.join(", ") || "basic", A.bold));
+  row("🌙", t("ui.status-cards.card.version"), paint(`v${version}`, A.green));
+  row("🌿", t("ui.status-cards.card.branch"), branch);
+  if (modeLabel || mode) row("💫", t("ui.status-cards.card.mode"), modeLabel || mode);
   if (showOptional) {
-    // Flutter 옵션 — 확정 직전 화면에서도 선택값을 보여준다.
+    // Flutter options - show the chosen values on the pre-confirmation screen too.
     if (flutter && types.includes("flutter")) {
       const stores = flutter.stores ?? [];
       const modeParts = stores.map(
         (p) => `${p}=${(p === "android" ? flutter.androidDeployMode : flutter.iosDeployMode) || DEFAULT_DEPLOY_MODE}`,
       );
-      row("⚙️", "환경변수", flutter.envMode || envModeDefault);
-      row("🏬", "스토어", stores.length ? stores.join(", ") : "없음");
-      row("🚀", "배포모드", modeParts.length ? modeParts.join(" ") : "없음");
+      row("⚙️", t("ui.status-cards.card.envMode"), flutter.envMode || envModeDefault);
+      row("🏬", t("ui.status-cards.card.stores"), stores.length ? stores.join(", ") : t("ui.status-cards.card.none"));
+      row("🚀", t("ui.status-cards.card.deployMode"), modeParts.length ? modeParts.join(" ") : t("ui.status-cards.card.none"));
     }
   }
-  // 선택 워크플로우 — 저장값이 있으면 질문 없이 쓰이므로 확정 전에 현재값을 보여준다.
+  // Optional workflows - a saved value is used without asking, so show the current value before confirmation.
   if (options) {
-    const onOff = (v) => (v ? paint("켜짐", A.green) : paint("꺼짐", A.dim));
-    row("🔢", "자동승격", onOff(options.semverAuto));
+    const onOff = (v) => (v ? paint(t("ui.status-cards.card.on"), A.green) : paint(t("ui.status-cards.card.off"), A.dim));
+    row("🔢", t("ui.status-cards.card.autoBump"), onOff(options.semverAuto));
     row("🤖", "Copilot", onOff(options.copilotAi));
   }
-  // 모노레포 경로 — 루트가 아닌 항목이 하나라도 있으면 표시
+  // Monorepo paths - shown when at least one entry is not the root
   const nonRoot = [...paths.entries()].filter(([, p]) => p && p !== ".");
   if (nonRoot.length) {
-    row("📁", "경로", [...paths.entries()].map(([t, p]) => `${t}→${p}`).join(", "));
+    row("📁", t("ui.status-cards.card.paths"), [...paths.entries()].map(([type, p]) => `${type}→${p}`).join(", "));
   }
   out(`${GUT}\n`);
 }
 
-// 신규 통합 vs 업데이트 판별 라인 (Breaking 박스는 breaking-check.js)
+// New-install vs update line (the Breaking box is in breaking-check.js)
 export function printInstallKind({ currentTemplateVersion = "", templateVersion = "" }, out = (s) => process.stderr.write(s)) {
   if (currentTemplateVersion) {
-    out(`${GUT}  ♻️  ${paint("업데이트", A.bold)} — 템플릿 ${paint(`v${currentTemplateVersion}`, A.dim)} → ${paint(`v${templateVersion}`, A.green)}\n`);
+    out(`${GUT}  ♻️  ${t("ui.status-cards.kind.update", { title: paint(t("ui.status-cards.kind.updateTitle"), A.bold), from: paint(`v${currentTemplateVersion}`, A.dim), to: paint(`v${templateVersion}`, A.green) })}\n`);
   } else {
-    out(`${GUT}  🆕 ${paint("신규 통합", A.bold)} — 이 프로젝트에 처음 설치합니다 (템플릿 ${paint(`v${templateVersion}`, A.green)})\n`);
+    out(`${GUT}  🆕 ${t("ui.status-cards.kind.fresh", { title: paint(t("ui.status-cards.kind.freshTitle"), A.bold), version: paint(`v${templateVersion}`, A.green) })}\n`);
   }
   out(`${GUT}\n`);
 }

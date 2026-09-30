@@ -1,19 +1,19 @@
-// 설치 시점 baseline — 업데이트에서 "누가 바꿨는지"를 가르는 기준점.
+// Install-time baseline - the reference point that tells an update "who changed this".
 //
-// 왜 필요한가: isUnchanged()는 payload(theirs)와 설치본(ours)을 2-way로 비교한다.
-// base가 없으니 업스트림이 한 글자만 고쳐도 사용자가 손대지 않은 파일이 changed로 떨어지고,
-// 결국 "전부 skip(업데이트 못 받음)" 아니면 "전부 backup(사용자 수정 전멸)" 둘 중 하나만
-// 고를 수 있게 된다.
+// Why it is needed: isUnchanged() compares the payload (theirs) and the installed copy (ours) 2-way.
+// Without a base, upstream changing a single character drops a file the user never touched into
+// "changed", so the only choices are "skip everything (no updates)" or "back up everything
+// (all user edits lost)".
 //
-// 파일 사본이 아니라 해시만 남긴다 — 분류가 목적이지 자동 병합이 목적이 아니다.
+// Only hashes are kept, not file copies - the goal is classification, not automatic merging.
 //
-// 해시를 두 개 두는 이유: env 치환으로 사용자 값이 들어간 파일은
-// 디스크 내용과 "기본값으로 렌더한 결과"가 애초에 다르다. 하나로는 두 질문에 동시에 답할 수 없다.
-//   - installed : 설치 시점 우리가 디스크에 쓴 내용     → "사용자가 그 뒤에 손댔는가"
-//   - rendered  : 그 시점 payload를 기본값 치환한 결과  → "업스트림이 그 뒤에 바뀌었는가"
+// Why two hashes: for files with user values substituted from env, the disk content and the
+// "payload rendered with defaults" differ from the start, so one hash cannot answer both questions.
+//   - installed : what we wrote to disk at install time        -> "did the user touch it since"
+//   - rendered  : the payload rendered with defaults at that time -> "did upstream change it since"
 //
-// installed는 우리가 실제로 쓴 파일에만 채운다. 사용자 수정본을 installed로 기록하면
-// "우리가 쓴 것"이라고 거짓말하는 셈이고, 다음 업데이트에서 그 파일이 조용히 덮인다.
+// installed is filled only for files we actually wrote. Recording a user-edited file as installed
+// would claim "we wrote this", and the next update would silently overwrite it.
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
@@ -26,14 +26,14 @@ export function sha256(text) {
   return "sha256:" + createHash("sha256").update(String(text), "utf8").digest("hex");
 }
 
-// Flutter 앱 파일(Fastfile·ExportOptions.plist) 해시 — 체크아웃 줄바꿈(autocrlf)만 달라진 파일을
-// "사용자가 수정했다"로 보지 않도록 LF로 맞춘 뒤 해시한다.
+// Hash of Flutter app files (Fastfile, ExportOptions.plist) - normalized to LF first so a file that
+// differs only by checkout line endings (autocrlf) is not treated as "modified by the user".
 export function appFileHash(text) {
   return sha256(String(text).replace(/\r\n/g, "\n"));
 }
 
-// 없거나 깨졌으면 null — 호출부는 "base 미상"으로 폴백한다(조용히 빈 baseline을 쓰지 않는다.
-// 빈 baseline은 "기록이 없다"가 아니라 "전부 삭제됐다"로 오해될 수 있다).
+// null when missing or corrupt - callers fall back to "base unknown" (we never silently use an empty
+// baseline, which could be misread as "everything was deleted" rather than "no record").
 export function readBaseline(targetRoot = ".") {
   const p = join(targetRoot, BASELINE_PATH);
   if (!existsSync(p)) return null;
@@ -42,27 +42,27 @@ export function readBaseline(targetRoot = ".") {
     if (!data || typeof data !== "object" || typeof data.files !== "object" || data.files === null) return null;
     return data;
   } catch {
-    return null; // 손상된 baseline은 없는 것으로 취급 — 업데이트를 막지 않는다
+    return null; // A corrupt baseline is treated as missing - it must not block the update
   }
 }
 
 // entries: Map<filename, {installed?:string|null, rendered?:string|null}>
-// appFiles: Map<레포 기준 상대경로, appFileHash> — 이번에 새로 만든 Flutter 앱 파일. 완전 삭제가
-//   "마법사가 만들었고 사용자가 손대지 않은 파일"만 지우는 근거다. files는 워크플로우 파일명 키라 섞지 않는다.
-// 기존 baseline은 병합 대상이다 — 이번 실행에서 건드리지 않은 파일의 기준점을 잃지 않는다.
+// appFiles: Map<repo-relative path, appFileHash> - Flutter app files newly created this run. It is what lets a
+//   full removal delete only "files the wizard created and the user did not touch". files is keyed by workflow filename, so they are not mixed.
+// The existing baseline is merged in - files not touched this run keep their reference point.
 export function writeBaseline(targetRoot, { templateVersion, installedAt, entries, previous = null, appFiles = new Map() }) {
   const files = { ...(previous?.files || {}) };
   for (const [filename, entry] of entries) {
     const prev = files[filename] || {};
     files[filename] = {
-      // installed는 이번에 실제로 쓴 경우에만 갱신. 유지(skip)한 파일은 예전 기준점을 지킨다.
+      // installed is updated only when actually written this run. Files kept (skipped) retain the old reference point.
       installed: entry.installed ?? prev.installed ?? null,
-      // rendered가 없으면(충돌로 업스트림 변경을 받지 않은 파일) 예전 기준점을 지킨다.
+      // Without rendered (a file that did not take the upstream change due to a conflict) the old reference point is kept.
       rendered: entry.rendered ?? prev.rendered ?? null,
     };
   }
   const apps = { ...(previous?.appFiles || {}), ...Object.fromEntries(appFiles) };
-  // 기준점이 하나도 바뀌지 않은 재실행은 설치 시각도 그대로 둔다 — 매 실행마다 파일이 바뀌면 멱등이 아니다.
+  // A re-run that changes no reference point keeps the install time too - a file that changes on every run is not idempotent.
   const unchanged = previous && previous.templateVersion === (templateVersion || "unknown")
     && JSON.stringify(previous.files) === JSON.stringify(files)
     && JSON.stringify(previous.appFiles || {}) === JSON.stringify(apps);
@@ -76,14 +76,14 @@ export function writeBaseline(targetRoot, { templateVersion, installedAt, entrie
   return out;
 }
 
-// baseline에는 있는데 디스크에 없는 파일 = 사용자가 지운 것.
-// 별도의 삭제 이력 파일이 필요 없다는 것이 이 설계의 부산물이다.
-// candidates: payload가 이번에 설치하려는 파일명 목록 (그 밖의 baseline 항목은 관심 없다)
+// In the baseline but missing on disk = deleted by the user.
+// A side benefit of this design is that no separate deletion-history file is needed.
+// candidates: filenames the payload intends to install this run (other baseline entries are ignored)
 export function detectRemoved(baseline, candidates, workflowsDir) {
   if (!baseline) return [];
   const removed = [];
   for (const filename of candidates) {
-    if (!baseline.files[filename]) continue;      // 우리가 설치한 적 없는 파일 — 판단 근거 없음
+    if (!baseline.files[filename]) continue;      // A file we never installed - no basis for a judgement
     if (existsSync(join(workflowsDir, filename))) continue;
     removed.push(filename);
   }

@@ -12,21 +12,21 @@ function withStubbedTTY(value, fn) {
   return Promise.resolve(fn()).finally(() => { process.stdout.isTTY = original; });
 }
 
-test("run(): TTY 환경에서 --force 없이 full 모드를 실행하면 즉시 거부되고 아무 파일도 쓰지 않는다", async () => {
+test("run(): running full mode without --force in a TTY is rejected immediately and writes no file", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-tty-full-"));
   try {
     const code = await withStubbedTTY(true, () => run(["--mode", "full", "--type", "node"], { cwd: target }));
     assert.strictEqual(code, 1);
-    assert.ok(!existsSync(join(target, "version.yml")), "TTY라도 --force 없이는 파일을 쓰면 안 됩니다");
+    assert.ok(!existsSync(join(target, "version.yml")), "must not write files without --force even in a TTY");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
 
-test("run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진행된다", async () => {
+test("run(): even in a TTY, full mode proceeds normally with --force", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-tty-full-force-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // root marker to avoid zero path candidates
   try {
     const code = await withStubbedTTY(true, () => run(["--mode", "full", "--force", "--type", "node"], { cwd: target }));
     assert.strictEqual(code, 0);
@@ -38,7 +38,7 @@ test("run(): TTY 환경이라도 --force가 있으면 full 모드가 정상 진�
 
 
 
-test("run(): 비TTY 환경에서 --force 없이 full 모드를 실행하면 여전히 거부된다 (기존 동작 회귀 방지)", async () => {
+test("run(): running full mode without --force in a non-TTY is still rejected (guards the existing behavior)", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-non-tty-full-"));
   try {
     const code = await withStubbedTTY(false, () => run(["--mode", "full", "--type", "node"], { cwd: target }));

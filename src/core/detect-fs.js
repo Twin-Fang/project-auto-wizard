@@ -1,11 +1,12 @@
-// 실 파일시스템 프로젝트 감지.
-// detect.js 순수 함수를 fs/git으로 구동한다.
+// Project detection on the real filesystem.
+// Drives the pure functions of detect.js with fs/git.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { detectTypesFromMarkers, detectVersionFromFiles, detectBuildNumberFromFiles, detectJdkFromFiles, resolveMarkers } from "./detect.js";
 import { parseExisting } from "./version-yml.js";
 import { isValidBranchName } from "./branches.js";
+import { t as tr } from "../i18n/index.js";
 
 const hasFile = (root) => (rel) => existsSync(join(root, rel));
 const readFile = (root) => (rel) => {
@@ -18,19 +19,19 @@ function gitOut(root, args) {
   } catch { return ""; }
 }
 
-// 타입 감지 — version.yml의 project_types 최우선(source of truth), 없으면 마커 스캔.
-// paths: --paths로 받은 Map<type,path>. 모노레포는 루트에 마커가 없으므로 사용자가 적은 타입을 쓴다.
-// warn: 루트에 마커가 없어 basic으로 떨어질 때 하위 폴더에서 찾은 프로젝트를 알린다.
+// Type detection: project_types in version.yml wins (source of truth), otherwise a marker scan.
+// paths: Map<type,path> from --paths. A monorepo has no markers at the root, so the types the user listed are used.
+// warn: when no root marker exists and detection falls back to basic, reports projects found in subfolders.
 export function detectTypes(root, { paths = new Map(), warn } = {}) {
   const vy = join(root, "version.yml");
   if (existsSync(vy)) {
     const { types } = parseExisting(readFileSync(vy, "utf8"));
-    if (types.length) return types; // basic 포함, 명시돼 있으면 그대로
+    if (types.length) return types; // includes basic; used as-is when explicit
   }
   const fromRoot = detectTypesFromMarkers({ has: hasFile(root), read: readFile(root) });
   if (paths.size) {
-    // --paths 순서가 주 타입을 정한다. 루트 package.json의 node는 다른 타입이 있으면 빼는
-    // 마커 스캔 규칙과 맞춘다.
+    // The --paths order decides the primary type. Matches the marker-scan rule that drops the root
+    // package.json's node when another type exists.
     const merged = [...new Set([...paths.keys(), ...fromRoot])].filter((t) => t !== "basic");
     const types = merged.length > 1 ? merged.filter((t) => t !== "node" || paths.has("node")) : merged;
     return types.length ? types : ["basic"];
@@ -42,15 +43,14 @@ export function detectTypes(root, { paths = new Map(), warn } = {}) {
       for (const { dir, types } of found) for (const t of types) if (!firstDir.has(t)) firstDir.set(t, dir);
       const list = found.map(({ dir, types }) => `${dir}(${types.join(", ")})`).join(", ");
       const hint = [...firstDir].map(([t, d]) => `${t}=${d}`).join(",");
-      warn(`⚠️  루트에서 프로젝트 파일을 찾지 못해 basic으로 설치합니다. 하위 폴더에서 발견: ${list}\n` +
-        `   모노레포라면 --paths "${hint}"로 다시 실행하세요.`);
+      warn(tr("core.detectFs.monorepoWarn", { list, hint }));
     }
   }
   return fromRoot;
 }
 
-// 루트 아래 2단계까지 프로젝트 마커가 있는 폴더를 찾는다 (모노레포 안내용).
-// 빌드 산출물·의존성·네이티브 폴더는 오탐만 늘리므로 들어가지 않고, 찾은 폴더의 하위도 보지 않는다.
+// Finds folders with project markers up to 2 levels below the root (for monorepo hints).
+// Build output, dependency and native folders only add false positives, so they are skipped, and the children of a found folder are not scanned.
 const SUBDIR_PRUNE = new Set(["node_modules", "build", "dist", "android", "ios", "venv", "__pycache__"]);
 function findSubdirProjects(root, maxDepth = 2) {
   const found = [];
@@ -70,10 +70,10 @@ function findSubdirProjects(root, maxDepth = 2) {
   return found.sort((a, b) => a.dir.localeCompare(b.dir));
 }
 
-// 버전 감지 — 타입별 버전 파일을 순서대로 읽는다.
-// hint: 폴백 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
-// 모노레포(--paths)는 버전 파일이 타입 폴더 안에 있다 — 루트만 보면 0.0.1/1로 초기화된다.
-// 주 타입 폴더 → 나머지 타입 폴더 → 루트 순으로 찾는다.
+// Version detection: reads each type's version files in order.
+// hint: fix guidance appended to the fallback warning (differs between interactive mode and the CLI).
+// In a monorepo (--paths) the version files live inside the type folders; looking only at the root would reset to 0.0.1/1.
+// Search order: primary type folder, then the other type folders, then the root.
 function projectBases(types = [], paths = null) {
   const bases = [];
   for (const t of types) {
@@ -83,7 +83,7 @@ function projectBases(types = [], paths = null) {
   return bases.length ? [...bases, "."] : ["."];
 }
 
-// 첫 번째로 결과가 있는 기준 폴더의 값을 쓴다 — read와 list가 같은 폴더 우선순위를 따른다.
+// Uses the value from the first base folder that has a result, so read and list follow the same folder priority.
 function firstFromBases(bases, fn) {
   return (rel) => {
     for (const b of bases) {
@@ -98,7 +98,7 @@ function readFromProject(root, types = [], paths = null) {
   return firstFromBases(projectBases(types, paths), readFile(root));
 }
 
-// 하위 폴더 이름 목록 (React Native의 ios/<앱>/Info.plist 탐색용). 폴더가 없으면 null.
+// Subfolder names (for React Native's ios/<app>/Info.plist lookup). null when the folder does not exist.
 function listFromProject(root, types = [], paths = null) {
   const listDirs = (rel) => {
     try {
@@ -116,45 +116,45 @@ export function detectVersion(root, { warn = (m) => console.error(m), hint, type
   return detectVersionFromFiles({ read, readJson, list, gitTag, warn, hint, types });
 }
 
-// 타입별 실제 마커 파일 — 감지 로그·설치 로그가 같은 근거 파일을 인용하도록.
+// Real marker file per type, so the detection log and install log cite the same evidence file.
 export function detectMarkers(root, types = []) {
   return resolveMarkers(types, hasFile(root));
 }
 
-// 빌드 JDK 감지 — 배포 워크플로우 JAVA_VERSION 기본값에 실측값을 쓰기 위해.
-// base: 모노레포에서 spring 프로젝트 루트 (레포 루트 기준 상대경로).
+// Build JDK detection, so the measured value can be used as the deploy workflow's JAVA_VERSION default.
+// base: the spring project root in a monorepo (relative to the repo root).
 export function detectJdk(root, base = ".") {
   const rel = base && base !== "." ? (r) => `${base}/${r}` : (r) => r;
   const read = readFile(root);
   return detectJdkFromFiles({ read: (r) => read(rel(r)) });
 }
 
-// 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에서 실제 빌드 번호를 읽는다.
+// Build number detection: on a fresh integration, reads the real build number from pubspec.yaml/build.gradle/app.json.
 export function detectBuildNumber(root, { types = [], paths = null, warn = (m) => console.error(m) } = {}) {
   const read = readFromProject(root, types, paths);
   const readJson = (rel) => { const c = read(rel); try { return c ? JSON.parse(c) : null; } catch { return null; } };
   return detectBuildNumberFromFiles({ types, read, readJson, warn });
 }
 
-// 기본 브랜치 감지 — symbolic-ref → remote show → main.
-// 빈 원격(remote add만 하고 push 전)은 remote show가 "HEAD branch: (unknown)"을 돌려준다. 이 값이
-// 워크플로우 트리거에 기록되면 릴리스 자동화가 조용히 멈추므로, 유효한 브랜치 이름만 인정하고
-// 아니면 로컬 현재 브랜치(첫 push 대상) → main 순으로 폴백하며 경고한다.
-// hint: 경고에 붙일 해결 방법 안내 (대화형/CLI가 다르다).
+// Default branch detection: symbolic-ref, then remote show, then main.
+// For an empty remote (remote add without a push yet) remote show returns "HEAD branch: (unknown)". If that value
+// were written into the workflow trigger, release automation would silently stop, so only valid branch names are
+// accepted; otherwise it falls back to the current local branch (first push target), then main, and warns.
+// hint: fix guidance appended to the warning (differs between interactive mode and the CLI).
 export function detectDefaultBranch(root, { warn = null, hint = "" } = {}) {
   const b = gitOut(root, ["symbolic-ref", "refs/remotes/origin/HEAD"]).replace(/^refs\/remotes\/origin\//, "");
   if (isValidBranchName(b)) return b;
   const show = gitOut(root, ["remote", "show", "origin"]);
   const m = show.match(/HEAD branch:\s*(\S+)/);
   if (m && isValidBranchName(m[1])) return m[1];
-  if (!m) return "main"; // origin 없음 — 기존 규칙 그대로
+  if (!m) return "main"; // no origin: keep the existing rule
   const local = gitOut(root, ["symbolic-ref", "--short", "HEAD"]);
   const fallback = isValidBranchName(local) ? local : "main";
-  warn?.(`⚠️  원격 기본 브랜치를 확인할 수 없어(빈 원격 레포 등) 릴리스 브랜치를 '${fallback}'(으)로 가정합니다.${hint ? ` ${hint}` : ""}`);
+  warn?.(tr("core.detectFs.defaultBranchWarn", { fallback, hint: hint ? ` ${hint}` : "" }));
   return fallback;
 }
 
-// 레포명 — git remote get-url origin 마지막 세그먼트, 실패 시 폴더명.
+// Repo name: last segment of git remote get-url origin, or the folder name on failure.
 export function detectRepoName(root) {
   const url = gitOut(root, ["remote", "get-url", "origin"]);
   if (url) {
@@ -164,32 +164,32 @@ export function detectRepoName(root) {
   return basename(root);
 }
 
-// Spring application*.yml 탐색
-// find {base} -path "*/src/main/resources/application*.yml" | head -1 의 fs 재귀 구현.
-// 반환: root 기준 상대경로 (예: "server/src/main/resources/application.yml") 또는 "".
+// Spring application*.yml lookup.
+// Recursive fs implementation of: find {base} -path "*/src/main/resources/application*.yml" | head -1
+// Returns a path relative to root (e.g. "server/src/main/resources/application.yml") or "".
 //
-// .yaml도 인정한다. Spring은 .yml/.yaml을 모두 공식 지원하는데 종전 정규식이
-// .yml만 봐서, application.yaml을 쓰는 프로젝트는 이 값이 빈 문자열이 되고 그 결과
-// __APPLICATION_YML_DIR__ 가 치환되지 않은 채 설치됐다.
+// .yaml is accepted too. Spring officially supports both .yml and .yaml, but the old regex only looked
+// for .yml, so projects using application.yaml got an empty string here and __APPLICATION_YML_DIR__
+// was installed unreplaced.
 //
-// 같은 디렉토리에서는 프로파일 없는 기본 파일(application.yml/.yaml)을 우선한다. 파일명 정렬만
-// 쓰면 'application-dev.yml'이 'application.yml'보다 앞서(`-` < `.`) 프로파일 파일이 잡힌다.
+// Within one directory the profile-less base file (application.yml/.yaml) wins. With filename sorting alone,
+// 'application-dev.yml' sorts before 'application.yml' (`-` < `.`) and a profile file would be picked.
 export function findSpringAppYml(root, base = ".") {
   return findSpringConfig(root, base, /^application(-[^/]*)?\.ya?ml$/, /^application\.ya?ml$/);
 }
 
-// src/main/resources 아래에서 pattern에 맞는 설정 파일을 찾는다. basePattern(프로파일 없는 기본 파일)이
-// 나오면 그걸로 확정한다.
+// Finds a config file matching pattern under src/main/resources. Once basePattern (the profile-less base file)
+// turns up, that one is final.
 function findSpringConfig(root, base, pattern, basePattern) {
   const startRel = base === "." ? "" : base;
   const PRUNE = new Set(["node_modules", ".git", "build", ".gradle", "target", ".idea"]);
   let hit = "";
   let hitIsBase = false;
   const walk = (rel, depth) => {
-    if (hitIsBase || depth > 8) return; // 기본 파일을 찾았으면 더 볼 필요가 없다
+    if (hitIsBase || depth > 8) return; // once the base file is found there is no need to look further
     let entries;
     try { entries = readdirSync(join(root, rel), { withFileTypes: true }); } catch { return; }
-    // 정렬로 순회 순서 결정화 (find 순서 플랫폼 편차 제거)
+    // Sort to make traversal order deterministic (removes platform differences in find order)
     for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       if (hitIsBase) return;
       const childRel = rel ? `${rel}/${e.name}` : e.name;
@@ -198,7 +198,7 @@ function findSpringConfig(root, base, pattern, basePattern) {
         walk(childRel, depth + 1);
       } else if (pattern.test(e.name) && childRel.includes("src/main/resources/")) {
         const isBase = basePattern.test(e.name);
-        // 첫 매치는 일단 채택하고, 이후 기본 파일이 나오면 그걸로 승격한다.
+        // Take the first match for now, and promote to the base file if one turns up later.
         if (!hit || isBase) { hit = childRel; hitIsBase = isBase; }
       }
     }
@@ -207,9 +207,9 @@ function findSpringConfig(root, base, pattern, basePattern) {
   return hit;
 }
 
-// 배포 워크플로우가 application-prod.yml을 만들 리소스 폴더.
-// Spring Initializr 기본 산출물은 application.properties라 yml만 찾으면 빈 값이 되어
-// __APPLICATION_YML_DIR__가 치환되지 않은 채 설치된다. yml → properties → 표준 경로 순으로 정한다.
+// Resource folder where the deploy workflow will create application-prod.yml.
+// Spring Initializr produces application.properties by default, so looking only for yml gives an empty value and
+// __APPLICATION_YML_DIR__ is installed unreplaced. Decided in order: yml, then properties, then the standard path.
 export function findSpringResourcesDir(root, base = ".") {
   const f = findSpringAppYml(root, base)
     || findSpringConfig(root, base, /^application(-[^/]*)?\.properties$/, /^application\.properties$/);
@@ -217,27 +217,27 @@ export function findSpringResourcesDir(root, base = ".") {
   return base === "." ? "src/main/resources" : `${base}/src/main/resources`;
 }
 
-// @wizard 토큰 resolver 세트 생성 — index/interactive 공용.
-// paths: Map<type, path> (모노레포 경로).
-// flutterOptions: resolveFlutterOptions 결과 또는 같은 필드를 가진 context. null이면 Flutter 토큰이
-//   빈 값이라 템플릿 기본값(dart-define, store_only)이 그대로 남는다.
+// Builds the set of @wizard token resolvers, shared by index and interactive.
+// paths: Map<type, path> (monorepo paths).
+// flutterOptions: the resolveFlutterOptions result or a context with the same fields. When null the Flutter tokens
+//   are empty, so the template defaults (dart-define, store_only) remain.
 export function makeResolvers(root, repoName, paths, flutterOptions = null) {
   const springBase = (t) => paths.get(t || "spring") || paths.get("spring") || ".";
   return {
     repo: () => repoName,
-    // 빌드 JDK — 배포 워크플로우 JAVA_VERSION의 기본값. 프로젝트 툴체인을 실측한다.
-    // ⚠️ 빈 문자열을 돌려주면 setEnvLine이 그 줄을 건너뛰어 __JAVA_VERSION__이 그대로 남는다
-    //    (같은 실패 형태). 감지 실패 시 반드시 종전 기본값 21로 폴백한다.
+    // Build JDK: default for the deploy workflow's JAVA_VERSION, measured from the project toolchain.
+    // WARNING: returning an empty string makes setEnvLine skip that line, leaving __JAVA_VERSION__ as is
+    //    (the same failure shape). On detection failure always fall back to the previous default, 21.
     jdk: (t) => detectJdk(root, springBase(t)) || "21",
     "spring-app-yml-dir": (t) => findSpringResourcesDir(root, springBase(t)),
-    // yml이 없는 프로젝트(properties 전용)는 리소스 폴더의 application.yml로 만든다 —
-    // properties 파일 자리에 YAML 내용을 쓰면 설정이 깨진다.
+    // A project without yml (properties only) gets application.yml in the resources folder:
+    // writing YAML content in place of a properties file would break the config.
     "spring-app-yml-path": (t) => findSpringAppYml(root, springBase(t))
       || `${findSpringResourcesDir(root, springBase(t))}/application.yml`,
     "flutter-root": () => paths.get("flutter") || ".",
-    // CI changes job의 경로 필터 — 타입별 프로젝트 루트. 단일 레포·common은 "."(항상 변경됨으로 판정).
+    // Path filter for the CI changes job: the project root per type. Single repos and common use "." (always treated as changed).
     "project-path": (t) => paths.get(t) || ".",
-    // 빈 문자열이면 setEnvLine/setFallbackLine이 줄을 건너뛰어 템플릿 기본값이 남는다.
+    // An empty string makes setEnvLine/setFallbackLine skip the line, so the template default remains.
     "flutter-env-mode": () => flutterOptions?.envMode || "",
     "android-deploy-mode": () => flutterOptions?.androidDeployMode || "",
     "ios-deploy-mode": () => flutterOptions?.iosDeployMode || "",

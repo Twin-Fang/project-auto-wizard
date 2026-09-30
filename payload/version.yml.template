@@ -34,6 +34,7 @@
 version: "{{VERSION}}"
 version_code: {{VERSION_CODE}} # app build number
 project_types: {{PROJECT_TYPES}} # first entry is primary
+language: "{{LANGUAGE}}" # message language: en | ko
 {{PROJECT_PATHS}}
 metadata:
   last_updated: "{{NOW}}"
@@ -52,6 +53,6 @@ metadata:
     options:
       semver_auto: {{OPT_SEMVER_AUTO}}
       copilot_ai: {{OPT_COPILOT_AI}}
-      deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik | none (서버 배포 워크플로우)
+      deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik | none (server deploy workflows)
 {{TYPE_OPTIONS}}
 {{DEPLOY}}

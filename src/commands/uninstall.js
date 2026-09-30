@@ -1,6 +1,6 @@
-// uninstall 모드 — 마법사가 설치한 파일(planRemoval 판별분)에 더해 README/.gitignore/version.yml까지
-// 선택적으로 제거한다. 대화형 체크리스트 또는 --force + --purge-* 로 항목별 opt-in.
-// core/removal-plan.js는 읽기 전용으로만 재사용한다(아무것도 지우지 않는 순수 함수).
+// uninstall mode: removes the files the wizard installed (as identified by planRemoval) and, optionally,
+// README/.gitignore/version.yml too. Per-item opt-in via the interactive checklist or --force + --purge-*.
+// core/removal-plan.js is only reused read-only (a pure function that deletes nothing).
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { PATHS } from "../core/paths.js";
@@ -9,20 +9,21 @@ import { executeRemoval } from "../core/removal-exec.js";
 import { hasVersionSection } from "../core/copy/readme.js";
 import { hasAutoAddedEntries } from "../core/copy/gitignore.js";
 import { CANCEL } from "../ui/prompts.js";
+import { t } from "../i18n/index.js";
 
-// selection: { workflows, scripts, readme, gitignore, versionYml } (모두 boolean).
-// 반환: 위와 동일한 키의 boolean/배열 — 실제로 제거 "대상"인지 여부(순수 함수, 아무것도 지우지 않음).
+// selection: { workflows, scripts, readme, gitignore, versionYml } (all booleans).
+// Returns: boolean/array values under the same keys, telling what is actually a removal "target" (pure function, deletes nothing).
 export function planUninstall(payloadRoot, targetRoot, selection) {
   const removalPlan = planRemoval(payloadRoot, targetRoot);
   return {
     workflows: selection.workflows ? removalPlan.workflows : [],
-    // baseline은 워크플로우 해시 기록 — 워크플로우를 지우면 함께 사라져야 한다.
-    // Flutter 앱 파일의 생성 기록도 baseline에만 있으므로 같은 항목으로 묶는다.
+    // baseline records the workflow hashes, so it must disappear together with the workflows.
+    // The creation record of Flutter app files also lives only in the baseline, so it goes under the same item.
     appFiles: selection.workflows ? removalPlan.appFiles : [],
     baseline: selection.workflows ? removalPlan.baseline : [],
     scripts: selection.scripts ? removalPlan.scripts : [],
     readme: selection.readme ? hasVersionSection(targetRoot) : false,
-    // 워크플로우를 남기면 그 백업 파일(.bak 등)도 남는다 — .gitignore 항목을 지우면 git 상태에 드러나므로 유지한다.
+    // If the workflows stay, so do their backup files (.bak etc.); removing the .gitignore entries would surface them in git status, so keep them.
     gitignore: selection.gitignore
       ? hasAutoAddedEntries(targetRoot) && (selection.workflows || backupArtifacts(removalPlan.workflows).length === 0)
       : false,
@@ -30,29 +31,30 @@ export function planUninstall(payloadRoot, targetRoot, selection) {
   };
 }
 
-// 반환: planUninstall과 동일한 형태 — 실제로 제거된 항목.
+// Returns: the same shape as planUninstall, the items actually removed.
 export function runUninstall(context, payloadRoot, targetRoot, selection) {
   const plan = planUninstall(payloadRoot, targetRoot, selection);
   const { readme, gitignore } = executeRemoval(targetRoot, plan, {
     logOrder: ["readme", "gitignore", "version"],
-    gitignoreDetail: (status) => `.gitignore 자동 추가 항목 (${status})`,
+    gitignoreDetail: (status) => t("cmd.uninstall.gitignoreDetail", { status }),
   });
   return { ...plan, readme, gitignore };
 }
 
-// ── 대화형 체크리스트 흐름 ────────────────────────────────────────────
-const ITEM_DEFS = [
-  // .github/.wizard 에는 baseline.json과 설치 로그(.wizard/logs)가 함께 들어 있다 —
-  // 워크플로우를 지우면 함께 사라지므로 라벨에 명시한다.
-  // Flutter 앱 파일은 마법사가 만들고 사용자가 수정하지 않은 것만 함께 지운다.
-  { key: "workflows", label: "워크플로우 (.github/workflows/PROJECT-*.yaml) + 설치 기록 (.github/.wizard) + 수정하지 않은 Flutter 앱 파일" },
-  { key: "scripts", label: "스크립트 (.github/scripts/*.py)" },
-  { key: "readme", label: "README.md 버전 섹션 (AUTO-VERSION-SECTION)" },
-  { key: "gitignore", label: ".gitignore 자동 추가 항목" },
-  { key: "versionYml", label: "version.yml (버전/브랜치 설정 전체)" },
+// ── Interactive checklist flow ────────────────────────────────────────
+// Built lazily: labels are translated at use time, after the language is resolved.
+const itemDefs = () => [
+  // .github/.wizard holds baseline.json and the install logs (.wizard/logs); they disappear together
+  // with the workflows, so the label says so.
+  // Flutter app files are removed too, but only those the wizard created and the user did not modify.
+  { key: "workflows", label: t("cmd.uninstall.item.workflows") },
+  { key: "scripts", label: t("cmd.uninstall.item.scripts") },
+  { key: "readme", label: t("cmd.uninstall.item.readme") },
+  { key: "gitignore", label: t("cmd.uninstall.item.gitignore") },
+  { key: "versionYml", label: t("cmd.uninstall.item.versionYml") },
 ];
 
-// 기본 체크 상태 — "안전 삭제" 2종만 기본 체크하고 나머지(readme/gitignore/versionYml)는 opt-in.
+// Default checked state: only the two "safe delete" items are checked; the rest (readme/gitignore/versionYml) are opt-in.
 export const SAFE_ITEMS = ["workflows", "scripts"];
 
 function detectAvailableItems(payloadRoot, targetRoot) {
@@ -64,7 +66,7 @@ function detectAvailableItems(payloadRoot, targetRoot) {
     gitignore: hasAutoAddedEntries(targetRoot),
     versionYml: existsSync(join(targetRoot, PATHS.versionFile)),
   };
-  return ITEM_DEFS.filter((d) => presence[d.key]).map((d) => ({ value: d.key, label: d.label }));
+  return itemDefs().filter((d) => presence[d.key]).map((d) => ({ value: d.key, label: d.label }));
 }
 
 function toSelection(checkedKeys) {
@@ -76,51 +78,51 @@ function toSelection(checkedKeys) {
 }
 
 function summarizeSelection(selection) {
-  const labelOf = Object.fromEntries(ITEM_DEFS.map((d) => [d.key, d.label]));
+  const labelOf = Object.fromEntries(itemDefs().map((d) => [d.key, d.label]));
   const chosen = Object.keys(selection).filter((k) => selection[k]).map((k) => `- ${labelOf[k]}`);
-  return chosen.length ? chosen.join("\n") : "(선택된 항목 없음)";
+  return chosen.length ? chosen.join("\n") : t("cmd.uninstall.noneSelected");
 }
 
 function summarizeResult(result) {
   const lines = [];
-  if (result.workflows.length) lines.push(`워크플로우 ${result.workflows.length}개 제거`);
-  if (result.scripts.length) lines.push(`스크립트 ${result.scripts.length}개 제거`);
-  if (result.appFiles?.length) lines.push(`Flutter 앱 파일 ${result.appFiles.length}개 제거`);
-  if (result.readme) lines.push("README.md 버전 섹션 제거");
-  if (result.gitignore) lines.push(".gitignore 자동 추가 항목 제거");
-  if (result.versionYml) lines.push("version.yml 제거");
-  return lines.length ? lines.join("\n") : "제거된 항목이 없습니다.";
+  if (result.workflows.length) lines.push(t("cmd.uninstall.result.workflows", { n: result.workflows.length }));
+  if (result.scripts.length) lines.push(t("cmd.uninstall.result.scripts", { n: result.scripts.length }));
+  if (result.appFiles?.length) lines.push(t("cmd.uninstall.result.appFiles", { n: result.appFiles.length }));
+  if (result.readme) lines.push(t("cmd.uninstall.result.readme"));
+  if (result.gitignore) lines.push(t("cmd.uninstall.result.gitignore"));
+  if (result.versionYml) lines.push(t("cmd.uninstall.result.versionYml"));
+  return lines.length ? lines.join("\n") : t("cmd.uninstall.result.none");
 }
 
-// io 계약: engineIo.multiselect({message,options,initialValues}), askYesNo(msg,def),
-// note(text,title)?, cancelMessage(text)? — src/ui/prompts.js가 실물, 테스트는 스텁 주입.
-// preset: CLI의 --purge-* 플래그 { readme, gitignore, versionYml } — 체크리스트 초기 선택에 반영한다.
+// io contract: engineIo.multiselect({message,options,initialValues}), askYesNo(msg,def),
+// note(text,title)?, cancelMessage(text)? - src/ui/prompts.js is the real one, tests inject stubs.
+// preset: the CLI --purge-* flags { readme, gitignore, versionYml }, reflected in the checklist's initial selection.
 export async function runUninstallFlow(payloadRoot, targetRoot, io, preset = {}) {
   const available = detectAvailableItems(payloadRoot, targetRoot);
   if (available.length === 0) {
-    io.note?.("제거할 항목이 없습니다.", "완전 삭제");
+    io.note?.(t("cmd.uninstall.flow.nothing"), t("cmd.uninstall.flow.title"));
     return null;
   }
 
   const checked = await io.engineIo.multiselect({
-    message: "삭제할 항목을 선택하세요 (Space 토글, Enter 확정)",
+    message: t("cmd.uninstall.flow.select"),
     options: available,
     initialValues: available.map((o) => o.value).filter((v) => SAFE_ITEMS.includes(v) || preset[v] === true),
   });
   if (checked === CANCEL || !Array.isArray(checked) || checked.length === 0) {
-    io.cancelMessage?.("완전 삭제를 취소했습니다.");
+    io.cancelMessage?.(t("cmd.uninstall.flow.cancelled"));
     return null;
   }
 
   const selection = toSelection(checked);
-  io.note?.(summarizeSelection(selection), "삭제 예정 항목");
-  const ok = await io.askYesNo("정말 삭제할까요? 되돌릴 수 없습니다.", false);
+  io.note?.(summarizeSelection(selection), t("cmd.uninstall.flow.plannedTitle"));
+  const ok = await io.askYesNo(t("cmd.uninstall.flow.confirm"), false);
   if (ok !== true) {
-    io.cancelMessage?.("완전 삭제를 취소했습니다.");
+    io.cancelMessage?.(t("cmd.uninstall.flow.cancelled"));
     return null;
   }
 
   const result = runUninstall({}, payloadRoot, targetRoot, selection);
-  io.note?.(summarizeResult(result), "완전 삭제 완료");
+  io.note?.(summarizeResult(result), t("cmd.uninstall.flow.doneTitle"));
   return result;
 }

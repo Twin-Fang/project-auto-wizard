@@ -19,7 +19,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def run(args, cwd):
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8")
 
 class TestCore(unittest.TestCase):
     def setUp(self):
@@ -53,7 +53,7 @@ class TestCore(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
     def test_increment_also_bumps_version_code(self):
-        # 계약: increment = patch+1 이면서 version_code+1
+        # Contract: increment = patch+1 and version_code+1
         run(["increment"], self.tmp)
         r = run(["get-code"], self.tmp)
         self.assertEqual(r.stdout.strip().splitlines()[-1], "2")
@@ -97,7 +97,7 @@ class TestCore(unittest.TestCase):
 
 
 class TestReadmeVersionLine(unittest.TestCase):
-    """버전 확정 커밋에 README 버전 줄이 함께 들어가야 태그 시점 README가 새 버전을 가리킨다."""
+    """The README version line must be part of the version-confirm commit so the README at tag time points at the new version."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -119,7 +119,15 @@ class TestReadmeVersionLine(unittest.TestCase):
         text = self.read()
         self.assertRegex(text, r"## 최신 버전 : v0\.1\.1 \(\d{4}-\d{2}-\d{2}\)\n")
         self.assertNotIn("2025-01-01", text)
-        self.assertIn("본문 v0.1.0", text, "마커 아래 한 줄만 고쳐야 한다")
+        self.assertIn("본문 v0.1.0", text, "only the one line below the marker may change")
+
+    def test_increment_rewrites_english_label_line(self):
+        # The line label may be in any language (the README workflow writes it per `language`)
+        self.write("# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest version: v0.1.0 (2025-01-01)\n\nbody v0.1.0\n")
+        self.assertEqual(run(["increment"], self.tmp).returncode, 0)
+        text = self.read()
+        self.assertRegex(text, r"## Latest version: v0\.1\.1 \(\d{4}-\d{2}-\d{2}\)\n")
+        self.assertIn("body v0.1.0", text)
 
     def test_set_keeps_dateless_format_and_crlf(self):
         self.write("<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\r\n## Version : v0.1.0\r\nx\r\n")
@@ -140,8 +148,8 @@ class TestReadmeVersionLine(unittest.TestCase):
 
 
 class TestProjectTypesParsing(unittest.TestCase):
-    """issue #62 — 템플릿이 붙이는 인라인 주석 때문에 project_types 파싱이 늘 실패했고,
-    단수 키 폴백이 그 사실을 가려주고 있었다. 폴백이 사라진 지금은 회귀가 곧 배포 실패다."""
+    """Regression: an inline comment added by the template used to make project_types parsing
+    always fail, and the singular-key fallback hid that. With the fallback gone, a regression is a failed release."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

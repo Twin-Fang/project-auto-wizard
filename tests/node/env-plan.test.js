@@ -1,4 +1,5 @@
 // tests/node/env-plan.test.js
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -24,7 +25,7 @@ function makeFixturePayload() {
   return root;
 }
 
-test("collectAsks: common/ 최상위는 types가 비어 있어도 무조건 스캔된다", () => {
+test("collectAsks: the top level of common/ is always scanned even when types is empty", () => {
   const root = makeFixturePayload();
   try {
     const asks = collectAsks(root, []);
@@ -38,12 +39,12 @@ test("collectAsks: common/ 최상위는 types가 비어 있어도 무조건 스�
   }
 });
 
-test("collectAsks: 모든 common ask 키에 SERVER_BASE_PATH가 없다 (회귀)", () => {
+test("collectAsks: no common ask key contains SERVER_BASE_PATH (regression)", () => {
   const asks = collectAsks(resolvePayloadRoot(), []);
   assert.ok(!asks.keys.includes("SERVER_BASE_PATH"));
 });
 
-test("promptEnvPlan: 기본값이 true/false인 ask 필드는 io.text 대신 io.confirm을 사용한다", async () => {
+test("promptEnvPlan: ask fields whose default is true/false use io.confirm instead of io.text", async () => {
   const root = makeFixturePayload();
   try {
     const confirmedInitialValues = [];
@@ -57,10 +58,10 @@ test("promptEnvPlan: 기본값이 true/false인 ask 필드는 io.text 대신 io.
     const result = await promptEnvPlan({
       payloadRoot: root, types: [], io, force: false, log: () => {},
     });
-    assert.strictEqual(result.values.get("FOO_FLAG"), "true"); // confirm()이 true 응답 → "true" 문자열로 변환
-    assert.strictEqual(result.values.get("FOO_NAME"), "bar");  // boolean이 아닌 필드는 그대로 text() 경로
+    assert.strictEqual(result.values.get("FOO_FLAG"), "true"); // confirm() answers true → converted to the "true" string
+    assert.strictEqual(result.values.get("FOO_NAME"), "bar");  // non-boolean fields keep the text() path
     assert.strictEqual(confirmedInitialValues.length, 1);
-    assert.strictEqual(confirmedInitialValues[0], false); // FOO_FLAG 기본값 "false" → initialValue=false
+    assert.strictEqual(confirmedInitialValues[0], false); // FOO_FLAG default "false" → initialValue=false
     assert.strictEqual(textedDefaults.length, 1);
     assert.strictEqual(textedDefaults[0], "bar");
   } finally {
@@ -68,7 +69,7 @@ test("promptEnvPlan: 기본값이 true/false인 ask 필드는 io.text 대신 io.
   }
 });
 
-test("promptEnvPlan: confirm에서 CANCEL을 반환하면 boolean 필드는 기본값을 유지한다", async () => {
+test("promptEnvPlan: when confirm returns CANCEL, boolean fields keep their default", async () => {
   const root = makeFixturePayload();
   try {
     const { CANCEL } = await import("../../src/ui/readline-engine.js");
@@ -87,13 +88,13 @@ test("promptEnvPlan: confirm에서 CANCEL을 반환하면 boolean 필드는 기�
   }
 });
 
-test("collectAsks: 실제 payload의 ISSUE_HELPER_CREATE_BRANCH가 common 스캔으로 노출된다 (통합)", () => {
+test("collectAsks: ISSUE_HELPER_CREATE_BRANCH from the real payload is exposed by the common scan (integration)", () => {
   const asks = collectAsks(resolvePayloadRoot(), []);
   assert.ok(asks.keys.includes("ISSUE_HELPER_CREATE_BRANCH"));
   assert.strictEqual(asks.defaults.get("ISSUE_HELPER_CREATE_BRANCH"), "false");
 });
 
-test("promptEnvPlan: 실제 payload에서 ISSUE_HELPER_CREATE_BRANCH를 예/아니오 토글로 물어본다 (통합)", async () => {
+test("promptEnvPlan: ISSUE_HELPER_CREATE_BRANCH from the real payload is asked as a yes/no toggle (integration)", async () => {
   const io = {
     select: async () => "each",
     multiselect: async () => [],
@@ -106,7 +107,7 @@ test("promptEnvPlan: 실제 payload에서 ISSUE_HELPER_CREATE_BRANCH를 예/아�
   assert.strictEqual(result.values.get("ISSUE_HELPER_CREATE_BRANCH"), "true");
 });
 
-test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 repoName으로 치환된다 (issue #110)", () => {
+test("collectAsks: an ask default containing the __PROJECT_NAME__ literal is replaced with the real repoName", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-env-plan-"));
   const commonDir = join(root, "workflows", "common");
   mkdirSync(commonDir, { recursive: true });
@@ -128,15 +129,15 @@ test("collectAsks: __PROJECT_NAME__ 리터럴이 박힌 ask 기본값이 실제 
   }
 });
 
-test("collectAsks: 실제 payload의 ENABLE_VOLUME_MOUNT가 go 워크플로우 스캔으로 노출된다 (통합, 이슈 #111)", () => {
+test("collectAsks: ENABLE_VOLUME_MOUNT from the real payload is exposed by the go workflow scan (integration)", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"]);
   assert.ok(asks.keys.includes("ENABLE_VOLUME_MOUNT"));
   assert.strictEqual(asks.defaults.get("ENABLE_VOLUME_MOUNT"), "false");
-  // VOLUME_HOST_PATH/VOLUME_CONTAINER_PATH보다 먼저 물어봐야 자연스럽다.
+  // It is more natural to ask this before VOLUME_HOST_PATH/VOLUME_CONTAINER_PATH.
   assert.ok(asks.keys.indexOf("ENABLE_VOLUME_MOUNT") < asks.keys.indexOf("VOLUME_HOST_PATH"));
 });
 
-test("promptEnvPlan: 실제 payload에서 ENABLE_VOLUME_MOUNT를 예/아니오 토글로 물어본다 (통합, 이슈 #111)", async () => {
+test("promptEnvPlan: ENABLE_VOLUME_MOUNT from the real payload is asked as a yes/no toggle (integration)", async () => {
   const io = {
     select: async () => "each",
     multiselect: async () => [],
@@ -155,32 +156,32 @@ test("promptEnvPlan: 실제 payload에서 ENABLE_VOLUME_MOUNT를 예/아니오 �
   assert.strictEqual(result.values.get("ENABLE_VOLUME_MOUNT"), "true");
 });
 
-test("collectAsks: 실제 payload의 NGINX 무중단 배포 VOLUME_CONTAINER_PATH가 스캔으로 노출된다 (통합, 이슈 #111)", () => {
+test("collectAsks: VOLUME_CONTAINER_PATH of the real payload's NGINX zero-downtime deploy is exposed by the scan (integration)", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["spring"], { deployStyle: "nginx" });
   assert.ok(asks.keys.includes("VOLUME_CONTAINER_PATH"));
   assert.strictEqual(asks.defaults.get("VOLUME_CONTAINER_PATH"), "/app");
 });
 
-test("collectAsks: deployStyle이 'none'이면 server-deploy 폴더(PR 프리뷰 포함) 전체를 스캔하지 않는다", () => {
+test("collectAsks: when deployStyle is 'none' the whole server-deploy folder (including PR preview) is not scanned", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["spring"], { deployStyle: "none" });
-  assert.ok(!asks.keys.includes("VOLUME_CONTAINER_PATH"), "nginx/traefik 전용 키는 스캔되지 않아야 한다");
+  assert.ok(!asks.keys.includes("VOLUME_CONTAINER_PATH"), "nginx/traefik-only keys must not be scanned");
   assert.ok(!asks.keys.includes("SSH_AUTH_METHOD"),
-    "server-deploy 4개 파일(SIMPLE/NGINX/TRAEFIK/PR 프리뷰) 공통 ask 키 — 이게 없다는 것이 폴더 전체가 스캔에서 빠졌다는 증거다");
+    "ask key common to the 4 server-deploy files (SIMPLE/NGINX/TRAEFIK/PR preview) — its absence proves the whole folder was skipped");
 });
 
-test("collectAsks: go 타입에서 deployStyle이 'none'이면 타입 루트의 CD·PR 프리뷰 키를 스캔하지 않는다", () => {
+test("collectAsks: for the go type with deployStyle 'none', the type-root CD and PR preview keys are not scanned", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"], { deployStyle: "none" });
-  assert.ok(!asks.keys.includes("DEPLOY_PORT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
-  assert.ok(!asks.keys.includes("ENABLE_VOLUME_MOUNT"), "go SIMPLE-CICD 전용 키는 스캔되지 않아야 한다");
-  assert.ok(!asks.keys.includes("SSH_AUTH_METHOD"), "PR 프리뷰도 설치하지 않으므로 그 키도 묻지 않는다");
+  assert.ok(!asks.keys.includes("DEPLOY_PORT"), "go SIMPLE-CICD-only keys must not be scanned");
+  assert.ok(!asks.keys.includes("ENABLE_VOLUME_MOUNT"), "go SIMPLE-CICD-only keys must not be scanned");
+  assert.ok(!asks.keys.includes("SSH_AUTH_METHOD"), "PR preview is not installed either, so its key is not asked");
 });
 
-test("collectAsks: go 타입에서 nginx를 골라도 단일 서버 배포 키는 스캔한다 (무중단 워크플로우가 없는 타입)", () => {
+test("collectAsks: for the go type, single-server deploy keys are scanned even when nginx is chosen (type has no zero-downtime workflow)", () => {
   const asks = collectAsks(resolvePayloadRoot(), ["go"], { deployStyle: "nginx" });
   assert.ok(asks.keys.includes("DEPLOY_PORT"));
 });
 
-test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는다 (ask만 수집, 이슈 #131)", () => {
+test("collectAsks: @wizard fallback/auto lines are not collected as questions (only ask is collected)", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-env-plan-fallback-"));
   try {
     const flutterDir = join(root, "workflows", "flutter");
@@ -201,7 +202,7 @@ test("collectAsks: @wizard fallback/auto 줄은 질문으로 수집하지 않는
   }
 });
 
-// Flutter 스토어 워크플로우 선택 — 설치하지 않을 워크플로우의 질문은 묻지 않는다.
+// Flutter store workflow selection — questions for workflows that will not be installed are not asked.
 function makeFlutterFixturePayload() {
   const root = mkdtempSync(join(tmpdir(), "paw-env-plan-flutter-"));
   const dir = join(root, "workflows", "flutter");
@@ -218,7 +219,7 @@ function makeFlutterFixturePayload() {
   return root;
 }
 
-test("collectAsks: flutterStore가 null/미지정이면 스토어 워크플로우의 ask 키도 전부 수집된다 (현행 동작)", () => {
+test("collectAsks: when flutterStore is null/unspecified, all ask keys of the store workflows are collected too (current behavior)", () => {
   const root = makeFlutterFixturePayload();
   try {
     for (const opts of [{ flutterStore: null }, {}]) {
@@ -230,7 +231,7 @@ test("collectAsks: flutterStore가 null/미지정이면 스토어 워크플로�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("collectAsks: 선택 해제된 스토어 워크플로우의 ask 키는 수집되지 않는다", () => {
+test("collectAsks: ask keys of deselected store workflows are not collected", () => {
   const root = makeFlutterFixturePayload();
   try {
     const android = collectAsks(root, ["flutter"], { flutterStore: ["android"] });
@@ -244,7 +245,7 @@ test("collectAsks: 선택 해제된 스토어 워크플로우의 ask 키는 수�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("collectAsks: Flutter가 아닌 타입은 flutterStore의 영향을 받지 않는다", () => {
+test("collectAsks: non-Flutter types are not affected by flutterStore", () => {
   const root = makeFlutterFixturePayload();
   try {
     const dir = join(root, "workflows", "react");
@@ -255,19 +256,19 @@ test("collectAsks: Flutter가 아닌 타입은 flutterStore의 영향을 받지 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("promptEnvPlan: flutterStore를 collectAsks까지 전달해 답변 목록에도 해제된 워크플로우 키가 없다", async () => {
+test("promptEnvPlan: flutterStore is passed through to collectAsks so the answer list has no keys of deselected workflows", async () => {
   const root = makeFlutterFixturePayload();
   try {
     const result = await promptEnvPlan({ payloadRoot: root, types: ["flutter"], force: true, flutterStore: ["android"], log: () => {} });
     assert.deepStrictEqual(result.answers.map((a) => a.key).sort(), ["CI_ONLY", "PLAY_ONLY"]);
     const all = await promptEnvPlan({ payloadRoot: root, types: ["flutter"], force: true, log: () => {} });
-    assert.strictEqual(all.answers.length, 4, "미지정(null)이면 현행 동작");
+    assert.strictEqual(all.answers.length, 4, "unspecified (null) keeps current behavior");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("validateAskValue: 포트·SSH 인증 방식·JDK 버전 형식을 검증한다", async () => {
+test("validateAskValue: validates port, SSH auth method and JDK version formats", async () => {
   const { validateAskValue } = await import("../../src/ui/env-plan.js");
-  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "아무 값"]]) {
+  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "any value"]]) {
     assert.strictEqual(validateAskValue(...ok), "", ok.join("="));
   }
   for (const bad of [["DEPLOY_PORT", 'key"#: x'], ["SSH_PORT", "0"], ["BLUE_PORT", "70000"], ["SSH_AUTH_METHOD", "pw"], ["JAVA_VERSION", "latest"]]) {
@@ -275,7 +276,7 @@ test("validateAskValue: 포트·SSH 인증 방식·JDK 버전 형식을 검증�
   }
 });
 
-test("promptEnvPlan: 형식이 틀린 값은 받지 않고 다시 묻는다", async () => {
+test("promptEnvPlan: rejects a malformed value and asks again", async () => {
   const answers = { DEPLOY_PORT: ['key"#: x', "9090"], SSH_AUTH_METHOD: ["pw", " key "] };
   const io = {
     select: async () => "some",
@@ -287,7 +288,7 @@ test("promptEnvPlan: 형식이 틀린 값은 받지 않고 다시 묻는다", as
   const logs = [];
   const result = await promptEnvPlan({
     payloadRoot: resolvePayloadRoot(), types: ["spring"], io, force: false, deployStyle: "simple",
-    // 입력 직전에 찍히는 필드 카드 제목으로 지금 묻는 키를 알아낸다.
+    // Find the key being asked from the field card title printed right before input.
     log: (l = "") => {
       logs.push(l);
       if (/▸ \(\d+\/\d+\) 외부 노출 포트/.test(l)) current = "DEPLOY_PORT";

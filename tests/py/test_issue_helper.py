@@ -75,7 +75,7 @@ class TestExtractIssueTitle(unittest.TestCase):
         self.assertEqual(issue_helper.extract_issue_title("버그 발견 🐛🔥"), "버그 발견")
 
     def test_strips_variation_selector_and_zwj(self):
-        # ZWJ(U+200D)로 연결된 이모지 시퀀스 + 변형 선택자(U+FE0F)
+        # Emoji sequence joined by ZWJ (U+200D) + variation selector (U+FE0F)
         raw = "가족\U0001F468‍\U0001F469‍\U0001F467 이슈️"
         self.assertEqual(issue_helper.extract_issue_title(raw), "가족 이슈")
 
@@ -227,9 +227,9 @@ class TestUpsertIssueLinksInBody(unittest.TestCase):
         )
 
     def test_appends_new_block_when_start_marker_present_without_end(self):
-        # START만 있고 END가 없는 손상된 상태(수동 편집/이전 실패 실행 등) —
-        # 정규식이 매칭하지 못해 아무것도 치환되지 않고 조용히 무효화되는 것을
-        # 막기 위해, 완전한 블록이 아니면 "마커 없음"으로 취급해 새 블록을 덧붙인다.
+        # A damaged state with START but no END (manual edit, earlier failed run, ...) —
+        # to keep the regex from matching nothing and the update being silently voided,
+        # anything that is not a complete block counts as "no marker" and a new block is appended.
         body = "설명\n\n<!-- auto-issue-link:start -->\n망가진 상태"
         new_body, changed = issue_helper.upsert_issue_links_in_body(body, ["9"], True)
         self.assertTrue(changed)
@@ -260,6 +260,7 @@ def run_cli(event_payload, env_extra=None):
         event_path.write_text(json.dumps(event_payload), encoding="utf-8")
         env = {
             **os.environ,
+            "PYTHONIOENCODING": "utf-8",
             "GITHUB_EVENT_PATH": str(event_path),
             "GITHUB_REPOSITORY": "o/r",
         }
@@ -267,7 +268,7 @@ def run_cli(event_payload, env_extra=None):
             env.update(env_extra)
         return subprocess.run(
             [sys.executable, str(SCRIPT), "run"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
 
 
@@ -275,7 +276,7 @@ class TestRunGuards(unittest.TestCase):
     def test_missing_event_path_exits_1(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_EVENT_PATH"}
         env["GITHUB_REPOSITORY"] = "o/r"
-        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, env=env)
+        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(r.returncode, 1)
 
     def test_irrelevant_action_exits_0_without_token(self):
@@ -291,9 +292,9 @@ class TestRunGuards(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
     def test_opened_without_token_exits_1(self):
-        # env_extra는 델타만 넘긴다 — os.environ 전체를 스프레드하면 CI(GitHub Actions
-        # 러너)에서 실제 GITHUB_EVENT_PATH가 run_cli의 임시 이벤트 경로를 덮어써
-        # 러너 자신의 트리거 이벤트(action이 'opened'가 아님)를 읽게 되어 플레이키해진다.
+        # env_extra passes only the delta — spreading all of os.environ would let the real
+        # GITHUB_EVENT_PATH of a CI runner (GitHub Actions) override run_cli's temp event
+        # path, so the runner's own trigger event (action is not 'opened') gets read and the test turns flaky.
         r = run_cli(
             {"action": "opened", "issue": {"number": 1, "title": "t", "html_url": "u"}},
             env_extra={"GITHUB_TOKEN": ""},
@@ -312,7 +313,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_prints_issue_number(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "20260824_#102_feat_추가"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "102")
@@ -320,7 +321,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_matches_worktree_issue_branch_name(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "worktree-issue-93-branch-strategy"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "93")
@@ -328,7 +329,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_no_match_prints_nothing(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "cleanup-docs-typo"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "")
@@ -339,23 +340,23 @@ class TestLinkPrIssuesCliGuards(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 1)
 
     def test_missing_token_exits_1(self):
-        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": ""}
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": ""}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 1)
 
     def test_empty_issue_numbers_exits_0_without_api_call(self):
-        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"}
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", ""],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 0)
 
@@ -400,6 +401,63 @@ class TestLinkPrIssuesSkipsMissingIssues(unittest.TestCase):
             issue_helper.link_pr_issues("o", "r", 5, ["12"], "t", False)
         patched = [c for c in self.calls if c[0] == "PATCH"]
         self.assertIn("Closes #12", patched[0][2]["body"])
+
+
+class TestMessagesLanguage(unittest.TestCase):
+    """User-facing text follows PROJECT_AUTO_WIZARD_LANG; parsing stays language-neutral."""
+
+    EVENT = {"action": "opened", "issue": {"number": 7, "title": "[Bug] Crash on start",
+                                            "html_url": "https://github.com/o/r/issues/7"}}
+
+    def _run_comment_body(self, lang):
+        captured = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            event_path = Path(tmp) / "event.json"
+            event_path.write_text(json.dumps(self.EVENT), encoding="utf-8")
+            env = {"GITHUB_EVENT_PATH": str(event_path), "GITHUB_REPOSITORY": "o/r",
+                   "GITHUB_TOKEN": "x", "PROJECT_AUTO_WIZARD_LANG": lang}
+            with patch.dict(os.environ, env), \
+                 patch.object(issue_helper, "upsert_comment",
+                              side_effect=lambda *a: captured.update(body=a[5], marker=a[4])), \
+                 patch.object(issue_helper, "create_branch_if_needed"):
+                os.environ.pop("ISSUE_HELPER_COMMIT_TEMPLATE", None)
+                self.assertEqual(issue_helper.cmd_run(), 0)
+        return captured
+
+    def test_comment_body_english(self):
+        body = self._run_comment_body("en")["body"]
+        self.assertIn("## Issue Helper\n### Branch name\n```\n", body)
+        self.assertIn("### Commit message\n```\nCrash_on_start : feat : {description of the change} https://github.com/o/r/issues/7\n```", body)
+        self.assertFalse(any("\uac00" <= ch <= "\ud7a3" for ch in body))
+
+    def test_comment_body_korean_unchanged(self):
+        captured = self._run_comment_body("ko")
+        self.assertIn("### 브랜치명\n```\n", captured["body"])
+        self.assertIn("### 커밋 메시지\n```\nCrash_on_start : feat : {변경 사항에 대한 설명}", captured["body"])
+        # The marker (used to find the comment again) is the same in every language
+        self.assertEqual(captured["marker"], issue_helper.COMMENT_MARKER_DEFAULT)
+
+    def test_existing_comment_found_by_marker_regardless_of_language(self):
+        old_ko_body = issue_helper.COMMENT_MARKER_DEFAULT + "\n## Issue Helper\n### 브랜치명\n```\nx\n```"
+        calls = []
+
+        def api(method, url, token, body=None):
+            calls.append(method)
+            if method == "GET":
+                return 200, [{"id": 5, "body": old_ko_body}], None
+            return 200, {}, None
+
+        with patch.dict(os.environ, {"PROJECT_AUTO_WIZARD_LANG": "en"}), \
+             patch.object(issue_helper, "_api_request", side_effect=api):
+            issue_helper.upsert_comment("o", "r", 7, "tok", issue_helper.COMMENT_MARKER_DEFAULT, "new body")
+        self.assertEqual(calls, ["GET", "PATCH"])
+
+    def test_missing_token_message_per_language(self):
+        base = {"action": "opened", "issue": {"number": 1, "title": "t", "html_url": "u"}}
+        en = run_cli(base, env_extra={"GITHUB_TOKEN": "", "PROJECT_AUTO_WIZARD_LANG": "en"})
+        ko = run_cli(base, env_extra={"GITHUB_TOKEN": "", "PROJECT_AUTO_WIZARD_LANG": "ko"})
+        self.assertIn("ERROR: GITHUB_TOKEN is not set.", en.stderr)
+        self.assertIn("ERROR: GITHUB_TOKEN이 없습니다.", ko.stderr)
 
 
 if __name__ == "__main__":

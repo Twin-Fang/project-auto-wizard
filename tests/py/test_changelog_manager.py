@@ -16,9 +16,9 @@ if str(SCRIPT_DIR) not in sys.path:
 from changelog_manager import filter_release_issue_numbers  # noqa: E402
 
 
-def run(args, cwd):
-    # Windows 기본 코드페이지(cp1252)로 디코딩하면 한글 출력에서 깨진다
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+def run(args, cwd, lang="ko"):
+    # Decoding with the Windows default code page (cp1252) garbles non-ASCII output
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PROJECT_AUTO_WIZARD_LANG": lang}
     return subprocess.run([sys.executable, str(SCRIPT), *args],
                           cwd=cwd, capture_output=True, text=True, encoding="utf-8", env=env)
 
@@ -81,6 +81,22 @@ class TestUpdateFromSummaryIdempotence(unittest.TestCase):
         self.assertEqual(md.count("## [0.5.2]"), 1)
         self.assertIn("*변경사항 정보 없음*", md)
 
+    def test_empty_commit_summary_english(self):
+        r = self.update("0.5.3", summary="## [0.5.3]\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        run(["generate-md"], self.tmp, lang="en")
+        md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("**Current version:** 0.5.3", md)
+        self.assertIn("**Last updated:**", md)
+        self.assertIn("*No change information*", md)
+        self.assertFalse(any("\uac00" <= ch <= "\ud7a3" for ch in md))
+
+    def test_korean_header_kept_in_ko(self):
+        self.update("0.5.4", summary="## [0.5.4]\n")
+        run(["generate-md"], self.tmp, lang="ko")
+        md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertTrue(md.startswith("# Changelog\n\n**현재 버전:** 0.5.4  \n**마지막 업데이트:**"))
+
 
 class TestGenerateMd(unittest.TestCase):
     def setUp(self):
@@ -131,8 +147,8 @@ if __name__ == "__main__":
 
 
 class TestUpdateFromSummaryDegenerateJson(unittest.TestCase):
-    """실측 회귀 (dogfood PR #1): 스캐폴드가 만든 비정형 CHANGELOG.json({"versions": []})에서
-    update-from-summary가 KeyError: 'metadata'로 죽던 버그."""
+    """Regression: with an irregular scaffold CHANGELOG.json ({"versions": []}),
+    update-from-summary used to die with KeyError: 'metadata'."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -220,3 +236,79 @@ class TestCollectIssueClosesCli(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "")
+
+
+class TestLanguageIndependentCategoryKeys(unittest.TestCase):
+    """parsed_changes keys must not depend on the language the notes were written in."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def update(self, version, summary, lang):
+        (Path(self.tmp) / "pr_body.md").write_text(summary, encoding="utf-8")
+        env = {**os.environ, "VERSION": version, "PROJECT_TYPES": "node", "TODAY": "2026-01-01",
+               "PYTHONIOENCODING": "utf-8", "PROJECT_AUTO_WIZARD_LANG": lang}
+        r = subprocess.run([sys.executable, str(SCRIPT), "update-from-summary"],
+                           cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def data(self):
+        return json.loads((Path(self.tmp) / "CHANGELOG.json").read_text(encoding="utf-8"))
+
+    def write_json(self, releases):
+        (Path(self.tmp) / "CHANGELOG.json").write_text(json.dumps(
+            {"metadata": {"currentVersion": "1.0.0", "lastUpdated": "x"}, "releases": releases},
+            ensure_ascii=False), encoding="utf-8")
+
+    def test_same_category_gets_the_same_key_in_every_language(self):
+        self.update("1.0.0", "## [1.0.0]\n\n### ⚠️ Breaking changes\n- drop v1\n\n### ✨ Features\n- add x\n", "en")
+        self.update("1.0.1", "## [1.0.1]\n\n### ⚠️ 호환성 깨짐\n- v1 제거\n\n### ✨ 기능\n- x 추가\n", "ko")
+        releases = self.data()["releases"]
+        self.assertEqual(list(releases[0]["parsed_changes"]), ["breaking", "feat"])
+        self.assertEqual(list(releases[1]["parsed_changes"]), ["breaking", "feat"])
+
+    def test_custom_category_keeps_a_title_based_key(self):
+        self.update("1.0.0", "## [1.0.0]\n\n### 🎨 Design tweaks\n- polish\n", "en")
+        self.assertEqual(list(self.data()["releases"][0]["parsed_changes"]), ["design_tweaks"])
+
+    def test_generate_md_merges_legacy_language_keys_and_follows_current_language(self):
+        self.write_json([{
+            "version": "1.0.0", "date": "2026-01-01", "parse_method": "markdown",
+            "parsed_changes": {
+                "features": {"title": "✨ Features", "items": ["add x", "add y"]},
+                "기능": {"title": "✨ 기능", "items": ["add y", "x 추가"]},
+                "breaking_changes": {"title": "⚠️ Breaking changes", "items": ["drop v1"]},
+            },
+        }])
+        for lang, feat, brk in (("ko", "**✨ 기능**", "**⚠️ 호환성 깨짐**"), ("en", "**✨ Features**", "**⚠️ Breaking changes**")):
+            with self.subTest(lang):
+                r = run(["generate-md"], self.tmp, lang=lang)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+                self.assertEqual(md.count(feat), 1, md)
+                self.assertEqual(md.count(brk), 1, md)
+                self.assertIn("- add x\n- add y\n- x 추가\n", md)
+                # The other language's heading must not linger
+                other = "**✨ Features**" if lang == "ko" else "**✨ 기능**"
+                self.assertNotIn(other, md)
+
+    def test_generate_md_keeps_list_style_legacy_entries_readable(self):
+        self.write_json([{"version": "1.0.0", "date": "d", "parsed_changes": {"fix": ["repair"]}}])
+        r = run(["generate-md"], self.tmp, lang="en")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("**🐛 Fixes**\n- repair\n", (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8"))
+
+    def test_export_merges_legacy_keys_under_one_heading(self):
+        self.write_json([{
+            "version": "1.0.0", "date": "d",
+            "parsed_changes": {
+                "fixes": {"title": "🐛 Fixes", "items": ["a"]},
+                "수정": {"title": "🐛 수정", "items": ["b"]},
+            },
+        }])
+        r = run(["export", "--version", "1.0.0"], self.tmp, lang="ko")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.count("**🐛 수정**"), 1, r.stdout)
+        self.assertIn("- a\n- b", r.stdout)
+        self.assertNotIn("Fixes", r.stdout)

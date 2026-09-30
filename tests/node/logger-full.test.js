@@ -1,5 +1,6 @@
 // tests/node/logger-full.test.js
-// full 파이프라인 전 구간이 로그에 남는지 회귀.
+// Regression: every stage of the full pipeline is logged.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
@@ -22,7 +23,7 @@ function ctxFor(target, now) {
   });
 }
 
-test("runFull: detect·version·verify 구간이 모두 로그에 남고 요약이 붙는다", () => {
+test("runFull: detect, version, and verify stages are all logged with a summary", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-logfull-"));
   try {
     mkdirSync(join(target, "src/main/resources"), { recursive: true });
@@ -35,18 +36,18 @@ test("runFull: detect·version·verify 구간이 모두 로그에 남고 요약�
     closeLogger();
 
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /INFO {2}detect {4}type {8}spring \(근거: build\.gradle\)/, "감지 근거");
-    assert.match(body, /INFO {2}detect {4}version {5}0\.0\.1/, "버전 감지");
-    assert.match(body, /INFO {2}detect {4}branch {6}main/, "브랜치");
-    assert.match(body, /INFO {2}version {3}write {7}version\.yml/, "version.yml 기록");
-    assert.match(body, /INFO {2}verify {4}secret {6}SERVER_HOST/, "필요 secret");
-    assert.match(body, /=== 요약 ===/, "요약 블록");
+    assert.match(body, /INFO {2}detect {4}type {8}spring \(근거: build\.gradle\)/, "detection basis");
+    assert.match(body, /INFO {2}detect {4}version {5}0\.0\.1/, "version detection");
+    assert.match(body, /INFO {2}detect {4}branch {6}main/, "branch");
+    assert.match(body, /INFO {2}version {3}write {7}version\.yml/, "version.yml write");
+    assert.match(body, /INFO {2}verify {4}secret {6}SERVER_HOST/, "required secret");
+    assert.match(body, /=== 요약 ===/, "summary block");
     assert.match(body, /설치\s+: \d+개 파일/);
     assert.match(body, /결과\s+: OK/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: .md 설치 로그는 더 이상 생성되지 않는다", () => {
+test("runFull: .md install log is no longer generated", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-nomd-"));
   try {
     writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
@@ -54,20 +55,20 @@ test("runFull: .md 설치 로그는 더 이상 생성되지 않는다", () => {
     initLogger(target, { action: "install", now: "2026-08-26 12:03:41" });
     const result = runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
     closeLogger();
-    assert.strictEqual(result.installLog, undefined, "installLog 반환값이 없어야 한다");
+    assert.strictEqual(result.installLog, undefined, "installLog return value must be absent");
     const files = readdirSync(join(target, ".github/.wizard/logs"));
-    assert.ok(!files.some((f) => f.endsWith(".md")), ".md 로그가 없어야 한다");
+    assert.ok(!files.some((f) => f.endsWith(".md")), "no .md log must exist");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 스크립트 덮어쓰기와 README·.gitignore 결과가 파일별 결정으로 남는다", () => {
+test("runFull: script overwrite and README/.gitignore results are recorded as per-file decisions", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-logdecide-"));
   try {
     mkdirSync(join(target, "src/main/resources"), { recursive: true });
     writeFileSync(join(target, "src/main/resources/application.yaml"), "");
     writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
     writeFileSync(join(target, "README.md"), "# my-service\n");
-    // 사용자가 고친 스크립트 — 설치가 덮어쓴 사실이 로그에 남아야 한다
+    // User-edited script: the fact that install overwrote it must be logged
     mkdirSync(join(target, ".github/scripts"), { recursive: true });
     writeFileSync(join(target, ".github/scripts/version_manager.py"), "# my script edit\n");
 
@@ -77,15 +78,15 @@ test("runFull: 스크립트 덮어쓰기와 README·.gitignore 결과가 파일�
     closeLogger();
 
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /INFO {2}script {4}overwrite {3}\.github\/scripts\/version_manager\.py \(기존 내용과 달라/, "덮어쓴 스크립트");
-    assert.match(body, /INFO {2}script {4}create {6}\.github\/scripts\/changelog_manager\.py/, "새로 만든 스크립트");
-    assert.match(body, /INFO {2}readme {4}append {6}README\.md 끝에 버전 섹션 추가/, "README 결과");
+    assert.match(body, /INFO {2}script {4}overwrite {3}\.github\/scripts\/version_manager\.py \(기존 내용과 달라/, "overwritten script");
+    assert.match(body, /INFO {2}script {4}create {6}\.github\/scripts\/changelog_manager\.py/, "newly created script");
+    assert.match(body, /INFO {2}readme {4}append {6}README\.md 끝에 버전 섹션 추가/, "README result");
     assert.strictEqual(result.readme, "added");
     assert.strictEqual(result.scripts.find((s) => s.name === "version_manager.py").action, "overwrite");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: README.md가 없으면 추가하지 않았다는 사실이 로그에 남는다", () => {
+test("runFull: when README.md is missing, the fact that nothing was added is logged", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-lognoreadme-"));
   try {
     writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
@@ -97,7 +98,7 @@ test("runFull: README.md가 없으면 추가하지 않았다는 사실이 로그
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 마커 파일이 없는 타입은 '직접 선택'으로, 설치 선택값은 option 줄로 남는다", () => {
+test("runFull: a type without marker files is logged as manual selection, and install choices as option lines", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-logchoice-"));
   try {
     writeFileSync(join(target, "build.gradle"), 'version = "0.0.1"\n');
@@ -115,15 +116,15 @@ test("runFull: 마커 파일이 없는 타입은 '직접 선택'으로, 설치 �
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
     assert.match(body, /detect {4}type {8}spring \(근거: build\.gradle\)/);
-    assert.match(body, /detect {4}type {8}python \(근거: 직접 선택\)/, "없는 pyproject.toml을 근거로 적으면 안 된다");
-    assert.match(body, /mode=trunk-based/, "브랜치 전략");
+    assert.match(body, /detect {4}type {8}python \(근거: 직접 선택\)/, "must not cite a nonexistent pyproject.toml as the basis");
+    assert.match(body, /mode=trunk-based/, "branch strategy");
     assert.match(body, /option {4}deploy {6}nginx/);
     assert.match(body, /option {4}semver {6}off/);
     assert.match(body, /option {4}copilot {5}on/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: Flutter 옵션 선택이 로그에 남는다", () => {
+test("runFull: Flutter option choices are logged", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-logflutter-"));
   try {
     writeFileSync(join(target, "pubspec.yaml"), "name: my_app\nversion: 1.0.0+1\n");
@@ -145,7 +146,7 @@ test("runFull: Flutter 옵션 선택이 로그에 남는다", () => {
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 배포 방식 정리로 생긴 삭제·.bak 이동이 요약에 집계된다", () => {
+test("runFull: deletions and .bak moves from deploy-method cleanup are counted in the summary", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-logfull-"));
   try {
     mkdirSync(join(target, "src/main/resources"), { recursive: true });
@@ -154,13 +155,13 @@ test("runFull: 배포 방식 정리로 생긴 삭제·.bak 이동이 요약에 �
     resetLogger();
     runFull({ ...ctxFor(target, "2026-08-26 12:03:41"), deployStyle: "simple" }, resolvePayloadRoot(), target);
     const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
-    writeFileSync(simple, readFileSync(simple, "utf8") + "# 직접 수정\n");
+    writeFileSync(simple, readFileSync(simple, "utf8") + "# manual edit\n");
 
     const r = initLogger(target, { action: "update", now: "2026-08-26 12:10:00", templateVersion: "0.8.2" });
     runFull({ ...ctxFor(target, "2026-08-26 12:10:00"), deployStyle: "traefik" }, resolvePayloadRoot(), target);
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
-    assert.match(body, /백업 교체\s+: 0개/, "충돌 백업은 없었다");
+    assert.match(body, /백업 교체\s+: 0개/, "there were no conflict backups");
     assert.match(body, /정리\s+: 삭제 0개, \.bak 이동 1개/);
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });

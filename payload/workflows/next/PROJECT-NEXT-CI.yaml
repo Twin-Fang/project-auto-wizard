@@ -1,14 +1,14 @@
 # project-auto-wizard:managed-workflow
-# Next.js CI (빌드 검증)
-# {{DEVELOP_BRANCH}} 브랜치 push·PR 시 npm ci, npm test(test 스크립트가 있을 때), npm run build로 검증합니다. node_modules와 .next/cache를 캐싱합니다.
+# Next.js CI (build verification)
+# On push/PR to the {{DEVELOP_BRANCH}} branch, verifies with npm ci, npm test (when a test script exists) and npm run build. Caches node_modules and .next/cache.
 #
 # GitHub Secrets
-#   ENV_FILE (선택): .env 파일 내용. CI는 빌드 검증 목적이므로 배포 관련 Secrets는 불필요
+#   ENV_FILE (optional): contents of the .env file. CI only verifies the build, so no deploy-related Secrets are needed
 #
-# 프로젝트별 설정 (env 섹션)
-#   PROJECT_NAME : 프로젝트 이름
-#   NODE_VERSION : Node.js 버전 (기본: 20.15.0)
-#   ENV_FILE     : 환경변수 파일명 (기본: .env)
+# Project settings (env section)
+#   PROJECT_NAME : project name
+#   NODE_VERSION : Node.js version (default: 20.15.0)
+#   ENV_FILE     : environment file name (default: .env)
 
 name: PROJECT-NEXT-CI
 
@@ -23,7 +23,7 @@ env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
   NODE_VERSION: "20.15.0"
   ENV_FILE: ".env"
-  # 모노레포에서 이 프로젝트가 있는 하위 경로 ('.'이면 항상 검증)
+  # Subdirectory of this project in a monorepo ('.' means always verify)
   PROJECT_PATH: "."  # @wizard auto:project-path
 
 permissions:
@@ -32,9 +32,9 @@ permissions:
   issues: write
 
 jobs:
-  # Job: 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
+  # Job: change detection (in a monorepo, checks whether this project's path changed)
   changes:
-    name: 변경 감지
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,45 +45,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: 프로젝트 경로 변경 여부 판별
+      - name: Check whether the project path changed
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
-          # push는 이번 push 범위(직전 커밋 before 대비)만 본다. 비워 두면 기본 브랜치 대비 누적 diff가 된다.
-          # 새 브랜치 첫 push(before가 0)와 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 대비)
+          # A push only looks at this push's range (against the previous commit, 'before'). Left empty it would be the cumulative diff against the default branch.
+          # The first push of a new branch (before is 0) and PRs get an empty value -> default behavior (against the default branch / PR base)
           base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
 
   build:
-    name: Next.js 애플리케이션 빌드
+    name: Build Next.js application
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
-    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    # In a monorepo (--paths), build inside that subfolder
     defaults:
       run:
         working-directory: ${{ env.PROJECT_PATH }}
 
     steps:
-      - name: 코드 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: 환경변수 파일 생성 (${{ env.ENV_FILE }})
+      - name: Create environment file (${{ env.ENV_FILE }})
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo -e "${{ secrets.ENV_FILE || secrets.ENV }}" > ${{ env.ENV_FILE }}
-          echo "✅ ${{ env.ENV_FILE }} 파일 생성 완료"
+          m cicd.env_file_created file="${{ env.ENV_FILE }}"
 
-      - name: Node.js 설정
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
           cache-dependency-path: ${{ env.PROJECT_PATH }}/package-lock.json
 
-      - name: npm 의존성 캐싱
+      - name: Cache npm dependencies
         uses: actions/cache@v6
         with:
           path: ~/.npm
@@ -91,7 +92,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      - name: node_modules 캐싱
+      - name: Cache node_modules
         id: node-modules-cache
         uses: actions/cache@v6
         with:
@@ -100,16 +101,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-modules-
 
-      - name: 의존성 설치
+      - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: |
-          echo "📦 의존성 설치 중..."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cibuild.node_deps_installing
           npm ci
-          echo "✅ 의존성 설치 완료"
+          m cibuild.node_deps_done
 
-      # Next.js 빌드 캐싱 (.next/cache)
-      # 증분 빌드를 위해 .next/cache 폴더를 캐싱합니다
-      - name: Next.js 빌드 캐싱
+      # Cache the Next.js build (.next/cache)
+      # Caches the .next/cache folder for incremental builds
+      - name: Cache Next.js build
         uses: actions/cache@v6
         with:
           path: ${{ env.PROJECT_PATH }}/.next/cache
@@ -118,66 +120,69 @@ jobs:
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
             ${{ runner.os }}-nextjs-
 
-      # package.json에 test 스크립트가 있을 때만 실행한다 (npm init 기본값 "no test specified"는 없는 것으로 본다)
-      - name: 테스트 실행
+      # Runs only when package.json has a test script (the npm init default "no test specified" counts as none)
+      - name: Run tests
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           TEST_SCRIPT=$(node -p "(require('./package.json').scripts || {}).test || ''")
           if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
-            echo "::notice::package.json에 test 스크립트가 없어 테스트를 건너뜁니다"
+            m cibuild.node_no_test_script
             exit 0
           fi
-          echo "🧪 npm test 실행: $TEST_SCRIPT"
-          # CI=true: watch 모드로 대기하는 테스트 러너(react-scripts 등)를 한 번만 실행
+          m cibuild.node_test_run script="$TEST_SCRIPT"
+          # CI=true: run watch-mode test runners (react-scripts, etc.) only once
           CI=true npm test
 
-      - name: 프로젝트 빌드
+      - name: Build project
         id: build
         run: |
-          echo "🔨 Next.js 빌드 시작..."
-          echo "프로젝트: ${{ env.PROJECT_NAME }}"
-          echo "Node.js: ${{ env.NODE_VERSION }}"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cibuild.node_build_start_next
+          m cibuild.node_build_project project="${{ env.PROJECT_NAME }}"
+          m cibuild.node_build_node node="${{ env.NODE_VERSION }}"
           echo ""
 
-          # 빌드 실행 및 로그 저장
+          # Run the build and save the log
           npm run build > build_log.txt 2>&1 || {
             echo "build_failed=true" >> $GITHUB_OUTPUT
             echo "status=failed" >> $GITHUB_OUTPUT
             echo ""
-            echo "❌ 빌드 실패"
+            m cibuild.node_build_failed
             exit 0
           }
 
           echo "build_failed=false" >> $GITHUB_OUTPUT
           echo "status=success" >> $GITHUB_OUTPUT
-          echo "✅ 빌드 완료"
+          m cibuild.node_build_ok
 
-          # 빌드 결과 확인
+          # Check the build output
           if [ -d ".next" ]; then
             echo ""
-            echo "📁 빌드 결과물:"
-            echo "  - .next/ 폴더 생성됨"
+            m cibuild.node_build_output
+            m cibuild.node_build_next_dir
             du -sh .next/ || true
           fi
 
-      - name: 빌드 에러 로그 출력
+      - name: Print build error log
         if: steps.build.outputs.build_failed == 'true'
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "❌ 빌드 실패 - 에러 로그"
+          m cibuild.node_errlog_title
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
 
           if [ -f "build_log.txt" ]; then
             tail -n 50 build_log.txt
           else
-            echo "에러 로그 파일을 찾을 수 없습니다."
+            m cibuild.node_errlog_missing
           fi
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           exit 1
 
-      - name: 빌드 로그 업로드
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -185,41 +190,52 @@ jobs:
           path: ${{ env.PROJECT_PATH }}/build_log.txt
           retention-days: 7
 
-      - name: 빌드 결과 요약
+      - name: Build result summary
         if: always()
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           if [ "${{ steps.build.outputs.status }}" = "success" ]; then
-            echo "🎉 Next.js 빌드 완료!"
+            m cibuild.node_result_next_ok
           else
-            echo "❌ Next.js 빌드 실패"
+            m cibuild.node_result_next_fail
           fi
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-          echo "📊 빌드 결과:"
-          echo "  📦 프로젝트: ${{ env.PROJECT_NAME }}"
-          echo "  📌 Node.js 버전: ${{ env.NODE_VERSION }}"
-          echo "  🆙 빌드 상태: ${{ steps.build.outputs.status }}"
-          echo "  🌿 브랜치: ${{ github.ref_name }}"
-          echo "  📝 커밋: ${{ github.sha }}"
-          echo "  🕐 시간: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          m cibuild.node_result_title
+          m cibuild.node_result_project project="${{ env.PROJECT_NAME }}"
+          m cibuild.node_result_node node="${{ env.NODE_VERSION }}"
+          m cibuild.node_result_status status="${{ steps.build.outputs.status }}"
+          m cibuild.node_result_branch branch="${{ github.ref_name }}"
+          m cibuild.node_result_commit sha="${{ github.sha }}"
+          m cibuild.node_result_time time="$(date '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  # Job: CI Gate (required check로 등록할 단일 job)
+  # Job: CI Gate (the single job to register as a required check)
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
     needs: [changes, build]
     runs-on: ubuntu-latest
     steps:
-      - name: 결과 집계
+      # Only the message catalog is needed here, so check out just that
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Aggregate results
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          echo "needs 결과: $RESULTS"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
-            echo "실패하거나 취소된 job이 있습니다."
+            m cibuild.gate_failed
             exit 1
           fi

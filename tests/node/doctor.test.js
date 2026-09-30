@@ -1,14 +1,16 @@
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { setLanguage } from "../../src/i18n/index.js";
 import { runDoctor, printDoctorReport, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
-// printDoctorReport를 out 주입으로 캡처한다(색상은 끈 상태 — 문자열 단언을 ESC로부터 보호).
+// Capture printDoctorReport through the injected out (colors off, so string assertions are safe from ESC bytes).
 function render(results, { color = false } = {}) {
   let output = "";
   printDoctorReport(results, { out: (s) => { output = s; }, color });
@@ -87,7 +89,7 @@ test("runDoctor: all checks OK", () => {
   }
 });
 
-test("runDoctor: missing WORKFLOW_PAT -> INFO (폴백이 자동 복구), non-write permissions -> INFO, merge commit 꺼짐 -> WARN", () => {
+test("runDoctor: missing WORKFLOW_PAT -> INFO (fallback auto-recovers), non-write permissions -> INFO, merge commit disabled -> WARN", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -99,13 +101,13 @@ test("runDoctor: missing WORKFLOW_PAT -> INFO (폴백이 자동 복구), non-wri
       [".allow_merge_commit", { status: 0, stdout: "false", stderr: "" }],
     ]);
     const results = runDoctor(dir, { exec });
-    // Workflow permissions는 read여도 조치가 불필요하므로 INFO다.
+    // Workflow permissions is INFO even when read, since no action is needed.
     assert.strictEqual(results.find((r) => r.name === "Workflow permissions").status, "INFO");
-    // WORKFLOW_PAT 미등록도 폴백이 자동 복구하므로 조치가 필요 없다 — INFO다.
+    // A missing WORKFLOW_PAT is also auto-recovered by the fallback, so no action is needed: INFO.
     const pat = results.find((r) => r.name === "WORKFLOW_PAT secret");
     assert.strictEqual(pat.status, "INFO");
-    assert.ok(pat.note?.some((l) => l.includes("bot") || l.includes("machine")), "bot/machine 계정 권장 문구가 없습니다");
-    assert.strictEqual(pat.doc, undefined, "INFO 항목은 doc 링크를 달지 않는다");
+    assert.ok(pat.note?.some((l) => l.includes("bot") || l.includes("machine")), "missing bot/machine account recommendation");
+    assert.strictEqual(pat.doc, undefined, "INFO items carry no doc link");
     assert.strictEqual(results.find((r) => r.name === "automerge 호환성(merge commit 허용)").status, "WARN");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -128,10 +130,10 @@ test("runDoctor: no git remote -> WARN and stops before repo-scoped checks", () 
   }
 });
 
-// --- 출력 재설계 회귀 가드 --------------------------------------------------
+// --- Output redesign regression guards --------------------------------------------------
 
-// doctor는 설치 "전에" 돌려보는 것이 정상 사용 경로다 — 미설치를 경고로 띄우면 안 된다.
-test("runDoctor: 미설치는 경고가 아니라 INFO다", () => {
+// Running doctor "before" installing is the normal path, so not-installed must not surface as a warning.
+test("runDoctor: not installed is INFO, not a warning", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const results = runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) });
@@ -141,21 +143,21 @@ test("runDoctor: 미설치는 경고가 아니라 INFO다", () => {
   }
 });
 
-// 항목 이름만으로는 그게 무엇을 위한 설정인지 알 수 없다는 것이 핵심 불만이었다.
-test("runDoctor: 모든 항목이 용도(purpose)를 가진다", () => {
+// A name alone does not tell what a setting is for; that was the core complaint.
+test("runDoctor: every item has a purpose", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const results = runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) });
     for (const r of results) {
-      assert.ok(r.purpose && r.purpose.length > 0, `${r.name}에 purpose가 없습니다`);
+      assert.ok(r.purpose && r.purpose.length > 0, `${r.name} has no purpose`);
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-// 문제 항목은 조치 단계와 문서 링크를 반드시 동반해야 한다(해결 가이드 링크).
-test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공한다", () => {
+// Problem items must come with action steps and a doc link (resolution guide link).
+test("runDoctor: problem items provide impact, actions, and a doc link together", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -166,11 +168,11 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
     const problems = runDoctor(dir, { exec }).filter((r) => r.status === "WARN" || r.status === "FAIL");
     assert.ok(problems.length >= 2);
     for (const r of problems) {
-      assert.ok(r.impact?.length, `${r.name}에 영향 설명이 없습니다`);
-      assert.ok(r.actions?.length, `${r.name}에 조치 단계가 없습니다`);
+      assert.ok(r.impact?.length, `${r.name} has no impact description`);
+      assert.ok(r.actions?.length, `${r.name} has no action steps`);
     }
-    // WORKFLOW_PAT은 INFO로 내려갔으므로 문제 항목 표본에 없다 — 실제 조치가
-    // 필요한 항목(automerge 호환성)으로 doc 링크 존재를 검증한다.
+    // WORKFLOW_PAT was downgraded to INFO so it is not in the problem sample; verify the doc link
+    // on an item that needs real action (automerge compatibility).
     const automerge = problems.find((r) => r.name === "automerge 호환성(merge commit 허용)");
     assert.strictEqual(automerge.doc, DOC.postInstall);
   } finally {
@@ -178,72 +180,81 @@ test("runDoctor: 문제 항목은 영향·조치·문서 링크를 함께 제공
   }
 });
 
-// 출력에서 링크하는 문서 사이트 앵커가 실제 문서 소스에 존재해야 한다(링크 부패 방지).
-test("DOC 링크가 가리키는 앵커가 문서 사이트 소스에 실제로 존재한다", () => {
-  for (const url of Object.values(DOC)) {
-    assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `문서 사이트 URL이 아닙니다: ${url}`);
-    const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
-    const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
-    const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
-    assert.ok(file, `${page}에 해당하는 문서 파일이 없습니다`);
-    assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page}에 #${anchor} 앵커가 없습니다`);
+// Doc site anchors linked from the output must exist in the real doc source (prevents link rot),
+// for both the English default (root paths) and the ko locale (/ko/ paths).
+test("anchors targeted by DOC links actually exist in the doc site source", () => {
+  try {
+    for (const lang of ["en", "ko"]) {
+      setLanguage(lang);
+      for (const url of Object.values(DOC)) {
+        assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `not a doc site URL: ${url}`);
+        assert.strictEqual(url.startsWith(`${DOCS_SITE_URL}/ko/`), lang === "ko", `${lang} link has the wrong locale: ${url}`);
+        const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
+        const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
+        const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
+        assert.ok(file, `no doc file for ${page}`);
+        assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page} has no #${anchor} anchor`);
+      }
+    }
+  } finally {
+    setLanguage("ko"); // the other tests in this file assert the ko output
   }
 });
 
-// 이미 배포된 CLI 버전이 README 앵커를 링크하므로 README에도 앵커를 남겨 둔다.
-test("이전 버전 CLI가 링크하는 README 앵커가 모든 README에 남아 있다", () => {
+// Already-released CLI versions link README anchors, so the READMEs keep the anchors too.
+test("README anchors linked by older CLI versions remain in every README", () => {
   for (const file of ["README.md", "README.ko.md", "README.zh-CN.md", "README.ja.md"]) {
     const readme = readFileSync(join(REPO_ROOT, file), "utf8");
     for (const anchor of ["post-install", "flutter-store"]) {
-      assert.ok(readme.includes(`<a id="${anchor}"></a>`), `${file}에 #${anchor} 앵커가 없습니다`);
+      assert.ok(readme.includes(`<a id="${anchor}"></a>`), `${file} has no #${anchor} anchor`);
     }
   }
 });
 
-test("printDoctorReport: 문제 항목은 현상·영향·조치·문서 순으로 펼쳐진다", () => {
+test("printDoctorReport: problem items expand in the order symptom, impact, action, doc", () => {
   const output = render([{
-    name: "Workflow permissions", purpose: "버전 커밋 자동 push", status: "WARN",
-    value: "현재 read 입니다.",
-    impact: ["릴리스가 중단됩니다."],
-    actions: ["레포 Settings → Actions → General", '"Read and write permissions" 선택'],
+    name: "Workflow permissions", purpose: "auto-push version commit", status: "WARN",
+    value: "Currently read.",
+    impact: ["The release stops."],
+    actions: ["Repo Settings → Actions → General", '"Read and write permissions" option'],
     doc: DOC.postInstall,
   }]);
-  assert.ok(output.includes("[!] Workflow permissions — 버전 커밋 자동 push"));
-  const iValue = output.indexOf("현재 read 입니다.");
-  const iImpact = output.indexOf("릴리스가 중단됩니다.");
-  const iAction = output.indexOf("레포 Settings");
+  assert.ok(output.includes("[!] Workflow permissions — auto-push version commit"));
+  const iValue = output.indexOf("Currently read.");
+  const iImpact = output.indexOf("The release stops.");
+  const iAction = output.indexOf("Repo Settings");
   const iDoc = output.indexOf("자세히:");
-  assert.ok(iValue < iImpact && iImpact < iAction && iAction < iDoc, "현상→영향→조치→문서 순서가 아닙니다");
+  assert.ok(iValue < iImpact && iImpact < iAction && iAction < iDoc, "order is not symptom -> impact -> action -> doc");
   assert.ok(output.includes(DOC.postInstall));
 });
 
-test("printDoctorReport: 정상 항목은 한 줄로 압축된다", () => {
+test("printDoctorReport: healthy items collapse to one line", () => {
   const output = render([
-    { name: "gh CLI", purpose: "레포 설정 조회용", status: "OK", value: "gh version 2.96.0" },
+    { name: "gh CLI", purpose: "for repo settings lookup", status: "OK", value: "gh version 2.96.0" },
   ]);
   const line = output.split("\n").find((l) => l.includes("gh CLI"));
   assert.ok(line.includes("[✓]"));
-  assert.ok(line.includes("레포 설정 조회용"));
+  assert.ok(line.includes("for repo settings lookup"));
   assert.ok(line.includes("gh version 2.96.0"));
 });
 
-// 도구가 "설치해도 된다/안 된다"를 판정하지 않고 발견한 사실만 말하는지 고정한다.
-test("printDoctorReport: 요약은 판정 대신 문제 개수를 말한다", () => {
-  const clean = render([{ name: "gh CLI", purpose: "레포 설정 조회용", status: "OK", value: "설치됨" }]);
+// Pin that the tool reports only what it found, without judging whether installing is OK.
+test("printDoctorReport: summary reports the problem count instead of a verdict", () => {
+  const clean = render([{ name: "gh CLI", purpose: "for repo settings lookup", status: "OK", value: "installed" }]);
   assert.ok(clean.includes("문제를 찾지 못했습니다"));
 
   const warned = render([
-    { name: "A", purpose: "가", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
-    { name: "B", purpose: "나", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
+    { name: "A", purpose: "a", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
+    { name: "B", purpose: "b", status: "WARN", value: "x", impact: ["y"], actions: ["z"] },
   ]);
   assert.ok(warned.includes("2개 항목에서 문제를 찾았습니다"));
   assert.ok(warned.includes("나중에 설정해도 됩니다"));
 
-  const failed = render([{ name: "gh 인증", purpose: "권한", status: "FAIL", value: "x", impact: ["y"], actions: ["z"] }]);
+  const failed = render([{ name: "gh 인증", purpose: "permission", status: "FAIL", value: "x", impact: ["y"], actions: ["z"] }]);
   assert.ok(failed.includes("일부 점검은 실행하지 못했습니다"));
 });
 
-test("printDoctorReport: color=false면 ESC 바이트가 섞이지 않는다", () => {
+test("printDoctorReport: color=false leaves no ESC bytes", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const output = render(runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }), { color: false });
@@ -253,11 +264,11 @@ test("printDoctorReport: color=false면 ESC 바이트가 섞이지 않는다", (
   }
 });
 
-// --- Workflow permissions 오진 수정 -----------------------------------------
+// --- Workflow permissions misdiagnosis fix -----------------------------------------
 
-// 마법사 워크플로우는 자체 permissions 선언으로 동작하므로 레포 기본값이 read여도 문제가 아니다.
-// 조치가 필요 없는 항목에 WARN을 붙이면 없는 장애를 알리고 불필요한 권한 상향을 유도한다.
-test("runDoctor: Workflow permissions가 read여도 경고가 아니라 INFO다", () => {
+// The wizard workflows run on their own permissions declaration, so a read repo default is not a problem.
+// Flagging WARN on an item needing no action reports a nonexistent outage and prompts needless permission escalation.
+test("runDoctor: Workflow permissions read is INFO, not a warning", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -266,17 +277,17 @@ test("runDoctor: Workflow permissions가 read여도 경고가 아니라 INFO다"
     ]);
     const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
     assert.strictEqual(perm.status, "INFO");
-    assert.ok(perm.note?.length, "INFO 항목에는 note가 있어야 합니다");
-    assert.ok(perm.note.join(" ").includes("read"), "현재값이 안내에 남아 있어야 합니다");
-    assert.ok(!perm.impact, "조치가 불필요하므로 impact를 붙이지 않는다");
-    assert.ok(!perm.actions?.length, "조치가 불필요하므로 actions를 붙이지 않는다");
+    assert.ok(perm.note?.length, "INFO items must have a note");
+    assert.ok(perm.note.join(" ").includes("read"), "the current value must remain in the guidance");
+    assert.ok(!perm.impact, "no impact is attached since no action is needed");
+    assert.ok(!perm.actions?.length, "no actions are attached since no action is needed");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-// "릴리스가 중단된다"는 거짓 진술이므로 어떤 경로에서도 나오면 안 된다.
-test("runDoctor: Workflow permissions 안내에 릴리스 중단 표현을 쓰지 않는다", () => {
+// "The release is halted" is a false statement, so it must never appear on any path.
+test("runDoctor: Workflow permissions guidance never says the release is halted", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -285,14 +296,14 @@ test("runDoctor: Workflow permissions 안내에 릴리스 중단 표현을 쓰�
     ]);
     const perm = runDoctor(dir, { exec }).find((r) => r.name === "Workflow permissions");
     const all = [perm.value, ...(perm.note || []), ...(perm.impact || [])].filter(Boolean).join(" ");
-    assert.ok(!all.includes("중단"), `거짓 진술이 남아 있습니다: ${all}`);
+    assert.ok(!all.includes("중단"), `false statement remains: ${all}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-// 조회 자체가 실패한 경우는 오진이 아니라 실제로 정보를 얻지 못한 상태다 — WARN 유지.
-test("runDoctor: Workflow permissions 조회 실패는 WARN을 유지한다", () => {
+// A failed lookup is not a misdiagnosis but a real lack of information: keep WARN.
+test("runDoctor: Workflow permissions lookup failure stays WARN", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const exec = fakeExec([
@@ -307,7 +318,7 @@ test("runDoctor: Workflow permissions 조회 실패는 WARN을 유지한다", ()
   }
 });
 
-// ── Flutter 스토어 배포 진단 ──────────────────────────────
+// ── Flutter store deploy diagnostics ──────────────────────────────
 const ANDROID_FASTFILE = "app/android/fastlane/Fastfile.playstore";
 const IOS_FASTFILE = "app/ios/fastlane/Fastfile";
 const EXPORT_OPTIONS = "app/ios/ExportOptions.plist";
@@ -316,7 +327,7 @@ const FILLED_PLIST = "<plist><dict><string>ABCDE12345</string><string>com.exampl
 const NO_GH = fakeExec([["gh --version", { status: 1, stdout: "", stderr: "", error: new Error("not found") }]]);
 const isFlutterRow = (r) => r.name.startsWith("Flutter ") || r.name === "ExportOptions.plist";
 
-// storeLine이 ""면 flutter_store 저장값이 없는 (기능 이전) 설치를 흉내낸다.
+// An empty storeLine simulates a pre-feature install with no stored flutter_store value.
 function writeFlutterProject(dir, { storeLine = 'flutter_store: "android,ios"', files = {} } = {}) {
   const optionsLine = storeLine ? `      ${storeLine}\n` : "";
   writeFileSync(join(dir, "version.yml"),
@@ -328,7 +339,7 @@ function writeFlutterProject(dir, { storeLine = 'flutter_store: "android,ios"', 
   }
 }
 
-test("runDoctor: Flutter 스토어 배포 파일이 없으면 플랫폼별로 없는 파일을 WARN으로 알린다 (Flutter 루트 반영)", () => {
+test("runDoctor: missing Flutter store deploy files are reported per platform as WARN (reflecting the Flutter root)", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     writeFlutterProject(dir);
@@ -336,17 +347,17 @@ test("runDoctor: Flutter 스토어 배포 파일이 없으면 플랫폼별로 �
     const android = results.find((r) => r.name === "Flutter Android 배포 파일");
     const ios = results.find((r) => r.name === "Flutter iOS 배포 파일");
     assert.strictEqual(android.status, "WARN");
-    assert.ok(android.value.includes(ANDROID_FASTFILE), "project_paths.flutter(app)가 경로에 반영되어야 한다");
+    assert.ok(android.value.includes(ANDROID_FASTFILE), "project_paths.flutter(app) must be reflected in the path");
     assert.strictEqual(ios.status, "WARN");
     assert.ok(ios.value.includes(IOS_FASTFILE) && ios.value.includes(EXPORT_OPTIONS));
-    assert.ok(!results.some((r) => r.name === "ExportOptions.plist"), "plist가 없으면 플레이스홀더 점검 행은 없다");
+    assert.ok(!results.some((r) => r.name === "ExportOptions.plist"), "without a plist there is no placeholder check row");
     assert.ok(android.doc.endsWith("#flutter-store"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("runDoctor: ExportOptions.plist에 플레이스홀더가 남아 있으면 WARN, 값이 채워지면 OK", () => {
+test("runDoctor: WARN when ExportOptions.plist still has placeholders, OK once filled", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     const files = { [ANDROID_FASTFILE]: "x", [IOS_FASTFILE]: "x", [EXPORT_OPTIONS]: PLACEHOLDER_PLIST };
@@ -368,7 +379,7 @@ test("runDoctor: ExportOptions.plist에 플레이스홀더가 남아 있으면 W
   }
 });
 
-test("runDoctor: 선택한 플랫폼만 점검한다 (android만 선택하면 iOS·ExportOptions 행이 없다)", () => {
+test("runDoctor: only the selected platforms are checked (android only means no iOS/ExportOptions rows)", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     writeFlutterProject(dir, { storeLine: 'flutter_store: "android"', files: { [EXPORT_OPTIONS]: PLACEHOLDER_PLIST } });
@@ -379,7 +390,7 @@ test("runDoctor: 선택한 플랫폼만 점검한다 (android만 선택하면 iO
   }
 });
 
-test("runDoctor: flutter_store가 none이면 Flutter 행이 없다", () => {
+test("runDoctor: no Flutter rows when flutter_store is none", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     writeFlutterProject(dir, { storeLine: 'flutter_store: "none"' });
@@ -389,7 +400,7 @@ test("runDoctor: flutter_store가 none이면 Flutter 행이 없다", () => {
   }
 });
 
-test("runDoctor: flutter_store 저장값이 없는 기존 설치는 설치된 스토어 워크플로우로 플랫폼을 추론한다", () => {
+test("runDoctor: an existing install without a stored flutter_store infers platforms from the installed store workflows", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     writeFlutterProject(dir, {
@@ -403,7 +414,7 @@ test("runDoctor: flutter_store 저장값이 없는 기존 설치는 설치된 �
   }
 });
 
-test("runDoctor: Flutter가 아닌 프로젝트는 저장된 스토어 옵션이 있어도 Flutter 행이 없다", () => {
+test("runDoctor: non-Flutter projects have no Flutter rows even with stored store options", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-flutter-"));
   try {
     writeFileSync(join(dir, "version.yml"),
@@ -414,7 +425,7 @@ test("runDoctor: Flutter가 아닌 프로젝트는 저장된 스토어 옵션이
   }
 });
 
-test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owner/repo를 인식한다", () => {
+test("runDoctor: owner/repo is recognized even when the repo name has dots (next.js, user.github.io)", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     for (const [url, expected] of [
@@ -426,7 +437,7 @@ test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owne
       const base = fakeExec([...ALL_OK_EXEC.filter(([p]) => p !== "git -C"), ["git -C", { status: 0, stdout: url, stderr: "" }]]);
       const exec = (cmd, args) => { calls.push([cmd, ...args].join(" ")); return base(cmd, args); };
       const results = runDoctor(dir, { exec });
-      assert.ok(!results.some((r) => r.name === "GitHub 원격"), `${url.trim()}를 인식해야 한다`);
+      assert.ok(!results.some((r) => r.name === "GitHub 원격"), `${url.trim()} must be recognized`);
       assert.ok(calls.some((c) => c.includes(`${expected}/actions/permissions/workflow`)), `${url.trim()} → ${expected}`);
     }
   } finally {
@@ -434,7 +445,7 @@ test("runDoctor: 레포 이름에 점이 있어도(next.js, user.github.io) owne
   }
 });
 
-test("runDoctor: Copilot 안내는 version.yml의 실제 copilot_ai 값을 보여준다", () => {
+test("runDoctor: Copilot guidance shows the actual copilot_ai value from version.yml", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     const noteFor = (yml) => {

@@ -42,6 +42,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+from messages import t, use_utf8_output
+
 KST = timezone(timedelta(hours=9))
 COMMENT_MARKER_DEFAULT = "<!-- project-auto-wizard issue helper -->"
 API_BASE = "https://api.github.com"
@@ -52,7 +54,7 @@ def log(message):
 
 
 # ===================================================================
-# 정규화 (순수 함수 — GitHub API 호출 없음)
+# Normalization (pure functions — no GitHub API calls)
 # ===================================================================
 
 def extract_issue_number(issue_url):
@@ -79,10 +81,10 @@ _ZWJ = "‍"
 
 
 def _is_removable_char(ch):
-    # 원본(TS) 정규식 \p{So}|\p{C}|️|‍ 이식.
-    # Python re는 \p{...}를 지원하지 않으므로 unicodedata.category()로 대체:
-    # "So"(Symbol, other) 또는 "C"로 시작(Cc/Cf/Co/Cs/Cn)하면 제거 대상.
-    # 변형 선택자(U+FE0F, 카테고리 Mn)는 위 두 조건에 안 걸리므로 명시적으로 추가.
+    # Port of the original (TS) regex \p{So}|\p{C}|️|‍.
+    # Python's re has no \p{...}, so unicodedata.category() is used instead:
+    # "So" (Symbol, other) or any category starting with "C" (Cc/Cf/Co/Cs/Cn) is removed.
+    # The variation selector (U+FE0F, category Mn) matches neither, so it is listed explicitly.
     if ch in (_VARIATION_SELECTOR, _ZWJ):
         return True
     category = unicodedata.category(ch)
@@ -99,11 +101,12 @@ def format_date_yyyymmdd(dt):
     return dt.strftime("%Y%m%d")
 
 
-# 유니코드 문자·숫자는 모두 살린다. 한글·영문만 남기면 일본어 등 다른 언어 제목이
-# 통째로 사라져 브랜치명이 `_`로 끝나고 커밋 제목이 비었다.
+# Keep every Unicode letter and digit. Keeping only Hangul and Latin made titles in
+# other languages (e.g. Japanese) vanish entirely, leaving a branch name ending in `_`
+# and an empty commit title.
 _NON_WORD_RE = re.compile(r"[\W_]+")
 _MULTI_UNDERSCORE_RE = re.compile(r"_+")
-# 이모지·기호만 있는 제목처럼 정규화 결과가 비었을 때 쓰는 이름
+# Name used when normalization leaves nothing (e.g. a title made only of emoji or symbols)
 FALLBACK_TITLE = "issue"
 
 
@@ -116,7 +119,7 @@ def normalize_title(title):
 def create_branch_name(issue_title, issue_number, date_yyyymmdd, branch_prefix, max_branch_length):
     normalized_title = normalize_title(issue_title) or FALLBACK_TITLE
     base = f"{date_yyyymmdd}_#{issue_number}_{normalized_title}"
-    # 절단 지점이 구분자면 `_`로 끝나지 않게 정리한다.
+    # If the cut lands on a separator, do not leave the name ending in `_`.
     limited_base = base[:max_branch_length].rstrip("_") if max_branch_length > 0 else base
     return f"{branch_prefix}{limited_base}"
 
@@ -141,7 +144,7 @@ def normalize_all(title, issue_url, issue_number, date_yyyymmdd, branch_prefix, 
 
 
 # ===================================================================
-# PR 본문 이슈 연결 (Closes #N) — 마커 블록 삽입/치환
+# Linking issues in a PR body (Closes #N) — insert/replace a marker block
 # ===================================================================
 
 LINK_MARKER_START = "<!-- auto-issue-link:start -->"
@@ -158,11 +161,10 @@ def upsert_issue_links_in_body(body, issue_numbers, replace_existing):
     if not issue_numbers:
         return body, False
 
-    # 완전한 START...END 블록이 있을 때만 "마커 있음"으로 취급한다 — START만
-    # 있고 END가 없는 손상된 상태를 마커로 오인하면 _LINK_BLOCK_RE.sub()가
-    # 아무 것도 치환하지 못한 채 changed=True만 반환해, replace_existing=True
-    # 경로(release PR)에서 새 이슈 목록이 영구히 반영되지 않는 채로 조용히
-    # "성공"처럼 보이는 버그가 생긴다.
+    # Treat the marker as present only for a complete START...END block. Mistaking a
+    # damaged state (START without END) for a marker makes _LINK_BLOCK_RE.sub() replace
+    # nothing yet return changed=True, so on the replace_existing=True path (release PR)
+    # the new issue list is never applied while the run silently looks successful.
     has_full_block = _LINK_BLOCK_RE.search(body) is not None
     if has_full_block and not replace_existing:
         return body, False
@@ -177,7 +179,7 @@ def upsert_issue_links_in_body(body, issue_numbers, replace_existing):
 
 
 # ===================================================================
-# GitHub REST API (urllib.request + GITHUB_TOKEN, 서드파티 의존 없음)
+# GitHub REST API (urllib.request + GITHUB_TOKEN, no third-party dependencies)
 # ===================================================================
 
 def _headers(token, has_body):
@@ -224,7 +226,7 @@ def list_comments(owner, repo, issue_number, token):
     while url:
         status, page, link = _api_request("GET", url, token)
         if status >= 400:
-            raise RuntimeError(f"이슈 코멘트 조회 실패({status}): {issue_number}")
+            raise RuntimeError(t("issue_helper.err_list_comments", status=status, issue_number=issue_number))
         comments.extend(page or [])
         url = _find_next_link(link)
     return comments
@@ -238,15 +240,15 @@ def upsert_comment(owner, repo, issue_number, token, marker, body):
             "PATCH", f"{API_BASE}/repos/{owner}/{repo}/issues/comments/{existing['id']}", token, {"body": body},
         )
         if status >= 400:
-            raise RuntimeError(f"코멘트 갱신 실패({status})")
-        log("기존 코멘트를 갱신했습니다.")
+            raise RuntimeError(t("issue_helper.err_update_comment", status=status))
+        log(t("issue_helper.comment_updated"))
     else:
         status, _, _ = _api_request(
             "POST", f"{API_BASE}/repos/{owner}/{repo}/issues/{issue_number}/comments", token, {"body": body},
         )
         if status >= 400:
-            raise RuntimeError(f"코멘트 작성 실패({status})")
-        log("새 코멘트를 작성했습니다.")
+            raise RuntimeError(t("issue_helper.err_create_comment", status=status))
+        log(t("issue_helper.comment_created"))
 
 
 def create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch, token):
@@ -257,12 +259,12 @@ def create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch
     if not base:
         status, repo_data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}", token)
         if status >= 400:
-            raise RuntimeError(f"레포 정보 조회 실패({status})")
+            raise RuntimeError(t("issue_helper.err_repo_info", status=status))
         base = repo_data["default_branch"]
 
     status, ref_data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/git/ref/heads/{base}", token)
     if status >= 400:
-        raise RuntimeError(f"base 브랜치 ref 조회 실패({base}, {status})")
+        raise RuntimeError(t("issue_helper.err_base_ref", base=base, status=status))
     sha = ref_data["object"]["sha"]
 
     status, _, _ = _api_request(
@@ -270,28 +272,29 @@ def create_branch_if_needed(owner, repo, branch_name, base_branch, create_branch
         {"ref": f"refs/heads/{branch_name}", "sha": sha},
     )
     if status == 422:
-        log(f"브랜치가 이미 존재함, 건너뜀: {branch_name}")
+        log(t("issue_helper.branch_exists", branch_name=branch_name))
         return
     if status >= 400:
-        raise RuntimeError(f"브랜치 생성 실패({branch_name}, {status})")
-    log(f"브랜치 생성됨: {branch_name}")
+        raise RuntimeError(t("issue_helper.err_create_branch", branch_name=branch_name, status=status))
+    log(t("issue_helper.branch_created", branch_name=branch_name))
 
 
 def filter_existing_issues(owner, repo, issue_numbers, token):
-    """레포에 실제로 있는 이슈 번호만 남긴다. 브랜치명의 번호가 오타이거나 다른 레포
-    기준이면 없는 이슈를 Closes로 걸고 "연결 완료"로 기록하게 된다.
-    조회 자체가 실패(권한·일시 오류)하면 확인할 수 없으므로 그대로 둔다."""
+    """Keep only issue numbers that really exist in the repo. If the number in a branch
+    name is a typo or refers to another repo, we would attach Closes to a missing issue
+    and record it as "linked". If the lookup itself fails (permissions, transient
+    error) we cannot verify, so the number is kept as is."""
     kept = []
     for n in issue_numbers:
         status, data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/issues/{n}", token)
         if status in (404, 410):
-            print(f"::warning::이슈 #{n}이 레포에 없어 PR 본문 Closes 연결에서 제외합니다", file=sys.stderr)
+            print(t("issue_helper.warn_issue_missing", n=n), file=sys.stderr)
             continue
         if status < 400 and isinstance(data, dict) and data.get("pull_request"):
-            print(f"::warning::#{n}은 이슈가 아니라 PR이라 Closes 연결에서 제외합니다", file=sys.stderr)
+            print(t("issue_helper.warn_is_pr", n=n), file=sys.stderr)
             continue
         if status >= 400:
-            log(f"이슈 #{n} 확인 실패({status}) — 확인하지 못해 그대로 연결합니다")
+            log(t("issue_helper.issue_check_failed", n=n, status=status))
         kept.append(n)
     return kept
 
@@ -299,29 +302,29 @@ def filter_existing_issues(owner, repo, issue_numbers, token):
 def link_pr_issues(owner, repo, pr_number, issue_numbers, token, replace_existing):
     issue_numbers = filter_existing_issues(owner, repo, issue_numbers, token)
     if not issue_numbers:
-        log(f"연결할 이슈가 없음 — 건너뜀 (PR #{pr_number})")
+        log(t("issue_helper.no_issue_to_link", pr_number=pr_number))
         return
 
     status, pr_data, _ = _api_request("GET", f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}", token)
     if status >= 400:
-        raise RuntimeError(f"PR 조회 실패({status}): {pr_number}")
+        raise RuntimeError(t("issue_helper.err_get_pr", status=status, pr_number=pr_number))
     body = pr_data.get("body") or ""
 
     new_body, changed = upsert_issue_links_in_body(body, issue_numbers, replace_existing)
     if not changed:
-        log(f"이슈 연결 변경 없음 — 건너뜀 (PR #{pr_number})")
+        log(t("issue_helper.link_unchanged", pr_number=pr_number))
         return
 
     status, _, _ = _api_request(
         "PATCH", f"{API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}", token, {"body": new_body},
     )
     if status >= 400:
-        raise RuntimeError(f"PR 본문 갱신 실패({status}): {pr_number}")
-    log(f"이슈 연결 완료: {', '.join(f'#{n}' for n in issue_numbers)} (PR #{pr_number})")
+        raise RuntimeError(t("issue_helper.err_update_pr", status=status, pr_number=pr_number))
+    log(t("issue_helper.link_done", numbers=', '.join(f'#{n}' for n in issue_numbers), pr_number=pr_number))
 
 
 # ===================================================================
-# 이벤트 처리 / CLI
+# Event handling / CLI
 # ===================================================================
 
 def _bool_env(name, default):
@@ -334,13 +337,13 @@ def _bool_env(name, default):
 def cmd_run():
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
-        log("ERROR: GITHUB_EVENT_PATH가 없습니다.")
+        log(t("issue_helper.err_no_event_path"))
         return 1
     try:
         with open(event_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
-        log(f"ERROR: 이벤트 페이로드를 읽을 수 없습니다: {e}")
+        log(t("issue_helper.err_event_payload", error=e))
         return 1
 
     action = payload.get("action")
@@ -350,18 +353,18 @@ def cmd_run():
     is_edited_with_title = action == "edited" and "title" in changes
 
     if not is_opened and not is_edited_with_title:
-        log("열림 또는 제목 변경 이벤트가 아님 → 종료")
+        log(t("issue_helper.not_relevant_event"))
         return 0
 
     repo_full = os.environ.get("GITHUB_REPOSITORY", "")
     if "/" not in repo_full or repo_full.count("/") != 1 or not all(repo_full.split("/")):
-        log(f"ERROR: GITHUB_REPOSITORY 형식이 올바르지 않습니다: {repo_full!r}")
+        log(t("issue_helper.err_repo_format", repo=repr(repo_full)))
         return 1
     owner, repo = repo_full.split("/", 1)
 
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
-        log("ERROR: GITHUB_TOKEN이 없습니다.")
+        log(t("issue_helper.err_no_token"))
         return 1
 
     raw_title = issue.get("title", "")
@@ -375,7 +378,7 @@ def cmd_run():
     max_branch_length = int(os.environ.get("ISSUE_HELPER_MAX_BRANCH_LENGTH") or "120")
     commit_template = (
         os.environ.get("ISSUE_HELPER_COMMIT_TEMPLATE")
-        or "${issueTitle} : feat : {변경 사항에 대한 설명} ${issueUrl}"
+        or t("issue_helper.commit_template_default")
     )
     create_branch = _bool_env("ISSUE_HELPER_CREATE_BRANCH", False)
     base_branch = os.environ.get("ISSUE_HELPER_BASE_BRANCH", "").strip()
@@ -388,11 +391,11 @@ def cmd_run():
     body = (
         f"{comment_marker}\n"
         "## Issue Helper\n"
-        "### 브랜치명\n"
+        f"### {t('issue_helper.branch_title')}\n"
         "```\n"
         f"{branch_name}\n"
         "```\n\n"
-        "### 커밋 메시지\n"
+        f"### {t('issue_helper.commit_title')}\n"
         "```\n"
         f"{commit_message}\n"
         "```"
@@ -413,18 +416,18 @@ def cmd_run():
 def cmd_link_pr_issues(pr_number, issue_numbers_csv, replace_existing):
     repo_full = os.environ.get("GITHUB_REPOSITORY", "")
     if "/" not in repo_full or repo_full.count("/") != 1 or not all(repo_full.split("/")):
-        log(f"ERROR: GITHUB_REPOSITORY 형식이 올바르지 않습니다: {repo_full!r}")
+        log(t("issue_helper.err_repo_format", repo=repr(repo_full)))
         return 1
     owner, repo = repo_full.split("/", 1)
 
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
-        log("ERROR: GITHUB_TOKEN이 없습니다.")
+        log(t("issue_helper.err_no_token"))
         return 1
 
     issue_numbers = [n.strip() for n in issue_numbers_csv.split(",") if n.strip()]
     if not issue_numbers:
-        log("이슈 번호가 없음 — 건너뜀")
+        log(t("issue_helper.no_issue_numbers"))
         return 0
 
     link_pr_issues(owner, repo, pr_number, issue_numbers, token, replace_existing)
@@ -449,6 +452,7 @@ def build_parser():
 
 
 def main(argv=None):
+    use_utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -462,7 +466,7 @@ def main(argv=None):
         if args.command == "link-pr-issues":
             return cmd_link_pr_issues(args.pr, args.issue_numbers, args.replace)
     except Exception as e:
-        log(f"실행 실패: {e}")
+        log(t("issue_helper.run_failed", error=e))
         return 1
     return 2
 

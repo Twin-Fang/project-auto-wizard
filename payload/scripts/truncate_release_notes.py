@@ -31,6 +31,8 @@ Contract:
 import argparse
 import sys
 
+from messages import t, use_utf8_output
+
 
 def log(message):
     print(message, file=sys.stderr)
@@ -47,19 +49,19 @@ def run(path, limit, mode):
         with open(path, "r", encoding="utf-8", newline="", errors="replace") as f:
             text = f.read()
     except FileNotFoundError:
-        log(f"릴리즈 노트 파일 없음, 건너뜀: {path}")
+        log(t("truncate.file_missing", path=path))
         return 0
 
     length = len(text) if mode == "char" else len(text.encode("utf-8"))
     if length <= limit:
-        log(f"한도 이내 ({length}/{limit} {mode}), 자르지 않음: {path}")
+        log(t("truncate.within_limit", length=length, limit=limit, mode=mode, path=path))
         return 0
 
     truncated = truncate_text(text, limit, mode)
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(truncated)
 
-    log(f"한도 초과 ({length} -> {limit} {mode} 이하로 절단): {path}")
+    log(t("truncate.truncated", length=length, limit=limit, mode=mode, path=path))
     return 0
 
 
@@ -72,14 +74,13 @@ def build_parser():
 
 
 def main(argv=None):
-    sys.stdout.reconfigure(errors="replace")
-    sys.stderr.reconfigure(errors="replace")
+    use_utf8_output()
 
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.limit <= 0:
-        log(f"ERROR: limit은 양수여야 함: {args.limit}")
+        log(t("truncate.limit_positive", limit=args.limit))
         return 1
 
     return run(args.file, args.limit, args.mode)

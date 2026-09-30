@@ -117,7 +117,7 @@ Rules:
 - Branch placeholders `{{MAIN_BRANCH}}` / `{{DEVELOP_BRANCH}}` are substituted before markers (`core/branding.js`).
 - Resolvers are built in `core/detect-fs.js#makeResolvers`. A new `auto:` token needs a resolver there.
 - `ask` answers are stored in the `deploy` block of `version.yml` per type and become the default on the next run.
-- Question text lives in `payload/config/wizard-prompts.yml` (`KEY`, or `<type>.KEY` for a type-specific override). A user repo can override keys in `.github/config/wizard-prompts.yml`.
+- Question text lives in `payload/config/wizard-prompts.yml` (`KEY`, or `<type>.KEY` for a type-specific override). The plain fields are English and `label_ko`/`help_ko` (and `_workflow_names_ko`) carry Korean. A user repo can override keys in `.github/config/wizard-prompts.yml`.
 
 ## Baseline 3-way update
 

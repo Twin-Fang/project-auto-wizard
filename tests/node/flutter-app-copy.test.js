@@ -1,5 +1,5 @@
 // tests/node/flutter-app-copy.test.js
-// Flutter 앱 파일(fastlane·ExportOptions) 복사 — 없을 때만 생성, 절대 덮어쓰지 않는다.
+// Copying Flutter app files (fastlane, ExportOptions) — created only when absent, never overwritten.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -12,7 +12,7 @@ const IOS_FASTFILE = "ios/fastlane/Fastfile";
 const IOS_EXPORT = "ios/ExportOptions.plist";
 const ALL = [ANDROID_FASTFILE, IOS_FASTFILE, IOS_EXPORT];
 
-// D6의 실제 payload에 의존하지 않도록 테스트 안에서 원본 트리를 만든다. iOS Fastfile은 CRLF로 둔다.
+// Build the source tree inside the test so it does not depend on the real payload. The iOS Fastfile uses CRLF.
 function makePayload() {
   const root = mkdtempSync(join(tmpdir(), "paw-fa-payload-"));
   const contents = {
@@ -31,7 +31,7 @@ function makePayload() {
 const freshTarget = () => mkdtempSync(join(tmpdir(), "paw-fa-target-"));
 const ctx = (overrides = {}) => ({ types: ["flutter"], paths: new Map(), flutterStore: null, ...overrides });
 
-test("신규 설치: 3개 파일을 만들고 디렉토리도 자동 생성한다", () => {
+test("fresh install: creates 3 files and the directories automatically", () => {
   const { root, contents } = makePayload();
   const target = freshTarget();
   try {
@@ -42,7 +42,7 @@ test("신규 설치: 3개 파일을 만들고 디렉토리도 자동 생성한�
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("이미 있는 파일은 덮어쓰지 않고 kept로 보고한다", () => {
+test("existing files are not overwritten and are reported as kept", () => {
   const { root } = makePayload();
   const target = freshTarget();
   try {
@@ -60,18 +60,18 @@ test("이미 있는 파일은 덮어쓰지 않고 kept로 보고한다", () => {
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("모노레포: paths.flutter 아래에 만들고 반환 경로도 그 접두사를 갖는다", () => {
+test("monorepo: creates under paths.flutter and the returned paths carry that prefix", () => {
   const { root } = makePayload();
   const target = freshTarget();
   try {
     const r = copyFlutterAppFiles(ctx({ paths: new Map([["flutter", "app"]]) }), root, target);
     assert.deepStrictEqual([...r.created].sort(), ALL.map((rel) => `app/${rel}`).sort());
     assert.ok(existsSync(join(target, "app", ANDROID_FASTFILE)));
-    assert.ok(!existsSync(join(target, "android")), "레포 루트에는 만들지 않는다");
+    assert.ok(!existsSync(join(target, "android")), "not created at the repo root");
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("선택 플랫폼만: android / ios / none(빈 배열)", () => {
+test("selected platforms only: android / ios / none (empty array)", () => {
   const { root } = makePayload();
   try {
     const cases = [
@@ -90,7 +90,7 @@ test("선택 플랫폼만: android / ios / none(빈 배열)", () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("Flutter 타입이 없으면 아무것도 만들지 않는다", () => {
+test("creates nothing without a Flutter type", () => {
   const { root } = makePayload();
   const target = freshTarget();
   try {
@@ -100,7 +100,7 @@ test("Flutter 타입이 없으면 아무것도 만들지 않는다", () => {
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("CRLF 원본은 바이트 그대로 복사된다", () => {
+test("a CRLF source is copied byte for byte", () => {
   const { root, contents } = makePayload();
   const target = freshTarget();
   try {
@@ -111,7 +111,7 @@ test("CRLF 원본은 바이트 그대로 복사된다", () => {
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("planFlutterAppFiles: 복사와 같은 결과를 계산하되 아무 파일도 쓰지 않는다", () => {
+test("planFlutterAppFiles: computes the same result as copying but writes no files", () => {
   const { root } = makePayload();
   const target = freshTarget();
   try {
@@ -121,7 +121,7 @@ test("planFlutterAppFiles: 복사와 같은 결과를 계산하되 아무 파일
     const planned = planFlutterAppFiles(ctx(), root, target);
     assert.deepStrictEqual(planned.kept, [ANDROID_FASTFILE]);
     assert.deepStrictEqual([...planned.created].sort(), [IOS_FASTFILE, IOS_EXPORT].sort());
-    assert.ok(!existsSync(join(target, "ios")), "plan은 읽기 전용이다");
+    assert.ok(!existsSync(join(target, "ios")), "plan is read-only");
 
     const copied = copyFlutterAppFiles(ctx(), root, target);
     assert.deepStrictEqual({ created: [...copied.created].sort(), kept: copied.kept },
@@ -129,7 +129,7 @@ test("planFlutterAppFiles: 복사와 같은 결과를 계산하되 아무 파일
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("planFlutterAppFiles: 원본 payload를 읽지 않으므로 payload가 없어도 계산된다", () => {
+test("planFlutterAppFiles: does not read the source payload, so it computes even without a payload", () => {
   const target = freshTarget();
   try {
     const planned = planFlutterAppFiles(ctx(), join(target, "no-such-payload"), target);

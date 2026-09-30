@@ -1,45 +1,45 @@
 # project-auto-wizard:managed-workflow
-# Flutter CI (코드 분석 및 빌드 검증) 워크플로우
+# Flutter CI (code analysis and build verification) workflow
 #
-# 이 워크플로우는 PR 생성 또는 {{MAIN_BRANCH}} 브랜치 푸시 시
-# 코드 정적 분석(flutter analyze), 테스트(flutter test)와 Android/iOS 앱 빌드를 검증합니다.
+# On a pull request or a push to the {{MAIN_BRANCH}} branch, this workflow
+# verifies static analysis (flutter analyze), tests (flutter test) and the Android/iOS app builds.
 #
-# 주요 특징:
-# - PR 생성/업데이트 시 자동 실행
-# - {{MAIN_BRANCH}} 브랜치 푸시 시 자동 실행
-# - flutter analyze로 코드 품질 검사
-# - test/ 폴더에 테스트(*_test.dart)가 있으면 flutter test 실행 (없으면 건너뜀)
-# - Android/iOS 빌드 개별 활성화/비활성화 가능
-# - Analyze Only 모드: 빌드 없이 코드 분석만 실행 가능
-# - PR인 경우 진행 상황을 댓글로 실시간 업데이트
-# - 빌드 실패 시 상세 에러 정보 제공
-# - Analyze와 빌드 병렬 실행으로 시간 단축
+# Key features:
+# - Runs automatically when a PR is opened/updated
+# - Runs automatically on a push to the {{MAIN_BRANCH}} branch
+# - Checks code quality with flutter analyze
+# - Runs flutter test when test/ contains tests (*_test.dart); skipped otherwise
+# - Android/iOS builds can be enabled/disabled individually
+# - Analyze Only mode: run only the code analysis, without builds
+# - On a PR, progress is updated live in a comment
+# - Detailed error info when a build fails
+# - Analyze and builds run in parallel to save time
 #
-# 사용 방법:
-# 1. 프로젝트에 맞게 상단 env 섹션의 값들을 수정하세요
-# 2. ANALYZE_ONLY를 true로 설정하면 빌드 없이 코드 분석만 실행
-# 3. ENABLE_ANDROID, ENABLE_IOS로 빌드 대상 플랫폼 선택
-# 4. ENV_FILE_PATH로 환경변수 파일 경로 커스터마이징
+# Usage:
+# 1. Edit the values in the env section at the top for your project
+# 2. Set ANALYZE_ONLY to true to run only the code analysis, without builds
+# 3. Choose the build target platforms with ENABLE_ANDROID and ENABLE_IOS
+# 4. Customize the env file path with ENV_FILE_PATH
 #
-# 프로젝트별 설정
+# Project settings
 #
-# ANALYZE_ONLY    : true면 analyze·test만 실행, 빌드 스킵 (기본: false)
-# ENABLE_ANDROID  : Android 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
-# ENABLE_IOS      : iOS 빌드 활성화 여부 (ANALYZE_ONLY=false일 때)
-# FLUTTER_VERSION : Flutter SDK 버전 (빈 값 = stable 최신)
-# JAVA_VERSION    : Java 버전 (Android 빌드용)
-# XCODE_VERSION   : Xcode 버전 (iOS 빌드용)
-# ENV_FILE_PATH   : dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 기본값: .env)
-# ENV_MODE        : 환경변수 전달 방식 — dart-define(--dart-define-from-file) | dotenv(.env 파일)
-# FLUTTER_PROJECT_DIR : Flutter 루트 경로 (설치 시 자동 설정, 모노레포는 app 등)
-# PROJECT_PATH    : 변경 감지 기준 경로 (설치 시 자동 설정, "."이면 항상 실행)
+# ANALYZE_ONLY    : if true, only analyze and test run and builds are skipped (default: false)
+# ENABLE_ANDROID  : whether to build Android (when ANALYZE_ONLY=false)
+# ENABLE_IOS      : whether to build iOS (when ANALYZE_ONLY=false)
+# FLUTTER_VERSION : Flutter SDK version (empty = latest stable)
+# JAVA_VERSION    : Java version (for the Android build)
+# XCODE_VERSION   : Xcode version (for the iOS build)
+# ENV_FILE_PATH   : path where .env is created in dotenv mode (relative to the Flutter root, default: .env)
+# ENV_MODE        : how env vars are passed - dart-define (--dart-define-from-file) | dotenv (.env file)
+# FLUTTER_PROJECT_DIR : Flutter root path (set automatically at install; app etc. for a monorepo)
+# PROJECT_PATH    : path used for change detection (set automatically at install; "." always runs)
 #
-# 필수 GitHub Secrets
-# ENV_FILE (선택): .env 파일 내용
+# Required GitHub Secrets
+# ENV_FILE (optional): contents of the .env file
 #
-# ※ CI는 빌드 검증 목적이므로 서명/배포 관련 Secrets 불필요
-# ※ 모노레포에서 이 CI를 required check로 쓰려면 개별 job이 아니라 `ci-gate` 하나만 등록하세요.
-#    (경로가 바뀌지 않아 건너뛴 job은 Success로 집계되고, ci-gate가 최종 결과를 판정합니다)
+# Note: CI only verifies builds, so no signing/deploy Secrets are needed
+# Note: to use this CI as a required check in a monorepo, register only `ci-gate`, not the individual jobs.
+#    (jobs skipped because no paths changed count as Success, and ci-gate decides the final result)
 
 name: PROJECT-Flutter-CI
 
@@ -52,15 +52,15 @@ on:
   workflow_dispatch:
     inputs:
       analyze_only:
-        description: 'Analyze Only 모드 (빌드 없이 코드 분석만)'
+        description: 'Analyze Only mode (code analysis only, no builds)'
         type: boolean
         default: false
       enable_android:
-        description: 'Android 빌드 활성화 (Analyze Only=false일 때)'
+        description: 'Enable the Android build (when Analyze Only is false)'
         type: boolean
         default: true
       enable_ios:
-        description: 'iOS 빌드 활성화 (Analyze Only=false일 때)'
+        description: 'Enable the iOS build (when Analyze Only is false)'
         type: boolean
         default: true
 
@@ -68,38 +68,38 @@ permissions:
   contents: read
   pull-requests: write
 
-# 프로젝트별 설정 (아래 값들을 수정하세요)
+# Project settings (edit the values below)
 env:
-  # 모노레포 변경 감지 경로 (설치 시 자동 설정, 단일 레포는 ".")
+  # Monorepo change-detection path (set automatically at install; "." for a single repo)
   PROJECT_PATH: "."  # @wizard auto:project-path
-  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등 — 설치 시 자동 설정
+  # Flutter root path (relative to the repo root): "." for a single repo, "app" etc. for a monorepo - set automatically at install
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
-  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  # How env vars are passed (dart-define | dotenv) - set automatically from the install-time choice
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
 
-  # CI 모드 설정
-  ANALYZE_ONLY: "false"     # true: analyze·test만 실행 (빌드 스킵), false: analyze·test + 빌드
+  # CI mode settings
+  ANALYZE_ONLY: "false"     # true: run only analyze and test (skip builds), false: analyze, test and builds
 
-  # 빌드 대상 플랫폼 설정 (ANALYZE_ONLY=false일 때만 적용)
-  ENABLE_ANDROID: "true"    # Android 빌드 활성화 (true/false)
-  ENABLE_IOS: "true"        # iOS 빌드 활성화 (true/false)
+  # Build target platform settings (only applied when ANALYZE_ONLY=false)
+  ENABLE_ANDROID: "true"    # enable the Android build (true/false)
+  ENABLE_IOS: "true"        # enable the iOS build (true/false)
 
-  # 프로젝트별 설정
-  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
-  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  # Project settings
+  # Flutter SDK version - leave empty to use the latest stable channel (matches the SDK constraint of a fresh flutter create project).
+  # To pin a version, write it like "3.38.9". It must satisfy the environment.sdk range in pubspec.yaml.
   FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   XCODE_VERSION: "26.0"
-  ENV_FILE_PATH: ".env"     # dotenv 모드에서 .env를 만들 경로 (Flutter 루트 기준, 커스터마이징 가능)
+  ENV_FILE_PATH: ".env"     # path where .env is created in dotenv mode (relative to the Flutter root, customizable)
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Job 0: 변경 감지 (PROJECT_PATH 아래가 바뀌었을 때만 이후 job 실행)
+  # Job 0: change detection (later jobs run only when something under PROJECT_PATH changed)
   changes:
-    name: 변경 감지
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -110,22 +110,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: 프로젝트 경로 변경 여부 판별
+      - name: Check whether the project path changed
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
-          # push는 이번 push로 들어온 커밋만 비교한다(직전 커밋 github.event.before 기준).
-          # 비워 두면 기본 브랜치와의 누적 diff로 판정해 skip이 사실상 동작하지 않는다.
-          # 새 브랜치 첫 push(before가 0으로만 채워짐)나 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 비교).
+          # For a push, compare only the commits in this push (relative to the previous commit, github.event.before).
+          # If left empty, the result is based on the cumulative diff against the default branch, so skipping would effectively never happen.
+          # The first push of a new branch (before is all zeros) or a PR uses an empty value -> default behavior (compare against the default branch / PR base).
           base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
 
-  # Job 1: 준비 단계
+  # Job 1: preparation
   prepare:
-    name: CI 준비
+    name: Prepare CI
     needs: changes
     if: ${{ (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') }}
     runs-on: ubuntu-latest
@@ -140,11 +140,23 @@ jobs:
       enable_ios: ${{ steps.config.outputs.enable_ios }}
 
     steps:
-      # 설정 값 outputs으로 전달
-      - name: 설정 값 전달
+      - name: Checkout messages
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Load messages
+        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+
+      # Pass the settings on as outputs
+      - name: Pass settings
         id: config
         run: |
-          # workflow_dispatch 입력값 확인
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # Check the workflow_dispatch inputs
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             ANALYZE_ONLY="${{ github.event.inputs.analyze_only }}"
             ENABLE_ANDROID="${{ github.event.inputs.enable_android }}"
@@ -158,15 +170,16 @@ jobs:
           echo "analyze_only=$ANALYZE_ONLY" >> $GITHUB_OUTPUT
           echo "enable_android=$ENABLE_ANDROID" >> $GITHUB_OUTPUT
           echo "enable_ios=$ENABLE_IOS" >> $GITHUB_OUTPUT
-          echo "📋 CI 설정:"
+          m flutter_a.ci_config_header
           echo "  Analyze Only: $ANALYZE_ONLY"
           echo "  Android: $ENABLE_ANDROID"
           echo "  iOS: $ENABLE_IOS"
-          echo "  트리거: ${{ github.event_name }}"
+          m flutter_a.ci_config_trigger event_name="${{ github.event_name }}"
 
-      - name: 빌드 정보 수집
+      - name: Collect build info
         id: info
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             BRANCH_NAME="${{ github.head_ref }}"
           else
@@ -177,17 +190,19 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
 
-          echo "📋 빌드 정보:"
-          echo "  브랜치: $BRANCH_NAME"
-          echo "  커밋: $COMMIT_HASH"
+          m flutter_a.ci_info_header
+          m flutter_a.ci_info_branch branch_name="$BRANCH_NAME"
+          m flutter_a.ci_info_commit commit_hash="$COMMIT_HASH"
 
-      - name: 진행 상황 댓글 생성
+      - name: Create progress comment
         id: comment
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const prNumber = context.payload.pull_request.number;
             const branchName = '${{ steps.info.outputs.branch_name }}';
             const commitHash = '${{ steps.info.outputs.commit_hash }}';
@@ -198,47 +213,47 @@ jobs:
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
             const startTime = Date.now();
 
-            // 헤더 결정
+            // Decide the header
             const header = analyzeOnly
-              ? '## 🔍 Flutter CI (Analyze Only) 진행 중...'
-              : '## 🔨 Flutter CI 진행 중...';
+              ? m('flutter_a.ci_hdr_analyze_running')
+              : m('flutter_a.ci_hdr_running');
 
-            // 플랫폼 상태 결정
+            // Decide the platform status
             let androidStatus, iosStatus;
             if (analyzeOnly) {
-              androidStatus = '⏸️ 스킵';
-              iosStatus = '⏸️ 스킵';
+              androidStatus = m('flutter_a.ci_status_skipped');
+              iosStatus = m('flutter_a.ci_status_skipped');
             } else {
-              androidStatus = enableAndroid ? '⏳ 진행 중...' : '⏸️ 비활성화';
-              iosStatus = enableIos ? '⏳ 진행 중...' : '⏸️ 비활성화';
+              androidStatus = enableAndroid ? m('flutter_a.ci_status_running') : m('flutter_a.ci_status_disabled');
+              iosStatus = enableIos ? m('flutter_a.ci_status_running') : m('flutter_a.ci_status_disabled');
             }
 
             const bodyParts = [
               header,
               '',
-              '| 검사 항목 | 상태 | 소요 시간 |',
+              m('flutter_a.ci_table_head'),
               '|----------|------|----------|',
-              '| 🔍 Analyze | ⏳ 진행 중... | - |',
-              '| 🧪 Test | ⏳ 진행 중... | - |',
-              `| 🤖 Android 빌드 | ${androidStatus} | - |`,
-              `| 🍎 iOS 빌드 | ${iosStatus} | - |`,
+              m('flutter_a.ci_row_analyze_running'),
+              m('flutter_a.ci_row_test_running'),
+              m('flutter_a.ci_row_android_pending', { status: androidStatus }),
+              m('flutter_a.ci_row_ios_pending', { status: iosStatus }),
               '',
-              '| 항목 | 값 |',
+              m('flutter_a.ci_info_head'),
               '|------|-----|',
-              `| **브랜치** | \`${branchName}\` |`,
-              `| **커밋** | \`${commitHash}\` |`
+              m('flutter_a.ci_row_branch', { branch: branchName }),
+              m('flutter_a.ci_row_commit', { commit: commitHash })
             ];
 
             if (analyzeOnly) {
               bodyParts.push('');
-              bodyParts.push('ℹ️ **Analyze Only 모드**: 빌드 없이 코드 분석만 실행됩니다.');
+              bodyParts.push(m('flutter_a.ci_note_analyze_only_running'));
             }
 
             bodyParts.push('');
-            bodyParts.push(`**[📋 실시간 로그 보기](${runUrl})**`);
+            bodyParts.push(m('flutter_a.ci_link_live_log', { url: runUrl }));
             bodyParts.push('');
             bodyParts.push('---');
-            bodyParts.push('*🤖 이 댓글은 자동으로 업데이트됩니다.*');
+            bodyParts.push(m('flutter_a.ci_footer_auto_update'));
 
             const body = bodyParts.join('\n');
 
@@ -249,13 +264,13 @@ jobs:
               body: body
             });
 
-            console.log(`✅ 진행 상황 댓글 생성 완료: #${comment.id}`);
+            console.log(m('flutter_a.ci_log_comment_created', { id: comment.id }));
             core.setOutput('comment_id', comment.id);
             core.setOutput('start_time', startTime);
 
-  # Job 2: 코드 분석 (병렬)
+  # Job 2: code analysis (parallel)
   analyze:
-    name: 코드 분석
+    name: Code analysis
     runs-on: ubuntu-latest
     needs: [changes, prepare]
     if: ${{ (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') }}
@@ -269,7 +284,7 @@ jobs:
       duration: ${{ steps.result.outputs.duration }}
 
     steps:
-      - name: 분석 시작 시간 기록
+      - name: Record analysis start time
         id: analyze_start
         uses: actions/github-script@v9
         with:
@@ -279,7 +294,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Load messages
+        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+
+      # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -325,41 +343,45 @@ jobs:
       - name: Run Flutter Analyze
         id: analyze
         run: |
-          echo "🔍 Flutter 코드 분석 시작..."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.ci_analyze_start
           flutter analyze --no-fatal-infos
-          echo "✅ 코드 분석 완료"
+          m flutter_a.ci_analyze_done
 
-      # analyze가 실패해도 테스트 결과는 따로 보여 준다. 실패하면 job이 실패해 CI Gate도 실패한다.
+      # Show the test result separately even if analyze fails. A failure fails the job and therefore the CI Gate too.
       - name: Run Flutter Test
         id: test
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: |
-          # test/에 *_test.dart가 없으면 flutter test 자체가 실패하므로 건너뛴다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # flutter test itself fails when test/ has no *_test.dart, so skip it
           if [ -d test ] && [ -n "$(find test -name '*_test.dart' -print -quit)" ]; then
-            echo "🧪 Flutter 테스트 시작..."
+            m flutter_a.ci_test_start
             flutter test ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
             echo "ran=true" >> "$GITHUB_OUTPUT"
-            echo "✅ 테스트 통과"
+            m flutter_a.ci_test_passed
           else
-            echo "::notice title=Flutter 테스트 건너뜀::test/ 폴더에 *_test.dart 파일이 없어 flutter test를 실행하지 않았습니다"
+            echo "::notice title=$(m flutter_a.ci_test_skipped_title)::$(m flutter_a.ci_test_skipped_body)"
             echo "ran=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 분석 결과 기록
+      - name: Record analysis result
         id: result
         if: always()
         uses: actions/github-script@v9
         with:
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const analyzeStart = parseInt('${{ steps.analyze_start.outputs.time }}');
             const now = Date.now();
             const elapsed = now - analyzeStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
-            const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+            const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
             const status = '${{ steps.analyze.outcome }}' === 'success' ? 'success' : 'failure';
-            // none: 테스트 파일 없음, skipped: 의존성 설치 실패로 실행 못 함
+            // none: no test files, skipped: not run because the dependency install failed
             const testOutcome = '${{ steps.test.outcome }}';
             const testStatus = testOutcome === 'success'
               ? ('${{ steps.test.outputs.ran }}' === 'true' ? 'success' : 'none')
@@ -368,11 +390,11 @@ jobs:
             core.setOutput('status', status);
             core.setOutput('test_status', testStatus);
             core.setOutput('duration', duration);
-            console.log(`📋 코드 분석 결과: ${status}, 테스트: ${testStatus} (${duration})`);
+            console.log(m('flutter_a.ci_log_analyze_result', { status, test: testStatus, duration }));
 
-  # Job 3: Android 빌드 (조건부, 병렬)
+  # Job 3: Android build (conditional, parallel)
   build-android:
-    name: Android 빌드
+    name: Android build
     if: |
       (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') &&
       needs.prepare.outputs.analyze_only != 'true' &&
@@ -388,7 +410,7 @@ jobs:
       duration: ${{ steps.result.outputs.duration }}
 
     steps:
-      - name: 빌드 시작 시간 기록
+      - name: Record build start time
         id: build_start
         uses: actions/github-script@v9
         with:
@@ -398,7 +420,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      - name: Load messages
+        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+
+      # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -464,45 +489,49 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          # flutter create 기본 .gitignore는 gradlew를 커밋하지 않는다 — 없으면 flutter build가 만든다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # The default flutter create .gitignore does not commit gradlew - flutter build creates it when missing
           if [ -f gradlew ]; then
             chmod +x gradlew
             echo "✅ Gradle wrapper permissions set"
           else
-            echo "ℹ️ gradlew가 저장소에 없습니다 — flutter build가 생성합니다"
+            m flutter_a.gradlew_missing
           fi
 
-      # APK 빌드 (CI는 빌드 검증 목적이므로 서명 불필요한 debug 빌드 사용)
+      # APK build (CI only verifies the build, so use a debug build that needs no signing)
       - name: Build APK
         id: build
         run: |
-          echo "📦 Flutter APK 빌드 시작 (debug)..."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.ci_apk_start
           flutter build apk --debug ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
-          echo "✅ APK 빌드 완료"
+          m flutter_a.ci_apk_done
           ls -la ./build/app/outputs/flutter-apk/ || true
 
-      - name: 빌드 결과 기록
+      - name: Record build result
         id: result
         if: always()
         uses: actions/github-script@v9
         with:
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
-            const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+            const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
             const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
-            console.log(`📋 Android 빌드 결과: ${status} (${duration})`);
+            console.log(m('flutter_a.ci_log_android_result', { status, duration }));
 
-  # Job 4: iOS 빌드 (조건부, 병렬)
+  # Job 4: iOS build (conditional, parallel)
   build-ios:
-    name: iOS 빌드
+    name: iOS build
     if: |
       (github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true') &&
       needs.prepare.outputs.analyze_only != 'true' &&
@@ -518,7 +547,7 @@ jobs:
       duration: ${{ steps.result.outputs.duration }}
 
     steps:
-      - name: 빌드 시작 시간 기록
+      - name: Record build start time
         id: build_start
         uses: actions/github-script@v9
         with:
@@ -528,12 +557,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Load messages
+        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
 
       - name: Install iOS device platform
         env:
-          # xcode-select만으로는 서브프로세스에 전파되지 않아 명시적으로 지정
+          # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
           echo "=== iPhoneOS.platform check ==="
@@ -548,7 +580,7 @@ jobs:
           echo "=== Downloading iOS platform ==="
           xcodebuild -downloadPlatform iOS
 
-      # 환경변수 준비 — ENV_MODE=dotenv면 .env 파일, dart-define이면 프로젝트 밖 임시 파일(--dart-define-from-file)
+      # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -598,54 +630,71 @@ jobs:
 
       - name: Install CocoaPods
         run: |
-          # 플러그인이 없는 기본 프로젝트는 Podfile이 없다 — 플러그인이 생기면 flutter build가 Podfile을 만든다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # A default project without plugins has no Podfile - once plugins are added, flutter build creates it
           if [ -f ios/Podfile ]; then
             gem install cocoapods
             (cd ios && (pod install --repo-update || pod install))
             echo "✅ CocoaPods installed"
           else
-            echo "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)"
+            m flutter_a.ci_podfile_missing
           fi
 
       - name: Build iOS
         id: build
         run: |
-          echo "📦 Flutter iOS 빌드 시작..."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.ci_ios_start
           flutter build ios --release --no-codesign ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
-          echo "✅ iOS 빌드 완료"
+          m flutter_a.ci_ios_done
 
-      - name: 빌드 결과 기록
+      - name: Record build result
         id: result
         if: always()
         uses: actions/github-script@v9
         with:
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
-            const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+            const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
             const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
-            console.log(`📋 iOS 빌드 결과: ${status} (${duration})`);
+            console.log(m('flutter_a.ci_log_ios_result', { status, duration }));
 
-  # Job 5: 결과 보고
+  # Job 5: result report
   report:
-    name: 결과 보고
+    name: Report results
     if: always() && github.event_name == 'pull_request' && needs.changes.outputs.project == 'true'
     runs-on: ubuntu-latest
     needs: [changes, prepare, analyze, build-android, build-ios]
 
     steps:
-      - name: 최종 결과 댓글 업데이트
+      - name: Checkout messages
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Load messages
+        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+
+      - name: Update final result comment
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const commentId = parseInt('${{ needs.prepare.outputs.comment_id }}');
             const startTime = parseInt('${{ needs.prepare.outputs.start_time }}');
             const branchName = '${{ needs.prepare.outputs.branch_name }}';
@@ -656,7 +705,7 @@ jobs:
             const runId = '${{ github.run_id }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
-            // 결과 수집
+            // Collect the results
             const analyzeStatus = '${{ needs.analyze.outputs.status }}';
             const analyzeDuration = '${{ needs.analyze.outputs.duration }}' || '-';
             const testStatus = '${{ needs.analyze.outputs.test_status }}';
@@ -665,137 +714,137 @@ jobs:
             const iosStatus = '${{ needs.build-ios.outputs.status }}';
             const iosDuration = '${{ needs.build-ios.outputs.duration }}' || '-';
 
-            // 전체 소요 시간 계산
+            // Compute the total duration
             const now = Date.now();
             const totalElapsed = now - startTime;
             const totalMin = Math.floor(totalElapsed / 60000);
             const totalSec = Math.floor((totalElapsed % 60000) / 1000);
-            const totalDuration = totalMin > 0 ? `${totalMin}분 ${totalSec}초` : `${totalSec}초`;
+            const totalDuration = totalMin > 0 ? m('flutter_a.ci_dur_min_sec', { minutes: totalMin, seconds: totalSec }) : m('flutter_a.ci_dur_sec', { seconds: totalSec });
 
-            // 상태 결정
+            // Decide the status
             let overallSuccess = true;
             let analyzeDisplay, androidDisplay, iosDisplay;
 
-            // Analyze 상태
+            // Analyze status
             if (analyzeStatus === 'success') {
-              analyzeDisplay = '✅ 성공';
+              analyzeDisplay = m('flutter_a.ci_status_success');
             } else {
-              analyzeDisplay = '❌ 실패';
+              analyzeDisplay = m('flutter_a.ci_status_failure');
               overallSuccess = false;
             }
 
-            // Test 상태 (테스트 파일이 없으면 실패로 보지 않는다)
+            // Test status (no test files is not treated as a failure)
             let testDisplay;
             if (testStatus === 'success') {
-              testDisplay = '✅ 성공';
+              testDisplay = m('flutter_a.ci_status_success');
             } else if (testStatus === 'none') {
-              testDisplay = '⏸️ 테스트 없음';
+              testDisplay = m('flutter_a.ci_status_no_tests');
             } else {
-              testDisplay = testStatus === 'failure' ? '❌ 실패' : '⏸️ 실행 안 됨';
+              testDisplay = testStatus === 'failure' ? m('flutter_a.ci_status_failure') : m('flutter_a.ci_status_not_run');
               overallSuccess = false;
             }
 
-            // Android 상태
+            // Android status
             if (analyzeOnly) {
-              androidDisplay = '⏸️ 스킵';
+              androidDisplay = m('flutter_a.ci_status_skipped');
             } else if (!enableAndroid) {
-              androidDisplay = '⏸️ 비활성화';
+              androidDisplay = m('flutter_a.ci_status_disabled');
             } else if (androidStatus === 'success') {
-              androidDisplay = '✅ 성공';
+              androidDisplay = m('flutter_a.ci_status_success');
             } else {
-              androidDisplay = '❌ 실패';
+              androidDisplay = m('flutter_a.ci_status_failure');
               overallSuccess = false;
             }
 
-            // iOS 상태
+            // iOS status
             if (analyzeOnly) {
-              iosDisplay = '⏸️ 스킵';
+              iosDisplay = m('flutter_a.ci_status_skipped');
             } else if (!enableIos) {
-              iosDisplay = '⏸️ 비활성화';
+              iosDisplay = m('flutter_a.ci_status_disabled');
             } else if (iosStatus === 'success') {
-              iosDisplay = '✅ 성공';
+              iosDisplay = m('flutter_a.ci_status_success');
             } else {
-              iosDisplay = '❌ 실패';
+              iosDisplay = m('flutter_a.ci_status_failure');
               overallSuccess = false;
             }
 
-            // 헤더 결정
+            // Decide the header
             let header;
             if (analyzeOnly) {
               header = overallSuccess
-                ? '## ✅ Flutter CI (Analyze Only) 성공!'
-                : '## ❌ Flutter CI (Analyze Only) 실패';
+                ? m('flutter_a.ci_hdr_analyze_success')
+                : m('flutter_a.ci_hdr_analyze_failure');
             } else {
               header = overallSuccess
-                ? '## ✅ Flutter CI 성공!'
-                : '## ❌ Flutter CI 실패';
+                ? m('flutter_a.ci_hdr_success')
+                : m('flutter_a.ci_hdr_failure');
             }
 
-            // 댓글 본문 생성
+            // Build the comment body
             const bodyParts = [
               header,
               '',
-              '| 검사 항목 | 상태 | 소요 시간 |',
+              m('flutter_a.ci_table_head'),
               '|----------|------|----------|',
               `| 🔍 Analyze | ${analyzeDisplay} | ${analyzeDuration} |`,
               `| 🧪 Test | ${testDisplay} | - |`,
-              `| 🤖 Android 빌드 | ${androidDisplay} | ${analyzeOnly || !enableAndroid ? '-' : androidDuration} |`,
-              `| 🍎 iOS 빌드 | ${iosDisplay} | ${analyzeOnly || !enableIos ? '-' : iosDuration} |`,
+              m('flutter_a.ci_row_android_result', { status: androidDisplay, duration: analyzeOnly || !enableAndroid ? '-' : androidDuration }),
+              m('flutter_a.ci_row_ios_result', { status: iosDisplay, duration: analyzeOnly || !enableIos ? '-' : iosDuration }),
               '',
-              '| 항목 | 값 |',
+              m('flutter_a.ci_info_head'),
               '|------|-----|',
-              `| **브랜치** | \`${branchName}\` |`,
-              `| **커밋** | \`${commitHash}\` |`,
-              `| **총 소요 시간** | ${totalDuration} |`,
+              m('flutter_a.ci_row_branch', { branch: branchName }),
+              m('flutter_a.ci_row_commit', { commit: commitHash }),
+              m('flutter_a.ci_row_total', { duration: totalDuration }),
               ''
             ];
 
-            // Analyze Only 모드 안내
+            // Analyze Only mode note
             if (analyzeOnly && overallSuccess) {
-              bodyParts.push('ℹ️ **Analyze Only 모드**: 빌드 없이 코드 분석만 실행되었습니다.');
+              bodyParts.push(m('flutter_a.ci_note_analyze_only_done'));
               bodyParts.push('');
             }
 
-            // 실패 시 추가 안내
+            // Extra guidance on failure
             if (!overallSuccess) {
               bodyParts.push(
-                '### 💡 확인 사항',
+                m('flutter_a.ci_hdr_checks'),
                 ''
               );
 
               if (analyzeStatus !== 'success') {
-                bodyParts.push('**Analyze 실패 시:**');
-                bodyParts.push('- `flutter analyze` 로컬에서 실행하여 lint 오류 확인');
-                bodyParts.push('- 코드 스타일 및 타입 오류 수정');
+                bodyParts.push(m('flutter_a.ci_analyze_fail_title'));
+                bodyParts.push(m('flutter_a.ci_analyze_fail_lint'));
+                bodyParts.push(m('flutter_a.ci_analyze_fail_fix'));
                 bodyParts.push('');
               }
 
               if (testStatus === 'failure') {
-                bodyParts.push('**Test 실패 시:**');
-                bodyParts.push('- `flutter test` 로컬에서 실행하여 실패한 테스트 확인');
+                bodyParts.push(m('flutter_a.ci_test_fail_title'));
+                bodyParts.push(m('flutter_a.ci_test_fail_local'));
                 bodyParts.push('');
               }
 
               if (!analyzeOnly && enableAndroid && androidStatus !== 'success') {
-                bodyParts.push('**Android 빌드 실패 시:**');
-                bodyParts.push('- Gradle 빌드 로그에서 에러 확인');
-                bodyParts.push('- 의존성 버전 호환성 확인');
+                bodyParts.push(m('flutter_a.ci_android_fail_title'));
+                bodyParts.push(m('flutter_a.ci_android_fail_gradle'));
+                bodyParts.push(m('flutter_a.ci_android_fail_deps'));
                 bodyParts.push('');
               }
 
               if (!analyzeOnly && enableIos && iosStatus !== 'success') {
-                bodyParts.push('**iOS 빌드 실패 시:**');
-                bodyParts.push('- Xcode 빌드 로그에서 에러 확인');
-                bodyParts.push('- CocoaPods 의존성 확인');
+                bodyParts.push(m('flutter_a.ci_ios_fail_title'));
+                bodyParts.push(m('flutter_a.ci_ios_fail_xcode'));
+                bodyParts.push(m('flutter_a.ci_ios_fail_pods'));
                 bodyParts.push('');
               }
             }
 
-            bodyParts.push(`**[📋 워크플로우 로그](${runUrl})**`);
+            bodyParts.push(m('flutter_a.ci_link_workflow_log', { url: runUrl }));
 
             const body = bodyParts.join('\n');
 
-            // 댓글 업데이트
+            // Update the comment
             if (commentId) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -803,25 +852,34 @@ jobs:
                 comment_id: commentId,
                 body: body
               });
-              console.log(`✅ 결과 댓글 업데이트 완료`);
+              console.log(m('flutter_a.ci_log_result_updated'));
             } else {
-              console.log('⚠️ 댓글 ID가 없어 업데이트를 건너뜁니다.');
+              console.log(m('flutter_a.ci_log_no_comment_id'));
             }
 
-  # Job 6: CI Gate (required check로 등록할 단일 진입점)
-  # 건너뛴(skipped) job은 통과로 보고 failure/cancelled가 하나라도 있으면 실패한다.
+  # Job 6: CI Gate (the single entry point to register as a required check)
+  # Skipped jobs count as passed; any failure/cancelled result fails the gate.
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
     needs: [changes, prepare, analyze, build-android, build-ios, report]
     runs-on: ubuntu-latest
     steps:
-      - name: 결과 집계
+      - name: Checkout messages
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Aggregate results
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          echo "needs 결과: $RESULTS"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.ci_gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
-            echo "실패하거나 취소된 job이 있습니다."
+            m flutter_a.ci_gate_failed
             exit 1
           fi

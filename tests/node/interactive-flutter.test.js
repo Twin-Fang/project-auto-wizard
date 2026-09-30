@@ -1,8 +1,9 @@
 // tests/node/interactive-flutter.test.js
-// 프로젝트 타입에 flutter가 있을 때만 환경변수 방식·스토어 배포 대상·배포 모드를 묻고,
-// 저장값이 있으면 재질문하지 않으며, 기존 설치는 설치된 스토어 워크플로우로 초기 선택을 추론한다.
-// 스텁 io 방식은 interactive-branch-strategy.test.js와 같다. 답변은 version.yml(저장)과
-// 설치된 워크플로우 파일(스토어 필터)로 검증한다.
+// Only when the project type includes flutter: ask the env mode, store deploy targets and deploy mode,
+// never re-ask when a stored value exists, and infer the initial selection of an existing install from its installed store workflows.
+// The stub io approach is the same as interactive-branch-strategy.test.js. Answers are verified through version.yml (persisted)
+// and the installed workflow files (store filter).
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -19,7 +20,7 @@ const IOS_WORKFLOWS = ["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml", "PROJECT-FLUTTER-I
 const initialOf = (arg) => arg.initialValue;
 const initialsOf = (arg) => arg.initialValues;
 
-// envMode/stores/deployMode: (arg) => 답변. 기본은 "질문의 초기값 그대로 Enter".
+// envMode/stores/deployMode: (arg) => answer. Default is "press Enter on the question's initial value".
 function stubIo({ envMode = initialOf, stores = initialsOf, deployMode = initialOf, confirmProjectMenu, editMenu, selectTypes } = {}) {
   const calls = { envMode: [], stores: [], deployMode: [], editMenu: [], notes: [], cards: [] };
   const io = {
@@ -34,8 +35,8 @@ function stubIo({ envMode = initialOf, stores = initialsOf, deployMode = initial
     cancelMessage: () => {},
     summary: () => {},
     outro: () => {},
-    // 실제 화면에 쓰이는 printAnalysisCard를 그대로 통과시킨다 — io.analysisCard를 빼먹으면
-    // interactive.js가 summarize() fallback으로 새어나가 실사용 경로를 검증하지 못한다.
+    // Run the real printAnalysisCard used on screen — if io.analysisCard were omitted,
+    // interactive.js would leak into the summarize() fallback and the real-use path would go unverified.
     analysisCard: (info) => {
       let text = "";
       printAnalysisCard(info, (s) => { text += s; });
@@ -58,30 +59,30 @@ function flutterProject() {
 
 const versionYml = (target) => readFileSync(join(target, "version.yml"), "utf8");
 const workflowExists = (target, name) => existsSync(join(target, WF_DIR, name));
-const neverAsked = () => { throw new Error("이 질문은 나오면 안 된다"); };
+const neverAsked = () => { throw new Error("this question must not be asked"); };
 
-test("신규 설치: 환경변수 방식·스토어·배포 모드를 묻고 선택을 version.yml과 워크플로우 설치에 반영한다", async () => {
+test("new install: asks env mode, stores and deploy mode, and applies the choices to version.yml and the workflow install", async () => {
   const target = flutterProject();
   try {
     const { io, calls } = stubIo({ envMode: () => "dotenv", stores: () => ["android"], deployMode: () => "store_prepare" });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
-    assert.deepStrictEqual(calls.envMode, [{ initialValue: "dart-define" }], "신규 설치의 환경변수 초기 선택은 dart-define");
-    assert.deepStrictEqual(calls.stores, [{ initialValues: ["android", "ios"] }], "신규 설치의 스토어 초기 선택은 CLI 기본값과 같은 둘 다");
-    assert.deepStrictEqual(calls.deployMode, [{ platform: "android", initialValue: "store_only" }], "고른 플랫폼(android)만 배포 모드를 묻는다");
+    assert.deepStrictEqual(calls.envMode, [{ initialValue: "dart-define" }], "initial env mode for a new install is dart-define");
+    assert.deepStrictEqual(calls.stores, [{ initialValues: ["android", "ios"] }], "initial store selection for a new install is both, same as the CLI default");
+    assert.deepStrictEqual(calls.deployMode, [{ platform: "android", initialValue: "store_only" }], "only the chosen platform (android) is asked for a deploy mode");
 
     const vy = versionYml(target);
     assert.match(vy, /env_mode:\s*"?dotenv"?/);
     assert.match(vy, /flutter_store:\s*"?android"?/);
     assert.match(vy, /android_deploy_mode:\s*"?store_prepare"?/);
     assert.ok(workflowExists(target, PLAYSTORE));
-    for (const f of IOS_WORKFLOWS) assert.ok(!workflowExists(target, f), `${f}는 선택 해제라 설치되지 않아야 한다`);
+    for (const f of IOS_WORKFLOWS) assert.ok(!workflowExists(target, f), `${f} is deselected so it must not be installed`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("저장값이 있으면 다시 실행해도 재질문하지 않는다 (deploy_style과 같은 규약)", async () => {
+test("does not re-ask on rerun when a stored value exists (same convention as deploy_style)", async () => {
   const target = flutterProject();
   try {
     const first = stubIo({ envMode: () => "dotenv", stores: () => ["android", "ios"], deployMode: (a) => (a.platform === "ios" ? "store_submit" : "store_only") });
@@ -100,29 +101,29 @@ test("저장값이 있으면 다시 실행해도 재질문하지 않는다 (depl
   }
 });
 
-test("저장값 없는 기존 설치: dotenv를 초기 선택으로, 스토어는 설치된 워크플로우(iOS)로 추론한다", async () => {
+test("existing install without stored values: dotenv as the initial choice, stores inferred from installed workflows (iOS)", async () => {
   const target = flutterProject();
   try {
-    // 이 기능 이전에 설치된 프로젝트 — version.yml에 옵션 저장값이 없고 iOS 스토어 워크플로우가 깔려 있다.
+    // A project installed before this feature — version.yml has no stored options and the iOS store workflow is installed.
     writeFileSync(join(target, "version.yml"), 'version: "1.0.0"\nversion_code: 1\nproject_types: ["flutter"]\n');
     mkdirSync(join(target, WF_DIR), { recursive: true });
-    writeFileSync(join(target, WF_DIR, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "# 기존 설치본\n");
+    writeFileSync(join(target, WF_DIR, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "# existing install\n");
 
     const { io, calls } = stubIo();
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
-    assert.deepStrictEqual(calls.envMode, [{ initialValue: "dotenv" }], "기존 설치는 동작 보존을 위해 dotenv가 초기 선택");
-    assert.deepStrictEqual(calls.stores, [{ initialValues: ["ios"] }], "설치된 IOS-TESTFLIGHT로 iOS를 초기 선택");
+    assert.deepStrictEqual(calls.envMode, [{ initialValue: "dotenv" }], "existing installs default to dotenv to preserve behavior");
+    assert.deepStrictEqual(calls.stores, [{ initialValues: ["ios"] }], "iOS is initially selected because IOS-TESTFLIGHT is installed");
     assert.deepStrictEqual(calls.deployMode, [{ platform: "ios", initialValue: "store_only" }]);
     assert.match(versionYml(target), /flutter_store:\s*"?ios"?/);
-    assert.ok(workflowExists(target, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "추론된 iOS 워크플로우가 정리되면 안 된다");
-    assert.ok(!workflowExists(target, PLAYSTORE), "선택하지 않은 Android 스토어 워크플로우는 새로 설치되지 않는다");
+    assert.ok(workflowExists(target, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "the inferred iOS workflow must not be cleaned up");
+    assert.ok(!workflowExists(target, PLAYSTORE), "the unselected Android store workflow is not newly installed");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("ESC(취소)는 기본값: dart-define, 스토어는 CLI 기본값과 같은 둘 다, 배포 모드 store_only", async () => {
+test("ESC (cancel) uses defaults: dart-define, both stores same as the CLI default, deploy mode store_only", async () => {
   const target = flutterProject();
   try {
     const { io, calls } = stubIo({ envMode: () => CANCEL, stores: () => CANCEL, deployMode: () => CANCEL });
@@ -132,19 +133,19 @@ test("ESC(취소)는 기본값: dart-define, 스토어는 CLI 기본값과 같�
     assert.match(vy, /env_mode:\s*"?dart-define"?/);
     assert.match(vy, /flutter_store:\s*"?android,ios"?/);
     assert.match(vy, /android_deploy_mode:\s*"?store_only"?/);
-    for (const f of [PLAYSTORE, ...IOS_WORKFLOWS]) assert.ok(workflowExists(target, f), `${f}는 설치되어야 한다`);
+    for (const f of [PLAYSTORE, ...IOS_WORKFLOWS]) assert.ok(workflowExists(target, f), `${f} must be installed`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("store_submit을 고르면 main push마다 심사가 자동 제출된다는 경고 note가 나온다", async () => {
+test("choosing store_submit shows a warning note that every main push auto-submits for review", async () => {
   const target = flutterProject();
   try {
     const { io, calls } = stubIo({ stores: () => ["ios"], deployMode: () => "store_submit" });
     await runInteractive({}, { cwd: target, io });
     const warning = calls.notes.find((n) => n.title === "배포 모드");
-    assert.ok(warning, "배포 모드 경고 note가 있어야 한다");
+    assert.ok(warning, "a deploy mode warning note must exist");
     assert.ok(warning.text.includes("main push마다 심사가 자동 제출"));
     assert.match(versionYml(target), /ios_deploy_mode:\s*"?store_submit"?/);
   } finally {
@@ -152,7 +153,7 @@ test("store_submit을 고르면 main push마다 심사가 자동 제출된다는
   }
 });
 
-test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 항목이 노출되고 현재값을 초기값으로 다시 묻는다", async () => {
+test("edit: for a Flutter project the env mode and deploy mode items are shown and re-asked with the current value as initial", async () => {
   const target = flutterProject();
   try {
     let menuRound = 0;
@@ -168,7 +169,7 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
     assert.deepStrictEqual(calls.editMenu[0], { showFlutter: true, showOptions: true });
-    assert.deepStrictEqual(calls.envMode[1], { initialValue: "dart-define" }, "수정 시 초기값은 현재값");
+    assert.deepStrictEqual(calls.envMode[1], { initialValue: "dart-define" }, "on edit the initial value is the current value");
     assert.deepStrictEqual(calls.deployMode[1], { platform: "android", initialValue: "store_only" });
     const vy = versionYml(target);
     assert.match(vy, /env_mode:\s*"?dotenv"?/);
@@ -178,9 +179,9 @@ test("수정하기: Flutter 프로젝트면 환경변수 방식·배포 모드 �
   }
 });
 
-// 회귀 방지 — 확인 카드에 Flutter 선택값(환경변수 방식·스토어 배포
-// 대상·배포 모드)이 보여야 한다. 수정 메뉴에서만 보이고 확정 직전 화면에 없으면 재확인이 안 된다.
-test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대상·배포 모드)이 표시된다", async () => {
+// Regression guard — the confirm card must show the Flutter choices (env mode, store deploy
+// targets, deploy mode). If they only appear in the edit menu and not on the pre-confirm screen, they cannot be re-checked.
+test("the confirm card shows the Flutter options (env mode, store deploy targets, deploy mode)", async () => {
   const target = flutterProject();
   try {
     const { io, calls } = stubIo({
@@ -189,7 +190,7 @@ test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대�
       deployMode: (a) => (a.platform === "ios" ? "store_submit" : "store_only"),
     });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
-    assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
+    assert.ok(calls.cards.length > 0, "a confirm card (real printAnalysisCard output) must exist");
     const cardText = calls.cards[0];
     assert.match(cardText, /환경변수\s+dotenv/);
     assert.match(cardText, /스토어\s+android, ios/);
@@ -199,9 +200,9 @@ test("확인 카드에 Flutter 옵션(환경변수 방식·스토어 배포 대�
   }
 });
 
-// 회귀 방지 — flutterStore 수정에서 플랫폼을 해제했다가 다시 선택하면
-// 배포 모드를 다시 물어야 한다(옛 값이 남아있으면 안 된다).
-test("수정하기: 스토어 해제 후 재선택하면 배포 모드를 다시 묻는다", async () => {
+// Regression guard — if a platform is deselected and reselected while editing flutterStore,
+// the deploy mode must be asked again (the old value must not linger).
+test("edit: deselecting then reselecting a store asks the deploy mode again", async () => {
   const target = flutterProject();
   try {
     let menuRound = 0;
@@ -209,9 +210,9 @@ test("수정하기: 스토어 해제 후 재선택하면 배포 모드를 다시
     const { io, calls } = stubIo({
       stores: () => {
         storesCalls += 1;
-        if (storesCalls === 1) return ["android"]; // 초기 질문
-        if (storesCalls === 2) return []; // 수정 — 해제
-        return ["android"]; // 수정 — 재선택
+        if (storesCalls === 1) return ["android"]; // initial question
+        if (storesCalls === 2) return []; // edit — deselect
+        return ["android"]; // edit — reselect
       },
       deployMode: () => "store_prepare",
       confirmProjectMenu: async () => (++menuRound === 1 ? "edit" : "continue"),
@@ -219,14 +220,14 @@ test("수정하기: 스토어 해제 후 재선택하면 배포 모드를 다시
     });
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
 
-    assert.strictEqual(calls.deployMode.length, 2, "해제→재선택이면 배포 모드를 다시 물어야 한다");
+    assert.strictEqual(calls.deployMode.length, 2, "deselect then reselect must ask the deploy mode again");
     assert.match(versionYml(target), /android_deploy_mode:\s*"?store_prepare"?/);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않고 수정 메뉴에도 항목이 없다", async () => {
+test("a non-Flutter project gets no Flutter questions and no edit menu items", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-flutter-basic-"));
   try {
     const { io, calls } = stubIo({ envMode: neverAsked, stores: neverAsked, deployMode: neverAsked });
@@ -235,14 +236,14 @@ test("Flutter가 아닌 프로젝트는 Flutter 질문이 전혀 나오지 않�
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);
     assert.deepStrictEqual(calls.editMenu[0], { showFlutter: false, showOptions: true });
     assert.deepStrictEqual([calls.envMode, calls.stores, calls.deployMode], [[], [], []]);
-    assert.ok(calls.cards.length > 0, "확인 카드(printAnalysisCard 실제 출력)가 있어야 한다");
-    assert.ok(!calls.cards[0].includes("환경변수"), "Flutter 타입이 아니면 확인 카드에 Flutter 옵션 줄이 없어야 한다");
+    assert.ok(calls.cards.length > 0, "a confirm card (real printAnalysisCard output) must exist");
+    assert.ok(!calls.cards[0].includes("환경변수"), "without the Flutter type the confirm card must have no Flutter option line");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("편집 루프에서 뒤늦게 flutter 타입을 추가해도 확인 화면 이후 옵션을 한 번 묻는다", async () => {
+test("adding the flutter type late in the edit loop still asks the options once after the confirm screen", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-flutter-late-"));
   try {
     writeFileSync(join(target, "package.json"), JSON.stringify({ name: "sample-app", version: "1.0.0" }));

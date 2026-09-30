@@ -1,16 +1,72 @@
 # Changelog
 
-**현재 버전:** 0.13.3  
-**마지막 업데이트:** 2026-09-30T04:26:46Z  
+**Current version:** 0.14.0  
+**Last updated:** 2026-09-30T09:08:20Z  
+
+---
+
+## [0.14.0] - 2026-09-30
+
+**PR:** #353  
+
+**✨ Features**
+- --name=value 형식의 옵션 값 지정을 지원 (#347)
+- 언어 결정과 메시지 카탈로그 기반, --lang 옵션 추가 (#332)
+
+**🐛 Fixes**
+- 사용자 질문 문구의 언어별 필드가 작성 순서와 무관하게 유지되도록 수정 (#343)
+- dry-run이 자동 갱신·유지·삭제된 워크플로우도 표시하도록 수정 (#345)
+- CHANGELOG.json의 카테고리 키를 언어와 무관한 고정 키로 저장하고 제목은 표시할 때만 언어별로 사용 (#346)
+- 마법사 질문·breaking-changes 안내·완료 화면 문구를 언어 설정에 맞춤 (#343)
+- 워크플로우 주석의 선택 표기를 (optional)로 바꾸고 검증 파싱을 맞춤 (#343)
+- messages.py의 언어 결정을 CLI 규칙과 맞추고 읽기 실패·하위 폴더 실행에서도 동작하도록 수정 (#344)
+- 프리뷰 워크플로우가 PR 병합 커밋에서 메시지를 받도록 하고 언어 폴백·안내·단복수 처리 보완 (#334)
+- Windows 콘솔 인코딩에서도 ko 문구가 깨지지 않도록 스크립트 출력을 UTF-8로 고정 (#334)
+- 마커 없는 'Latest Version' 형식의 README 버전 제목도 인식하도록 수정 (#333)
+
+**📝 Documentation**
+- 데모 GIF·MP4를 영어 CLI 출력으로 재녹화 (#335)
+- doctor 문서 링크 앵커를 영어 페이지에도 추가하고 en/ko 모두 검사 (#335)
+- 언어 정책(영어 기본, 한국어는 ko 카탈로그·번역본에만) 섹션 추가 (#337)
+- CLI 레퍼런스의 --help 블록을 언어별 출력에 맞추고 검사 언어를 문서별로 지정 (#333)
+- 문서와 이슈·PR 템플릿을 영어 기본으로 정리 (#335)
+- CLI 옵션 표와 version.yml 레퍼런스에 language·--lang 추가 (#332)
+
+**♻️ Refactoring**
+- Flutter 워크플로우와 fastlane 템플릿의 문구를 language 설정에 맞추고 주석을 영어로 변경 (#334)
+- PR 프리뷰·CI·배포 워크플로우와 생성기 조각의 문구를 language 설정에 맞추고 주석을 영어로 변경 (#334)
+- 공통 워크플로우와 레포 자체 워크플로우의 문구를 language 설정에 맞추고 주석을 영어로 변경 (#334)
+- 스크립트 출력 문구를 메시지 카탈로그로 옮기고 language 설정을 따르도록 변경 (#334)
+- 설치 파일 생성부(README·.gitignore·워크플로우)의 문구를 카탈로그로 전환 (#333)
+- 로그·검증·제거 계획 메시지를 카탈로그로 전환 (#333)
+- 프로젝트 감지·경로·타입 관련 메시지를 카탈로그로 전환 (#333)
+- 마법사 UI·대화형 출력을 카탈로그로 전환 (#333)
+- CLI 진입점·도움말·명령 출력을 카탈로그로 전환 (#333)
+- 출력 문구 카탈로그(en/ko)를 영역별 파트로 추가 (#333)
+
+**✅ Tests**
+- 한글 검사를 리터럴 제외 줄 단위로 강화하고 검사 파일을 ASCII로 유지 (#337)
+- 카탈로그 밖 한글 유입을 막는 검사 추가 및 테스트 주석·이름 영어화 (#337, #336, #334)
+- 카테고리 고정 키 저장과 예전 언어 키 항목 병합 읽기 검증 추가 (#346)
+- node 테스트의 이름과 주석을 영어로 변경 (#336)
+- 파이썬 테스트와 픽스처 주석을 영어로 변경 (#336)
+- ko 출력을 검사하는 테스트가 단독 실행에서도 통과하도록 언어 설정 로드 (#333)
+- 기존 테스트를 ko로 실행하고 en 기본 출력·카탈로그 무결성 검증 추가 (#333)
+- 언어 결정·카탈로그 키 일치·language 저장 검증 추가 (#332)
+
+**🔧 Changes**
+- .issue 폴더를 git 추적과 한글 검사 허용 목록에서 제외 (#351)
+- 설정 파일의 한국어 주석을 영어로 변경 (#337)
+- 개발 도구 스크립트의 주석과 메시지를 영어로 변경 (#336)
 
 ---
 
 ## [0.13.3] - 2026-09-30
 
-**📝 문서**
+**📝 Documentation**
 - 이슈 초안 마크다운(.issue) 추가
 
-**🔧 변경사항**
+**🔧 Changes**
 - Playwright MCP 로그 및 페이지 스냅샷 추가
 
 ---
@@ -19,17 +75,17 @@
 
 **PR:** #330  
 
-**📝 문서**
+**📝 Documentation**
 - 생성 대상 목록에 Go/Python 단일 서버 배포 추가 (#276)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - Flutter 옵션 해석·CLI 플래그·version.yml 옵션 블록을 타입 훅으로 이전 (#278)
 - Go/Python 단일 서버 배포 워크플로우를 공통 조각과 타입별 값으로 생성 (#276)
 
-**✅ 테스트**
+**✅ Tests**
 - 생성 대상 목록에 Go/Python 단일 서버 배포 추가 (#276)
 
-**🔧 변경사항**
+**🔧 Changes**
 - main 브랜치의 릴리스 버전 커밋을 develop에 병합
 
 ---
@@ -38,19 +94,19 @@
 
 **PR:** #326  
 
-**🐛 수정**
+**🐛 Fixes**
 - Gradle 여러 줄 문자열 안의 중괄호를 코드로 읽지 않도록 수정 (#317)
 - Gradle 블록 추적이 문자열 안의 // 와 중괄호에 흔들리지 않도록 수정 (#309)
 - Gradle 들여쓴 version 줄을 프로젝트 버전으로 읽지 않도록 수정하고 get 동기화 동작을 명시 (#309)
 - React Native 동기화가 앱 Info.plist만 고치고 $(…) 참조는 건너뛰도록 수정 (#306)
 - dry-run 미리보기가 시각 줄을 제외하고 version.yml 변경 여부를 비교하도록 수정 (#308)
 
-**📝 문서**
+**📝 Documentation**
 - 생성 대상 목록에 React/Next 배포 추가 (#276)
 - src 트리에 flutter-doctor.js 추가하고 훅 호출 설명을 실제 코드에 맞게 정정 (#278)
 - 워크플로우 생성·검증 절차 안내 추가 (#276)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - React/Next 배포 워크플로우를 생성기 조각으로 이전 (#276)
 - Flutter 전용 처리(스토어 필터·정리·앱 파일·status·doctor)를 타입 훅으로 분리 (#278)
 - Go/Python PR 프리뷰 워크플로우를 공통 조각과 타입별 값으로 생성 (#276)
@@ -58,11 +114,11 @@
 - 워크플로우 복사·충돌 조사·미리보기 계획의 순회를 하나로 통합 (#273)
 - uninstall과 purge의 삭제 실행부를 공통 함수로 통합 (#275)
 
-**✅ 테스트**
+**✅ Tests**
 - React/Next 생성 대상 등록과 빈 줄 렌더링 검사 추가 (#276)
 - 생성 결과와 커밋된 payload 워크플로우의 일치 검사 추가 (#276)
 
-**🔧 변경사항**
+**🔧 Changes**
 - main 브랜치의 릴리스 버전 커밋을 develop에 병합
 
 ---
@@ -71,11 +127,11 @@
 
 **PR:** #314  
 
-**✨ 기능**
+**✨ Features**
 - Starlight 문서 사이트와 GitHub Pages 배포 워크플로우 추가 (#260)
 - payload 기준으로 레포 .github 사본을 다시 만드는 동기화 스크립트 추가 (#271)
 
-**🐛 수정**
+**🐛 Fixes**
 - 설치 시 버전 감지와 릴리스 시 버전 읽기를 같은 규칙으로 맞춤 (#295)
 - 링크 경로에서도 동기화 검사가 실행되고 봇 병합 판정을 정확히 일치로 좁힘 (#304)
 - Flutter 스토어 배포 워크플로우가 설치 시 고른 릴리스 브랜치를 쓰도록 수정 (#288)
@@ -173,7 +229,7 @@
 - Gradle의 kotlin_version 같은 변수를 앱 버전으로 감지·변경하지 않도록 수정 (#179)
 - CI 변경 감지가 push에서 직전 커밋 대비로 판별하도록 수정 (#228)
 
-**📝 문서**
+**📝 Documentation**
 - 한국어·중국어·일본어 README 추가 및 문서 사이트 링크 정리 (#258)
 - 남은 이전 구현 참조 주석을 정리하고 모듈 구조·버전 규칙 설명을 현재 코드에 맞게 수정 (#272)
 - 타입 추가 확인 명령과 일관성 테스트 설명을 실제 동작에 맞게 수정 (#272)
@@ -189,7 +245,7 @@
 - 종료 코드 처리 주석을 현재 동작에 맞게 수정
 - README·ROADMAP·도움말을 현재 모드와 옵션, 실제 출력에 맞게 수정 (#164)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - semver_auto·copilot 기본값 규칙을 한 함수로 합치기 (#270)
 - 타입별 워크플로우 원본 폴더 경로를 typeWorkflowDirs로 모으기 (#270)
 - 스크립트 목록과 payload 워크플로우 이름 수집을 한 곳에서 쓰기 (#270)
@@ -197,7 +253,7 @@
 - version_manager 타입별 읽기·동기화를 핸들러 테이블로 정리 (#274)
 - 타입 정의를 core/types.js 레지스트리로 모으기 (#269)
 
-**✅ 테스트**
+**✅ Tests**
 - 타입 목록 검사가 영어 README 표와 한국어 문서를 함께 확인하도록 수정 (#257)
 - 문서 사이트 명령 예시·도움말·패키지 분리를 검사하는 테스트 추가 (#260)
 - JS·Python 버전 파싱이 같은 예시 파일을 공유하도록 테스트 추가 (#274)
@@ -205,7 +261,7 @@
 - 지원 타입 목록 일관성 검사 추가 (#268)
 - changelog 테스트가 Windows에서도 UTF-8로 출력을 읽도록 수정
 
-**🔧 변경사항**
+**🔧 Changes**
 - main 브랜치의 릴리스 버전 커밋을 develop에 병합
 - 이슈 템플릿 기본 라벨을 새 라벨 체계로 변경 (#255)
 - 로컬 개발 도구 설정과 개인 작업 문서를 저장소 추적에서 제외
@@ -216,13 +272,13 @@
 
 **PR:** #244  
 
-**🐛 수정**
+**🐛 Fixes**
 - Copilot_기본_모델_claude_haiku_4_5_이_Actions에서_거부되어_기본_상태로는_AI_요약과_SemVer_보조_판정이_동작하지_않음 — Copilot 호출을 auto 모델로 고정하고 COPILOT_MODEL 오버라이드 제거
 
-**📝 문서**
+**📝 Documentation**
 - Copilot auto 모델 고정 구현 계획 작성 (#153)
 
-**🔧 변경사항**
+**🔧 Changes**
 - develop 브랜치 병합 (#153)
 - Playwright MCP 산출물 디렉터리를 gitignore에 추가 (#153)
 
@@ -232,18 +288,18 @@
 
 **PR:** #242  
 
-**📝 문서**
+**📝 Documentation**
 - 남은 코드 주석의 리뷰 식별자와 파이썬 주석 이슈번호 제거 (#240)
 - README·ROADMAP 정합성 정리 및 원본 도구명 언급 제거 (#240)
 - 워크플로우 주석 장식 제거 및 payload·.github 사본 동기화 (#240)
 - 코드 주석에서 이슈번호와 AI 작업 흐름 잔재 제거 (#240)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - 더 이상 쓰이지 않는 optionalCopied 카운터 제거 (#240)
 - Secret 서버 백업 워크플로우와 secret_backup 옵션 제거 (#240)
 - Spring nexus·GitHub Packages publish opt-in 제거 및 Spring CI 상시 설치 (#240)
 
-**🔧 변경사항**
+**🔧 Changes**
 - docs/를 .gitignore에 추가하고 git 추적에서 제외 (#240)
 
 ---
@@ -252,15 +308,15 @@
 
 **PR:** #136  
 
-**✨ 기능**
+**✨ Features**
 - 워크플로우를 opt-in Copilot 게이트·엔진 표기·중립 PR Summary 라벨로 전환 (#134)
 - 마법사에 Copilot AI 요약 opt-in 옵션(copilot_ai)과 --copilot 플래그 추가 (#134)
 - GitHub Models 티어를 opt-in Copilot CLI로 교체하고 죽은 API 기본값 제거 (#134)
 
-**🐛 수정**
+**🐛 Fixes**
 - 요구 문구에서 종료된 서비스 명칭을 제거하도록 docstring 정정 (#134)
 
-**📝 문서**
+**📝 Documentation**
 - GitHub Models 종료 대응 Copilot CLI 엔진 교체 구현 계획 작성 (#134)
 - 표방 문구에서 기본 동작과 다른 AI 릴리스 자동화 수식을 정정 (#134)
 - GitHub Models 종료와 Copilot 과금·opt-in 옵션에 맞게 안내 문구와 README 정정 (#134)
@@ -271,7 +327,7 @@
 
 **PR:** #133  
 
-**✨ 기능**
+**✨ Features**
 - IOS-TEST-TESTFLIGHT에 FLUTTER_PROJECT_DIR·환경변수 모드·Gemfile C-lite 적용
 - IOS-TESTFLIGHT에 main push 앵커·배포 모드 폴백·ExportOptions 검증 적용
 - PLAYSTORE에 main push 앵커·환경변수 모드·배포 모드 폴백·PACKAGE_NAME 적용
@@ -299,16 +355,16 @@
 - resolveFlutterOptions 우선순위 해석 추가
 - Flutter 옵션 코어 모듈(flutter-options.js) 추가
 
-**🐛 수정**
+**🐛 Fixes**
 - 실제 확인 카드(printAnalysisCard)에 Flutter 옵션 표시
 - 확인 화면에 Flutter 옵션 표시·스토어 해제 시 배포 모드 초기화
 - 비대화형 설치 요약에 Flutter 스토어 정리·생성 결과 표시
 
-**📝 문서**
+**📝 Documentation**
 - Flutter 모노레포 필터·dart-define·스토어 배포 구현 계획 작성
 - breaking-changes 고지와 README에 Flutter 스토어 배포 문서화
 
-**✅ 테스트**
+**✅ Tests**
 - status 명령의 스토어 필터 검증 — 실제 파일 삭제 시나리오 추가
 - status 명령의 스토어 필터 오탐 방지 시나리오 보강
 
@@ -318,21 +374,21 @@
 
 **PR:** #130  
 
-**✨ 기능**
+**✨ Features**
 - 댓글 명령어와 이슈 마커에서 SUH-LAB 종속 이름 제거
 
-**📝 문서**
+**📝 Documentation**
 - SUH-LAB 종속 네이밍 일반화 구현 계획 작성
 - 원본·라이선스 출처 표기 정리
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - 원본 도구명·템플릿명 코드 식별자를 일반 이름으로 정리
 - heredoc 센티널 접두사를 __SUH_에서 __WIZARD_로 변경
 
-**✅ 테스트**
+**✅ Tests**
 - 원작자 종속 이름 재유입 방지 가드 추가
 
-**🔧 변경사항**
+**🔧 Changes**
 - 이 레포 issue helper의 브랜치 자동 생성 활성화
 - docs/suh-template/hypercortex 폴더를 docs/hypercortex로 이동
 
@@ -342,22 +398,22 @@
 
 **PR:** #125  
 
-**✨ 기능**
+**✨ Features**
 - 진입점에 로거 배선 및 uninstall·purge 기록 추가
 - full 파이프라인 전 구간 계측 및 요약 블록 기록
 - 워크플로우 복사 결정과 사유를 실행 로그에 기록
 - 로그 라인 기록·요약 블록·쓰기 실패 시 no-op 전환 추가
 - 실행 추적 로거 코어 추가 — 파일 생성·gitignore 자동화·회전
 
-**🐛 수정**
+**🐛 Fixes**
 - 이슈_자동_종료_Closes_N_연결이_EnterWorktree류_브랜치명_없음_에서_항상_실패함 — 브랜치명 이슈 번호 추출 정규식이 EnterWorktree류 브랜치명(# 없음)을 매칭하지 못하던 문제 수정
 
-**📝 문서**
+**📝 Documentation**
 - 이슈 #122 구현 완료 보고서 추가
 - 이슈 #122 본문 기록
 - 설치 기록을 실행 추적 로그로 교체한 내용 반영
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - install-log.js 제거하고 실행 로그로 일원화
 - 설치 요약을 실행 로그 안내로 교체하고 테스트 분리
 
@@ -367,7 +423,7 @@
 
 **PR:** #120  
 
-**🐛 수정**
+**🐛 Fixes**
 - 이슈헬퍼 워크플로우 브랜치 자동생성 시 contents 권한 부족 문제 수정 (#118)
 
 ---
@@ -376,7 +432,7 @@
 
 **PR:** #117  
 
-**🐛 수정**
+**🐛 Fixes**
 - version.yml deploy 블록에 __PROJECT_NAME__ 토큰이 미치환 상태로 기록되는 문제 수정 (#114)
 
 ---
@@ -385,20 +441,20 @@
 
 **PR:** #115  
 
-**✨ 기능**
+**✨ Features**
 - ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가
 
-**🐛 수정**
+**🐛 Fixes**
 - env-plan.test.js 병합 충돌 오처리로 누락된 닫는 괄호 복원
 - 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)
 
-**📝 문서**
+**📝 Documentation**
 - PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - wizard-env에 replaceProjectTokens 헬퍼 추출
 
-**✅ 테스트**
+**✅ Tests**
 - ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가
 
 ---
@@ -407,19 +463,19 @@
 
 **PR:** #115  
 
-**✨ 기능**
+**✨ Features**
 - ENABLE_VOLUME_MOUNT가_마법사에서_질문되지_않고_항상_false로_고정_설치됨 — ENABLE_VOLUME_MOUNT·NGINX VOLUME_CONTAINER_PATH에 @wizard ask 마커 추가
 
-**🐛 수정**
+**🐛 Fixes**
 - 마법사 환경설정 기본값 표시에서 __PROJECT_NAME__ 미치환 문제 수정 (#110)
 
-**📝 문서**
+**📝 Documentation**
 - PROJECT_NAME 토큰 표시 버그 수정 계획 추가 (#110)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - wizard-env에 replaceProjectTokens 헬퍼 추출
 
-**✅ 테스트**
+**✅ Tests**
 - ENABLE_VOLUME_MOUNT·VOLUME_CONTAINER_PATH 노출 회귀 테스트 추가
 
 ---
@@ -428,7 +484,7 @@
 
 **PR:** #109  
 
-**✨ 기능**
+**✨ Features**
 - python PR-PREVIEW 템플릿을 포팅해 Go PR-PREVIEW 워크플로우 추가
 - python SIMPLE-CICD 템플릿을 포팅해 Go SIMPLE-CICD 워크플로우 추가
 - Go CI 워크플로우(PROJECT-GO-CI) 추가
@@ -443,12 +499,12 @@
 - PR 본문에 이슈 종료 마커 블록을 삽입/치환하는 함수 추가
 - 브랜치명에서 이슈 번호를 추출하는 함수 추가
 
-**🐛 수정**
+**🐛 Fixes**
 - payload/version.yml.template·README 3축 표에 go 타입 누락 반영 (fable5 리뷰 발견)
 - paths-resolve.js에 go 타입 등록 (--force 설치 차단 버그 수정)
 - doctor의 WORKFLOW_PAT 미등록 판정을 WARN에서 INFO로 낮춤
 
-**📝 문서**
+**📝 Documentation**
 - version.yml·README에 go 프로젝트 타입 반영
 - fable5 검토 반영해 계획 오류 수정
 - Go 프로젝트 타입 지원 구현 계획 작성
@@ -463,10 +519,10 @@
 - PR-이슈 자동 종료 연결 구현 계획 추가 (이슈 #102)
 - PR-이슈 자동 종료 연결 설계 스펙 추가 (이슈 #102)
 
-**✅ 테스트**
+**✅ Tests**
 - go 프로젝트 타입 e2e 설치 매트릭스 추가
 
-**🔧 변경사항**
+**🔧 Changes**
 - 실수로 커밋된 package-lock.json 추적 해제
 - .github/workflows/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml를 payload 사본과 동기화
 - .github/workflows/PROJECT-COMMON-AI-PR-SUMMARY.yaml를 payload 사본과 동기화
@@ -480,15 +536,15 @@
 
 **PR:** #104  
 
-**🐛 수정**
+**🐛 Fixes**
 - NEXUS-PUBLISH 워크플로우 JAVA_VERSION을 @wizard 마커로 교체
 - NEXUS-CI 워크플로우 JAVA_VERSION을 @wizard 마커로 교체
 
-**📝 문서**
+**📝 Documentation**
 - fable5 plan 리뷰 피드백 반영
 - NEXUS 워크플로우 JAVA_VERSION 마커화 계획 문서 추가
 
-**✅ 테스트**
+**✅ Tests**
 - spring 워크플로우 java-version 하드코딩 검출 테스트 추가
 
 ---
@@ -497,7 +553,7 @@
 
 **PR:** #101  
 
-**✨ 기능**
+**✨ Features**
 - PYTHON_VERSION_하드코딩_및_미사용_정리 — Python CI/CD 워크플로우 2개에서 어디에도 참조되지 않는 PYTHON_VERSION 하드코딩 선언 제거
 
 ---
@@ -506,7 +562,7 @@
 
 **PR:** #98  
 
-**✨ 기능**
+**✨ Features**
 - 릴리스_파이프라인_후속_워크플로우_트리거를_repository_dispatch_방식으로_전환 — AUTO-CHANGELOG-CONTROL·VERSION-CONTROL·RELEASE-PUBLISH에 workflow_dispatch 기반 자동 트리거를 추가해 WORKFLOW_PAT 없이도 릴리스 파이프라인이 끊기지 않도록 함
 - 이슈 생성 시 브랜치 자동 생성 여부를 설치 마법사 질문으로 노출
 - trunk-based 선택 시 개발 브랜치 질문을 생략하도록 대화형 흐름 변경
@@ -514,19 +570,19 @@
 - 브랜치 전략(pr-flow/trunk-based)을 먼저 선택하는 프롬프트 추가
 - collectAsks가 payload/workflows/common 최상위를 무조건 스캔하도록 확장
 
-**🐛 수정**
+**🐛 Fixes**
 - 환경설정 안내 문구에서 부정확해진 '배포' 표현 제거
 
-**📝 문서**
+**📝 Documentation**
 - 이슈 헬퍼 브랜치 마법사 토글 계획 문서 추가
 - 이슈 #90 구현 계획 문서 추가
 - 브랜치 전략 질문 관련 README/DESIGN-SPEC 문서 반영 및 note 문구 다듬기
 - 브랜치 전략 명시적 선택 구현 계획 추가 (이슈 #93)
 
-**✅ 테스트**
+**✅ Tests**
 - 릴리스 파이프라인 workflow_dispatch 트리거 회귀 테스트 추가
 
-**🔧 변경사항**
+**🔧 Changes**
 - 이 레포 자신의 ISSUE-HELPER 워크플로우 사본에도 wizard 마커 동기화
 
 ---
@@ -535,7 +591,7 @@
 
 **PR:** #89  
 
-**📝 문서**
+**📝 Documentation**
 - AI-PR-SUMMARY 헤더 주석의 어색한 줄바꿈 정리
 
 ---
@@ -544,17 +600,17 @@
 
 **PR:** #84  
 
-**✨ 기능**
+**✨ Features**
 - 설치 마법사 출력 순서와 안내 정합성 정리 — 서버 배포 방식을 하나 고르게 하고 고른 CD만 설치하며 push 트리거까지 활성화
 
-**🐛 수정**
+**🐛 Fixes**
 - build.gradle.kts, pom.xml 버전 감지 누락으로 항상 0.0.1 사용 — PR 프리뷰 안내 주석의 원저자 개인 도메인을 예시 도메인으로 교체
 - build.gradle.kts, pom.xml 버전 감지 누락으로 항상 0.0.1 사용 — Kotlin DSL·Maven 버전과 JDK·application.yaml 감지 수정, 미치환 검증·설치 로그·타입 확정 단계 추가 (#78 #79 #80 #81 #82)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - 설치 마법사 출력 순서와 안내 정합성 정리 — 하위호환 분기를 걷어내고 배포 방식을 항상 택1로 단순화, 이전 워크플로우는 마법사가 정리
 
-**🔧 변경사항**
+**🔧 Changes**
 - 설치 마법사 감지·치환·템플릿·UX 전면 수정 (#77 #78 #79 #80 #81 #82)
 
 ---
@@ -563,10 +619,10 @@
 
 **PR:** #74  
 
-**✨ 기능**
+**✨ Features**
 - 설치 시점 baseline 기반 3-way 분류로 업데이트 지원 (#69)
 
-**🔧 변경사항**
+**🔧 Changes**
 - develop 최신 내용을 #69 작업 브랜치에 동기화
 - wip: baseline 모듈 초안 (#69)
 
@@ -576,7 +632,7 @@
 
 **PR:** #72  
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - 부분 설치·되돌리기 모드 제거 — full/uninstall/status/doctor로 정리 (#70)
 
 ---
@@ -585,7 +641,7 @@
 
 **PR:** #67  
 
-**🐛 수정**
+**🐛 Fixes**
 - 릴리스가 스킵될 때 버전-태그 드리프트를 감지해 실패시킴 (#61)
 
 ---
@@ -594,13 +650,13 @@
 
 **PR:** #64  
 
-**🐛 수정**
+**🐛 Fixes**
 - project_types 인라인 주석 때문에 파싱이 항상 실패하던 문제 수정 (#62)
 
-**♻️ 리팩토링**
+**♻️ Refactoring**
 - version.yml 레거시 단수 키 project_type 제거 (#62)
 
-**🔧 변경사항**
+**🔧 Changes**
 - main 최신 릴리스(v0.1.31) 내용을 develop에 동기화
 
 ---
@@ -609,7 +665,7 @@
 
 **PR:** #55  
 
-*변경사항 정보 없음*
+*No change information*
 
 ---
 
@@ -617,7 +673,7 @@
 
 **PR:** #53  
 
-**🔧 변경사항**
+**🔧 Changes**
 - payload_워크플로우_GitHub_Actions_최신화 — 설치되는 워크플로우의 GitHub Actions를 최신 메이저로 일괄 갱신
 
 ---
@@ -626,7 +682,7 @@
 
 **PR:** #49  
 
-**📝 문서**
+**📝 Documentation**
 - 릴리스_흐름_문서에_npm_배포_단계_반영 — 릴리스 흐름에 Release 이벤트 기반 npm 배포 설명 추가
 
 ---

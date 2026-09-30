@@ -1,10 +1,10 @@
 // tests/node/release-deploy-dispatch.test.js
-// 봇 토큰 병합(PAT 없음)으로 들어온 릴리스도 main 배포 워크플로우가 실행되도록
-// RELEASE-PUBLISH가 배포 워크플로우를 workflow_dispatch로 깨우는지, PAT·사람 병합이면
-// push 이벤트와 겹쳐 두 번 배포하지 않는지 고정한다.
+// Pin that RELEASE-PUBLISH wakes the deploy workflow via workflow_dispatch so releases merged
+// with a bot token (no PAT) still run the main deploy workflow, and that PAT/human merges
+// do not deploy twice by overlapping with the push event.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, existsSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,16 +16,16 @@ const STEP = "- name: Trigger deploy workflows";
 
 function stepBlock(body) {
   const idx = body.indexOf(STEP);
-  assert.ok(idx > -1, "배포 트리거 스텝이 없다");
+  assert.ok(idx > -1, "deploy trigger step is missing");
   const next = body.indexOf("\n      - name: ", idx + STEP.length);
   return body.slice(idx, next === -1 ? undefined : next);
 }
 
-// run: | 블록을 들여쓰기 10칸 기준으로 떼어 낸다 (YAML 블록 스칼라와 같은 결과).
+// Extract the run: | block using 10-space indentation (same result as a YAML block scalar).
 function runScript(body) {
   const lines = stepBlock(body).split("\n");
   const start = lines.findIndex((l) => l.trim() === "run: |");
-  assert.ok(start > -1, "run 블록이 없다");
+  assert.ok(start > -1, "run block is missing");
   const out = [];
   for (const l of lines.slice(start + 1)) {
     if (l.trim() && !l.startsWith(" ".repeat(10))) break;
@@ -35,26 +35,26 @@ function runScript(body) {
 }
 
 for (const path of [PAYLOAD_RP, DOGFOOD_RP]) {
-  test(`${path}: pr-flow에서 새로 발행한 릴리스일 때만 배포 워크플로우를 깨운다`, () => {
+  test(`${path}: wakes the deploy workflow only for a release newly published in pr-flow`, () => {
     const body = read(path);
     const step = stepBlock(body);
-    assert.ok(step.includes("steps.version.outputs.release_exists != 'true'"), "새로 발행한 릴리스에서만 깨워야 한다");
-    assert.ok(step.includes("steps.mode.outputs.mode == 'pr-flow'"), "trunk-based는 사람의 push가 이미 배포를 깨운다");
-    assert.ok(step.includes("GH_TOKEN: ${{ github.token }}"), "PAT 없이도 동작해야 한다");
-    assert.ok(step.includes("HAS_WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT != '' }}"), "병합 주체 조회 실패 시 PAT 여부로 판단한다");
-    assert.ok(body.indexOf(STEP) > body.indexOf("- name: Create GitHub Release"), "릴리스 발행 뒤에 와야 한다");
+    assert.ok(step.includes("steps.version.outputs.release_exists != 'true'"), "must wake only on a newly published release");
+    assert.ok(step.includes("steps.mode.outputs.mode == 'pr-flow'"), "in trunk-based the human push already wakes the deploy");
+    assert.ok(step.includes("GH_TOKEN: ${{ github.token }}"), "must work without a PAT");
+    assert.ok(step.includes("HAS_WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT != '' }}"), "when the merger lookup fails, decide by PAT presence");
+    assert.ok(body.indexOf(STEP) > body.indexOf("- name: Create GitHub Release"), "must come after the release is published");
     assert.match(body, /^permissions:[\s\S]*?^\s+actions:\s*write/m);
-    assert.match(body, /^permissions:[\s\S]*?^\s+pull-requests:\s*read/m, "병합 주체 조회에는 pull-requests: read가 필요하다");
+    assert.match(body, /^permissions:[\s\S]*?^\s+pull-requests:\s*read/m, "merger lookup needs pull-requests: read");
   });
 }
 
-test("RELEASE-PUBLISH 배포 트리거 스텝은 payload와 레포 사본이 같다", () => {
+test("RELEASE-PUBLISH deploy trigger step is identical in payload and repo copy", () => {
   assert.strictEqual(runScript(read(DOGFOOD_RP)), runScript(read(PAYLOAD_RP)));
 });
 
-// main push로 도는 배포 워크플로우는 모두 workflow_dispatch가 있어야 폴백이 깨울 수 있다.
-// 무중단 템플릿처럼 push가 주석 처리된 것도 설치 시 켜지므로 함께 본다.
-test("main push로 도는 payload 워크플로우는 모두 workflow_dispatch를 가진다", () => {
+// Every deploy workflow that runs on main push needs workflow_dispatch so the fallback can wake it.
+// Ones with push commented out, like the zero-downtime template, get enabled on install, so check them too.
+test("every payload workflow that runs on main push has workflow_dispatch", () => {
   const root = join("payload", "workflows");
   const files = readdirSync(root, { recursive: true }).filter((f) => /\.ya?ml$/.test(f));
   let checked = 0;
@@ -63,13 +63,13 @@ test("main push로 도는 payload 워크플로우는 모두 workflow_dispatch를
     const on = body.match(/^on:\n((?:[ #].*\n|\n)*)/m)?.[1] ?? "";
     if (!/^\s*#?\s*push:/m.test(on) || !on.includes("{{MAIN_BRANCH}}")) continue;
     checked++;
-    assert.match(on, /^ {2}workflow_dispatch:/m, `${f}에 workflow_dispatch가 없다`);
+    assert.match(on, /^ {2}workflow_dispatch:/m, `${f} has no workflow_dispatch`);
   }
-  assert.ok(checked >= 10, `검사한 워크플로우가 너무 적다: ${checked}`);
+  assert.ok(checked >= 10, `too few workflows checked: ${checked}`);
 });
 
 // ---------------------------------------------------------------
-// 실측: 가짜 gh로 스텝 스크립트를 실제 git 레포에서 돌린다.
+// Real run: execute the step script in a real git repo with a fake gh.
 // ---------------------------------------------------------------
 function hasPython3() {
   const r = spawnSync("python3", ["-c", "print(1)"], { encoding: "utf-8" });
@@ -88,7 +88,7 @@ function setupRepo({ releaseMerge = true } = {}) {
     assert.strictEqual(r.status, 0, r.stderr);
   };
 
-  // 설치된 상태를 흉내 낸다 — 플레이스홀더를 치환하고 무중단 CD는 push를 켠 형태로 둔다.
+  // Simulate an installed state: substitute placeholders and leave the zero-downtime CD with push enabled.
   const payloadRoot = join("payload", "workflows");
   for (const f of readdirSync(payloadRoot, { recursive: true }).filter((n) => /\.ya?ml$/.test(n))) {
     let body = read(join(payloadRoot, f)).replaceAll("{{MAIN_BRANCH}}", "main").replaceAll("{{DEVELOP_BRANCH}}", "develop");
@@ -103,7 +103,7 @@ function setupRepo({ releaseMerge = true } = {}) {
     }
     writeFileSync(join(work, ".github", "workflows", basename(f)), body);
   }
-  // 마법사가 설치하지 않은 사용자 워크플로우는 건드리지 않는다
+  // Leave user workflows not installed by the wizard untouched
   writeFileSync(join(work, ".github", "workflows", "my-deploy.yml"), "on:\n  push:\n    branches: [main]\n  workflow_dispatch:\n");
 
   writeFileSync(join(work, "README.md"), "x\n");
@@ -114,7 +114,7 @@ function setupRepo({ releaseMerge = true } = {}) {
   mkdirSync(join(work, "web"));
   writeFileSync(join(work, "web", "app.js"), "1\n");
   git("add", ".");
-  git("commit", "-q", "-m", "feat: 새 화면");
+  git("commit", "-q", "-m", "feat: new screen");
   git("checkout", "-q", "main");
   if (releaseMerge) {
     git("merge", "-q", "--no-ff", "-m", "chore(release): v0.2.0 (PR #7)", "develop");
@@ -123,7 +123,7 @@ function setupRepo({ releaseMerge = true } = {}) {
     git("commit", "-q", "--allow-empty", "-m", "chore(version): bump to v0.2.0 [skip ci]");
   }
 
-  // 가짜 gh: 병합 주체 조회는 FAKE_MERGED_BY(비면 실패), workflow run은 기록만 한다
+  // Fake gh: merger lookup returns FAKE_MERGED_BY (fails when empty); workflow run only records
   const log = join(root, "gh.log");
   writeFileSync(join(bin, "gh"), [
     "#!/usr/bin/env bash",
@@ -141,19 +141,22 @@ function setupRepo({ releaseMerge = true } = {}) {
 
 function runStep(t, { mergedBy = "", hasPat = "false", releaseMerge = true } = {}) {
   if (process.platform === "win32") {
-    t.skip("워크플로우 셸 조각은 ubuntu 러너용 bash 전제");
+    t.skip("workflow shell snippets assume bash on an ubuntu runner");
     return null;
   }
   if (!hasPython3()) {
-    t.skip("python3 없음");
+    t.skip("python3 not available");
     return null;
   }
   const { root, work, bin, log } = setupRepo({ releaseMerge });
   try {
+    // The step prints through the message catalog, so provide it like an installed repo does.
+    mkdirSync(join(work, ".github", "scripts"), { recursive: true });
+    copyFileSync(join("payload", "scripts", "messages.py"), join(work, ".github", "scripts", "messages.py"));
     const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", runScript(read(PAYLOAD_RP))], {
       cwd: work, encoding: "utf-8",
       env: {
-        ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "my-org/my-app",
+        ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_WORKSPACE: work, PROJECT_AUTO_WIZARD_LANG: "en", GITHUB_REPOSITORY: "my-org/my-app",
         FAKE_MERGED_BY: mergedBy, HAS_WORKFLOW_PAT: hasPat, RELEASE_VERSION: "0.2.0", MAIN_BRANCH: "main",
         PYTHONDONTWRITEBYTECODE: "1",
       },
@@ -170,10 +173,11 @@ function runStep(t, { mergedBy = "", hasPat = "false", releaseMerge = true } = {
   }
 }
 
-test("봇 토큰이 병합한 릴리스는 main 배포 워크플로우를 모두 깨운다", (t) => {
+test("a release merged by a bot token wakes all main deploy workflows", (t) => {
   const r = runStep(t, { mergedBy: "github-actions[bot]" });
   if (!r) return;
   assert.deepStrictEqual(r.api, ["api repos/my-org/my-app/pulls/7 --jq .merged_by.login // \"\""]);
+  assert.match(r.stdout, /PR #7 was merged with the bot token/);
   assert.deepStrictEqual(r.runs, [
     "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml",
     "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml",
@@ -184,26 +188,26 @@ test("봇 토큰이 병합한 릴리스는 main 배포 워크플로우를 모두
     "PROJECT-REACT-CICD.yaml",
     "PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml",
     "PROJECT-SPRING-SIMPLE-CICD.yaml",
-  ], "develop CI·공통·사용자 워크플로우·push가 꺼진 무중단 CD·paths가 맞지 않는 CD는 빠져야 한다");
+  ], "develop CI, common and user workflows, zero-downtime CD with push off, and CD with non-matching paths must be excluded");
 });
 
-test("봇 병합 판정은 github-actions[bot]과 정확히 일치할 때만 한다", (t) => {
-  // 접두사만 같은 다른 계정(예: 머신 계정)은 사람 병합으로 보고 건너뛴다
+test("bot merge is detected only on an exact github-actions[bot] match", (t) => {
+  // An account sharing only the prefix (e.g. a machine account) counts as a human merge and is skipped
   const machine = runStep(t, { mergedBy: "github-actions-machine", hasPat: "true" });
   if (!machine) return;
   assert.deepStrictEqual(machine.runs, []);
-  // PAT이 없어도 건너뛰어야 한다 — 병합 주체가 확인된 사람 계정이기 때문
+  // Must skip even without a PAT, because the merger is a confirmed human account
   assert.deepStrictEqual(runStep(t, { mergedBy: "github-actions-machine", hasPat: "false" }).runs, []);
   assert.ok(runStep(t, { mergedBy: "github-actions[bot]", hasPat: "true" }).runs.length > 0);
 });
 
-test("PAT·사람이 병합했으면 push 이벤트가 이미 배포했으므로 깨우지 않는다", (t) => {
+test("when a PAT or human merged, the push event already deployed, so do not wake", (t) => {
   const r = runStep(t, { mergedBy: "my-bot-user", hasPat: "true" });
   if (!r) return;
   assert.deepStrictEqual(r.runs, []);
 });
 
-test("병합 주체를 모르면 PAT이 있을 때는 건너뛰고 없을 때는 깨운다", (t) => {
+test("when the merger is unknown, skip if a PAT exists and wake if not", (t) => {
   const withPat = runStep(t, { mergedBy: "", hasPat: "true" });
   if (!withPat) return;
   assert.deepStrictEqual(withPat.runs, []);
@@ -211,7 +215,7 @@ test("병합 주체를 모르면 PAT이 있을 때는 건너뛰고 없을 때는
   assert.ok(noPat.runs.includes("PROJECT-SPRING-SIMPLE-CICD.yaml"), noPat.stdout);
 });
 
-test("릴리스 PR 병합이 아닌 릴리스(안전망 bump)는 깨우지 않는다", (t) => {
+test("a release not from a release PR merge (safety-net bump) does not wake", (t) => {
   const r = runStep(t, { mergedBy: "github-actions[bot]", releaseMerge: false });
   if (!r) return;
   assert.deepStrictEqual(r.api, []);

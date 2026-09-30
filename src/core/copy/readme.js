@@ -1,22 +1,25 @@
-// README 버전 섹션 추가.
+// Appends the README version section.
 import { join } from "node:path";
 import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
+import { t, SUPPORTED_LANGUAGES } from "../../i18n/index.js";
 
 export const MARKER = "<!-- AUTO-VERSION-SECTION";
-// ## (최신 버전|최신버전|Version|버전) : vX.Y.Z (대소문자 무시)
-const VERSION_LINE_RE = /##\s*(최신\s*버전|최신버전|Version|버전)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
+// "## <latest version|latest-version|current/recent version|Version|version> : vX.Y.Z", where the Korean words are written as
+// \u escapes so this file stays free of Hangul (case-insensitive)
+const VERSION_LINE_RE = /##\s*(\uCD5C\uC2E0\s*\uBC84\uC804|\uCD5C\uC2E0\uBC84\uC804|(?:latest|current|recent)[\s-]*version|Version|\uBC84\uC804)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 
-// 실행 로그용 설명 — 상태 코드만 남기면 나중에 로그를 읽는 사람이 의미를 다시 찾아봐야 한다.
+// Descriptions for the run log: a bare status code forces later readers to look up its meaning.
+// Getters keep the text lazy so it follows the language resolved at runtime.
 export const README_STATUS_LABEL = {
-  added: "README.md 끝에 버전 섹션 추가",
-  "skip-no-readme": "README.md가 없어 버전 섹션을 추가하지 않음",
-  "skip-marker": "이미 버전 섹션이 있어 그대로 둠",
-  "skip-version-line": "이미 버전 줄이 있어 그대로 둠",
+  get added() { return t("copy.readme.status.added"); },
+  get "skip-no-readme"() { return t("copy.readme.status.skipNoReadme"); },
+  get "skip-marker"() { return t("copy.readme.status.skipMarker"); },
+  get "skip-version-line"() { return t("copy.readme.status.skipVersionLine"); },
 };
 
-// README.md 없으면 스킵. 마커 또는 버전 라인 있으면 스킵. 없으면 파일 끝에 append.
-// 반환: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
-// 쓰지 않고 판정만 한다 — 실제 추가와 --dry-run 미리보기가 같은 판정을 쓰게 한다.
+// Skip when README.md is missing, or when a marker or version line exists. Otherwise append to the end.
+// Returns: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
+// Only decides without writing, so the real append and the --dry-run preview share one decision.
 export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
@@ -32,35 +35,37 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   const content = readFileSync(p, "utf8");
 
-  // 기존 본문과 구분선 사이에 빈 줄을 두도록 append 본문은 "\n---\n..."로 시작.
+  // The appended body starts with "\n---\n..." to leave a blank line between the existing text and the rule.
   const section =
     "\n" +
     "---\n" +
     "\n" +
     "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n" +
-    `## 최신 버전 : v${version}\n` +
+    t("copy.readme.versionHeading", { version }) + "\n" +
     "\n" +
-    "[전체 버전 기록 보기](CHANGELOG.md)\n";
-  // 끝 개행이 없는 README에 그대로 붙이면 마지막 줄 바로 다음 줄에 "---"가 와서
-  // 마크다운이 그 줄을 제목(Setext h2)으로 바꿔 버린다 — 줄을 먼저 끝낸다.
+    t("copy.readme.historyLink") + "\n";
+  // Appending directly to a README without a trailing newline puts "---" right after the last line,
+  // and Markdown turns that line into a heading (Setext h2), so terminate the line first.
   const lead = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
   appendFileSync(p, lead + section);
   return "added";
 }
 
-// addVersionSectionToReadme가 항상 파일 맨 끝에 붙이는 접두/접미 시퀀스.
-// 접두(SECTION_PREFIX)가 있으면 마법사가 append한 "블록"이다 — 이 블록은 항상 SECTION_TAIL
-// 라인으로 끝나므로, 그 지점까지만 잘라내야 그 뒤에 사용자가 나중에 덧붙인 내용(라이선스 절 등)을
-// 지우지 않는다("파일 끝까지" 자르면 사용자 콘텐츠가 소실된다).
+// Prefix/suffix sequence that addVersionSectionToReadme always appends at the very end of the file.
+// If the prefix (SECTION_PREFIX) is present it is a "block" appended by the wizard. The block always ends
+// with the SECTION_TAIL line, so cut only up to that point; cutting "to the end of the file" would delete
+// content the user appended later (a license section etc.).
 const SECTION_PREFIX = "\n---\n\n" + MARKER;
-const SECTION_TAIL = "[전체 버전 기록 보기](CHANGELOG.md)\n";
-// PROJECT-COMMON-README-VERSION-UPDATE.yaml(설치되는 CI)은 설치 시점에 이미 사용자가 자기 버전
-// 라인을 갖고 있던 README(addVersionSectionToReadme가 'skip-version-line'으로 건너뛴 경우)에는
-// '---' 구분자 없이 마커 주석 한 줄만 그 버전 라인 위에 끼워넣는다. 이 경우 버전 라인 자체는
-// 사용자 소유이므로 지우지 않고 마커 주석 한 줄만 제거한다.
+// The tail text depends on the language it was installed in, so a section written in one language must
+// still be removable under another: candidates from every supported language are matched.
+const sectionTails = () => [...new Set(SUPPORTED_LANGUAGES.map((l) => t("copy.readme.historyLink", {}, l) + "\n"))];
+// For a README that already had the user's own version line at install time (addVersionSectionToReadme
+// skipped it as 'skip-version-line'), PROJECT-COMMON-README-VERSION-UPDATE.yaml (the installed CI) inserts
+// only a marker comment line above that version line, without the '---' separator. The version line itself
+// is user-owned, so only the marker comment line is removed in that case.
 const MARKER_LINE = "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n";
 
-// README.md에 마법사(또는 설치된 CI)가 추가한 흔적이 있는지 확인 (체크리스트 노출 판단용).
+// Checks whether the wizard (or the installed CI) left traces in README.md (to decide on showing the checklist).
 export function hasVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return false;
@@ -68,7 +73,7 @@ export function hasVersionSection(targetRoot = ".") {
   return content.includes(SECTION_PREFIX) || content.includes(MARKER_LINE);
 }
 
-// 반환: 'removed' | 'skip-no-readme' | 'skip-no-marker' | 'skip-unexpected-format'
+// Returns: 'removed' | 'skip-no-readme' | 'skip-no-marker' | 'skip-unexpected-format'
 export function removeVersionSectionFromReadme(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
@@ -76,22 +81,27 @@ export function removeVersionSectionFromReadme(targetRoot = ".") {
 
   const idx = content.indexOf(SECTION_PREFIX);
   if (idx !== -1) {
-    // 마법사가 append한 전체 블록 케이스 — SECTION_TAIL 라인까지만 잘라내고 그 이후는 보존한다.
-    // tail을 못 찾거나(사용자가 그 줄을 지웠다면), 위저드 블록치고 너무 먼 곳에서 발견되면
-    // (사용자가 같은 문구를 자기 문서 어딘가로 옮겨 적은 경우) 그 사이 사용자 콘텐츠까지
-    // 지워버릴 수 있으므로 어디까지가 "마법사 구간"인지 확신할 수 없어 안전하게 포기한다.
-    // 위저드 블록은 버전 문자열이 길어져도 수백 바이트를 넘지 않는다.
+    // Whole block appended by the wizard: cut only up to the SECTION_TAIL line and keep everything after it.
+    // If the tail is missing (the user deleted that line), or is found too far away for a wizard block
+    // (the user copied the same text elsewhere in the document), user content in between could be deleted,
+    // and we cannot be sure where the "wizard section" ends, so give up safely.
+    // The wizard block stays within a few hundred bytes even with a long version string.
     const MAX_SECTION_LENGTH = 300;
-    const tailIdx = content.indexOf(SECTION_TAIL, idx);
+    let tailIdx = -1;
+    let tailLen = 0;
+    for (const tail of sectionTails()) {
+      const i = content.indexOf(tail, idx);
+      if (i !== -1 && (tailIdx === -1 || i < tailIdx)) { tailIdx = i; tailLen = tail.length; }
+    }
     if (tailIdx === -1 || tailIdx > idx + MAX_SECTION_LENGTH) return "skip-unexpected-format";
-    const cutEnd = tailIdx + SECTION_TAIL.length;
+    const cutEnd = tailIdx + tailLen;
     writeFileSync(p, content.slice(0, idx) + content.slice(cutEnd));
     return "removed";
   }
 
   const markerIdx = content.indexOf(MARKER_LINE);
   if (markerIdx !== -1) {
-    // CI가 사용자의 기존 버전 라인 위에 마커만 끼워넣은 케이스 — 버전 라인은 건드리지 않는다.
+    // The CI inserted only the marker above the user's existing version line; leave the version line alone.
     writeFileSync(p, content.slice(0, markerIdx) + content.slice(markerIdx + MARKER_LINE.length));
     return "removed";
   }

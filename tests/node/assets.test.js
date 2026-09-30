@@ -1,8 +1,8 @@
-// Task 12 게이트 — payload 단일 진실 배선 검증.
-// 1) resolvePayloadRoot()가 패키지 루트의 payload/를 가리킨다
-// 2) listCommonWorkflows()가 RELEASE-PUBLISH 포함 common 5종을 반환한다
-// 3) 제외된 모듈(ide/skills/issues/labels UI/exclusions) import가 src에 잔존하지 않는다
-// 4) copyScripts가 payload/scripts/*.py를 .github/scripts/로 설치한다 (누락 시 설치물 런타임 사망)
+// Gate: verifies the payload single-source-of-truth wiring.
+// 1) resolvePayloadRoot() points to payload/ at the package root
+// 2) listCommonWorkflows() returns the 5 common workflows including RELEASE-PUBLISH
+// 3) no imports of the removed modules (ide, skills, labels UI, exclusions and similar) remain in src
+// 4) copyScripts installs payload/scripts/*.py into .github/scripts/ (if missed, the installed workflows die at runtime)
 import { test } from "node:test";
 import assert from "node:assert";
 import { existsSync, readFileSync, readdirSync, mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
@@ -48,7 +48,7 @@ test("no residual imports of excluded modules in src/", () => {
   for (const f of files) {
     const body = readFileSync(join("src", f), "utf8");
     for (const b of banned) {
-      // import/호출 잔존만 검사 — 주석 속 이력 언급("구 acquireTemplate")은 허용
+      // Only check leftover imports/calls — historical mentions in comments ("old acquireTemplate") are allowed
       for (const line of body.split("\n")) {
         const code = line.split("//")[0];
         assert.ok(!code.includes(b), `src${sep}${f}: excluded reference '${b}' → ${line.trim()}`);
@@ -61,19 +61,20 @@ test("copyScripts installs payload python scripts into .github/scripts/", () => 
   const target = mkdtempSync(join(tmpdir(), "paw-scripts-"));
   try {
     const copied = copyScripts(resolvePayloadRoot(), target);
-    assert.strictEqual(copied.length, 4);
+    assert.strictEqual(copied.length, 5);
     assert.ok(copied.every((r) => r.action === "create"));
     assert.ok(existsSync(join(target, ".github", "scripts", "version_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "changelog_manager.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "truncate_release_notes.py")));
     assert.ok(existsSync(join(target, ".github", "scripts", "issue_helper.py")));
+    assert.ok(existsSync(join(target, ".github", "scripts", "messages.py")));
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-// 예전 버전이 커밋한 pyc는 업데이트 때 지운다 — 마법사 스크립트 폴더 밖은 건드리지 않는다.
-test("removeScriptBytecode는 .github/scripts의 pyc와 빈 __pycache__만 지운다", () => {
+// pyc files committed by older versions are removed on update — nothing outside the wizard script folder is touched.
+test("removeScriptBytecode removes only pyc files and empty __pycache__ under .github/scripts", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-pyc-"));
   try {
     const scripts = join(target, ".github", "scripts");
@@ -91,16 +92,16 @@ test("removeScriptBytecode는 .github/scripts의 pyc와 빈 __pycache__만 지�
       ".github/scripts/__pycache__/version_manager.cpython-312.pyc",
       ".github/scripts/old.pyc",
     ]);
-    assert.ok(!existsSync(join(scripts, "__pycache__")), "빈 __pycache__는 지운다");
-    assert.ok(existsSync(join(scripts, "version_manager.py")), "스크립트는 남긴다");
-    assert.ok(existsSync(join(target, "src", "__pycache__", "app.cpython-312.pyc")), "다른 경로의 pyc는 건드리지 않는다");
-    assert.deepStrictEqual(removeScriptBytecode(target), [], "두 번째 실행은 할 일이 없다");
+    assert.ok(!existsSync(join(scripts, "__pycache__")), "empty __pycache__ is removed");
+    assert.ok(existsSync(join(scripts, "version_manager.py")), "scripts are kept");
+    assert.ok(existsSync(join(target, "src", "__pycache__", "app.cpython-312.pyc")), "pyc files in other paths are not touched");
+    assert.deepStrictEqual(removeScriptBytecode(target), [], "the second run has nothing to do");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("removeScriptBytecode는 pyc가 아닌 파일이 남은 __pycache__는 지우지 않는다", () => {
+test("removeScriptBytecode does not remove a __pycache__ that still holds non-pyc files", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-pyc-"));
   try {
     const cache = join(target, ".github", "scripts", "__pycache__");
@@ -114,7 +115,7 @@ test("removeScriptBytecode는 pyc가 아닌 파일이 남은 __pycache__는 지�
   }
 });
 
-test("scripts 폴더가 없어도 removeScriptBytecode는 조용히 빈 목록을 돌려준다", () => {
+test("removeScriptBytecode quietly returns an empty list even when the scripts folder is missing", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-pyc-"));
   try {
     assert.deepStrictEqual(removeScriptBytecode(target), []);

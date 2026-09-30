@@ -1,5 +1,6 @@
 // tests/node/logger-copy.test.js
-// 파일별 복사 결정이 사유와 함께 로그에 남는지 회귀.
+// Regression that per-file copy decisions are logged along with their reasons.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -31,7 +32,7 @@ function ctxFor(target, now) {
   });
 }
 
-test("최초 설치: 새로 쓰이는 파일이 write로 기록된다", () => {
+test("first install: newly written files are recorded as write", () => {
   const target = springTarget();
   try {
     resetLogger();
@@ -43,23 +44,23 @@ test("최초 설치: 새로 쓰이는 파일이 write로 기록된다", () => {
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("재설치: 사용자가 수정한 파일은 keep-local로 사유와 함께 기록된다", () => {
+test("reinstall: a user-modified file is recorded as keep-local with its reason", () => {
   const target = springTarget();
   try {
     resetLogger();
     runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
     const wf = join(target, ".github/workflows/PROJECT-COMMON-VERSION-CONTROL.yaml");
-    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# 사용자가 추가한 줄\n");
+    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# line added by the user\n");
     const r = initLogger(target, { action: "update", now: "2026-08-26 12:10:00" });
     runFull(ctxFor(target, "2026-08-26 12:10:00"), resolvePayloadRoot(), target);
     closeLogger();
     const body = readFileSync(join(target, r.path), "utf8");
     assert.match(body, /copy {6}keep-local {2}PROJECT-COMMON-VERSION-CONTROL\.yaml/,
-      "사용자 수정본 유지가 사유와 함께 남아야 한다");
+      "keeping the user-modified copy must be logged with a reason");
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("재설치: 손대지 않은 파일은 skip(unchanged)으로 기록된다", () => {
+test("reinstall: an untouched file is recorded as skip(unchanged)", () => {
   const target = springTarget();
   try {
     resetLogger();
@@ -72,14 +73,14 @@ test("재설치: 손대지 않은 파일은 skip(unchanged)으로 기록된다",
   } finally { resetLogger(); rmSync(target, { recursive: true, force: true }); }
 });
 
-test("재설치: 자동 갱신된 파일은 요약에서 설치와 자동 갱신에 두 번 집계되지 않는다", () => {
+test("reinstall: an auto-updated file is not counted twice in the summary, under install and auto-update", () => {
   const target = springTarget();
   try {
     resetLogger();
     runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
-    // 이전 버전이 설치한 파일을 흉내 낸다 — 내용이 다르지만 baseline의 installed와 같으므로 사용자 미수정이다.
+    // Mimics a file installed by a previous version — the content differs but matches baseline's installed, so it is unmodified by the user.
     const name = "PROJECT-COMMON-VERSION-CONTROL.yaml";
-    const old = "# 이전 버전 템플릿\n";
+    const old = "# previous version template\n";
     writeFileSync(join(target, ".github/workflows", name), old);
     const bp = join(target, BASELINE_PATH);
     const baseline = JSON.parse(readFileSync(bp, "utf8"));

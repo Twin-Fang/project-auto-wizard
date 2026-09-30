@@ -1,5 +1,5 @@
-// 회귀 게이트 — 상용 SaaS(CodeRabbit) 연동이 되살아나지 않는지 감시한다.
-// 오픈소스 대회 제출 조건상 설치 산출물·마법사 코드 어디에도 상용 서비스 연동이 있으면 안 된다.
+// Regression gate: watches that commercial SaaS (CodeRabbit) integration does not come back.
+// Neither install outputs nor wizard code may contain any commercial service integration.
 import { test } from "node:test";
 import assert from "node:assert";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -32,46 +32,46 @@ function walk(dir, out = []) {
   return out;
 }
 
-test("payload/ 자산 어디에도 coderabbit 문자열이 없다", () => {
+test("no payload/ asset contains the coderabbit string", () => {
   const payloadRoot = resolvePayloadRoot();
   const offenders = walk(payloadRoot).filter((p) => NEEDLE.test(readFileSync(p, "utf8")));
-  assert.deepStrictEqual(offenders, [], `payload에 CodeRabbit 잔존: ${offenders.join(", ")}`);
+  assert.deepStrictEqual(offenders, [], `CodeRabbit remains in payload: ${offenders.join(", ")}`);
 });
 
-test("payload/coderabbit.yaml 자산 자체가 존재하지 않는다", () => {
+test("the payload/coderabbit.yaml asset itself does not exist", () => {
   assert.ok(!existsSync(join(resolvePayloadRoot(), "coderabbit.yaml")));
 });
 
-test("full 설치 산출물에 .coderabbit.yaml이 없고 version.yml에 coderabbit 키가 없다", () => {
+test("full install output has no .coderabbit.yaml and version.yml has no coderabbit key", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-no-crk-"));
   try {
     runFull(baseContext(), resolvePayloadRoot(), target);
 
-    assert.ok(!existsSync(join(target, ".coderabbit.yaml")), ".coderabbit.yaml이 설치되면 안 된다");
+    assert.ok(!existsSync(join(target, ".coderabbit.yaml")), ".coderabbit.yaml must not be installed");
     assert.ok(!NEEDLE.test(readFileSync(join(target, "version.yml"), "utf8")),
-      "version.yml에 coderabbit 키가 남으면 안 된다");
+      "version.yml must not keep a coderabbit key");
 
     const wfDir = join(target, ".github", "workflows");
     for (const f of readdirSync(wfDir)) {
-      assert.ok(!NEEDLE.test(readFileSync(join(wfDir, f), "utf8")), `${f}에 coderabbit 잔존`);
+      assert.ok(!NEEDLE.test(readFileSync(join(wfDir, f), "utf8")), `coderabbit remains in ${f}`);
     }
     const scriptsDir = join(target, ".github", "scripts");
     for (const f of readdirSync(scriptsDir)) {
-      assert.ok(!NEEDLE.test(readFileSync(join(scriptsDir, f), "utf8")), `${f}에 coderabbit 잔존`);
+      assert.ok(!NEEDLE.test(readFileSync(join(scriptsDir, f), "utf8")), `coderabbit remains in ${f}`);
     }
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("--coderabbit / --no-coderabbit / --keep-coderabbit 플래그는 더 이상 받지 않는다", () => {
+test("--coderabbit / --no-coderabbit / --keep-coderabbit flags are no longer accepted", () => {
   for (const flag of ["--coderabbit", "--no-coderabbit", "--keep-coderabbit"]) {
-    assert.throws(() => parseArgs([flag]), CliError, `${flag}는 거부되어야 한다`);
+    assert.throws(() => parseArgs([flag]), CliError, `${flag} must be rejected`);
   }
 });
 
-test("구 version.yml에 남은 coderabbit 키는 파싱 에러 없이 무시된다", () => {
-  // 하위호환: 이전 버전 마법사가 설치한 레포를 재실행해도 죽지 않아야 한다.
+test("a leftover coderabbit key in an old version.yml is ignored without a parse error", () => {
+  // Backward compatibility: re-running on a repo installed by an older wizard must not crash.
   const legacy = [
     "metadata:",
     "  template:",
@@ -85,6 +85,6 @@ test("구 version.yml에 남은 coderabbit 키는 파싱 에러 없이 무시된
   const parsed = parseTemplateOptions(legacy);
   assert.strictEqual("nexus" in parsed, false);
   assert.strictEqual("secretBackup" in parsed, false);
-  assert.strictEqual(parsed.semverAuto, true, "coderabbit 키 뒤의 semver_auto도 정상 파싱되어야 한다");
-  assert.ok(!("coderabbit" in parsed), "coderabbit은 파싱 결과에 남으면 안 된다");
+  assert.strictEqual(parsed.semverAuto, true, "semver_auto after the coderabbit key must still parse");
+  assert.ok(!("coderabbit" in parsed), "coderabbit must not remain in the parse result");
 });

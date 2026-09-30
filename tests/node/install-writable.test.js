@@ -1,5 +1,6 @@
 // tests/node/install-writable.test.js
-// 설치 대상 폴더에 쓸 수 없으면 아무것도 쓰기 전에 읽을 수 있는 에러로 멈춰야 한다.
+// If the install target folder is not writable, stop with a readable error before writing anything.
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
@@ -9,7 +10,7 @@ import { run } from "../../src/index.js";
 import { resetLogger } from "../../src/core/logger.js";
 import { findUnwritable } from "../../src/core/fsutil.js";
 
-// Windows는 폴더 쓰기 권한을 chmod로 막을 수 없고, root는 권한 검사를 우회한다.
+// Windows cannot block folder writes via chmod, and root bypasses permission checks.
 const skip = process.platform === "win32" || process.getuid?.() === 0;
 
 function springTarget() {
@@ -20,14 +21,14 @@ function springTarget() {
   return target;
 }
 
-test("findUnwritable: 모두 쓸 수 있으면 빈 목록", () => {
+test("findUnwritable: empty list when everything is writable", () => {
   const target = springTarget();
   try {
     assert.deepStrictEqual(findUnwritable(target, [".", ".github/workflows", ".github/.wizard"], ["version.yml"]), []);
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test(".github/.wizard에 쓸 수 없으면 아무 파일도 쓰지 않고 exit 1로 끝난다", { skip }, async () => {
+test(".github/.wizard is unwritable: writes nothing and exits with 1", { skip }, async () => {
   const target = springTarget();
   const wizard = join(target, ".github", ".wizard");
   mkdirSync(wizard, { recursive: true });
@@ -40,9 +41,9 @@ test(".github/.wizard에 쓸 수 없으면 아무 파일도 쓰지 않고 exit 1
     const code = await run(["--mode", "full", "--force", "--type", "spring"], { cwd: target });
     assert.strictEqual(code, 1);
     assert.ok(errors.some((e) => /쓰기 권한이 없어 설치를 시작하지 않았습니다/.test(e) && e.includes(".github/.wizard")),
-      "막힌 경로를 사람이 읽을 수 있게 알려야 한다");
-    assert.strictEqual(existsSync(join(target, ".github", "workflows")), false, "워크플로우를 먼저 써 두면 안 된다");
-    assert.strictEqual(existsSync(join(target, "version.yml")), false, "version.yml을 먼저 써 두면 안 된다");
+      "the blocked path must be reported in a human-readable way");
+    assert.strictEqual(existsSync(join(target, ".github", "workflows")), false, "workflows must not be written first");
+    assert.strictEqual(existsSync(join(target, "version.yml")), false, "version.yml must not be written first");
   } finally {
     console.error = origError;
     resetLogger();

@@ -1,5 +1,5 @@
 # project-auto-wizard:managed-workflow
-# Spring CI 워크플로우
+# Spring CI workflow
 
 name: PROJECT-SPRING-CI
 
@@ -19,13 +19,13 @@ permissions:
 
 env:
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
-  # 모노레포에서 이 프로젝트가 있는 하위 경로 ('.'이면 항상 검증)
+  # Subdirectory of this project in a monorepo ('.' = always verify)
   PROJECT_PATH: "."  # @wizard auto:project-path
 
 jobs:
-  # 변경 감지 (모노레포에서 이 프로젝트 경로가 바뀌었는지 판별)
+  # Change detection (decides whether this project's path changed in a monorepo)
   changes:
-    name: 변경 감지
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,13 +36,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: 프로젝트 경로 변경 여부 판별
+      - name: Detect project path changes
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
-          # push는 이번 push 범위(직전 커밋 before 대비)만 본다. 비워 두면 기본 브랜치 대비 누적 diff가 된다.
-          # 새 브랜치 첫 push(before가 0)와 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 대비)
+          # A push only looks at this push's range (against the previous commit, 'before'). Left empty it would diff cumulatively against the default branch.
+          # The first push of a new branch (before is 0) and PRs use an empty value -> default behavior (against the default branch / PR base)
           base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
-    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    # In a monorepo (--paths) build inside that subfolder
     defaults:
       run:
         working-directory: ${{ env.PROJECT_PATH }}
@@ -63,6 +63,9 @@ jobs:
       uses: actions/checkout@v7
       with:
         fetch-depth: 0
+
+    - name: Load messages
+      run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
 
     - name: Setup JDK
       uses: actions/setup-java@v5
@@ -87,7 +90,7 @@ jobs:
       run: |
         set +e
         ./gradlew compileJava compileTestJava 2>&1 | tee compile_output.txt
-        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        # $? is tee's exit code, so read gradle's result from PIPESTATUS
         echo "compile_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
@@ -97,7 +100,7 @@ jobs:
       run: |
         set +e
         ./gradlew test 2>&1 | tee test_output.txt
-        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        # $? is tee's exit code, so read gradle's result from PIPESTATUS
         echo "test_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
@@ -107,7 +110,7 @@ jobs:
       run: |
         set +e
         ./gradlew build -x test 2>&1 | tee build_output.txt
-        # $?는 tee의 종료 코드라 gradle 결과는 PIPESTATUS로 읽는다
+        # $? is tee's exit code, so read gradle's result from PIPESTATUS
         echo "build_exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         set -e
       continue-on-error: true
@@ -116,101 +119,113 @@ jobs:
       id: report
       if: always()
       run: |
-        COMPILE_STATUS="✅ 성공"
-        TEST_STATUS="✅ 성공"
-        BUILD_STATUS="✅ 성공"
+        m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+        STATUS_OK="$(m wf_spring_ci.status_ok)"
+        STATUS_FAIL="$(m wf_spring_ci.status_fail)"
+        COMPILE_STATUS="$STATUS_OK"
+        TEST_STATUS="$STATUS_OK"
+        BUILD_STATUS="$STATUS_OK"
         
         COMPILE_EXIT_CODE="${{ steps.compile.outputs.compile_exit_code }}"
         if [ "$COMPILE_EXIT_CODE" != "0" ] && [ "$COMPILE_EXIT_CODE" != "" ]; then
-          COMPILE_STATUS="❌ 실패"
+          COMPILE_STATUS="$STATUS_FAIL"
         fi
         
         TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
         if [ "$TEST_EXIT_CODE" != "0" ] && [ "$TEST_EXIT_CODE" != "" ]; then
-          TEST_STATUS="❌ 실패"
+          TEST_STATUS="$STATUS_FAIL"
         fi
         
         BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
         if [ "$BUILD_EXIT_CODE" != "0" ] && [ "$BUILD_EXIT_CODE" != "" ]; then
-          BUILD_STATUS="❌ 실패"
+          BUILD_STATUS="$STATUS_FAIL"
         fi
         
-        OVERALL_STATUS="✅ 성공"
+        OVERALL_STATUS="$STATUS_OK"
+        OVERALL_OK=true
         if [ "$COMPILE_EXIT_CODE" != "0" ] || [ "$TEST_EXIT_CODE" != "0" ] || [ "$BUILD_EXIT_CODE" != "0" ]; then
-          OVERALL_STATUS="❌ 실패"
+          OVERALL_STATUS="$STATUS_FAIL"
+          OVERALL_OK=false
         fi
         
         echo "compile_status=$COMPILE_STATUS" >> $GITHUB_OUTPUT
         echo "test_status=$TEST_STATUS" >> $GITHUB_OUTPUT
         echo "build_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
         echo "overall_status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+        # Language-neutral flag for the step conditions below
+        echo "overall_ok=$OVERALL_OK" >> $GITHUB_OUTPUT
 
     - name: Extract Error Details
       id: errors
       if: always()
       run: |
+        m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         if [ -f compile_output.txt ] && [ "${{ steps.compile.outputs.compile_exit_code }}" != "0" ]; then
           echo "compile_errors<<EOF" >> $GITHUB_OUTPUT
-          echo "## 🚨 컴파일 에러" >> $GITHUB_OUTPUT
+          m wf_spring_ci.err_compile_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
-          grep -A 15 -B 15 "error\|Error\|ERROR\|FAILED\|Failed\|failed" compile_output.txt | head -60 >> $GITHUB_OUTPUT || echo "에러 로그를 찾을 수 없습니다." >> $GITHUB_OUTPUT
+          grep -A 15 -B 15 "error\|Error\|ERROR\|FAILED\|Failed\|failed" compile_output.txt | head -60 >> $GITHUB_OUTPUT || m wf_spring_ci.err_compile_missing >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
         if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ]; then
           echo "test_errors<<EOF" >> $GITHUB_OUTPUT
-          echo "## 🧪 테스트 실패" >> $GITHUB_OUTPUT
+          m wf_spring_ci.err_test_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
-          grep -A 15 -B 15 "FAILED\|Failed\|failed\|error\|Error\|ERROR" test_output.txt | head -60 >> $GITHUB_OUTPUT || echo "테스트 에러 로그를 찾을 수 없습니다." >> $GITHUB_OUTPUT
+          grep -A 15 -B 15 "FAILED\|Failed\|failed\|error\|Error\|ERROR" test_output.txt | head -60 >> $GITHUB_OUTPUT || m wf_spring_ci.err_test_missing >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
         if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ]; then
           echo "build_errors<<EOF" >> $GITHUB_OUTPUT
-          echo "## 📦 빌드 에러" >> $GITHUB_OUTPUT
+          m wf_spring_ci.err_build_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
-          grep -A 15 -B 15 "FAILED\|Failed\|failed\|error\|Error\|ERROR" build_output.txt | head -60 >> $GITHUB_OUTPUT || echo "빌드 에러 로그를 찾을 수 없습니다." >> $GITHUB_OUTPUT
+          grep -A 15 -B 15 "FAILED\|Failed\|failed\|error\|Error\|ERROR" build_output.txt | head -60 >> $GITHUB_OUTPUT || m wf_spring_ci.err_build_missing >> $GITHUB_OUTPUT
           echo '```' >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         fi
 
     - name: Comment on PR (Success)
-      if: github.event_name == 'pull_request' && steps.report.outputs.overall_status == '✅ 성공'
+      if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'true'
       uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
+          const M = JSON.parse(process.env.PAW_MSG);
+          const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
           });
           
-          // 기존 봇 댓글 찾기
+          // Find the existing bot comment
           const botComment = comments.find(comment => 
             comment.user.type === 'Bot' && 
             comment.body.includes('🔧 CI Build Check')
           );
           
-          const successMessage = `## 🔧 CI Build Check 결과
-          
-          ### ✅ 빌드 성공!
-          
-          | 단계 | 상태 |
-          |------|------|
-          | 컴파일 | ${{ steps.report.outputs.compile_status }} |
-          | 테스트 | ${{ steps.report.outputs.test_status }} |
-          | 빌드 | ${{ steps.report.outputs.build_status }} |
-          
-          **전체 상태**: ${{ steps.report.outputs.overall_status }}
-          
-          ---
-          *🤖 GitHub Actions에 의해 자동 생성됨 - ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}*`;
+          const successMessage = [
+            m('comment_title'),
+            '',
+            m('comment_success'),
+            '',
+            m('table_header'),
+            '|------|------|',
+            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
+            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
+            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            '',
+            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            '',
+            '---',
+            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+          ].join('\n');
           
           if (botComment) {
             await github.rest.issues.updateComment({
@@ -229,18 +244,20 @@ jobs:
           }
 
     - name: Comment on PR (Failure)
-      if: github.event_name == 'pull_request' && steps.report.outputs.overall_status == '❌ 실패'
+      if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'false'
       uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
+          const M = JSON.parse(process.env.PAW_MSG);
+          const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
           });
           
-          // 기존 봇 댓글 찾기
+          // Find the existing bot comment
           const botComment = comments.find(comment => 
             comment.user.type === 'Bot' && 
             comment.body.includes('🔧 CI Build Check')
@@ -248,44 +265,46 @@ jobs:
           
           let errorDetails = '';
           
-          // 컴파일 에러 추가
+          // Append compile errors
           if ('${{ steps.errors.outputs.compile_errors }}') {
             errorDetails += '${{ steps.errors.outputs.compile_errors }}\n\n';
           }
           
-          // 테스트 에러 추가  
+          // Append test errors
           if ('${{ steps.errors.outputs.test_errors }}') {
             errorDetails += '${{ steps.errors.outputs.test_errors }}\n\n';
           }
           
-          // 빌드 에러 추가
+          // Append build errors
           if ('${{ steps.errors.outputs.build_errors }}') {
             errorDetails += '${{ steps.errors.outputs.build_errors }}\n\n';
           }
           
-          const failureMessage = `## 🔧 CI Build Check 결과
-          
-          ### ❌ 빌드 실패!
-          
-          | 단계 | 상태 |
-          |------|------|
-          | 컴파일 | ${{ steps.report.outputs.compile_status }} |
-          | 테스트 | ${{ steps.report.outputs.test_status }} |
-          | 빌드 | ${{ steps.report.outputs.build_status }} |
-          
-          **전체 상태**: ${{ steps.report.outputs.overall_status }}
-          
-          ### 📋 에러 상세 정보
-          
-          ${errorDetails}
-          
-          ### 🔧 해결 방법
-          - 로컬에서 \`./gradlew clean build\` 명령어로 빌드를 확인해보세요
-          - 에러 메시지를 참고하여 코드를 수정해주세요
-          - 테스트가 실패한 경우 \`./gradlew test\` 명령어로 테스트를 실행해보세요
-          
-          ---
-          *🤖 GitHub Actions에 의해 자동 생성됨 - ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}*`;
+          const failureMessage = [
+            m('comment_title'),
+            '',
+            m('comment_failure'),
+            '',
+            m('table_header'),
+            '|------|------|',
+            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
+            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
+            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            '',
+            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            '',
+            m('details_header'),
+            '',
+            errorDetails,
+            '',
+            m('fix_header'),
+            m('fix_build'),
+            m('fix_error'),
+            m('fix_test'),
+            '',
+            '---',
+            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+          ].join('\n');
           
           if (botComment) {
             await github.rest.issues.updateComment({
@@ -309,8 +328,10 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const conclusion = '${{ steps.report.outputs.overall_status }}' === '✅ 성공' ? 'success' : 'failure';
-          const summary = `빌드 검증이 ${conclusion === 'success' ? '성공' : '실패'}했습니다.`;
+          const M = JSON.parse(process.env.PAW_MSG);
+          const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
+          const conclusion = '${{ steps.report.outputs.overall_ok }}' === 'true' ? 'success' : 'failure';
+          const summary = m(conclusion === 'success' ? 'check_summary_success' : 'check_summary_failure');
           
           await github.rest.checks.create({
             owner: context.repo.owner,
@@ -322,33 +343,42 @@ jobs:
             output: {
               title: '🔧 CI Build Check',
               summary: summary,
-              text: `
-              컴파일: ${{ steps.report.outputs.compile_status }}
-              테스트: ${{ steps.report.outputs.test_status }}  
-              빌드: ${{ steps.report.outputs.build_status }}
-              `
+              text: '\n    ' + m('check_compile', { status: '${{ steps.report.outputs.compile_status }}' }) +
+                '\n    ' + m('check_test', { status: '${{ steps.report.outputs.test_status }}' }) + '  ' +
+                '\n    ' + m('check_build', { status: '${{ steps.report.outputs.build_status }}' }) +
+                '\n    '
             }
           });
 
     - name: Fail Job on Build Failure
-      if: steps.report.outputs.overall_status == '❌ 실패'
+      if: steps.report.outputs.overall_ok == 'false'
       run: |
-        echo "❌ 빌드가 실패했습니다. 위의 에러 메시지를 확인해주세요."
+        python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get wf_spring_ci.build_failed
         exit 1
 
-  # CI Gate (required check로 등록할 단일 job)
+  # CI Gate (the single job to register as a required check)
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
     needs: [changes, build-check]
     runs-on: ubuntu-latest
     steps:
-      - name: 결과 집계
+      # Sparse checkout: only the message catalog and version.yml (language setting) are needed here
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Aggregate results
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          echo "needs 결과: $RESULTS"
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          m wf_spring_ci.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
-            echo "실패하거나 취소된 job이 있습니다."
+            m wf_spring_ci.gate_failed
             exit 1
           fi

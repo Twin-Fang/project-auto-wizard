@@ -1,6 +1,7 @@
 // tests/node/detect-monorepo-paths.test.js
-// 루트에 마커가 없는 모노레포: 옵션 없이 실행하면 하위 폴더를 안내하고,
-// --paths만 주면 그 타입으로 설치해야 한다(basic + project_paths 모순 상태 금지).
+// Monorepo with no markers at the root: running without options points to subfolders,
+// and giving only --paths must install that type (no contradictory basic + project_paths state).
+import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
@@ -25,7 +26,7 @@ function monorepo(extra = {}) {
   return root;
 }
 
-// run()이 stderr로 내는 안내(console.error와 경로 확정 로그)를 모은다
+// Collect the notices run() writes to stderr (console.error and the path confirmation log)
 async function runCapture(argv, cwd) {
   const errs = [];
   const origErr = console.error;
@@ -44,7 +45,7 @@ async function runCapture(argv, cwd) {
   }
 }
 
-test("detectTypes: 루트 마커가 없으면 하위 폴더 프로젝트와 --paths 예시를 경고한다", () => {
+test("detectTypes: warns about subfolder projects and a --paths example when the root has no markers", () => {
   const root = monorepo();
   try {
     const warned = [];
@@ -57,7 +58,7 @@ test("detectTypes: 루트 마커가 없으면 하위 폴더 프로젝트와 --pa
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("detectTypes: 하위 폴더에도 프로젝트가 없으면 경고하지 않는다", () => {
+test("detectTypes: does not warn when no subfolder has a project either", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-mono-detect-"));
   try {
     mkdirSync(join(root, "docs"));
@@ -67,7 +68,7 @@ test("detectTypes: 하위 폴더에도 프로젝트가 없으면 경고하지 �
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("detectTypes: --paths의 타입을 순서대로 쓰고 루트 package.json의 node는 뺀다", () => {
+test("detectTypes: uses the --paths types in order and drops node from the root package.json", () => {
   const root = monorepo({ "package.json": JSON.stringify({ name: "workspace", private: true }) });
   try {
     const paths = new Map([["spring", "server"], ["react", "client"]]);
@@ -75,7 +76,7 @@ test("detectTypes: --paths의 타입을 순서대로 쓰고 루트 package.json�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("run(): 옵션 없이 실행하면 basic으로 설치하되 하위 폴더 안내를 출력한다", async () => {
+test("run(): running without options installs basic but prints the subfolder notice", async () => {
   const root = monorepo();
   try {
     const { code, stderr } = await runCapture(["--mode", "full", "--force"], root);
@@ -85,7 +86,7 @@ test("run(): 옵션 없이 실행하면 basic으로 설치하되 하위 폴더 �
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("run(): --paths만 주면 그 타입으로 설치된다", async () => {
+test("run(): giving only --paths installs that type", async () => {
   const root = monorepo();
   try {
     const { code } = await runCapture(["--mode", "full", "--force", "--paths", "spring=server,react=client"], root);
@@ -97,7 +98,7 @@ test("run(): --paths만 주면 그 타입으로 설치된다", async () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("run(): --paths 경로에 그 타입의 마커가 없으면 경고한다", async () => {
+test("run(): warns when the --paths path has no marker for that type", async () => {
   const root = monorepo();
   try {
     const { code, stderr } = await runCapture(["--mode", "full", "--force", "--paths", "flutter=client"], root);

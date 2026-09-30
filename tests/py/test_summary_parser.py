@@ -1,8 +1,9 @@
-"""AI 엔진 체인이 생성하는 요약 Markdown의 파싱 회귀 테스트.
+"""Regression tests for parsing the summary Markdown produced by the engine chain.
 
-CodeRabbit 제거 이후 `### 섹션` + `- 항목` 형식(render_fallback_md 및
-_build_ai_prompt가 지정하는 형식)이 유일한 입력 형식이 된다. 이 형식이
-카테고리·항목으로 정확히 파싱되는지를 고정한다.
+The `### Section` + `- item` format (the one render_fallback_md and
+_build_ai_prompt specify) is the only input format. These tests pin that it
+parses into categories and items exactly. Section titles are parsed verbatim,
+so both English and Korean headings must work (existing repos hold Korean history).
 """
 
 import importlib.util
@@ -14,11 +15,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "changelog_manager.py"
 
-# payload/는 npm 패키징 대상(files 화이트리스트) — import 부작용으로
-# payload/scripts/__pycache__/*.pyc가 생기면 npm pack 산출물을 오염시킨다.
+# payload/ is part of the npm package (files whitelist) — a payload/scripts/__pycache__/*.pyc
+# created as an import side effect would pollute the npm pack output.
 sys.dont_write_bytecode = True
 
 _spec = importlib.util.spec_from_file_location("changelog_manager", SCRIPT)
@@ -27,7 +29,7 @@ _spec.loader.exec_module(cm)
 
 
 class TestSectionFormatParsing(unittest.TestCase):
-    """AI 엔진이 실제로 뱉는 형식이 파싱되는지."""
+    """The format the engine really emits parses correctly (Korean headings)."""
 
     def test_section_headings_become_categories(self):
         md = (
@@ -49,14 +51,14 @@ class TestSectionFormatParsing(unittest.TestCase):
         self.assertEqual(titles["🐛 수정"], ["널 포인터 예외 수정"])
 
     def test_version_header_is_not_a_category(self):
-        """`## [1.2.3]` 버전 헤더가 카테고리로 잡히면 안 된다."""
+        """A `## [1.2.3]` version heading must not become a category."""
         md = "## [1.2.3]\n\n### ✨ 기능\n- 항목\n"
         parsed = cm._parse_summary_markdown(md)
         self.assertEqual(len(parsed), 1)
         self.assertEqual(next(iter(parsed.values()))["title"], "✨ 기능")
 
     def test_bullets_are_not_split_into_empty_categories(self):
-        """회귀: 각 불릿이 항목 0개짜리 카테고리로 쪼개지던 버그."""
+        """Regression: each bullet used to be split into a category with zero items."""
         md = "### 🔧 변경사항\n- 의존성 업그레이드\n- 로깅 정리\n"
         parsed = cm._parse_summary_markdown(md)
         self.assertEqual(len(parsed), 1)
@@ -70,7 +72,21 @@ class TestSectionFormatParsing(unittest.TestCase):
         self.assertEqual(only["items"], ["별표 항목", "대시 항목"])
 
     def test_render_fallback_md_output_round_trips(self):
-        """규칙 기반 폴백 렌더러의 출력이 그대로 다시 파싱되어야 한다."""
+        """The rule-based fallback renderer output must parse back as is (ko)."""
+        with mock.patch.dict(os.environ, {"PROJECT_AUTO_WIZARD_LANG": "ko"}):
+            self._round_trip_ko()
+
+    def test_render_fallback_md_output_round_trips_english(self):
+        """Same round trip with the English section titles (default language)."""
+        with mock.patch.dict(os.environ, {"PROJECT_AUTO_WIZARD_LANG": "en"}):
+            classified = {"feat": ["feature A"], "fix": ["bug B"], "chore": ["chore C"], "changes": []}
+            parsed = cm._parse_summary_markdown(cm.render_fallback_md(classified, "9.9.9"))
+        flattened = {v["title"]: v["items"] for v in parsed.values()}
+        self.assertEqual(flattened.get("✨ Features"), ["feature A"])
+        self.assertEqual(flattened.get("🐛 Fixes"), ["bug B"])
+        self.assertEqual(flattened.get("🔧 Changes"), ["chore C"])
+
+    def _round_trip_ko(self):
         classified = {
             "feat": ["기능 A"],
             "fix": ["버그 B"],
@@ -86,7 +102,7 @@ class TestSectionFormatParsing(unittest.TestCase):
         self.assertEqual(flattened.get("🔧 변경사항"), ["잡무 C"])
 
     def test_nested_bullet_format_still_parses(self):
-        """구형 중첩 불릿 형식도 폴백 파서로 계속 처리된다(하위호환)."""
+        """The legacy nested-bullet format is still handled by the fallback parser (backward compatible)."""
         md = "* **Features**\n  * add login\n  * add widget\n"
         parsed = cm._parse_summary_markdown(md)
         only = next(iter(parsed.values()))

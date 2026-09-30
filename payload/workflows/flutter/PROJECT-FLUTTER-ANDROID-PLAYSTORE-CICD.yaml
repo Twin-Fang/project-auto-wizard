@@ -1,29 +1,29 @@
 # project-auto-wizard:managed-workflow
-# Flutter Android Play Store 내부 테스트 배포 워크플로우
+# Flutter Android Play Store internal testing deploy workflow
 #
-# {{MAIN_BRANCH}} 브랜치 푸시 시 Android AAB를 빌드하고
-# Play Store 내부 테스트에 자동 배포합니다.
+# On a push to the {{MAIN_BRANCH}} branch, builds the Android AAB and
+# deploys it to Play Store internal testing.
 #
-# 필수 GitHub Secrets
-# ENV_FILE 또는 ENV: .env 파일 내용 (둘 중 하나, ENV_FILE 우선)
-# RELEASE_KEYSTORE_BASE64: 서명용 keystore (base64)
-# RELEASE_KEYSTORE_PASSWORD: keystore 비밀번호
+# Required GitHub Secrets
+# ENV_FILE or ENV: contents of the .env file (either one; ENV_FILE takes precedence)
+# RELEASE_KEYSTORE_BASE64: signing keystore (base64)
+# RELEASE_KEYSTORE_PASSWORD: keystore password
 # RELEASE_KEY_ALIAS: key alias
-# RELEASE_KEY_PASSWORD: key 비밀번호
-# GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
-# GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Play Console 서비스 계정 (base64)
-# ANDROID_PACKAGE_NAME: 앱 패키지명 (Secret 우선, 없으면 Variable) — fastlane에 PACKAGE_NAME으로 전달
+# RELEASE_KEY_PASSWORD: key password
+# GOOGLE_SERVICES_JSON (optional): Firebase google-services.json
+# GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Play Console service account (base64)
+# ANDROID_PACKAGE_NAME: app package name (Secret first, otherwise Variable) - passed to fastlane as PACKAGE_NAME
 
 name: PROJECT-FLUTTER-ANDROID-PLAYSTORE-INTERNAL-CICD
 
 on:
   push:
     branches: ["{{MAIN_BRANCH}}"]
-    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
+    # @wizard paths-anchor (in a monorepo the installer injects a paths filter here)
   workflow_dispatch:
     inputs:
       deploy_mode:
-        description: "배포 모드 (store_only=internal까지 / store_prepare=production draft / store_submit=심사 자동등록)"
+        description: "Deploy mode (store_only = up to internal / store_prepare = production draft / store_submit = auto-submit for review)"
         required: false
         default: "store_only"  # @wizard auto:android-deploy-mode
         type: choice
@@ -32,32 +32,32 @@ on:
           - store_prepare
           - store_submit
 
-# 프로젝트별 설정 (아래 값들을 수정하세요)
+# Project settings (edit the values below)
 env:
-  # 프로젝트 이름
+  # Project name
   APP_ARTIFACT_NAME: "__APP_ARTIFACT_NAME__"  # @wizard ask:@repo
-  # Flutter/Java 버전
-  # Flutter SDK 버전 — 비워 두면 stable 채널 최신을 쓴다(최신 flutter create 프로젝트의 SDK 제약과 맞음).
-  # 특정 버전에 고정하려면 "3.38.9"처럼 적는다. pubspec.yaml의 environment.sdk 범위를 만족해야 한다.
+  # Flutter/Java versions
+  # Flutter SDK version - leave empty to use the latest stable channel (matches the SDK constraint of a fresh flutter create project).
+  # To pin a version, write it like "3.38.9". It must satisfy the environment.sdk range in pubspec.yaml.
   FLUTTER_VERSION: ""
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:17
   PROJECT_TYPE: "flutter"
-  # Flutter 루트 경로(레포 루트 기준). 단일레포면 ".", 모노레포면 "app" 등.
-  # 통합 시점에 integrator의 flutter-root resolver가 project_paths.flutter 값으로 1회 치환.
+  # Flutter root path (relative to the repo root): "." for a single repo, "app" etc. for a monorepo.
+  # At integration time the integrator's flutter-root resolver substitutes the project_paths.flutter value once.
   FLUTTER_PROJECT_DIR: "."  # @wizard auto:flutter-root
-  # 환경변수 전달 방식 (dart-define | dotenv) — 설치 시 선택값으로 자동 설정
+  # How env vars are passed (dart-define | dotenv) - set automatically from the install-time choice
   ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode
-  # 배포 모드 (store_only | store_prepare | store_submit) — 마지막 폴백값은 설치 시 선택값으로 설정, 변수·수동 입력이 항상 우선
+  # Deploy mode (store_only | store_prepare | store_submit) - the last fallback is set from the install-time choice; the variable and manual input always take precedence
   DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode
 
 jobs:
   prepare-build:
-    name: 환경 설정 및 준비
+    name: Environment setup and preparation
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
-    # CHANGELOG 워크플로우가 성공한 경우에만 실행
+    # Run only when the CHANGELOG workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
 
     outputs:
@@ -72,9 +72,9 @@ jobs:
           ref: "{{MAIN_BRANCH}}"
           fetch-depth: 0
 
-      # 서명·업로드 Secret이 없으면 빌드를 한참 진행한 뒤에야 실패하므로, 빠진 이름을 먼저 모두 알려 주고 멈춘다
-      # GOOGLE_SERVICES_JSON은 선택이라 점검하지 않는다
-      - name: 배포 사전 점검 (Secret)
+      # Without the signing/upload Secrets the run would only fail well into the build, so report all missing names first and stop
+      # GOOGLE_SERVICES_JSON is optional, so it is not checked
+      - name: Pre-deploy check (Secrets)
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -83,17 +83,18 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
           ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64; do
             [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
           done
-          # 패키지명은 Secret 대신 Variable로 등록해도 된다
-          [ -n "$ANDROID_PACKAGE_NAME" ] || MISSING="$MISSING ANDROID_PACKAGE_NAME(Secret 또는 Variable)"
+          # The package name may be registered as a Variable instead of a Secret
+          [ -n "$ANDROID_PACKAGE_NAME" ] || MISSING="$MISSING ANDROID_PACKAGE_NAME(Secret or Variable)"
           if [ -n "$MISSING" ]; then
-            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            echo "::error title=$(m flutter_a.precheck_missing_title)::$(m flutter_a.precheck_missing_body missing="$MISSING")"
             exit 1
           fi
-          echo "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다"
+          m flutter_a.precheck_passed
 
       - name: Pull latest changes
         run: git pull origin {{MAIN_BRANCH}}
@@ -133,63 +134,65 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-      - name: 현재 버전 정보 가져오기
+      - name: Get current version
         id: current_version
-        working-directory: ${{ github.workspace }}   # version_manager.py가 레포 루트 version.yml을 읽어야 함
+        working-directory: ${{ github.workspace }}   # version_manager.py must read the repo-root version.yml
         run: |
-          # VERSION 가져오기 (x.y.z 형식)
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # Get VERSION (x.y.z format)
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
 
-          # VERSION_CODE 가져오기 (version.yml에서 관리되는 단순 증가 번호)
+          # Get VERSION_CODE (a simple incrementing number managed in version.yml)
           VERSION_CODE=$(python3 .github/scripts/version_manager.py get-code | tail -n 1)
 
-          # 결과 출력
+          # Print the result
           echo "✅ VERSION: $VERSION"
           echo "✅ VERSION_CODE: $VERSION_CODE"
-          echo "🔧 프로젝트 타입: ${{ env.PROJECT_TYPE }}"
+          m flutter_a.project_type project_type="${{ env.PROJECT_TYPE }}"
 
-          # GitHub outputs 설정
+          # Set GitHub outputs
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
           echo "project_type=${{ env.PROJECT_TYPE }}" >> $GITHUB_OUTPUT
 
-          # 환경변수로도 설정 (스크립트에서 사용)
+          # Also set as environment variables (used by scripts)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
           echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
           echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
           echo "PROJECT_TYPE=${{ env.PROJECT_TYPE }}" >> $GITHUB_ENV
 
-      - name: 릴리즈 노트 생성
+      - name: Generate release notes
         id: release_notes
-        working-directory: ${{ github.workspace }}   # CHANGELOG.json·changelog_manager.py·final_release_notes.txt(upload 짝)는 레포 루트 기준
+        working-directory: ${{ github.workspace }}   # CHANGELOG.json, changelog_manager.py and final_release_notes.txt (paired with the upload) are relative to the repo root
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION="${{ steps.current_version.outputs.version }}"
 
           if [ -f "CHANGELOG.json" ]; then
-            echo "📄 CHANGELOG.json에서 v$VERSION 릴리즈 노트 추출 중..."
-            # CHANGELOG.md 생성
+            m flutter_a.extracting_v_release_notes_changelog version="$VERSION"
+            # Generate CHANGELOG.md
             python3 ./.github/scripts/changelog_manager.py generate-md
 
-            # changelog_manager.py export로 릴리즈 노트 추출
+            # Extract the release notes with changelog_manager.py export
             python3 ./.github/scripts/changelog_manager.py export --version $VERSION --output final_release_notes.txt
 
             if [ -s final_release_notes.txt ]; then
-              echo "✅ 릴리즈 노트 추출 성공!"
-              echo "📋 추출된 릴리즈 노트:"
+              m flutter_a.release_notes_extracted
+              m flutter_a.extracted_release_notes
               echo "----------------------------------------"
               cat final_release_notes.txt
               echo "----------------------------------------"
               echo "RELEASE_NOTES_FOUND=true" >> $GITHUB_ENV
             else
-              echo "❌ 릴리즈 노트 추출 실패"
+              m flutter_a.failed_extract_release_notes
               echo "RELEASE_NOTES_FOUND=false" >> $GITHUB_ENV
-              echo "v$VERSION 업데이트" > final_release_notes.txt
+              m flutter_a.default_release_note version="$VERSION" > final_release_notes.txt
             fi
           else
-            echo "⚠️ CHANGELOG.json 파일이 없습니다. 기본 릴리즈 노트를 사용합니다."
+            m flutter_a.changelog_json_not_found_using
             echo "RELEASE_NOTES_FOUND=false" >> $GITHUB_ENV
-            echo "v$VERSION 업데이트" > final_release_notes.txt
+            m flutter_a.default_release_note version="$VERSION" > final_release_notes.txt
           fi
 
       - name: Upload release notes
@@ -200,8 +203,8 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # 프로젝트 파일들을 아티팩트로 업로드
-      # .env는 보안상 아티팩트에 포함하지 않고, 각 job에서 secrets로 재생성
+      # Upload the project files as an artifact
+      # .env is not included in the artifact for security; each job recreates it from secrets
       - name: Upload project files
         uses: actions/upload-artifact@v7
         with:
@@ -214,7 +217,7 @@ jobs:
           if-no-files-found: error
 
   build-android:
-    name: Android AAB 빌드
+    name: Build Android AAB
     runs-on: ubuntu-latest
     needs: prepare-build
     defaults:
@@ -237,7 +240,7 @@ jobs:
           name: project-files
           path: ${{ env.FLUTTER_PROJECT_DIR }}
 
-      # 환경변수 준비 (보안을 위해 아티팩트가 아닌 시크릿에서 생성) — ENV_MODE=dotenv면 .env 파일, dart-define이면 임시 파일
+      # Prepare env vars (created from secrets rather than the artifact, for security) - a .env file when ENV_MODE=dotenv, a temp file for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -259,35 +262,37 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          # 빈 Secret으로 빈 keystore를 만들면 어떤 키로 서명됐는지 알 수 없거나 뒤 단계에서 엉뚱한 오류로 끝난다
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # An empty keystore built from an empty Secret leaves it unclear which key signed the build, or ends in a misleading error in a later step
           MISSING=""
           for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
             [ -n "${!name}" ] || MISSING="$MISSING $name"
           done
           if [ -n "$MISSING" ]; then
-            echo "::error::서명 Secret이 비어 있습니다:$MISSING (워크플로우 상단 주석 참고)"
+            echo "::error::$(m flutter_a.signing_secrets_empty missing="$MISSING")"
             exit 1
           fi
           mkdir -p android/app/keystore
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/app/keystore/key.jks
           if [ ! -s android/app/keystore/key.jks ]; then
-            echo "::error::RELEASE_KEYSTORE_BASE64를 디코딩한 keystore가 비어 있습니다"
+            echo "::error::$(m flutter_a.keystore_decoded_empty)"
             exit 1
           fi
-          echo "✅ Release Keystore 생성 완료"
+          m flutter_a.release_keystore_created
           ls -la android/app/keystore/
 
       - name: Create key.properties
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > android/key.properties << EOF
           storeFile=app/keystore/key.jks
           storePassword=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
-          echo "✅ key.properties 생성 완료"
+          m flutter_a.key_properties_created
 
-      # google-services.json 생성 (선택) — 비어 있으면 빈 파일을 만들지 않는다
+      # Create google-services.json (optional) - no empty file is written when the Secret is empty
       - name: Create google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -339,55 +344,57 @@ jobs:
 
       - name: Configure Android build for release
         run: |
-          # build.gradle.kts에 release 서명 설정이 없으면 추가
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # Add the release signing config to build.gradle.kts if it is missing
           if ! grep -q "signingConfigs" android/app/build.gradle.kts; then
-            echo "⚠️ build.gradle.kts에 서명 설정 추가 필요"
-            # 서명 설정은 이미 되어있다고 가정 (수동으로 미리 설정해야 함)
+            m flutter_a.signing_config_must_added_build
+            # Assume signing is already configured (it must be set up manually beforehand)
           fi
-          echo "✅ Android 빌드 설정 확인 완료"
+          m flutter_a.android_build_config_check_complete
 
-      # pubspec.yaml은 x.y.z 형식 그대로 유지
-      # Flutter build 명령어의 --build-name, --build-number 플래그가 pubspec.yaml을 오버라이드함
+      # Keep pubspec.yaml in the x.y.z format as is
+      # The --build-name and --build-number flags of flutter build override pubspec.yaml
 
       - name: Build Android App Bundle (AAB)
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION_NAME="${{ needs.prepare-build.outputs.version }}"
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"
 
           echo "=========================================="
-          echo "🚀 AAB 빌드 시작"
+          m flutter_a.starting_aab_build
           echo "=========================================="
-          echo "🎯 빌드 버전: $VERSION_NAME"
-          echo "🎯 빌드 코드: $VERSION_CODE"
+          m flutter_a.build_version version_name="$VERSION_NAME"
+          m flutter_a.build_code version_code="$VERSION_CODE"
 
-          # 입력 검증
+          # Validate inputs
           if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
-            echo "❌ VERSION_NAME 또는 VERSION_CODE가 비어있습니다!"
+            m flutter_a.version_name_or_version_code
             exit 1
           fi
           
-          # Flutter 환경 정보 출력
-          echo "🔍 Flutter 환경 정보:"
+          # Print Flutter environment info
+          m flutter_a.flutter_environment_info
           flutter --version
           flutter doctor -v | head -20
           
-          # 빌드 디렉토리 정리
-          echo "🧹 이전 빌드 결과물 정리..."
+          # Clean the build directory
+          m flutter_a.cleaning_previous_build_output
           rm -rf build/app/outputs/bundle/release/
           mkdir -p build/app/outputs/bundle/release/
           
-          # Flutter clean 및 pub get
-          echo "🔄 Flutter clean 및 의존성 재설치..."
+          # Flutter clean and pub get
+          m flutter_a.running_flutter_clean_reinstalling_dependencies
           flutter clean
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-          # local.properties에 버전 정보 추가 (Flutter 플래그가 무시되는 문제 해결)
-          echo "🔧 local.properties에 버전 정보 설정..."
+          # Add version info to local.properties (works around the Flutter flags being ignored)
+          m flutter_a.setting_version_info_local_properties
 
-          # 기존 local.properties가 있으면 버전 정보 제거
+          # Remove existing version info if local.properties exists
           if [ -f "android/local.properties" ]; then
             grep -v "flutter.versionName\|flutter.versionCode" android/local.properties > android/local.properties.tmp || true
             mv android/local.properties.tmp android/local.properties
@@ -395,24 +402,24 @@ jobs:
             touch android/local.properties
           fi
 
-          # 버전 정보 추가
+          # Add version info
           echo "flutter.versionName=$VERSION_NAME" >> android/local.properties
           echo "flutter.versionCode=$VERSION_CODE" >> android/local.properties
 
-          echo "✅ local.properties 업데이트 완료"
-          echo "📋 버전 정보: VERSION_NAME=$VERSION_NAME, VERSION_CODE=$VERSION_CODE"
+          m flutter_a.local_properties_updated
+          m flutter_a.version_info_version_name_version version_name="$VERSION_NAME" version_code="$VERSION_CODE"
 
-          # Gradle 성능 최적화 설정
+          # Gradle performance tuning
           export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4"
           export JAVA_OPTS="-Xmx4g"
-          echo "✅ Gradle 최적화 설정 완료"
+          m flutter_a.gradle_tuning_applied
 
-          # Flutter build 명령어에 버전 정보 전달
-          # --build-name과 --build-number 플래그가 pubspec.yaml의 version을 오버라이드함
-          # pubspec.yaml은 x.y.z 형식 유지, VERSION_CODE는 version.yml에서 자동 관리
-          echo "🔨 Flutter build 실행..."
-          echo "📋 명령어: flutter build appbundle --release --build-name=$VERSION_NAME --build-number=$VERSION_CODE --verbose"
-          echo "⏱️ 빌드 시작 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+          # Pass the version info to the flutter build command
+          # The --build-name and --build-number flags override the version in pubspec.yaml
+          # pubspec.yaml stays in x.y.z format; VERSION_CODE is managed automatically in version.yml
+          m flutter_a.running_flutter_build
+          m flutter_a.command_flutter_build_appbundle_release version_name="$VERSION_NAME" version_code="$VERSION_CODE"
+          m flutter_a.build_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
 
           flutter build appbundle \
             --release \
@@ -424,144 +431,144 @@ jobs:
           BUILD_EXIT_CODE=$?
           
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "❌ Flutter build 실패! Exit code: $BUILD_EXIT_CODE"
-            echo "🔍 빌드 디렉토리 상태:"
-            find build/ -name "*.aab" -o -name "*.apk" 2>/dev/null || echo "AAB/APK 파일을 찾을 수 없습니다"
+            m flutter_a.flutter_build_failed_exit_code build_exit_code="$BUILD_EXIT_CODE"
+            m flutter_a.build_directory_state
+            find build/ -name "*.aab" -o -name "*.apk" 2>/dev/null || m flutter_a.aab_apk_not_found
             exit 1
           fi
           
-          echo "✅ Flutter build 성공!"
+          m flutter_a.flutter_build_succeeded
           
-          # 빌드 결과 확인
-          echo "🔍 빌드 결과 확인:"
+          # Check the build result
+          m flutter_a.checking_build_result
           ls -lah build/app/outputs/bundle/release/
           
-          # AAB 파일 존재 확인
+          # Check that the AAB file exists
           AAB_FILE="build/app/outputs/bundle/release/app-release.aab"
           if [ ! -f "$AAB_FILE" ]; then
-            echo "❌ AAB 파일이 생성되지 않았습니다!"
-            echo "🔍 전체 빌드 디렉토리 내용:"
-            find build/ -type f -name "*.aab" -o -name "*.apk" 2>/dev/null || echo "AAB/APK 파일을 찾을 수 없습니다"
-            echo "🔍 outputs 디렉토리 구조:"
-            find build/app/outputs/ -type f 2>/dev/null || echo "outputs 디렉토리가 없습니다"
+            m flutter_a.aab_file_not_created
+            m flutter_a.full_build_directory_contents
+            find build/ -type f -name "*.aab" -o -name "*.apk" 2>/dev/null || m flutter_a.aab_apk_not_found
+            m flutter_a.outputs_directory_structure
+            find build/app/outputs/ -type f 2>/dev/null || m flutter_a.outputs_directory_does_not_exist
             exit 1
           fi
           
-          echo "✅ AAB 파일 생성 확인"
-          echo "📱 AAB 파일 크기: $(du -h "$AAB_FILE" | cut -f1)"
-          echo "📋 AAB 파일 정보: $(ls -lah "$AAB_FILE")"
+          m flutter_a.aab_file_creation_confirmed
+          m flutter_a.aab_file_size cmd1="$(du -h "$AAB_FILE" | cut -f1)"
+          m flutter_a.aab_file_info cmd1="$(ls -lah "$AAB_FILE")"
           
-          # bundletool 다운로드 및 설치
-          echo "📦 bundletool 다운로드 중..."
+          # Download and install bundletool
+          m flutter_a.downloading_bundletool
           BUNDLETOOL_VERSION="1.15.6"
           BUNDLETOOL_URL="https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
           
-          echo "📋 다운로드 URL: $BUNDLETOOL_URL"
+          m flutter_a.download_url bundletool_url="$BUNDLETOOL_URL"
           wget -q "$BUNDLETOOL_URL" -O bundletool.jar
           
           if [ ! -f "bundletool.jar" ]; then
-            echo "❌ bundletool 다운로드 실패"
-            echo "🔄 대체 URL로 재시도..."
+            m flutter_a.bundletool_download_failed
+            m flutter_a.retrying_fallback_url
             wget -q "https://github.com/google/bundletool/releases/latest/download/bundletool-all-1.15.6.jar" -O bundletool.jar
             
             if [ ! -f "bundletool.jar" ]; then
-              echo "❌ bundletool 다운로드 완전 실패"
+              m flutter_a.bundletool_download_failed_completely
               exit 1
             fi
           fi
           
-          echo "✅ bundletool 다운로드 완료"
-          echo "📋 bundletool 파일 크기: $(du -h bundletool.jar | cut -f1)"
+          m flutter_a.bundletool_downloaded
+          m flutter_a.bundletool_file_size cmd1="$(du -h bundletool.jar | cut -f1)"
           
-          # Java 환경 확인
-          echo "🔍 Java 환경 확인:"
+          # Check the Java environment
+          m flutter_a.checking_java_environment
           java -version
           
-          # AAB 파일 내부의 실제 버전 정보 확인
-          # Flutter CLI 플래그로 전달한 VERSION_CODE가 제대로 적용되었는지 검증
+          # Check the actual version info inside the AAB file
+          # Verify that the VERSION_CODE passed via the Flutter CLI flags was applied correctly
           echo "=========================================="
-          echo "🔍 AAB 파일 내부 버전 정보 검증"
+          m flutter_a.verifying_version_info_inside_aab
           echo "=========================================="
 
-          # AndroidManifest.xml에서 버전 정보 추출
-          echo "📋 AAB에서 실제 버전 정보 추출 중..."
-          echo "📋 실행할 명령어: java -jar bundletool.jar dump manifest --bundle='$AAB_FILE'"
+          # Extract the version info from AndroidManifest.xml
+          m flutter_a.extracting_actual_version_info_aab
+          m flutter_a.command_run_java_jar_bundletool aab_file="$AAB_FILE"
           
           MANIFEST_OUTPUT=$(java -jar bundletool.jar dump manifest --bundle="$AAB_FILE" 2>&1)
           MANIFEST_EXIT_CODE=$?
           
-          echo "📋 bundletool 실행 결과 (Exit code: $MANIFEST_EXIT_CODE):"
+          m flutter_a.bundletool_result_exit_code manifest_exit_code="$MANIFEST_EXIT_CODE"
           echo "$MANIFEST_OUTPUT"
           
           if [ $MANIFEST_EXIT_CODE -eq 0 ]; then
-            echo "✅ Manifest 추출 성공"
+            m flutter_a.manifest_extracted
             
-            # 실제 버전 코드와 버전 이름 추출
+            # Extract the actual version code and version name
             ACTUAL_VERSION_CODE=$(echo "$MANIFEST_OUTPUT" | grep -o 'android:versionCode="[0-9]*"' | grep -o '[0-9]*' | head -1)
             ACTUAL_VERSION_NAME=$(echo "$MANIFEST_OUTPUT" | grep -o 'android:versionName="[^"]*"' | sed 's/android:versionName="//;s/"//' | head -1)
             
-            echo "🎯 버전 정보 비교:"
-            echo "  예상 VERSION_CODE: '$VERSION_CODE'"
-            echo "  실제 VERSION_CODE: '$ACTUAL_VERSION_CODE'"
-            echo "  예상 VERSION_NAME: '$VERSION_NAME'"
-            echo "  실제 VERSION_NAME: '$ACTUAL_VERSION_NAME'"
+            m flutter_a.version_info_comparison
+            m flutter_a.expected_version_code version_code="$VERSION_CODE"
+            m flutter_a.actual_version_code actual_version_code="$ACTUAL_VERSION_CODE"
+            m flutter_a.expected_version_name version_name="$VERSION_NAME"
+            m flutter_a.actual_version_name actual_version_name="$ACTUAL_VERSION_NAME"
             
-            # VERSION_CODE 검증 - version.yml에서 관리되는 단순 증가 번호
+            # Verify VERSION_CODE - a simple incrementing number managed in version.yml
             if [ -z "$ACTUAL_VERSION_CODE" ]; then
-              echo "❌ 치명적 오류: AAB에서 VERSION_CODE를 추출할 수 없습니다!"
-              echo "🔍 전체 Manifest 내용:"
+              m flutter_a.fatal_error_version_code_could
+              m flutter_a.full_manifest_contents
               echo "$MANIFEST_OUTPUT"
               exit 1
             elif [ "$ACTUAL_VERSION_CODE" != "$VERSION_CODE" ]; then
-              echo "❌ 치명적 오류: AAB의 VERSION_CODE가 예상과 다릅니다!"
-              echo "   이는 Google Play에서 '이미 사용된 버전 코드' 오류를 발생시킵니다."
+              m flutter_a.fatal_error_version_code_aab
+              m flutter_a.google_play_would_reject_version
               echo ""
-              echo "🔍 디버깅 정보:"
-              echo "   version.yml의 VERSION_CODE: $VERSION_CODE"
-              echo "   AAB 파일 내부의 VERSION_CODE: $ACTUAL_VERSION_CODE"
+              m flutter_a.debugging_info
+              m flutter_a.version_code_version_yml version_code="$VERSION_CODE"
+              m flutter_a.version_code_inside_aab_file actual_version_code="$ACTUAL_VERSION_CODE"
               echo ""
-              echo "   Flutter build 명령어에 전달된 플래그:"
+              m flutter_a.flags_passed_flutter_build_command
               echo "   --build-name='$VERSION_NAME'"
               echo "   --build-number='$VERSION_CODE'"
               echo ""
-              echo "   전체 Manifest 내용:"
+              m flutter_a.full_manifest_contents_2
               echo "$MANIFEST_OUTPUT" | grep -E "versionCode|versionName|package"
               exit 1
             else
-              echo "✅ VERSION_CODE 검증 성공: $ACTUAL_VERSION_CODE"
+              m flutter_a.version_code_check_passed actual_version_code="$ACTUAL_VERSION_CODE"
             fi
             
-            # 버전 이름도 확인 (경고만)
+            # Check the version name too (warning only)
             if [ -z "$ACTUAL_VERSION_NAME" ]; then
-              echo "⚠️ 경고: AAB에서 VERSION_NAME을 추출할 수 없습니다"
+              m flutter_a.warning_version_name_could_not
             elif [ "$ACTUAL_VERSION_NAME" != "$VERSION_NAME" ]; then
-              echo "⚠️ 경고: VERSION_NAME이 예상과 다릅니다 (치명적이지 않음)"
-              echo "   예상: '$VERSION_NAME', 실제: '$ACTUAL_VERSION_NAME'"
+              m flutter_a.warning_version_name_differs_expected
+              m flutter_a.expected_actual version_name="$VERSION_NAME" actual_version_name="$ACTUAL_VERSION_NAME"
             else
-              echo "✅ VERSION_NAME 검증 성공: $ACTUAL_VERSION_NAME"
+              m flutter_a.version_name_check_passed actual_version_name="$ACTUAL_VERSION_NAME"
             fi
             
           else
-            echo "❌ bundletool로 Manifest 추출 실패"
-            echo "🔄 대체 방법으로 검증 시도..."
+            m flutter_a.failed_extract_manifest_bundletool
+            m flutter_a.trying_verify_another_way
             
-            # unzip으로 직접 확인 시도
-            echo "📋 unzip을 사용한 직접 추출 시도..."
+            # Try checking directly with unzip
+            m flutter_a.trying_direct_extraction_unzip
             UNZIP_OUTPUT=$(unzip -p "$AAB_FILE" base/manifest/AndroidManifest.xml 2>/dev/null | strings | grep -E "versionCode|versionName")
             
             if [ -n "$UNZIP_OUTPUT" ]; then
-              echo "✅ unzip으로 버전 정보 추출 성공:"
+              m flutter_a.version_info_extracted_unzip
               echo "$UNZIP_OUTPUT"
             else
-              echo "❌ unzip을 사용한 직접 추출도 실패"
-              echo "⚠️ AAB 검증을 건너뛰고 계속 진행합니다."
+              m flutter_a.direct_extraction_unzip_failed_too
+              m flutter_a.skipping_aab_verification_continuing
             fi
           fi
           
           echo "=========================================="
-          echo "✅ AAB 빌드 및 검증 완료"
-          echo "🎯 최종 AAB: $AAB_FILE"
-          echo "📱 파일 크기: $(du -h "$AAB_FILE" | cut -f1)"
+          m flutter_a.aab_build_verification_complete
+          m flutter_a.final_aab aab_file="$AAB_FILE"
+          m flutter_a.file_size cmd1="$(du -h "$AAB_FILE" | cut -f1)"
           echo "=========================================="
 
       - name: Upload AAB artifact
@@ -573,7 +580,7 @@ jobs:
           if-no-files-found: error
 
   deploy-playstore:
-    name: Play Store 내부 테스트 배포
+    name: Deploy to Play Store internal testing
     runs-on: ubuntu-latest
     needs: [prepare-build, build-android]
     defaults:
@@ -591,13 +598,14 @@ jobs:
         env:
           SERVICE_ACCOUNT_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -z "$SERVICE_ACCOUNT_BASE64" ]; then
-            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 Secret이 비어 있습니다"
+            echo "::error::$(m flutter_a.google_play_service_account_json)"
             exit 1
           fi
           mkdir -p ~/.config/gcloud
           printf '%s' "$SERVICE_ACCOUNT_BASE64" | base64 --decode > ~/.config/gcloud/service-account.json
-          echo "✅ Service Account JSON 설정 완료"
+          m flutter_a.service_account_json_configured
 
       - name: Download AAB artifact
         uses: actions/download-artifact@v8
@@ -619,25 +627,27 @@ jobs:
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
-          # 저장소의 Gemfile에 fastlane이 있으면 그대로 쓴다 (Gemfile.lock 커밋 권장). 없으면 생성한다.
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          # If the repository Gemfile has fastlane, use it as is (committing Gemfile.lock is recommended). Otherwise create one.
           if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
-            echo "ℹ️ 저장소의 Gemfile을 사용합니다"
+            m flutter_a.using_repository_gemfile
           else
-            # multi_json: google-apis transitive 의존성이 선언 누락한 upstream 버그 회피 (gemspec 미선언 → Gem::LoadError)
+            # multi_json: works around an upstream bug where a google-apis transitive dependency is not declared (missing from the gemspec -> Gem::LoadError)
             printf 'source "https://rubygems.org"\ngem "fastlane"\ngem "multi_json"\n' > Gemfile
           fi
           bundle install
-          echo "✅ Fastlane 설치 완료 (Bundler)"
+          m flutter_a.fastlane_installed_bundler
           bundle exec fastlane --version
 
-      # Fastfile 복사 (Play Store 배포용)
-      # android/fastlane/Fastfile.playstore를 사용하여 일관성 유지
+      # Copy the Fastfile (for Play Store deployment)
+      # Use android/fastlane/Fastfile.playstore to stay consistent
       - name: Copy Fastfile for Play Store
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           mkdir -p android/fastlane
           cp android/fastlane/Fastfile.playstore android/fastlane/Fastfile
-          echo "✅ Fastfile 복사 완료 (Fastfile.playstore → Fastfile)"
-          echo "📋 Fastfile 내용:"
+          m flutter_a.fastfile_copied_fastfile_playstore_fastfile
+          m flutter_a.fastfile_contents
           cat android/fastlane/Fastfile
 
       - name: Upload to Play Store Internal Testing
@@ -645,53 +655,54 @@ jobs:
           DEPLOY_MODE: ${{ env.DEPLOY_MODE }}
           PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo "=========================================="
-          echo "🚀 Play Store 배포 시작"
+          m flutter_a.starting_play_store_deployment
           echo "=========================================="
-          echo "🕐 배포 시작 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+          m flutter_a.deploy_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
           echo "🔍 GitHub Run Number: ${{ github.run_number }}"
           echo "🔍 GitHub SHA: ${{ github.sha }}"
           
-          # 환경 변수 초기화 및 검증
+          # Initialize and validate environment variables
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"
           VERSION_NAME="${{ needs.prepare-build.outputs.version }}"
           
-          echo "📋 배포 대상 버전 정보:"
+          m flutter_a.version_info_deploy
           echo "  VERSION_NAME: '$VERSION_NAME'"
           echo "  VERSION_CODE: '$VERSION_CODE'"
           
-          # 입력 검증
+          # Validate inputs
           if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
-            echo "❌ 치명적 오류: VERSION_NAME 또는 VERSION_CODE가 비어있습니다!"
+            m flutter_a.fatal_error_version_name_or
             echo "VERSION_NAME: '$VERSION_NAME'"
             echo "VERSION_CODE: '$VERSION_CODE'"
-            echo "이는 prepare-build 작업에서 출력이 제대로 전달되지 않았음을 의미합니다."
+            m flutter_a.means_prepare_build_job_did
             exit 1
           fi
           
-          # AAB 파일 절대 경로 찾기
+          # Find the absolute path of the AAB file
           AAB_PATH=$(realpath build/app/outputs/bundle/release/app-release.aab)
-          echo "📦 AAB 파일 경로: $AAB_PATH"
+          m flutter_a.aab_file_path aab_path="$AAB_PATH"
 
           if [ ! -f "$AAB_PATH" ]; then
-            echo "❌ AAB 파일을 찾을 수 없습니다!"
-            echo "🔍 빌드 디렉토리 내용:"
-            ls -la build/app/outputs/bundle/release/ || echo "디렉토리가 존재하지 않습니다"
-            echo "🔍 전체 빌드 디렉토리 구조:"
-            find build/ -name "*.aab" -o -name "*.apk" 2>/dev/null || echo "AAB/APK 파일을 찾을 수 없습니다"
+            m flutter_a.aab_file_not_found
+            m flutter_a.build_directory_contents
+            ls -la build/app/outputs/bundle/release/ || m flutter_a.directory_does_not_exist
+            m flutter_a.full_build_directory_structure
+            find build/ -name "*.aab" -o -name "*.apk" 2>/dev/null || m flutter_a.aab_apk_not_found
             exit 1
           fi
           
-          echo "✅ AAB 파일 존재 확인"
-          echo "📋 AAB 파일 정보: $(ls -lah "$AAB_PATH")"
-          echo "📱 AAB 파일 크기: $(du -h "$AAB_PATH" | cut -f1)"
+          m flutter_a.aab_file_exists
+          m flutter_a.aab_file_info cmd1="$(ls -lah "$AAB_PATH")"
+          m flutter_a.aab_file_size cmd1="$(du -h "$AAB_PATH" | cut -f1)"
           
-          # 배포 전 AAB 버전 검증
+          # Verify the AAB version before deploying
           echo "=========================================="
-          echo "🔍 AAB 버전 검증 중..."
+          m flutter_a.verifying_aab_version
           echo "=========================================="
           
-          # bundletool 다운로드
+          # Download bundletool
           if [ ! -f "bundletool.jar" ]; then
             wget -q "https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar" -O bundletool.jar
           fi
@@ -703,52 +714,52 @@ jobs:
               FINAL_VERSION_CODE=$(echo "$MANIFEST_OUTPUT" | grep -o 'android:versionCode="[0-9]*"' | grep -o '[0-9]*' | head -1)
               FINAL_VERSION_NAME=$(echo "$MANIFEST_OUTPUT" | grep -o 'android:versionName="[^"]*"' | sed 's/android:versionName="//;s/"//' | head -1)
               
-              echo "📋 AAB 버전: $FINAL_VERSION_NAME (코드: $FINAL_VERSION_CODE)"
+              m flutter_a.aab_version_code final_version_name="$FINAL_VERSION_NAME" final_version_code="$FINAL_VERSION_CODE"
               
-              # VERSION_CODE 검증
+              # Verify VERSION_CODE
               if [ "$FINAL_VERSION_CODE" != "$VERSION_CODE" ]; then
-                echo "❌ 오류: AAB 버전 코드가 예상과 다릅니다! (예상: $VERSION_CODE, 실제: $FINAL_VERSION_CODE)"
+                m flutter_a.error_aab_version_code_not version_code="$VERSION_CODE" final_version_code="$FINAL_VERSION_CODE"
                 exit 1
               fi
               
-              echo "✅ 버전 검증 성공"
+              m flutter_a.version_check_passed
             else
-              echo "⚠️ 버전 검증 실패, 배포 계속 진행"
+              m flutter_a.version_check_failed_continuing_deployment
             fi
           fi
 
-          # Release notes 준비
+          # Prepare the release notes
           CHANGELOG_DIR="android/fastlane/metadata/android/ko-KR/changelogs"
           mkdir -p "$CHANGELOG_DIR"
 
           if [ -f "$GITHUB_WORKSPACE/final_release_notes.txt" ]; then
-            # Google Play release notes 한도(500 글자)에 맞춰 절단 (마진 두어 480자)
-            # final_release_notes.txt·truncate 스크립트는 레포 루트 기준 — working-directory가 FLUTTER_PROJECT_DIR이므로 절대경로 사용
+            # Truncate to the Google Play release notes limit (500 characters) with some margin (480)
+            # final_release_notes.txt and the truncate script are relative to the repo root - working-directory is FLUTTER_PROJECT_DIR, so use absolute paths
             python3 "$GITHUB_WORKSPACE/.github/scripts/truncate_release_notes.py" "$GITHUB_WORKSPACE/final_release_notes.txt" 480 char
             cp "$GITHUB_WORKSPACE/final_release_notes.txt" "$CHANGELOG_DIR/${VERSION_CODE}.txt"
-            echo "✅ Changelog 준비 완료 (버전 코드: $VERSION_CODE)"
+            m flutter_a.changelog_ready_version_code version_code="$VERSION_CODE"
           else
-            echo "v$VERSION_NAME 업데이트" > "$CHANGELOG_DIR/${VERSION_CODE}.txt"
-            echo "⚠️ 기본 Changelog 생성 (버전 코드: $VERSION_CODE)"
+            m flutter_a.default_release_note_name version_name="$VERSION_NAME" > "$CHANGELOG_DIR/${VERSION_CODE}.txt"
+            m flutter_a.created_default_changelog_version_code version_code="$VERSION_CODE"
           fi
           
-          # Service Account JSON 파일 확인
+          # Check the Service Account JSON file
           GOOGLE_PLAY_JSON_KEY="$HOME/.config/gcloud/service-account.json"
           if [ ! -f "$GOOGLE_PLAY_JSON_KEY" ]; then
-            echo "❌ Service Account JSON 파일을 찾을 수 없습니다"
+            m flutter_a.service_account_json_file_not
             exit 1
           fi
           
-          # 환경변수 설정
+          # Set environment variables
           export AAB_PATH="$AAB_PATH"
           export GOOGLE_PLAY_JSON_KEY="$GOOGLE_PLAY_JSON_KEY"
           export VERSION_NAME="$VERSION_NAME"
           export VERSION_CODE="$VERSION_CODE"
           
-          # 배포 실행
+          # Run the deployment
           echo "=========================================="
-          echo "🚀 Play Store 배포 실행"
-          echo "🎯 버전: $VERSION_NAME (코드: $VERSION_CODE)"
+          m flutter_a.running_play_store_deployment
+          m flutter_a.version_code version_name="$VERSION_NAME" version_code="$VERSION_CODE"
           echo "=========================================="
           
           cd android
@@ -757,17 +768,19 @@ jobs:
       - name: Notify Play Store Upload Success
         if: success()
         run: |
-          echo "✅ Play Store 내부 테스트 배포 성공!"
-          echo "버전: ${{ needs.prepare-build.outputs.version }} (${{ needs.prepare-build.outputs.version_code }})"
-          echo "커밋: ${{ github.sha }}"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.play_store_internal_testing_deployment
+          m flutter_a.version version="${{ needs.prepare-build.outputs.version }}" version_code="${{ needs.prepare-build.outputs.version_code }}"
+          m flutter_a.commit sha="${{ github.sha }}"
           echo ""
-          echo "📱 테스터 확인 방법:"
-          echo "1. Play Console → 테스트 및 출시 → 내부 테스트"
-          echo "2. 테스터에게 테스트 링크 공유"
-          # Play Console URL은 프로젝트별로 다르므로 별도 설정 필요
+          m flutter_a.how_testers_check_build
+          m flutter_a.play_console_test_release_internal
+          m flutter_a.share_test_link_your_testers
+          # The Play Console URL differs per project, so it needs separate setup
 
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "❌ Play Store 배포 실패!"
-          echo "로그를 확인해주세요."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m flutter_a.play_store_deployment_failed
+          m flutter_a.please_check_logs

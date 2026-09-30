@@ -12,13 +12,12 @@
 # 4. Commits and pushes the change ([skip ci])
 #
 # Supported version line formats (case-insensitive, flexible spacing):
-# - ## 최신 버전 : v1.0.0 (2025-08-15)
-# - ## 최신버전 : v1.0.0 (2025-08-15)
+# - ## <Korean "latest version", with or without a space> : v1.0.0 (2025-08-15)
 # - ## Current Version : v1.0.0 (2025-08-15)
 # - ## Recent Version : v1.0.0 (2025-08-15)
 # - ## Latest Version : v1.0.0
 # - ## Version : v1.0.0
-# - ## 버전 : v1.0.0
+# - ## <Korean "version"> : v1.0.0
 #
 # The marker comment <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
 # is added automatically above the version line.
@@ -51,7 +50,7 @@ name: README VERSION UPDATE
 env:
   # Whether to show the date next to the version (true/false)
   SHOW_DATE: true
-  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  # Keep script imports from creating .github/scripts/__pycache__ so it never ends up in bot commits
   PYTHONDONTWRITEBYTECODE: "1"
 
 concurrency:
@@ -113,9 +112,15 @@ jobs:
       - name: Update version line in README.md
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           LATEST_VERSION="${{ steps.version_info.outputs.latest_version }}"
           RELEASE_DATE="${{ steps.version_info.outputs.release_date }}"
           SHOW_DATE="${{ env.SHOW_DATE }}"
+
+          # Hangul in the Korean heading patterns below is written as UTF-8 byte escapes so
+          # this file stays ASCII-only; they match the same README headings byte for byte.
+          KO_LATEST=$'\354\265\234\354\213\240'   # Korean "latest"
+          KO_VERSION=$'\353\262\204\354\240\204'  # Korean "version"
 
           # Error message helper
           print_error_message() {
@@ -132,7 +137,7 @@ jobs:
             echo "  new version text: $version_text"
             echo ""
             echo "Make sure the README version line matches one of:"
-            echo "  ## 최신 버전 : v1.0.0 (2025-08-15)"
+            echo "  $(m wf_readme.hint_first_example)"
             echo "  ## Current Version : v1.0.0"
             echo "  ## Version : v1.0.0"
             echo "Notes:"
@@ -151,12 +156,12 @@ jobs:
 
           # Patterns for recognized version lines (case-insensitive, flexible spacing)
           VERSION_PATTERNS=(
-            "^##[[:space:]]*최신[[:space:]]*버전[[:space:]]*:"
-            "^##[[:space:]]*최신버전[[:space:]]*:"
+            "^##[[:space:]]*${KO_LATEST}[[:space:]]*${KO_VERSION}[[:space:]]*:"
+            "^##[[:space:]]*${KO_LATEST}${KO_VERSION}[[:space:]]*:"
             "^##[[:space:]]*[Cc]urrent[[:space:]]*[Vv]ersion[[:space:]]*:"
             "^##[[:space:]]*[Rr]ecent[[:space:]]*[Vv]ersion[[:space:]]*:"
             "^##[[:space:]]*[Vv]ersion[[:space:]]*:"
-            "^##[[:space:]]*버전[[:space:]]*:"
+            "^##[[:space:]]*${KO_VERSION}[[:space:]]*:"
             "^##[[:space:]]*[Ll]atest[[:space:]]*[Vv]ersion[[:space:]]*:"
           )
 
@@ -175,13 +180,15 @@ jobs:
           # No version line yet — insert a default one
           if [ -z "$VERSION_LINE" ]; then
             echo "no version line found — inserting a new one"
+            # Heading wording follows the configured language; an existing line keeps its own wording
+            DEFAULT_HEADING=$(m wf_readme.default_heading)
 
             if grep -q "^# " README.md; then
               # right after the first title
-              sed -i '/^# /a\\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : '"$VERSION_TEXT" README.md
+              sed -i '/^# /a\\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## '"$DEFAULT_HEADING"' : '"$VERSION_TEXT" README.md
             else
               # at the very top of the file
-              sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : '"$VERSION_TEXT"'\n' README.md
+              sed -i '1i\<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## '"$DEFAULT_HEADING"' : '"$VERSION_TEXT"'\n' README.md
             fi
             echo "default version line inserted: $VERSION_TEXT"
           else

@@ -1,236 +1,211 @@
-// 대화형 프롬프트 래핑.
-// node:readline 기반 자체 엔진 사용 (@clack/prompts 는 Windows TTY에서 Enter가 멈추는 버그로 제거).
-// ESC는 각 함수가 CANCEL 심볼을 반환 → 호출부가 기본값/머무르기로 해석한다.
-// Ctrl+C·Ctrl+D는 엔진이 PromptAbortError로 reject → run()이 잡아 종료코드 130으로 끝낸다.
+// Interactive prompt wrappers.
+// Uses the in-house node:readline engine (@clack/prompts was removed because Enter hangs on Windows TTY).
+// On ESC each function returns the CANCEL symbol -> the caller interprets it as default/stay.
+// Ctrl+C / Ctrl+D make the engine reject with PromptAbortError -> run() catches it and exits with code 130.
 import * as engine from "./readline-engine.js";
+import { t } from "../i18n/index.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { TYPE_IDS } from "../core/types.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE, deployModeWarning } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
 
-// 모드 선택 — 한국어 라벨, 내부 키 반환. 취소 시 CANCEL.
-// again=true는 읽기 전용 모드(status/doctor)를 실행하고 메뉴로 돌아온 재진입이다 —
-// 이때 "무엇을 설치할까요?"를 다시 묻는 건 어색하므로 문구를 바꾼다.
+// Mode selection - localized labels, returns the internal key. CANCEL on cancel.
+// again=true is a re-entry after running a read-only mode (status/doctor) and returning to the menu -
+// asking "what should we install?" again would feel odd, so the wording changes.
 export async function selectMode({ again = false } = {}) {
   return engine.select({
-    message: again ? "다음으로 무엇을 할까요?" : "무엇을 설치할까요?",
+    message: again ? t("ui.prompts.mode.messageAgain") : t("ui.prompts.mode.message"),
     options: [
-      { value: "full", label: "설치 / 업데이트 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)" },
-      { value: "uninstall", label: "완전 삭제 — 마법사가 설치·수정한 모든 항목 제거(확인 후, README·gitignore·version.yml 포함)" },
-      { value: "status", label: "설치 상태 확인 — 읽기 전용, 버전·타입·드리프트 확인" },
-      { value: "doctor", label: "환경 진단 — 읽기 전용, gh CLI·권한·secret 설정 점검" },
+      { value: "full", label: t("ui.prompts.mode.full") },
+      { value: "uninstall", label: t("ui.prompts.mode.uninstall") },
+      { value: "status", label: t("ui.prompts.mode.status") },
+      { value: "doctor", label: t("ui.prompts.mode.doctor") },
     ],
   });
 }
 
-// 프로젝트 확인 화면 메뉴 (계속/수정/취소).
+// Project confirmation menu (continue/edit/cancel).
 export async function confirmProjectMenu() {
   return engine.select({
-    message: "이 정보로 진행할까요?",
+    message: t("ui.prompts.confirm.message"),
     options: [
-      { value: "continue", label: "예, 계속 진행" },
-      { value: "edit", label: "수정하기" },
-      { value: "cancel", label: "아니오, 취소" },
+      { value: "continue", label: t("ui.prompts.confirm.continue") },
+      { value: "edit", label: t("ui.prompts.confirm.edit") },
+      { value: "cancel", label: t("ui.prompts.confirm.cancel") },
     ],
   });
 }
 
-// 수정 메뉴 항목 — showFlutter=Flutter 타입일 때만 환경변수 방식/스토어 배포 대상/배포 모드 노출.
-// 라벨·순서를 테스트할 수 있도록 순수 함수로 분리했다.
-// showOptions=선택 워크플로우 토글(자동 버전 승격·Copilot) 노출 — 저장값이 있으면 처음 질문을 건너뛰므로 여기서 바꾼다.
+// Edit menu items - showFlutter exposes env mode / store targets / deploy mode only for the Flutter type.
+// Split into a pure function so labels and order can be tested.
+// showOptions exposes the optional-workflow toggles (auto version bump, Copilot) - a saved value skips the first question, so it is changed here.
 export function editMenuOptions({ showFlutter = false, showOptions = false } = {}) {
   const options = [
-    { value: "type", label: "프로젝트 타입" },
-    { value: "version", label: "버전" },
-    { value: "branch", label: "기본 브랜치" },
+    { value: "type", label: t("ui.prompts.edit.type") },
+    { value: "version", label: t("ui.prompts.edit.version") },
+    { value: "branch", label: t("ui.prompts.edit.branch") },
   ];
   if (showOptions) {
-    options.push({ value: "semverAuto", label: "자동 버전 승격" });
-    options.push({ value: "copilotAi", label: "Copilot AI 요약" });
+    options.push({ value: "semverAuto", label: t("ui.prompts.edit.semverAuto") });
+    options.push({ value: "copilotAi", label: t("ui.prompts.edit.copilotAi") });
   }
   if (showFlutter) {
-    options.push({ value: "envMode", label: "환경변수 방식" });
-    options.push({ value: "flutterStore", label: "스토어 배포 대상" });
-    options.push({ value: "deployMode", label: "배포 모드" });
+    options.push({ value: "envMode", label: t("ui.prompts.edit.envMode") });
+    options.push({ value: "flutterStore", label: t("ui.prompts.edit.flutterStore") });
+    options.push({ value: "deployMode", label: t("ui.prompts.edit.deployMode") });
   }
-  options.push({ value: "done", label: "모두 맞음, 계속" });
+  options.push({ value: "done", label: t("ui.prompts.edit.done") });
   return options;
 }
 
-// 수정 메뉴 — 어떤 항목을 고칠지.
+// Edit menu - which item to fix.
 export async function editMenu({ showFlutter = false, showOptions = false } = {}) {
-  return engine.select({ message: "어떤 항목을 수정할까요?", options: editMenuOptions({ showFlutter, showOptions }) });
+  return engine.select({ message: t("ui.prompts.edit.message"), options: editMenuOptions({ showFlutter, showOptions }) });
 }
 
-// 대화형 타입 선택지 — CLI 검증 목록(VALID_TYPES)과 같은 레지스트리에서 만든다.
+// Interactive type choices - built from the same registry as the CLI validation list (VALID_TYPES).
 export const ALL_TYPES = TYPE_IDS;
 
-// 타입 멀티선택.
+// Type multi-select.
 export async function selectTypes(current = []) {
   return engine.multiselect({
-    message: "프로젝트 타입을 선택하세요 (Space 토글, Enter 확정)",
-    options: ALL_TYPES.map((t) => ({ value: t, label: t })),
+    message: t("ui.prompts.types.select"),
+    options: ALL_TYPES.map((type) => ({ value: type, label: type })),
     initialValues: current.length ? current : ["basic"],
     required: true,
   });
 }
 
-// 감지 직후 타입 확정. selectTypes와 달리 감지 근거 파일을 라벨에 붙여
-// "왜 이렇게 판단했는지"를 보여준다 — 근거가 보여야 맞는지 틀린지 판단할 수 있다.
-// 감지 결과가 맞으면 Enter 한 번으로 끝난다.
+// Confirm types right after detection. Unlike selectTypes it appends the evidence file to the label
+// to show "why it was decided this way" - the user can only judge right or wrong when the evidence is visible.
+// If detection is right, a single Enter finishes it.
 export async function confirmTypes({ types = [], markers = null } = {}) {
   const detected = new Set(types);
   engine.note(
-    "선택한 타입에 따라 설치되는 CI/CD 워크플로우와 버전 동기화 대상 파일이 달라집니다.\n" +
-    "감지 결과가 맞으면 그대로 Enter를 누르세요.",
-    "프로젝트 타입 확정",
+    t("ui.prompts.types.confirmNote"),
+    t("ui.prompts.types.confirmTitle"),
   );
   return engine.multiselect({
-    message: "이 프로젝트의 타입입니다 (Space 토글, Enter 확정)",
-    options: ALL_TYPES.map((t) => {
-      const marker = markers?.get?.(t);
-      // 감지된 타입만 근거를 붙인다 — 나머지는 후보로만 나열한다.
-      return { value: t, label: detected.has(t) && marker ? `${t} — ${marker} 발견` : t };
+    message: t("ui.prompts.types.confirmMessage"),
+    options: ALL_TYPES.map((type) => {
+      const marker = markers?.get?.(type);
+      // Only detected types get evidence - the rest are just listed as candidates.
+      return { value: type, label: detected.has(type) && marker ? t("ui.prompts.types.withMarker", { type, marker }) : type };
     }),
     initialValues: types.length ? types : ["basic"],
     required: true,
   });
 }
 
-// 배포 방식 선택. 서버 배포 CD 워크플로우는 서로 대체재라 하나만 쓴다.
-// 고른 것만 설치하고 push 트리거까지 켜준다 — 종전에는 넷을 다 깔고 SIMPLE만 켜져 있어,
-// 무중단을 원한 사람은 설치 후 YAML을 직접 고쳐야 했다.
-// "서버 배포 안 함"은 모든 타입에서 서버 배포 워크플로우(CD·PR 프리뷰)를 제외한다 — 서버 배포를
-// 하지 않는 프로젝트(프론트엔드 전용, 라이브러리 등)를 위한 선택지다.
-// nonstop=false면(선택한 타입 어디에도 무중단 워크플로우가 없음) 고를 수 없는 무중단 선택지를 빼고 묻는다.
+// Deploy style selection. Server-deploy CD workflows are alternatives to each other, so only one is used.
+// Only the chosen one is installed and its push trigger is enabled - previously all four were installed with only SIMPLE on,
+// so anyone wanting zero-downtime had to edit the YAML by hand after install.
+// "No server deploy" excludes server-deploy workflows (CD / PR preview) for every type - a choice for projects
+// that do not deploy to a server (frontend-only, libraries, ...).
+// With nonstop=false (no selected type has a zero-downtime workflow) the unusable zero-downtime choices are left out.
 export async function selectDeployStyle({ nonstop = true } = {}) {
   engine.note(
-    "서버 배포 워크플로우는 서로 대체재입니다 (Nginx와 Traefik을 동시에 쓰지 않습니다).\n" +
-    "고른 방식만 설치하고 자동 실행(push 트리거)까지 켭니다. PR 프리뷰는 배포 방식과 함께 설치되고,\n" +
-    "\"서버 배포 안 함\"을 고르면 모든 타입에서 CD와 PR 프리뷰를 함께 제외합니다.\n" +
-    "무중단 배포는 spring에만 있습니다 — 다른 타입(python·go·react·next)은 단일 서버 배포로 설치됩니다.",
-    "배포 방식",
+    t("ui.prompts.deployStyle.note"),
+    t("ui.prompts.deployStyle.title"),
   );
   return engine.select({
-    message: "서버 배포는 어떤 방식으로 할까요?",
+    message: t("ui.prompts.deployStyle.message"),
     options: [
-      ...DEPLOY_STYLES.filter((s) => nonstop || s.value === "simple").map((s) => ({ value: s.value, label: s.label })),
-      { value: NO_DEPLOY_STYLE, label: "서버 배포 안 함 — CD·PR 프리뷰 워크플로우와 배포 설정을 생성하지 않음" },
+      // label may be a plain string or a lazy function depending on the registry
+      ...DEPLOY_STYLES.filter((s) => nonstop || s.value === "simple").map((s) => ({ value: s.value, label: typeof s.label === "function" ? s.label() : s.label })),
+      { value: NO_DEPLOY_STYLE, label: t("ui.prompts.deployStyle.none") },
     ],
   });
 }
 
-// ── Flutter 옵션 ─────────────────────────────────────────
-// 프로젝트 타입에 flutter가 포함된 경우에만 interactive.js가 묻는다. 세 함수 모두 취소(ESC) 시 CANCEL을
-// 그대로 돌려주고, "ESC = 기본값" 처리는 호출부가 한다 (selectDeployStyle과 같은 규약).
-const ENV_MODE_LABELS = {
-  "dart-define": "dart-define (신규 설치 기본) — 시크릿을 --dart-define-from-file로 빌드에 전달, 프로젝트에 .env를 만들지 않음",
-  dotenv: "dotenv — Flutter 루트에 .env를 만들어 flutter_dotenv·envied가 읽음 (기존 설치 유지값)",
-};
+// ── Flutter options ──────────────────────────────────────
+// interactive.js asks these only when the project types include flutter. All three functions return CANCEL
+// as is on cancel (ESC); the "ESC = default" handling is up to the caller (same convention as selectDeployStyle).
+// Labels are resolved lazily via t() so they follow the language chosen at run time.
+const envModeLabel = (value) => t(`ui.prompts.envMode.label.${value}`);
+const storeLabel = (value) => t(`ui.prompts.stores.label.${value}`);
+const deployModeLabel = (platform, value) => t(`ui.prompts.deployMode.label.${platform}.${value}`);
+const platformTitle = (platform) => t(`ui.prompts.deployMode.platform.${platform}`);
 
-const STORE_LABELS = {
-  android: "Android — Google Play Store (fastlane)",
-  ios: "iOS — TestFlight / App Store Connect (fastlane)",
-};
-
-const DEPLOY_MODE_LABELS = {
-  android: {
-    store_only: "store_only — internal 트랙에 업로드 (기본)",
-    store_prepare: "store_prepare — production 트랙에 draft로 업로드 (Play Console에서 직접 출시)",
-    store_submit: "store_submit — production 심사 제출까지",
-  },
-  ios: {
-    store_only: "store_only — TestFlight 업로드 (기본)",
-    store_prepare: "store_prepare — 앱 버전·메타데이터 준비까지 (심사 제출 안 함)",
-    store_submit: "store_submit — 심사 제출까지",
-  },
-};
-
-const PLATFORM_TITLES = { android: "Android (Play Store)", ios: "iOS (TestFlight)" };
-
-// 환경변수 방식 — 시크릿 ENV_FILE(.env 형식)을 Flutter 빌드에 넘기는 방법.
+// Env mode - how the secret ENV_FILE (.env format) is passed to the Flutter build.
 export async function selectEnvMode({ initialValue = DEFAULT_ENV_MODE } = {}) {
   engine.note(
-    "시크릿 ENV_FILE(.env 형식)을 Flutter 빌드에 넘기는 방식입니다.\n" +
-    "dart-define은 String.fromEnvironment로 읽고, dotenv는 flutter_dotenv·envied가 .env 파일을 읽습니다.\n" +
-    "나중에 확인 화면의 '수정하기 > 환경변수 방식'에서 바꿀 수 있습니다.",
-    "환경변수 방식",
+    t("ui.prompts.envMode.note"),
+    t("ui.prompts.envMode.title"),
   );
   return engine.select({
-    message: "Flutter 환경변수는 어떤 방식으로 넘길까요?",
-    options: ENV_MODES.map((value) => ({ value, label: ENV_MODE_LABELS[value] })),
+    message: t("ui.prompts.envMode.message"),
+    options: ENV_MODES.map((value) => ({ value, label: envModeLabel(value) })),
     initialIndex: Math.max(0, ENV_MODES.indexOf(initialValue)),
   });
 }
 
-// 스토어 배포 대상 — 고른 플랫폼의 워크플로우와 fastlane 템플릿만 설치한다. 아무것도 안 고르면 스토어 배포 없이 설치.
+// Store deploy targets - installs only the workflows and fastlane templates of the chosen platforms. Choosing none installs without store deployment.
 export async function selectFlutterStores({ initialValues = [] } = {}) {
   engine.note(
-    "고른 플랫폼의 스토어 배포 워크플로우와 fastlane 파일(Fastfile 등)만 설치합니다.\n" +
-    "아무것도 고르지 않으면 스토어 배포 없이 설치합니다 (Firebase·Selfhosted·Test APK·CI는 항상 설치).",
-    "스토어 배포 대상",
+    t("ui.prompts.stores.note"),
+    t("ui.prompts.stores.title"),
   );
   return engine.multiselect({
-    message: "스토어에 배포할 플랫폼을 선택하세요 (Space 토글, Enter 확정)",
-    options: STORE_PLATFORMS.map((value) => ({ value, label: STORE_LABELS[value] })),
+    message: t("ui.prompts.stores.message"),
+    options: STORE_PLATFORMS.map((value) => ({ value, label: storeLabel(value) })),
     initialValues,
     required: false,
   });
 }
 
-// 배포 모드 — 플랫폼별로 한 번씩 묻는다. 런타임의 저장소 변수와 workflow_dispatch 입력이 항상 이 값보다 우선한다.
+// Deploy mode - asked once per platform. The runtime repository variable and workflow_dispatch input always take precedence over this value.
 export async function selectDeployMode({ platform, initialValue = DEFAULT_DEPLOY_MODE }) {
   return engine.select({
-    message: `${PLATFORM_TITLES[platform]} 배포 모드를 선택하세요`,
-    options: DEPLOY_MODES.map((value) => ({ value, label: DEPLOY_MODE_LABELS[platform][value] })),
+    message: t("ui.prompts.deployMode.message", { platform: platformTitle(platform) }),
+    options: DEPLOY_MODES.map((value) => ({ value, label: deployModeLabel(platform, value) })),
     initialIndex: Math.max(0, DEPLOY_MODES.indexOf(initialValue)),
   });
 }
 
-// store_submit 경고 문구 — 정의는 core에 있고, 호출부(interactive)가 note로 출력한다.
+// store_submit warning text - defined in core; the caller (interactive) prints it via note.
 export { deployModeWarning };
 
-// 브랜치 전략 선택. 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에
-// 같은 이름을 입력해야만 trunk-based가 됐는데, 그 규칙이 사전에 안내되지 않아
-// 의도치 않게 pr-flow로 흘러갔다. 전략을 먼저 명시적으로 고르게 해 이를 없앤다.
-// 옵션 순서(pr-flow 먼저)는 비-TTY 환경의 기본값과 직결되므로 바꾸지 않는다.
+// Branch strategy selection. Previously trunk-based only happened when the same name was entered for both
+// the "release branch" and "development branch" questions; that rule was never announced, so users
+// drifted into pr-flow unintentionally. Choosing the strategy explicitly first removes that.
+// Do not reorder the options (pr-flow first) - the order determines the default in non-TTY environments.
 export async function selectBranchStrategy() {
   engine.note(
-    "pr-flow는 develop에서 작업해 main으로 PR을 올리는 팀 협업 흐름입니다.\n" +
-    "trunk-based는 브랜치를 하나만 두고 그 브랜치에서 바로 작업하는 단순한 흐름입니다.",
-    "브랜치 전략",
+    t("ui.prompts.branch.note"),
+    t("ui.prompts.branch.title"),
   );
   return engine.select({
-    message: "브랜치 전략을 선택하세요",
+    message: t("ui.prompts.branch.message"),
     options: [
-      { value: "pr-flow", label: "develop → main PR 흐름 (pr-flow) — 팀 협업/리뷰 프로세스가 필요할 때" },
-      { value: "trunk-based", label: "main 단일 브랜치 (trunk-based) — 개인/소규모 프로젝트로 브랜치 없이 단순하게 쓸 때" },
+      { value: "pr-flow", label: t("ui.prompts.branch.prFlow") },
+      { value: "trunk-based", label: t("ui.prompts.branch.trunk") },
     ],
   });
 }
 
-// 텍스트 입력 (빈 입력=기본값 유지).
+// Text input (empty input keeps the default).
 export async function askText(message, defaultValue = "") {
   const v = await engine.text({ message, defaultValue });
   if (v === CANCEL) return CANCEL;
   return v === "" || v == null ? defaultValue : v;
 }
 
-// 예/아니오.
+// Yes/no.
 export async function askYesNo(message, initial = true) {
   return engine.confirm({ message, initialValue: initial });
 }
 
-// 배너·안내 출력.
+// Banner / notice output.
 export function intro(text) { engine.intro(text); }
 export function outro(text) { engine.outro(text); }
 export function note(text, title) { engine.note(text, title); }
-export function cancelMessage(text = "취소했습니다.") { engine.cancelMessage(text); }
+export function cancelMessage(text = t("ui.readline-engine.cancelled")) { engine.cancelMessage(text); }
 
-// ── 첫 화면 UI 5층 + 대화형 계층 실물 io ─────────────────
-// runInteractive는 io.<method>?.() 옵셔널 호출 — 테스트 스텁은 이 메서드들을 생략해
-// 시각 층·env 질문을 건너뛴다 (실행 계약은 그대로).
+// ── First-screen UI layers + real io for the interactive layer ─────
+// runInteractive calls io.<method>?.() optionally - test stubs omit these methods
+// to skip the visual layers and env questions (the execution contract is unchanged).
 import { printBanner as _printBanner } from "./banner.js";
 import {
   printDetectionLog as _detLog, printAnalysisCard as _card,
@@ -244,7 +219,7 @@ export function analysisCard(info) { _card(info); }
 export function installKind(info) { _installKind(info); }
 export function summary(ctx) { _summary(ctx); }
 
-// env 계획·경로 해석·충돌 메뉴가 쓰는 저수준 엔진 io (env-plan/paths-resolve의 io 계약)
+// Low-level engine io used by the env plan, path resolution and conflict menu (io contract of env-plan/paths-resolve)
 export const engineIo = {
   select: engine.select,
   multiselect: engine.multiselect,

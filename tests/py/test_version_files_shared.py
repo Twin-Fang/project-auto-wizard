@@ -1,8 +1,8 @@
-"""릴리스 시 버전 읽기(version_manager.py)가 공용 버전 파일 예시를 기대값대로 읽는지 확인한다.
+"""Check that the release-time version read (version_manager.py) reads the shared version-file examples as expected.
 
-같은 예시·기대값(tests/fixtures/version-files/expected.json)을 Node 테스트
-(tests/node/version-files-shared.test.js)도 사용해, 설치 시 감지와 릴리스 시 읽기가
-어긋나면 한쪽에서 드러난다.
+The same examples and expectations (tests/fixtures/version-files/expected.json) are
+used by the Node test (tests/node/version-files-shared.test.js), so a mismatch
+between install-time detection and release-time reading shows up on one side.
 """
 import contextlib
 import io
@@ -23,7 +23,7 @@ import version_manager  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "version-files"
 CASES = json.loads((ROOT / "expected.json").read_text(encoding="utf-8"))["cases"]
 
-# 파일에서 버전을 못 찾으면 version.yml 값으로 폴백하므로, 버전 형식이 아닌 표식을 둬 구분한다.
+# When no version is found in a file it falls back to the version.yml value, so a non-version marker is used to tell them apart.
 FALLBACK = "not-from-project-file"
 
 
@@ -43,7 +43,7 @@ class TestSharedVersionFiles(unittest.TestCase):
         shutil.copytree(ROOT / name, tmp, dirs_exist_ok=True)
         (Path(tmp) / "version.yml").write_text(
             f'version: "{FALLBACK}"\nproject_types: ["{case["type"]}"]\n', encoding="utf-8")
-        # version_manager는 현재 폴더의 version.yml을 기준으로 동작한다.
+        # version_manager works against the version.yml in the current directory.
         cwd = os.getcwd()
         os.chdir(tmp)
         try:
@@ -54,7 +54,7 @@ class TestSharedVersionFiles(unittest.TestCase):
             os.chdir(cwd)
 
         self.assertEqual(None if version == FALLBACK else version, case["version"])
-        # Python은 빌드 번호를 pubspec.yaml에서만 읽는다.
+        # Python reads the build number from pubspec.yaml only.
         if case["type"] == "flutter":
             self.assertEqual(build_number, case["buildNumber"])
 

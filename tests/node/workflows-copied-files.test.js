@@ -23,7 +23,7 @@ function ctxFor(types, extra = {}) {
   });
 }
 
-test("copyWorkflows: 최초 설치에서 copiedFiles는 실제 복사된 모든 파일명을 담고, 개수는 copied와 일치한다", () => {
+test("copyWorkflows: on first install copiedFiles holds every file name actually copied and its count matches copied", () => {
   const target = freshTarget("paw-copied-files-init-");
   try {
     const result = copyWorkflows(ctxFor(["node"]), PAYLOAD, target);
@@ -33,23 +33,23 @@ test("copyWorkflows: 최초 설치에서 copiedFiles는 실제 복사된 모든 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("copyWorkflows: 재실행 시 unchanged(skip)된 파일은 copiedFiles에 없다", () => {
+test("copyWorkflows: files unchanged (skipped) on rerun are not in copiedFiles", () => {
   const target = freshTarget("paw-copied-files-rerun-");
   try {
     const ctx = ctxFor(["node"]);
-    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치
-    const second = copyWorkflows(ctx, PAYLOAD, target); // 동일 조건 재실행 -> 전부 unchanged
+    copyWorkflows(ctx, PAYLOAD, target); // first install
+    const second = copyWorkflows(ctx, PAYLOAD, target); // rerun under the same conditions -> all unchanged
     assert.strictEqual(second.copiedFiles.length, 0);
     assert.strictEqual(second.copied, 0);
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .template.yaml 파일명을 copiedFiles에 담는다", () => {
+test("copyWorkflows: a backup decision records the original file name and a template decision records the .template.yaml name in copiedFiles", () => {
   const target = freshTarget("paw-copied-files-decision-");
   try {
-    // ".yaml만 strip" 규칙을 검증하려 .yml 확장자 파일이 필요해 Spring CI를 쓴다.
+    // Spring CI is used because verifying the "strip only .yaml" rule needs a .yml file.
     const ctx = ctxFor(["spring"]);
-    copyWorkflows(ctx, PAYLOAD, target); // 최초 설치 (spring 전용 파일 생성)
+    copyWorkflows(ctx, PAYLOAD, target); // first install (creates spring-only files)
 
     const targetFile = join(target, ".github", "workflows", "PROJECT-SPRING-CI.yml");
     writeFileSync(targetFile, "changed-content-that-differs-from-template\n");
@@ -62,7 +62,7 @@ test("copyWorkflows: backup 결정은 원본 파일명을, template 결정은 .t
     const templateResult = copyWorkflows(ctx, PAYLOAD, target, {
       decisions: new Map([["PROJECT-SPRING-CI.yml", "template"]]),
     });
-    // applyDecision()의 template 파일명 규칙: .yaml만 strip, .yml은 그대로 뒤에 .template.yaml이 붙는다.
+    // applyDecision() template naming rule: only .yaml is stripped; for .yml, .template.yaml is appended as is.
     assert.ok(templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml.template.yaml"));
     assert.ok(!templateResult.copiedFiles.includes("PROJECT-SPRING-CI.yml"));
   } finally { rmSync(target, { recursive: true, force: true }); }

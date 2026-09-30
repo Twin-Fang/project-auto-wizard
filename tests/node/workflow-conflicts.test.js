@@ -1,5 +1,5 @@
 // tests/node/workflow-conflicts.test.js
-// common 워크플로우도 타입별과 동일한 3지선이 적용되는지 검증.
+// Verify the common workflows get the same three-way choice as the per-type ones.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -44,7 +44,7 @@ test("copyWorkflows: a changed COMMON file with no decision defaults to skip (ke
     const edited = readFileSync(wfPath, "utf8") + "\n# user edit\n";
     writeFileSync(wfPath, edited);
 
-    copyWorkflows(ctx, PAYLOAD, target); // decisions 미지정 -> skip 기본값
+    copyWorkflows(ctx, PAYLOAD, target); // decisions unspecified -> skip default
     assert.strictEqual(readFileSync(wfPath, "utf8"), edited, "changed common file must be kept when no decision is given");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
@@ -70,7 +70,7 @@ test("copyWorkflows: a changed COMMON file with 'backup' decision is backed up a
 test("copyWorkflows/listWorkflowConflicts: trunk-based mode excludes VERSION-CONTROL/AUTO-CHANGELOG-CONTROL from conflicts even if a stale pr-flow install differs", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-wf-conflicts-"));
   try {
-    const prFlowCtx = ctxFor(); // pr-flow 기본값 -> VERSION-CONTROL 설치됨
+    const prFlowCtx = ctxFor(); // pr-flow default -> VERSION-CONTROL installed
     copyWorkflows(prFlowCtx, PAYLOAD, target);
     const wfPath = join(target, ".github/workflows/PROJECT-COMMON-VERSION-CONTROL.yaml");
     writeFileSync(wfPath, readFileSync(wfPath, "utf8") + "\n# user edit\n");

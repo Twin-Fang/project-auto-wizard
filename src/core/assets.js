@@ -1,19 +1,20 @@
-// payload 자산 해석 — 네트워크 접근 0 (구 acquireTemplate/git clone 대체).
-// 마법사가 설치하는 모든 자산은 npm 패키지에 동봉된 payload/ 가 단일 진실이다.
-// npx 글로벌 캐시에서 실행돼도 import.meta.url 기준으로 패키지 내 payload를 정확히 가리킨다.
+// Payload asset resolution: zero network access (replaces the old acquireTemplate/git clone).
+// The payload/ bundled in the npm package is the single source of truth for every asset the wizard installs.
+// Even when run from the npx global cache, import.meta.url points precisely at the payload inside the package.
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { exists, readText, listYamlFiles } from "./fsutil.js";
 import { DEFAULT_VERSION } from "../context.js";
+import { t } from "../i18n/index.js";
 
-// 패키지 내 payload/ 절대경로. 테스트·픽스처는 인자 주입으로 대체 가능.
+// Absolute path of payload/ inside the package. Tests and fixtures can substitute it by argument injection.
 export function resolvePayloadRoot() {
   return fileURLToPath(new URL("../../payload/", import.meta.url));
 }
 
-// 마법사(=템플릿) 버전 — 패키지 package.json의 version.
-// 구 readTemplateVersion(tempDir/version.yml)과 동일한 소비처(배너·breaking 비교·version.yml 기록)를 채운다.
+// Wizard (= template) version: the version in the package's package.json.
+// Serves the same consumers as the former readTemplateVersion(tempDir/version.yml): banner, breaking-change comparison, version.yml record.
 export function readTemplateVersion() {
   try {
     const pkgPath = fileURLToPath(new URL("../../package.json", import.meta.url));
@@ -24,23 +25,23 @@ export function readTemplateVersion() {
   }
 }
 
-// payload/workflows/common 직하위 yaml 목록.
+// List of yaml files directly under payload/workflows/common.
 export function listCommonWorkflows(payloadRoot = resolvePayloadRoot()) {
   return listYamlFiles(join(payloadRoot, "workflows", "common"));
 }
 
-// payload 구조 자가 점검 — 필수 폴더 누락 시 명확히 실패 (배포 패키징 오류 조기 발견).
+// Payload structure self-check: fails clearly when a required folder is missing (catches packaging errors early).
 export function assertPayload(payloadRoot = resolvePayloadRoot()) {
   if (!exists(join(payloadRoot, "workflows"))) {
-    throw new Error("패키지 구조 오류 — payload/workflows 폴더를 찾지 못했습니다.");
+    throw new Error(t("core.assets.missingWorkflows"));
   }
   if (!exists(join(payloadRoot, "scripts"))) {
-    throw new Error("패키지 구조 오류 — payload/scripts 폴더를 찾지 못했습니다.");
+    throw new Error(t("core.assets.missingScripts"));
   }
   return payloadRoot;
 }
 
-// payload/version.yml.template 원문.
+// Raw text of payload/version.yml.template.
 export function readVersionYmlTemplate(payloadRoot = resolvePayloadRoot()) {
   const p = join(payloadRoot, "version.yml.template");
   return exists(p) ? readText(p) : null;

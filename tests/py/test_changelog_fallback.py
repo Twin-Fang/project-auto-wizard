@@ -1,12 +1,17 @@
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parents[2] / "payload" / "scripts"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from changelog_manager import classify_commits, render_fallback_md  # noqa: E402
+from changelog_manager import _build_ai_prompt, classify_commits, render_fallback_md  # noqa: E402
+
+KO = {"PROJECT_AUTO_WIZARD_LANG": "ko"}
+EN = {"PROJECT_AUTO_WIZARD_LANG": "en"}
 
 
 class TestClassifyCommits(unittest.TestCase):
@@ -91,7 +96,10 @@ class TestClassifyCommits(unittest.TestCase):
         self.assertEqual(len(out["test"]), 1)
 
 
+@mock.patch.dict(os.environ, KO)
 class TestRenderFallbackMd(unittest.TestCase):
+    """Korean section titles (language: ko)."""
+
     def test_version_header_present(self):
         classified = {"feat": [], "fix": [], "chore": [], "docs": [],
                       "refactor": [], "test": [], "changes": ["misc change"]}
@@ -140,6 +148,58 @@ class TestRenderFallbackMd(unittest.TestCase):
                       "refactor": [], "test": [], "changes": []}
         md = render_fallback_md(classified, "0.0.1")
         self.assertIn("0.0.1", md)
+
+
+@mock.patch.dict(os.environ, EN)
+class TestRenderFallbackMdEnglish(unittest.TestCase):
+    """English section titles (the default language)."""
+
+    def test_empty_buckets_omitted(self):
+        classified = {"feat": ["add X"], "fix": [], "chore": [], "docs": [],
+                      "refactor": [], "test": [], "changes": []}
+        md = render_fallback_md(classified, "1.0.0")
+        self.assertIn("### ✨ Features", md)
+        for absent in ("Fixes", "Documentation", "Refactoring", "Tests", "Changes"):
+            self.assertNotIn(absent, md)
+
+    def test_chore_and_changes_merged_chore_first(self):
+        classified = {"feat": [], "fix": [], "chore": ["bump deps"], "docs": [],
+                      "refactor": [], "test": [], "changes": ["misc tweak"]}
+        md = render_fallback_md(classified, "1.0.0")
+        self.assertIn("### 🔧 Changes", md)
+        self.assertLess(md.index("bump deps"), md.index("misc tweak"))
+
+    def test_section_order(self):
+        classified = classify_commits([
+            "feat: add X", "perf: faster", "feat!: drop v1", "WIP", "misc tweak", "chore(deps): bump",
+        ])
+        md = render_fallback_md(classified, "1.0.0")
+        titles = ("### ⚠️ Breaking changes", "### ✨ Features", "### ⚡ Performance",
+                  "### 📦 Dependencies", "### 🔧 Changes", "### 🚧 Work in progress")
+        order = [md.index(x) for x in titles]
+        self.assertEqual(order, sorted(order))
+
+    def test_output_has_no_hangul(self):
+        md = render_fallback_md(classify_commits(["feat: add X", "fix: y", "WIP"]), "1.0.0")
+        self.assertFalse(any("\uac00" <= ch <= "\ud7a3" for ch in md))
+
+
+class TestAiPromptLanguage(unittest.TestCase):
+    def test_english_prompt_uses_english_section_names(self):
+        with mock.patch.dict(os.environ, EN):
+            prompt = _build_ai_prompt(["feat: add X"], "My PR", "1.2.3", "a.py | 2 +-")
+        self.assertIn("## [1.2.3]", prompt)
+        self.assertIn("'### ⚠️ Breaking changes'", prompt)
+        self.assertIn("PR title: My PR", prompt)
+        self.assertIn("- feat: add X", prompt)
+        self.assertFalse(any("\uac00" <= ch <= "\ud7a3" for ch in prompt))
+
+    def test_korean_prompt_keeps_original_wording(self):
+        with mock.patch.dict(os.environ, KO):
+            prompt = _build_ai_prompt(["feat: add X"], "My PR", "1.2.3")
+        self.assertIn("아래 커밋 목록을 바탕으로 한국어 릴리즈 요약을 작성해줘.", prompt)
+        self.assertIn("'### ⚠️ 호환성 깨짐', '### ✨ 기능', '### 🐛 수정',", prompt)
+        self.assertIn("PR 제목: My PR", prompt)
 
 
 if __name__ == "__main__":
