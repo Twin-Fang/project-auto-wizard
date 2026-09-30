@@ -280,6 +280,14 @@ jobs:
               m "${{ env.PAW_M_cicd_container_none }}" container="$CONTAINER_NAME"
             fi
 
+            # Next.js projects used to deploy as <project>-nextjs[-deploy]. Those containers keep the same host port
+            # (--restart unless-stopped), so remove them before starting the new one. No-op when they do not exist.
+            for LEGACY_NAME in "${PROJECT_NAME}-nextjs-deploy" "${PROJECT_NAME}-nextjs"; do
+              if [ "$LEGACY_NAME" != "$CONTAINER_NAME" ]; then
+                SUDO docker rm -f "$LEGACY_NAME" >/dev/null 2>&1 || true
+              fi
+            done
+
             # Start the new container
             m "${{ env.PAW_M_cicd_container_run }}" container="$CONTAINER_NAME"
 

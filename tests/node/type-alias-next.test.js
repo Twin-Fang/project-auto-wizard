@@ -125,5 +125,11 @@ test("the React workflows carry the former Next.js differences: conditional .nex
   assert.match(cd, /-e NODE_ENV=production \\/);
   assert.match(cd, /--restart unless-stopped \\/);
   assert.match(cd, /CONTAINER_NAME="\$\{PROJECT_NAME\}-front-deploy"/);
-  assert.doesNotMatch(cd, /-nextjs"/);
+  assert.doesNotMatch(cd, /CONTAINER_NAME="[^"]*nextjs/);
+  // Containers of the former Next.js deploy are removed before the new one starts (they hold the same host port)
+  const legacy = cd.match(/for LEGACY_NAME in ([^;]*); do\n([\s\S]*?)\n\s*done\n/);
+  assert.ok(legacy, "legacy container cleanup missing");
+  assert.match(legacy[1], /\$\{PROJECT_NAME\}-nextjs-deploy/);
+  assert.match(legacy[2], /docker rm -f "\$LEGACY_NAME" >\/dev\/null 2>&1 \|\| true/);
+  assert.ok(cd.indexOf("for LEGACY_NAME") < cd.indexOf("SUDO docker run -d"), "cleanup must run before docker run");
 });
