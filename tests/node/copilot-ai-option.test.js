@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseArgs, CliError } from "../../src/cli/args.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 import { run } from "../../src/index.js";
 import { parseTemplateOptions, buildVersionYml } from "../../src/core/version-yml.js";
 import { readVersionYmlTemplate, resolvePayloadRoot } from "../../src/core/assets.js";
@@ -70,8 +70,8 @@ test("parseArgs: --copilot과 --no-copilot 동시 지정은 CliError", () => {
 });
 
 test("help: --copilot 옵션과 AI Credits 소비를 안내한다", () => {
-  assert.ok(HELP_TEXT.includes("--copilot / --no-copilot"));
-  assert.ok(HELP_TEXT.includes("AI Credits"));
+  assert.ok(helpText().includes("--copilot / --no-copilot"));
+  assert.ok(helpText().includes("AI Credits"));
 });
 
 test("run(): 미지정이면 신규 설치도 copilot_ai: false (opt-in)", async () => {

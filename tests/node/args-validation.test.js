@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";
-import { HELP_TEXT } from "../../src/cli/help.js";
+import { helpText } from "../../src/cli/help.js";
 
 // ── --type/--paths 타입명 내부 공백 처리 통일 ──────────────────
 test("parsePathsCsv: 타입명 내부 공백은 --type과 동일하게 전부 제거되어 정규화된다", () => {
@@ -131,9 +131,9 @@ test("parseArgs: 배포 모드 플래그에 잘못된 값·누락은 CliError", 
   assert.throws(() => parseArgs(["--ios-deploy-mode"]), cliErrorMatching(/--ios-deploy-mode 값이 올바르지 않습니다: \(없음\)/));
 });
 
-test("HELP_TEXT: Flutter 옵션 플래그 4종을 안내한다", () => {
+test("helpText(): Flutter 옵션 플래그 4종을 안내한다", () => {
   for (const flag of ["--flutter-env-mode", "--flutter-store", "--android-deploy-mode", "--ios-deploy-mode"]) {
-    assert.ok(HELP_TEXT.includes(flag), `${flag}가 --help에 없다`);
+    assert.ok(helpText().includes(flag), `${flag}가 --help에 없다`);
   }
 });
 

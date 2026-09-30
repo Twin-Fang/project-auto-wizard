@@ -1,6 +1,6 @@
-// full 모드 오케스트레이터 — 대화형·비대화형이 확정한 context로 실제 설치를 수행한다.
-// 복사 순서: workflows(+env 치환) → flutter 앱 파일 → version.yml → readme → scripts → gitignore(조건부)
-// gitignore는 충돌 백업 부산물(.bak/.template.yaml)이 이번 실행에서 실제로 생겼을 때만 갱신한다.
+// full mode orchestrator: performs the actual install from the context settled by interactive/non-interactive mode.
+// Copy order: workflows (+env substitution) -> flutter app files -> version.yml -> readme -> scripts -> gitignore (conditional)
+// gitignore is updated only when conflict backup byproducts (.bak/.template.yaml) were actually created in this run.
 import { join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
@@ -20,33 +20,34 @@ import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE
 import { hooksFor } from "../core/types.js";
 import { findStaleWorkflows, cleanupStaleWorkflows } from "../core/removal-plan.js";
 import { log, maskValue } from "../core/logger.js";
+import { t } from "../i18n/index.js";
 
 // context: { version, types, paths:Map, branch, versionCode,
 //            force, repoName, resolvers, now, today }
-// payloadRoot: 패키지 payload/ 루트. targetRoot: 통합 대상.
+// payloadRoot: the package's payload/ root. targetRoot: the install target.
 export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     force = true, now, today, templateVersion = "unknown",
     includeSemverAuto } = context;
 
-  // 아무것도 쓰기 전에 권한부터 확인한다 — 도중에 멈추면 반쯤 설치된 상태가 남는다.
+  // Check permissions before writing anything: stopping midway would leave a half-installed state.
   const blocked = findUnwritable(targetRoot,
     [".", PATHS.workflowsDir, PATHS.scriptsDir, ".github/.wizard"],
     [PATHS.versionFile, "README.md", ".gitignore", ".github/.wizard/baseline.json"]);
   if (blocked.length) {
-    throw new CliError(`쓰기 권한이 없어 설치를 시작하지 않았습니다 (아무 파일도 바꾸지 않았습니다):\n${blocked.map((p) => `  - ${p}`).join("\n")}\n권한을 확인한 뒤 다시 실행하세요.`);
+    throw new CliError(t("cmd.full.noWritePermission", { list: blocked.map((p) => `  - ${p}`).join("\n") }));
   }
 
-  // project_paths 마커 계산.
-  // 대표 마커명이 아니라 그 폴더에 실제로 있는 파일을 쓴다 — build.gradle.kts만 있는 레포의
-  // version.yml에 "# build.gradle"이라고 적히면 감지 로그와 같은 종류의 거짓말이 된다.
+  // Compute the project_paths markers.
+  // Use the file that actually exists in that folder, not the canonical marker name: writing "# build.gradle"
+  // into version.yml of a repo that only has build.gradle.kts would be the same kind of lie as in the detection log.
   const pathMarkers = new Map();
-  for (const [t, p] of paths) {
-    const marker = existingMarkerInDir(t, join(targetRoot, p || "."));
-    pathMarkers.set(t, marker);
-    // 파일이 실제로 없으면 사용자가 직접 고른 타입이다 — 대표 파일명을 근거로 적으면 감지된 것처럼 보인다.
+  for (const [type, p] of paths) {
+    const marker = existingMarkerInDir(type, join(targetRoot, p || "."));
+    pathMarkers.set(type, marker);
+    // If the file does not actually exist, the user picked the type by hand; citing the canonical file name as evidence would look like detection.
     const found = marker && existsSync(join(targetRoot, p || ".", marker));
-    log.info("detect", "type", `${t} (근거: ${found ? marker : "직접 선택"})`);
+    log.info("detect", "type", t("cmd.full.log.typeEvidence", { type, evidence: found ? marker : t("cmd.full.log.userChosen") }));
   }
   log.info("detect", "version", `${version}${context.versionSource ? ` (${context.versionSource})` : ""}`);
   log.info("detect", "branch", `${branch}${context.branches ? ` | main=${context.branches.main} develop=${context.branches.develop} mode=${context.branches.mode}` : ""}`);
@@ -55,63 +56,63 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
     log.info("prompt", a.isDefault ? "default" : "answer", `${a.key}=${maskValue(a.key, a.value)}`);
   }
 
-  // 1. 워크플로우 복사 (+ env 치환) — deploy 블록에 쓸 ask 값을 수집한다.
-  //    hooks.decisions: 대화형 충돌 3지선 결정 Map (미지정=skip — 현행 force 동작)
+  // 1. Copy workflows (+ env substitution) and collect the ask values for the deploy block.
+  //    hooks.decisions: Map of interactive three-way conflict decisions (unset = skip, the current force behavior)
   const wfCounters = copyWorkflows(context, payloadRoot, targetRoot, hooks);
   const deployValues = wfCounters.deployValues || new Map(); // Map<type, Map<key,value>>
 
-  // 1-1. Flutter 앱 파일(fastlane·ExportOptions) — 사용자가 값을 채워 쓰는 파일이라 없을 때만 만든다.
-  //      워크플로우 복사가 끝난 뒤에 실행한다(워크플로우가 이 파일들을 전제로 돈다).
+  // 1-1. Flutter app files (fastlane, ExportOptions): users fill these in, so create them only when missing.
+  //      Runs after the workflow copy finishes (the workflows assume these files).
   const flutterApp = copyTypeAppFiles(context, payloadRoot, targetRoot, (tag, action, f) => {
-    log.info(tag, action, action === "keep" ? `${f} (기존 파일 유지)` : f);
+    log.info(tag, action, action === "keep" ? t("cmd.full.log.keepExisting", { file: f }) : f);
   });
 
-  // 기존 version.yml의 알려지지 않은 최상위 필드를 재생성 시 보존한다.
+  // Preserve unknown top-level fields of an existing version.yml when regenerating it.
   const vyPath = join(targetRoot, PATHS.versionFile);
   const prevVy = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
   const extraTopLevel = prevVy != null ? parseExisting(prevVy).extraTopLevel : [];
 
-  // 2. version.yml 생성 (payload/version.yml.template 렌더링 — 전체 재생성)
-  //    날짜 줄만 달라지는 재실행은 다시 쓰지 않는다(멱등).
+  // 2. Generate version.yml (render payload/version.yml.template; full regeneration)
+  //    A re-run where only the date lines differ does not rewrite it (idempotent).
   const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel });
   if (prevVy == null || !sameIgnoringTimestamps(prevVy, vyText)) {
     writeText(vyPath, vyText);
     log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
   } else {
-    log.info("version", "skip", `version.yml (v${version}, code=${versionCode}, 변경 없음)`);
+    log.info("version", "skip", t("cmd.full.log.versionUnchanged", { version, code: versionCode }));
   }
 
-  // 3. README 버전 섹션
+  // 3. README version section
   const readme = addVersionSectionToReadme(version, targetRoot);
   log.info("readme", readme === "added" ? "append" : "skip", README_STATUS_LABEL[readme] || readme);
 
-  // 4. scripts (payload/scripts/*.py → .github/scripts/) — 항상 덮어쓰므로 사용자 수정이 사라진 사실도 남긴다.
+  // 4. scripts (payload/scripts/*.py -> .github/scripts/): always overwritten, so also record that user edits are lost.
   const scripts = copyScripts(payloadRoot, targetRoot);
   for (const { name, action } of scripts) {
-    log.info("script", action, `${PATHS.scriptsDir}/${name}${action === "overwrite" ? " (기존 내용과 달라 새 버전으로 덮어씀)" : ""}`);
+    log.info("script", action, `${PATHS.scriptsDir}/${name}${action === "overwrite" ? t("cmd.full.log.scriptOverwritten") : ""}`);
   }
   const bytecodeRemoved = removeScriptBytecode(targetRoot);
-  for (const rel of bytecodeRemoved) log.info("script", "remove", `${rel} (예전 버전이 커밋한 바이트코드 — 삭제를 함께 커밋하세요)`);
+  for (const rel of bytecodeRemoved) log.info("script", "remove", t("cmd.full.log.bytecodeRemoved", { file: rel }));
 
-  // 5. gitignore — 워크플로우 충돌 처리가 .bak나 .template.yaml을 실제로 만든 경우에만 갱신한다.
-  //    충돌 없는 설치(대부분의 최초 설치)는 .gitignore를 전혀 건드리지 않는다.
+  // 5. gitignore: updated only when conflict handling actually created .bak or .template.yaml files.
+  //    Installs without conflicts (most first installs) do not touch .gitignore at all.
   const gitignoreUpdated0 = wfCounters.backupAdded > 0 || wfCounters.templateAdded > 0;
 
-  // 6. 이전 배포 방식 정리 — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
-  //    옛 baseline이 살아 있는 지금이 "사용자가 손댔는가"를 판정할 수 있는 유일한 시점이다.
+  // 6. Clean up the previous deploy style: reinstalling with a different style would leave the old CD and deploy twice.
+  //    Now, while the old baseline is still alive, is the only time we can judge "did the user touch it?".
   const previousBaseline = readBaseline(targetRoot);
   const { cleanup, storeCleanup, staleCleanup } = cleanupWorkflows(context, payloadRoot, targetRoot, previousBaseline,
     { justWritten: wfCounters.copiedFiles || [] });
-  // 지운 파일의 기준점은 baseline에서도 빼야 다음 실행에서 "사용자가 지웠다"로 오인하지 않는다.
+  // Drop removed files' reference points from the baseline too, or the next run mistakes them for "deleted by the user".
   for (const r of [cleanup, storeCleanup, staleCleanup]) {
     for (const f of [...r.removed, ...r.backedUp]) delete previousBaseline?.files?.[f];
   }
 
-  for (const f of cleanup.removed || []) log.info("cleanup", "remove", `${f} (이전 배포 방식 정리)`);
+  for (const f of cleanup.removed || []) log.info("cleanup", "remove", `${f} (${t("cmd.dryRun.reason.cleanup")})`);
   for (const f of cleanup.backedUp || []) log.info("cleanup", "backup", `${f} → ${f}.bak`);
-  for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (선택 해제된 스토어 워크플로우 정리)`);
+  for (const f of storeCleanup.removed) log.info("cleanup", "remove", `${f} (${t("cmd.dryRun.reason.storeCleanup")})`);
   for (const f of storeCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
-  for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (현재 버전에 없는 이전 워크플로우 정리)`);
+  for (const f of staleCleanup.removed) log.info("cleanup", "remove", `${f} (${t("cmd.dryRun.reason.staleCleanup")})`);
   for (const f of staleCleanup.backedUp) log.info("cleanup", "backup", `${f} → ${f}.bak`);
   const cleanupCount = (key) => [cleanup, storeCleanup, staleCleanup].reduce((n, r) => n + r[key].length, 0);
 
@@ -120,13 +121,13 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   if (gitignoreUpdated) {
     const gi = ensureGitignore(targetRoot);
     log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
-      gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : ".gitignore (이미 있는 항목)");
+      gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : t("cmd.full.log.gitignoreExisting"));
   }
 
-  // 7. baseline 기록 — 다음 업데이트에서 "누가 바꿨는지"를 가를 기준점.
-  //    env 치환까지 전부 끝난 뒤에 해시해야 디스크 내용이 최종형이다. 그래서 copyWorkflows 안이
-  //    아니라 여기서 기록한다.
-  //    기존 baseline은 병합 대상 — 이번에 건드리지 않은 파일의 기준점을 잃지 않는다.
+  // 7. Write the baseline: the reference point that tells "who changed it" on the next update.
+  //    Hash only after env substitution is fully done so the on-disk content is final; that is why it is
+  //    recorded here rather than inside copyWorkflows.
+  //    The existing baseline is merged, so reference points for files not touched this time are not lost.
   writeBaseline(targetRoot, {
     templateVersion,
     installedAt: now || today || "",
@@ -136,52 +137,53 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
       makeSrcText(context.branches || null, context.deployStyle || ""),
       deployValues),
     previous: previousBaseline,
-    // 새로 만든 Flutter 앱 파일만 기록한다 — 기존 사용자 파일(kept)은 완전 삭제 대상이 아니다.
+    // Record only newly created Flutter app files; existing user files (kept) are not candidates for full removal.
     appFiles: new Map(flutterApp.created.map((rel) => [rel, appFileHash(readFileSync(join(targetRoot, rel), "utf8"))])),
   });
 
-  // 8. 설치 후 검증 — 디스크에 실제로 쓰인 내용을 다시 읽어 확인한다.
-  //    미치환 플레이스홀더가 남았는지, 어떤 Secret이 있어야 워크플로우가 도는지.
-  //    설치를 실패시키지는 않는다 — 사실을 알려주는 것이 목적이고, 판단은 사용자 몫이다.
+  // 8. Post-install verification: re-read what was actually written to disk.
+  //    Whether unsubstituted placeholders remain, and which Secrets the workflows need to run.
+  //    It does not fail the install; the goal is to report facts and leave the judgment to the user.
   const wfDir = join(targetRoot, PATHS.workflowsDir);
   const managed = [...(wfCounters.baselineTargets || new Map()).keys()];
   const unresolved = scanUnsubstituted(wfDir, managed);
-  // 기본값이 있거나 둘 중 하나면 되는 secret은 필수와 나눠 안내한다.
+  // Secrets that have a default or where either of two is enough are reported separately from the required ones.
   const secretSets = classifySecrets(wfDir, managed);
   const secrets = narrowSecretsBySshAuth(secretSets.required, firstDeployValue(deployValues, "SSH_AUTH_METHOD"));
   const optionalSecrets = secretSets.optional;
 
-  // 9. 요약 — 파일 끝에 결과 블록을 붙인다. tail만 봐도 결과가 보이도록.
+  // 9. Summary: append a result block at the end of the file so the outcome is visible from the tail alone.
   for (const u of unresolved) log.warn("verify", "unresolved", `${u.filename}:${u.line} ${u.token}`);
   for (const [name, users] of secrets) log.info("verify", "secret", `${name} ← ${users.join(", ")}`);
-  for (const [name, users] of optionalSecrets) log.info("verify", "secret-opt", `${name} (선택) ← ${users.join(", ")}`);
-  // copiedFiles에는 자동 갱신분도 들어 있다 — 빼지 않으면 같은 파일이 설치와 자동 갱신에 두 번 잡힌다.
+  for (const [name, users] of optionalSecrets) log.info("verify", "secret-opt", t("cmd.full.log.secretOptional", { name, users: users.join(", ") }));
+  // copiedFiles also contains the auto-updated ones; without excluding them the same file is counted as both installed and auto-updated.
   const autoUpdated = new Set(wfCounters.autoUpdated || []);
   log.summary([
-    ["설치", `${(wfCounters.copiedFiles || []).filter((f) => !autoUpdated.has(f)).length}개 파일`],
-    ["자동 갱신", `${autoUpdated.size}개 (사용자 미수정)`],
-    ["유지", `${(wfCounters.keptLocal || []).length}개 (사용자 수정본)`],
-    ["변경 없음", `${(wfCounters.unchangedFiles || []).length}개`],
-    ["백업 교체", `${wfCounters.backupAdded || 0}개 (.bak 생성)`],
-    // 배포 방식 변경·스토어 해제·옛 워크플로우 정리도 파일을 지우거나 .bak으로 옮긴다 — 충돌 백업과 따로 센다.
-    ["정리", `삭제 ${cleanupCount("removed")}개, .bak 이동 ${cleanupCount("backedUp")}개`],
-    ["미치환", `${unresolved.length}건${unresolved.length ? "  ← 조치 필요" : ""}`],
-    ["필요 Secret", `${secrets.size}개`],
-    ["결과", unresolved.length ? `주의 (미치환 ${unresolved.length}건)` : "OK"],
+    [t("cmd.full.summary.installed"), t("cmd.full.summary.installedValue", { n: (wfCounters.copiedFiles || []).filter((f) => !autoUpdated.has(f)).length })],
+    [t("cmd.full.summary.autoUpdated"), t("cmd.full.summary.autoUpdatedValue", { n: autoUpdated.size })],
+    [t("cmd.full.summary.kept"), t("cmd.full.summary.keptValue", { n: (wfCounters.keptLocal || []).length })],
+    [t("cmd.full.summary.unchanged"), t("cmd.full.summary.unchangedValue", { n: (wfCounters.unchangedFiles || []).length })],
+    [t("cmd.full.summary.backup"), t("cmd.full.summary.backupValue", { n: wfCounters.backupAdded || 0 })],
+    // Deploy style changes, store deselection and old-workflow cleanup also delete files or move them to .bak; counted separately from conflict backups.
+    [t("cmd.full.summary.cleanup"), t("cmd.full.summary.cleanupValue", { removed: cleanupCount("removed"), backedUp: cleanupCount("backedUp") })],
+    [t("cmd.full.summary.unresolved"), t(unresolved.length ? "cmd.full.summary.unresolvedActionValue" : "cmd.full.summary.unresolvedValue", { n: unresolved.length })],
+    [t("cmd.full.summary.secrets"), t("cmd.full.summary.secretsValue", { n: secrets.size })],
+    [t("cmd.full.summary.result"), unresolved.length ? t("cmd.full.summary.resultWarn", { n: unresolved.length }) : "OK"],
   ]);
 
   return { workflows: wfCounters, gitignoreUpdated, unresolved, secrets, cleanup, storeCleanup, staleCleanup, flutterApp, readme, scripts, bytecodeRemoved, optionalSecrets };
 }
 
-// 워크플로우 정리 3종 — 실제 설치(runFull)와 --dry-run 미리보기가 같은 판정을 쓴다.
-//   6   배포 방식 정리 — 방식을 바꿔 재설치하면 이전 CD가 남아 배포가 두 번 돈다.
-//   6-1 선택 해제된 스토어 워크플로우 정리 — 스토어 대상을 줄여 재설치하면 이전 워크플로우가 main push마다
-//       계속 돈다. 선택이 미결정(null)이거나 Flutter가 없으면 아무것도 지우지 않는다.
-//       Fastfile·ExportOptions는 사용자 소유라 여기서 다루지 않는다.
-//   6-2 payload에서 이름이 바뀌거나 빠진 옛 워크플로우 정리.
-// 규칙은 모두 같다(미수정 삭제, 수정본 .bak). 세 대상은 파일명이 겹치지 않아 순서와 무관하게 판정이 같다.
-// baseline은 정리 전의 것을 넘겨야 한다 — "사용자가 손댔는가"를 판정할 수 있는 유일한 기준이다.
-// dryRun이면 판정만 하고 파일은 건드리지 않는다.
+// Three workflow cleanups: the real install (runFull) and the --dry-run preview use the same decisions.
+//   6   Deploy style cleanup: reinstalling with a different style would leave the old CD and deploy twice.
+//   6-1 Deselected store workflow cleanup: reinstalling with fewer store targets would let the old workflows
+//       keep running on every main push. Nothing is deleted when the selection is undecided (null) or Flutter is absent.
+//       Fastfile and ExportOptions belong to the user and are not handled here.
+//   6-2 Cleanup of old workflows that were renamed or dropped from the payload.
+// The rules are the same for all (delete if unmodified, .bak if modified). The three sets never share file
+// names, so the outcome is independent of order.
+// Pass the pre-cleanup baseline: it is the only reference that can judge "did the user touch it?".
+// With dryRun it only decides and leaves the files alone.
 export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { justWritten = [], dryRun = false } = {}) {
   const workflowsDir = join(targetRoot, PATHS.workflowsDir);
   const listDir = () => (existsSync(workflowsDir) ? readdirSync(workflowsDir) : []);
@@ -198,8 +200,8 @@ export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { j
   return { cleanup, storeCleanup, staleCleanup };
 }
 
-// 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·타입 전용 옵션)을 남긴다 — 대화형에서 고른 값도
-// 여기로 모이므로, 나중에 "왜 이렇게 설치됐나"를 로그만으로 따라갈 수 있다.
+// Record the choices that shaped the install result (deploy style, auto bump, Copilot, type-specific options).
+// Values picked interactively converge here too, so "why was it installed like this?" can later be traced from the log alone.
 function logChoices(context, types) {
   if (context.deployStyle) log.info("option", "deploy", context.deployStyle);
   if (context.includeSemverAuto != null) log.info("option", "semver", context.includeSemverAuto ? "on" : "off");
@@ -209,25 +211,25 @@ function logChoices(context, types) {
   }
 }
 
-// 완료 요약과 별도로 알려야 하는 사실 — 비대화형 실행이 조용히 넘어가면 사용자는 업데이트를 다 받았다고 믿는다.
-// interactive: 대화형은 충돌을 사용자가 직접 골랐으므로 충돌 안내를 빼고 정리 결과만 알린다.
+// Facts to report separately from the completion summary: if a non-interactive run passes silently, users believe they received the whole update.
+// interactive: in interactive mode the user picked the conflict outcome, so omit the conflict notice and report only the cleanup result.
 export function postInstallNotices(result, { interactive = false } = {}) {
   const lines = [];
   const stale = result?.staleCleanup || { removed: [], backedUp: [] };
   if (stale.removed.length || stale.backedUp.length) {
-    lines.push("현재 버전에 없는 이전 워크플로우를 정리했습니다 (이름이 바뀌었거나 제거된 파일):");
-    for (const f of stale.removed) lines.push(`   • ${f} — 삭제 (손대지 않은 파일)`);
-    for (const f of stale.backedUp) lines.push(`   • ${f} → ${f}.bak — 수정하신 내용이 있어 백업`);
+    lines.push(t("cmd.full.notice.staleHeading"));
+    for (const f of stale.removed) lines.push(t("cmd.full.notice.staleRemoved", { file: f }));
+    for (const f of stale.backedUp) lines.push(t("cmd.full.notice.staleBackedUp", { file: f }));
   }
   const kept = interactive ? [] : result?.workflows?.conflictKept || [];
   if (kept.length) {
-    lines.push(`충돌 ${kept.length}개 — 기존 파일을 유지했습니다 (업스트림 변경 미반영): ${kept.join(", ")}`);
-    lines.push("   파일마다 고르려면 대화형(npx project-auto-wizard)으로 다시 실행하세요.");
+    lines.push(t("cmd.full.notice.conflictKept", { n: kept.length, files: kept.join(", ") }));
+    lines.push(t("cmd.full.notice.conflictHint"));
   }
   return lines;
 }
 
-// deployValues는 Map<type, Map<key,value>> — 타입 구분 없이 첫 값만 필요할 때 쓴다.
+// deployValues is Map<type, Map<key,value>>; used when only the first value is needed regardless of type.
 function firstDeployValue(deployValues, key) {
   for (const [, asks] of deployValues) {
     const v = asks.get(key);
