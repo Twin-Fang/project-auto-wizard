@@ -2,28 +2,30 @@ import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
 import { DEFAULT_LANGUAGE, isSupportedLanguage, normalizeLanguage } from "../i18n/languages.js";
+// Aliased: `t` is used as a local variable name (type, trimmed line) throughout this file.
+import { t as tr } from "../i18n/index.js";
 
-// version.yml 파싱·생성 (전체 재생성 전략).
-// ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
-// 레이아웃 단일 진실 = payload/version.yml.template (호출부가 templateText로 주입).
+// version.yml parsing and generation (full-regeneration strategy).
+// WARNING: no YAML re-serialization - the comments are data.
+// Single source of truth for the layout = payload/version.yml.template (injected by the caller as templateText).
 
-// version.yml.template이 아는 최상위 키 — 이 밖의 최상위 키는 사용자가 직접 추가한 것으로 간주한다.
-// "project_type"(단수)은 더 이상 렌더하지 않는 레거시 키지만 이 집합에는 남겨둔다:
-// 빼면 기존 파일의 단수 줄이 "사용자가 추가한 필드"로 오인돼 재생성 때 되살아난다. 아는 키로
-// 둬야 재통합 시 흡수되어 사라진다.
+// Top-level keys the version.yml.template knows - any other top-level key is considered added by the user.
+// "project_type" (singular) is a legacy key that is no longer rendered but stays in this set:
+// if removed, the singular line of an existing file would be mistaken for a "field added by the user" and
+// revived on regeneration. It must stay a known key so it is absorbed and disappears on re-integration.
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "version", "version_code", "project_types", "project_type", "language", "project_paths", "metadata", "deploy",
 ]);
 
-// 최상위 레벨의 알려지지 않은 필드(사용자가 직접 추가한 임의 필드)를 원본 그대로 보존한다
-//. 각 알려지지 않은 최상위 키부터 다음 최상위 키 직전까지를 통째로 한 블록으로
-// 캡처한다(중첩 구조가 있어도 유효한 YAML로 남기기 위함). metadata/project_paths/deploy처럼
-// 이 모듈이 이미 아는 블록 "내부"의 알려지지 않은 하위 키는 대상이 아니다(범위 밖).
+// Preserve unknown top-level fields (arbitrary fields the user added) verbatim.
+// Everything from each unknown top-level key up to just before the next top-level key is captured
+// as one block (so it stays valid YAML even with nested structure). Unknown sub-keys "inside" blocks this
+// module already knows, such as metadata/project_paths/deploy, are out of scope.
 export function parseExtraTopLevel(content) {
   const blocks = [];
   let current = null;
   for (const line of String(content || "").split("\n")) {
-    // 최상위 키는 하이픈을 포함할 수 있다(YAML 관례).
+    // Top-level keys may contain hyphens (YAML convention).
     const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):/);
     if (m) {
       if (current) blocks.push(current.join("\n"));
@@ -36,22 +38,22 @@ export function parseExtraTopLevel(content) {
   return blocks;
 }
 
-// 타입 전용 옵션 키 → 반환 필드(타입 훅 savedOptionKeys). 값은 원문 문자열로 돌려주고, 유효성 판정은 타입 훅의 resolveOptions 몫이다.
+// Type-specific option key -> returned field (type hook savedOptionKeys). The value is returned as the raw string; validity is up to the type hook's resolveOptions.
 const TYPE_OPTION_KEYS = allHookValues("savedOptionKeys");
 const TYPE_OPTION_LINE = new RegExp(`^\\s+(${Object.keys(TYPE_OPTION_KEYS).join("|")}):\\s*(.+)`);
 
-// metadata.template.options 상태머신 파싱.
-// 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
-//         타입 전용 옵션 필드(예: envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } — null=미기재.
-// 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
+// State-machine parse of metadata.template.options.
+// Returns: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
+//         type-specific option fields (e.g. envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } - null = not written.
+// Other keys such as the old synology/coderabbit ones hit no branch and are naturally ignored (no parse error).
 export function parseTemplateOptions(content) {
   const out = {
     semverAuto: null, copilotAi: null, deployStyle: null,
     ...Object.fromEntries(Object.values(TYPE_OPTION_KEYS).map((field) => [field, null])),
   };
-  // 값 정규화: 따옴표 제거 + 트림
-  // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
-  // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
+  // Value normalization: strip quotes + trim
+  // Strip the inline comment (` # ...`) first, then clean quotes and whitespace. For keys taking a string value (deploy_style),
+  // without stripping the comment the whole "simple # simple | nginx ..." becomes the value.
   const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
   let inTemplate = false;
   let inOptions = false;
@@ -77,29 +79,29 @@ export function parseTemplateOptions(content) {
         if (v === "false") out.copilotAi = false;
         continue;
       }
-      // 들여쓰기 0~4칸의 다른 키 → options 섹션 종료
+      // another key indented 0-4 spaces -> end of the options section
       if (/^\s{0,4}[a-z_]+:/.test(line)) { inOptions = false; inTemplate = false; }
     }
-    // 최상위 키 → template 섹션 종료
+    // top-level key -> end of the template section
     if (inTemplate && /^[a-z_]+:/.test(line)) { inTemplate = false; inOptions = false; }
   }
   return out;
 }
 
-// 기존 version.yml에서 값 추출 (라인 기반, 주석 라인 오탐 방지).
+// Extract values from an existing version.yml (line-based, avoids false hits on comment lines).
 export function parseExisting(content) {
   const text = String(content || "");
   const line = (re) => {
     for (const l of text.split("\n")) {
-      if (l.startsWith("#")) continue; // 주석 제외
+      if (l.startsWith("#")) continue; // exclude comments
       const m = l.match(re);
       if (m) return m[1];
     }
     return null;
   };
-  // version: "x.y.z" (숫자.숫자.숫자 형태만)
+  // version: "x.y.z" (digits.digits.digits form only)
   const version = line(/^version:\s*["']?([0-9][0-9.]*)["']?/) || "";
-  // version_code: N (양의 정수, 아니면 1)
+  // version_code: N (positive integer, otherwise 1)
   let versionCode = parseInt(line(/^version_code:\s*([0-9]+)/) || "", 10);
   if (!Number.isInteger(versionCode) || versionCode <= 0) versionCode = 1;
   // project_types: ["a","b"]
@@ -109,7 +111,7 @@ export function parseExisting(content) {
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
-  // project_paths 블록: "  type: "path""
+  // project_paths block: `  type: "path"`
   const paths = new Map();
   let inPaths = false;
   for (const l of text.split("\n")) {
@@ -117,10 +119,10 @@ export function parseExisting(content) {
     if (inPaths) {
       const m = l.match(/^\s+([a-z-]+):\s*"([^"]*)"/);
       if (m) paths.set(m[1], m[2]);
-      else if (/^\S/.test(l)) inPaths = false; // 들여쓰기 끝 → 블록 종료
+      else if (/^\S/.test(l)) inPaths = false; // end of indentation -> end of block
     }
   }
-  // template: 블록 내 version
+  // version inside the template: block
   let templateVersion = "";
   let inTemplate = false;
   for (const l of text.split("\n")) {
@@ -131,9 +133,9 @@ export function parseExisting(content) {
       if (/^\S/.test(l)) break;
     }
   }
-  // 선택 워크플로우 옵션 (metadata.template.options)
+  // Optional workflow options (metadata.template.options)
   const options = parseTemplateOptions(text);
-  // metadata.template.branches — main/develop/mode (업데이트 모드 재질문 생략용)
+  // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
     version, versionCode, types, language, paths, templateVersion, options, branches,
@@ -141,10 +143,10 @@ export function parseExisting(content) {
   };
 }
 
-// deploy 블록 파싱 — 설치 때 답한 배포 값을 다시 읽어 재실행·업데이트의 기본값으로 쓴다.
-// 쓰기만 하고 읽지 않으면 손대지 않은 파일은 치환을 건너뛰어 블록이 사라지고, 자동 갱신은
-// 사용자가 고른 값을 템플릿 기본값으로 되돌린다.
-// 반환: Map<type, Map<KEY, value>> (값은 buildVersionYml이 쓴 큰따옴표 이스케이프를 푼 원문)
+// Parse the deploy block - re-reads the deploy values answered at install time for use as defaults on re-runs and updates.
+// If it is only written and never read, an untouched file skips substitution so the block disappears, and auto-refresh
+// reverts the user's chosen values to the template defaults.
+// Returns: Map<type, Map<KEY, value>> (values are the raw text with the double-quote escapes written by buildVersionYml undone)
 export function parseDeployBlock(content) {
   const out = new Map();
   let inDeploy = false;
@@ -153,7 +155,7 @@ export function parseDeployBlock(content) {
     const l = raw.replace(/\r$/, "");
     if (/^deploy:/.test(l)) { inDeploy = true; current = null; continue; }
     if (!inDeploy) continue;
-    if (/^\S/.test(l)) { inDeploy = false; continue; } // 다음 최상위 키 → 블록 종료
+    if (/^\S/.test(l)) { inDeploy = false; continue; } // next top-level key -> end of block
     const t = l.match(/^ {2}([a-z][a-z-]*):\s*(?:#.*)?$/);
     if (t) { current = new Map(); out.set(t[1], current); continue; }
     const kv = l.match(/^ {4}([A-Za-z_][A-Za-z0-9_]*):\s*"((?:[^"\\]|\\.)*)"/);
@@ -162,10 +164,10 @@ export function parseDeployBlock(content) {
   return out;
 }
 
-// metadata.template.branches 블록 파싱. 셋 다 있어야 유효 — 아니면 null.
+// Parse the metadata.template.branches block. All three must be present to be valid - otherwise null.
 export function parseTemplateBranches(content) {
-  // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
-  // 주석을 안 떼면 "simple # simple | nginx ..." 가 통째로 값이 된다.
+  // Strip the inline comment (` # ...`) first, then clean quotes and whitespace. For keys taking a string value (deploy_style),
+  // without stripping the comment the whole "simple # simple | nginx ..." becomes the value.
   const strip = (s) => String(s).replace(/\s+#.*$/, "").replace(/["']/g, "").trim();
   let inTemplate = false;
   let inBranches = false;
@@ -187,23 +189,23 @@ export function parseTemplateBranches(content) {
   return out.main && out.develop && out.mode ? out : null;
 }
 
-// version.yml 전체 생성 — payload/version.yml.template 렌더링.
+// Generate the whole version.yml - renders payload/version.yml.template.
 // opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
-//         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존
+//         extraTopLevel?:string[],  <- preserves unknown top-level fields of the existing version.yml
 //         language?:string,  <- message language (en|ko, default en)
-//         typeOptions?:object }  ← 타입 훅(versionOptionsBlock)이 해당 타입일 때만 렌더하는 옵션 블록의 입력
-//   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
-//   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
-//   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
-//   pathMarkers = Map<type, markerFilename> (project_paths 주석용)
+//         typeOptions?:object }  <- input of the option block a type hook (versionOptionsBlock) renders only for its own type
+//   templateText = raw text of payload/version.yml.template (readVersionYmlTemplate - required)
+//   now   = "YYYY-MM-DD HH:MM:SS" (UTC) - injected for determinism / today = "YYYY-MM-DD"
+//   branches = { main, develop, mode } (result of resolveBranchConfig. Without it, defaults based on branch)
+//   pathMarkers = Map<type, markerFilename> (for project_paths comments)
 //   templateOptions = { templateVersion, optionsDate }
 export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
   templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {}, language = DEFAULT_LANGUAGE,
 }) {
-  if (!templateText) throw new Error("version.yml.template 원문이 필요합니다 (payload/version.yml.template 누락?)");
+  if (!templateText) throw new Error(tr("core.versionYml.error.templateRequired"));
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
@@ -211,10 +213,10 @@ export function buildVersionYml({
     includeSemverAuto = true, includeCopilotAi = false, deployStyle = "", optionsDate = today,
   } = templateOptions || {};
 
-  // project_paths 블록 (full-line 토큰 {{PROJECT_PATHS}} — 없으면 라인 제거)
+  // project_paths block (full-line token {{PROJECT_PATHS}} - line removed when absent)
   let pathsBlock = "";
   if (paths.size) {
-    const rows = [`project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)`];
+    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment")}`];
     for (const [t, p] of paths) {
       const marker = pathMarkers.get(t) || "";
       const pf = p === "." ? marker : (marker ? `${p}/${marker}` : p);
@@ -223,21 +225,21 @@ export function buildVersionYml({
     pathsBlock = rows.join("\n");
   }
 
-  // deploy 블록 (full-line 토큰 {{DEPLOY}} — WF ask 값이 있는 타입만, 앞에 빈 줄 1개)
+  // deploy block (full-line token {{DEPLOY}} - only types with WF ask values, one blank line before)
   let deployBlock = "";
   const deployTypes = [...deployValues.keys()].filter((t) => deployValues.get(t) && deployValues.get(t).size > 0);
   if (deployTypes.length) {
-    const rows = ["", "deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)"];
+    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment")}`];
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
-      // 동일한 이스케이프를 재사용 — deploy 값도 @wizard ask 값과 같은 경로로 들어오므로
-      // 큰따옴표가 섞이면 setEnvLine과 동일하게 YAML이 깨진다 (두 번째 지점).
+      // Reuse the same escape - deploy values arrive by the same path as @wizard ask values, so
+      // a stray double quote breaks the YAML just like in setEnvLine (the second site).
       for (const [k, v] of deployValues.get(t)) rows.push(`    ${k}: "${escapeYamlDoubleQuoted(v)}"`);
     }
     deployBlock = rows.join("\n");
   }
 
-  // 타입 옵션 블록 (full-line 토큰 {{TYPE_OPTIONS}} — 블록을 내는 타입이 있을 때만, 아니면 줄 제거)
+  // Type option block (full-line token {{TYPE_OPTIONS}} - only when a type emits a block, otherwise the line is removed)
   const typeOptionsBlock = hooksFor(types, "versionOptionsBlock").map(({ hook }) => hook(typeOptions)).join("\n");
 
   const scalars = {
@@ -258,10 +260,10 @@ export function buildVersionYml({
     if (t === "{{PROJECT_PATHS}}") { if (pathsBlock) out.push(pathsBlock); continue; }
     if (t === "{{TYPE_OPTIONS}}") { if (typeOptionsBlock) out.push(typeOptionsBlock); continue; }
     if (t === "{{DEPLOY}}") { if (deployBlock) out.push(deployBlock); continue; }
-    if (t.startsWith("deploy_style:") && deployStyle === null) continue; // 서버 배포가 없는 타입은 기록하지 않는다
+    if (t.startsWith("deploy_style:") && deployStyle === null) continue; // types without a server deploy do not record it
     out.push(line.replace(/\{\{([A-Z][A-Z0-9_]*)\}\}/g, (_, name) => {
       if (name in scalars) return scalars[name];
-      throw new Error(`version.yml.template에 알 수 없는 플레이스홀더: {{${name}}}`);
+      throw new Error(tr("core.versionYml.error.unknownPlaceholder", { name }));
     }));
   }
   let text = out.join("\n");
@@ -270,20 +272,20 @@ export function buildVersionYml({
     text += "\n" + extraTopLevel.join("\n\n");
   }
   if (!text.endsWith("\n")) text += "\n";
-  return text.replace(/\n{3,}$/, "\n"); // 말미 과잉 빈 줄 정리
+  return text.replace(/\n{3,}$/, "\n"); // trim excess trailing blank lines
 }
 
-// 설치 시각 줄(metadata.last_updated 등)만 다른가 — 바뀐 게 없는 재실행이 매번 파일을 고쳐
-// 작업트리를 dirty하게 만들지 않도록 호출부가 쓰기를 건너뛰는 데 쓴다.
+// Whether only the install-time lines (metadata.last_updated etc.) differ - callers use it to skip the write so a
+// re-run with no changes does not rewrite the file every time and dirty the working tree.
 const TIMESTAMP_LINE = /^\s*(last_updated|integration_date|integrated_date|last_update_date):/;
 export function sameIgnoringTimestamps(a, b) {
   const norm = (t) => String(t).replace(/\r\n/g, "\n").split("\n").filter((l) => !TIMESTAMP_LINE.test(l)).join("\n");
   return norm(a) === norm(b);
 }
 
-// context 하나로 version.yml 최종형을 만든다 — 실제 설치(full)와 미리보기(dry-run)가
-// 같은 함수를 쓰게 해서 "미리보기와 결과가 다른" 상황을 구조적으로 막는다.
-// deployValues는 실제 설치에서만 존재한다(미리보기는 치환을 수행하지 않으므로 빈 Map).
+// Builds the final version.yml from a single context - the real install (full) and the preview (dry-run)
+// use the same function, structurally preventing "the preview differs from the result".
+// deployValues exist only in a real install (the preview performs no substitution, so it is an empty Map).
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null, language,
@@ -296,7 +298,7 @@ export function renderVersionYml(context, templateText, { pathMarkers, deployVal
       templateVersion,
       includeSemverAuto: includeSemverAuto !== false,
       includeCopilotAi: includeCopilotAi === true,
-      // null = 서버 배포 워크플로우가 없는 타입이라 배포 방식이 의미 없음(기록 생략)
+      // null = a type with no server deploy workflow, so the deploy style is meaningless (record omitted)
       deployStyle: deployStyle === null ? null : (deployStyle || DEFAULT_DEPLOY_STYLE),
       optionsDate: today,
     },

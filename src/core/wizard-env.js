@@ -1,55 +1,55 @@
-// @wizard env 토큰 엔진 — 워크플로우의 ask/auto/fallback 마커 치환과 unchanged 판정.
-// ⚠️ YAML 파싱/재직렬화 금지 — 라인 단위 문자열 처리 (포맷·주석 보존이 unchanged 판정 전제).
+// @wizard env token engine - substitution of the workflow's ask/auto/fallback markers and the unchanged verdict.
+// WARNING: no YAML parsing/re-serialization - line-based string handling (preserving format and comments is the premise of the unchanged verdict).
 
-// KEY 정규식: env 키(대문자)에 더해 workflow_dispatch 입력의 `default:`처럼 소문자 키도 받는다.
-// 마커가 붙은 줄만 대상이라 넓혀도 다른 줄에는 영향이 없다.
-// fallback은 `KEY: ${{ 런타임값 || 'literal' }}` 표현식 안의 기본 리터럴을 교체하는 마커다.
+// KEY regex: besides env keys (uppercase) it accepts lowercase keys such as `default:` in a workflow_dispatch input.
+// Only lines carrying a marker are targeted, so widening it does not affect other lines.
+// fallback is a marker that replaces the default literal inside a `KEY: ${{ runtimeValue || 'literal' }}` expression.
 const MARKER_RE = /#\s*@wizard\s+(ask|auto|fallback):(.*)$/;
 const KEY_RE = /^(\s*)([A-Za-z_]+):/;
 const PATHS_ANCHOR_RE = /#\s*@wizard\s+paths-anchor/;
 
-// 한 라인을 파싱해 {indent,key,action,arg} 반환. ask/auto/fallback 마커 없으면 null.
+// Parse one line into {indent,key,action,arg}. null when there is no ask/auto/fallback marker.
 export function parseWizardLine(line) {
   const marker = line.match(MARKER_RE);
   if (!marker) return null;
   const km = line.match(KEY_RE);
-  if (!km) return null; // KEY: 형식 아니면 (예: paths-anchor 주석) 무시
+  if (!km) return null; // not in KEY: form (e.g. a paths-anchor comment) - ignore
   return { indent: km[1], key: km[2], action: marker[1], arg: marker[2].trim() };
 }
 
-// YAML 큰따옴표 문자열 안에 안전하게 넣기 위한 이스케이프(백슬래시 우선 — 그래야 그 다음에 붙이는
-// 큰따옴표 이스케이프가 깨지지 않는다). @wizard 치환(setEnvLine)과 version.yml의 deploy 블록
-// (buildVersionYml, src/core/version-yml.js) 양쪽에서 재사용한다 — 두 지점 모두에서
-// 발생하는 동일한 버그다.
+// Escape for safely placing a value inside a YAML double-quoted string (backslash first - otherwise the
+// double-quote escape added afterwards would be broken). Reused by both the @wizard substitution (setEnvLine)
+// and the version.yml deploy block (buildVersionYml, src/core/version-yml.js) - the same bug
+// occurs at both points.
 export function escapeYamlDoubleQuoted(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-// `KEY: "..."` 따옴표 안 값 치환 + 그 줄 끝 `# @wizard ...` 주석 제거.
-// 라인 하나에 대해 수행. value가 빈문자면 치환 스킵(템플릿 기본값을 남긴다).
+// Substitute the value inside the quotes of `KEY: "..."` + strip the trailing `# @wizard ...` comment on that line.
+// Works on a single line. An empty value skips substitution (the template default stays).
 export function setEnvLine(line, key, value) {
   if (value === "" || value == null) return line;
-  // CRLF 안전: 라인 끝 \r을 분리해 처리 후 복원 (autocrlf 프로젝트 대응)
+  // CRLF safe: split off the trailing \r, process, then restore (for autocrlf projects)
   const cr = line.endsWith("\r") ? "\r" : "";
   const body = cr ? line.slice(0, -1) : line;
-  // 값 치환: KEY: "기존값" → KEY: "value"
-  // 홑따옴표(KEY: '기존값')도 받는다 — 템플릿에 두 표기가 섞여 있는데 겹따옴표만 보면
-  // 홑따옴표 줄의 @wizard 마커가 아무 경고 없이 무시된다(같은 실패 형태).
-  // 치환 결과는 겹따옴표로 통일하고, 값은 그에 맞게 이스케이프한다.
+  // Value substitution: KEY: "old" -> KEY: "value"
+  // Single quotes (KEY: 'old') are accepted too - the template mixes both notations, and looking only at
+  // double quotes would silently ignore the @wizard marker on single-quoted lines (the same failure shape).
+  // The result is unified to double quotes and the value is escaped accordingly.
   const escaped = escapeYamlDoubleQuoted(value);
   let out = body.replace(
     new RegExp(`^(\\s*${key}:\\s*)(["'])(?:(?!\\2).)*\\2`),
     (_m, head) => `${head}"${escaped}"`,
   );
-  // 그 줄 끝 # @wizard ... 주석 제거 (앞 공백째)
+  // Strip the trailing # @wizard ... comment on that line (with the preceding whitespace)
   out = out.replace(/(\S)[^\S\r\n]*#[^\S\r\n]*@wizard[^\S\r\n].*$/, "$1");
   return out + cr;
 }
 
-// `KEY: ${{ a || b || 'literal' }}  # @wizard fallback:<token>` — 표현식 안의 "마지막 홑따옴표 리터럴"만 교체하고
-// 마커 주석을 제거한다. setEnvLine은 `KEY: "값"` 형태의 따옴표 값만 다루므로 GitHub 표현식은 처리하지 못한다.
-// 리터럴은 `||` 체인의 맨 끝(런타임 입력·저장소 변수가 모두 비었을 때의 기본값)이라 런타임 우선순위는 바뀌지 않는다.
-// value가 빈 문자열이면 줄을 그대로 둔다 (setEnvLine과 같은 규약 — 템플릿 기본값이 남는다).
+// `KEY: ${{ a || b || 'literal' }}  # @wizard fallback:<token>` - replaces only the "last single-quoted literal" inside the expression
+// and strips the marker comment. setEnvLine handles only quoted values of the `KEY: "value"` form, so it cannot process GitHub expressions.
+// The literal sits at the very end of the `||` chain (the default when runtime input and repo variables are all empty), so runtime precedence does not change.
+// An empty value leaves the line as is (same convention as setEnvLine - the template default stays).
 const WIZARD_COMMENT_RE = /[^\S\r\n]*#[^\S\r\n]*@wizard[^\S\r\n].*$/;
 const LAST_LITERAL_RE = /^(.*)'[^']*'([^']*)$/;
 export function setFallbackLine(line, value) {
@@ -57,11 +57,11 @@ export function setFallbackLine(line, value) {
   const cr = line.endsWith("\r") ? "\r" : "";
   const expression = (cr ? line.slice(0, -1) : line).replace(WIZARD_COMMENT_RE, "");
   if (!LAST_LITERAL_RE.test(expression)) return line;
-  const escaped = String(value).replaceAll("'", "''"); // GitHub 표현식 문자열 리터럴의 따옴표 이스케이프
+  const escaped = String(value).replaceAll("'", "''"); // quote escape for a GitHub expression string literal
   return expression.replace(LAST_LITERAL_RE, (_m, head, tail) => `${head}'${escaped}'${tail}`) + cr;
 }
 
-// resolver — 값 계산은 주입된 resolvers로 위임(순수성 유지).
+// resolver - value computation is delegated to the injected resolvers (keeps purity).
 // resolvers: { repo, "spring-app-yml-dir"(type), "spring-app-yml-path"(type), "flutter-root",
 //              "project-path"(type), "flutter-env-mode", "android-deploy-mode", "ios-deploy-mode" }
 export function resolveToken(name, type, resolvers = {}) {
@@ -69,25 +69,25 @@ export function resolveToken(name, type, resolvers = {}) {
   return typeof fn === "function" ? (fn(type) ?? "") : "";
 }
 
-// __PROJECT_NAME__/__APP_ARTIFACT_NAME__ 전역 토큰을 repoName으로 치환.
-// substituteEnv()(설치 파일 본문)와 collectAsks()(마법사 화면 표시용 기본값) 양쪽에서
-// 재사용한다 — 두 곳이 서로 다른 로직으로 갈라지면 표시 불일치가 재발한다.
+// Replace the global tokens __PROJECT_NAME__/__APP_ARTIFACT_NAME__ with repoName.
+// Reused by both substituteEnv() (installed file body) and collectAsks() (defaults shown on the wizard screen) -
+// if the two diverge into different logic, display mismatches come back.
 export function replaceProjectTokens(text, repoName) {
   if (!text.includes("__PROJECT_NAME__") && !text.includes("__APP_ARTIFACT_NAME__")) return text;
   return text.replaceAll("__PROJECT_NAME__", repoName).replaceAll("__APP_ARTIFACT_NAME__", repoName);
 }
 
-// 파일 전체 치환.
-// content: 원본 워크플로우 텍스트. 반환: 치환된 텍스트.
+// Whole-file substitution.
+// content: original workflow text. Returns: the substituted text.
 // opts:
-//   type          - 프로젝트 타입 (resolver·값 조회용)
-//   values        - Map<key,value>: ask 키의 사용자 선택값 (없으면 기본값=arg 또는 resolver)
-//   useDefaults   - true면 ask도 기본값 사용 (unchanged 비교의 전제)
-//   resolvers     - resolveToken용
-//   repoName      - __PROJECT_NAME__/__APP_ARTIFACT_NAME__ 치환값
-//   projectPath   - paths-anchor 치환용 ('.'이면 anchor 미변경)
-//   savedValues   - Map<key,value>: version.yml deploy 블록에 저장된 이 타입의 값. ask 기본값보다 우선한다
-//                   (재실행·자동 갱신이 설치 때 답한 값을 템플릿 기본값으로 되돌리지 않도록).
+//   type          - project type (for resolvers/value lookup)
+//   values        - Map<key,value>: the user's choices for ask keys (if absent, default = arg or resolver)
+//   useDefaults   - when true, ask also uses defaults (the premise of the unchanged comparison)
+//   resolvers     - for resolveToken
+//   repoName      - substitution value for __PROJECT_NAME__/__APP_ARTIFACT_NAME__
+//   projectPath   - for paths-anchor substitution (anchor unchanged when '.')
+//   savedValues   - Map<key,value>: values of this type saved in the version.yml deploy block. Take precedence over ask defaults
+//                   (so re-runs/auto-refresh do not revert answers given at install time to the template defaults).
 export function substituteEnv(content, opts = {}) {
   const {
     type = "", values = new Map(), useDefaults = true, resolvers = {}, repoName = "", projectPath = ".",
@@ -95,14 +95,14 @@ export function substituteEnv(content, opts = {}) {
   } = opts;
   if (!content.includes("@wizard")) return content;
 
-  // CRLF 안전: EOL을 분리해 LF 기준으로 파싱·치환하고, 원래 EOL 스타일을 복원한다.
-  // (JS 정규식의 `.`은 \r을 매칭하지 않아 `(.*)$` 마커 파싱이 CRLF에서 실패하기 때문.)
+  // CRLF safe: split EOLs, parse/substitute on LF basis, then restore the original EOL style.
+  // (JS regex `.` does not match \r, so `(.*)$` marker parsing would fail on CRLF.)
   const usesCRLF = content.includes("\r\n");
   const lines = content.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
-    const p = parseWizardLine(lines[i]); // 이미 \r 제거된 라인
+    const p = parseWizardLine(lines[i]); // line with \r already stripped
     if (!p) continue;
-    // fallback은 따옴표 값이 아니라 표현식 안 리터럴을 바꾸므로 ask/auto와 경로가 다르다.
+    // fallback changes a literal inside an expression, not a quoted value, so its path differs from ask/auto.
     if (p.action === "fallback") {
       lines[i] = setFallbackLine(lines[i], resolveToken(p.arg, type, resolvers));
       continue;
@@ -117,17 +117,17 @@ export function substituteEnv(content, opts = {}) {
       const chosen = values.get(p.key);
       if (chosen != null && chosen !== "" && !useDefaults) val = chosen;
       else val = def;
-      // ask 키만 수집 (auto는 매번 다시 계산하므로 저장 안 함). deploy 블록용.
+      // Collect only ask keys (auto is recomputed every time, so it is not saved). For the deploy block.
       if (collectAsks) collectAsks.set(p.key, replaceProjectTokens(val, repoName));
     }
     lines[i] = setEnvLine(lines[i], p.key, val);
   }
   let out = lines.join(usesCRLF ? "\r\n" : "\n");
 
-  // 잔여 전역 토큰
+  // Remaining global tokens
   out = replaceProjectTokens(out, repoName);
 
-  // paths-anchor: 경로가 '.'이 아니면 주석 라인 전체를 paths 라인으로 교체
+  // paths-anchor: unless the path is '.', replace the whole comment line with a paths line
   if (PATHS_ANCHOR_RE.test(out) && projectPath && projectPath !== ".") {
     const eol = out.includes("\r\n") ? "\r\n" : "\n";
     out = out.split(/\r?\n/).map((line) => {
@@ -141,7 +141,7 @@ export function substituteEnv(content, opts = {}) {
   return out;
 }
 
-// unchanged 판정: 원본을 "기본값으로 가상 치환한 최종형"과 설치본을 바이트 비교.
+// unchanged verdict: byte-compare the "final form virtually substituted with defaults" of the original against the installed copy.
 export function isUnchanged(templateContent, installedContent, opts = {}) {
   const virtual = substituteEnv(templateContent, { ...opts, useDefaults: true });
   return virtual === installedContent;
