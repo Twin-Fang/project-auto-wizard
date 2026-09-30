@@ -121,6 +121,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -226,6 +228,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -762,6 +766,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -880,6 +886,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1496,6 +1504,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1686,6 +1696,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -1883,6 +1895,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -2513,6 +2527,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
@@ -2718,6 +2734,8 @@ jobs:
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
             echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
