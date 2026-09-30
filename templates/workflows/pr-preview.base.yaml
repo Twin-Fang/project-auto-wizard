@@ -313,6 +313,7 @@ jobs:
 
       # If a required secret or the Dockerfile is missing, report the missing items and stop instead of surfacing a third-party error such as a docker login failure
       - name: Deploy pre-check (Secrets and Dockerfile)
+        id: precheck
         working-directory: ${{ env.PROJECT_PATH }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -336,15 +337,21 @@ jobs:
             [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
           fi
           FAILED=false
+          ITEMS=""
           if [ -n "$MISSING" ]; then
             echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            ITEMS="${MISSING# }"
+            ITEMS="${ITEMS// /, }"
             FAILED=true
           fi
           if [ ! -f "$DOCKERFILE" ]; then
             echo "::error title=$(m wf_preview.precheck_dockerfile_title)::$(m wf_preview.precheck_dockerfile_body path="${PROJECT_PATH}/${DOCKERFILE#./}")"
+            ITEMS="${ITEMS:+$ITEMS, }Dockerfile"
             FAILED=true
           fi
           if [ "$FAILED" = "true" ]; then
+            # The failure comment names what blocked the later steps instead of showing them as waiting
+            echo "missing=$ITEMS" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           m wf_preview.precheck_ok
@@ -654,6 +661,8 @@ jobs:
         env:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PRECHECK_OUTCOME: ${{ steps.precheck.outcome }}
+          PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING: ${{ steps.precheck.outputs.missing }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
@@ -675,10 +684,13 @@ jobs:
               // Failed before the progress comment was created (initialization stage)
               dockerStatus = m('wf_preview.status_init_failed');
               deployStatus = '-';
+            } else if (process.env.PAW_IN_STEPS_PRECHECK_OUTCOME === 'failure') {
+              // The pre-check stopped the run before any build step: say why nothing ran
+              dockerStatus = deployStatus = m('wf_preview.status_precheck_blocked', { missing: process.env.PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING || '-' });
             } else if (!dockerDuration || dockerDuration === '') {
-              // Failed at the Docker build stage
+              // Failed at the Docker build stage; the deploy step never ran
               dockerStatus = m('wf_preview.status_failed');
-              deployStatus = m('wf_preview.status_waiting');
+              deployStatus = m('wf_preview.status_not_run');
             } else {
               // Failed at the deploy stage
               dockerStatus = m('wf_preview.status_done');
@@ -1043,6 +1055,7 @@ jobs:
 
       # If a required secret or the Dockerfile is missing, report the missing items and stop instead of surfacing a third-party error such as a docker login failure
       - name: Deploy pre-check (Secrets and Dockerfile)
+        id: precheck
         if: steps.check_branch.outputs.exists == 'true'
         working-directory: ${{ env.PROJECT_PATH }}
         env:
@@ -1067,15 +1080,21 @@ jobs:
             [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
           fi
           FAILED=false
+          ITEMS=""
           if [ -n "$MISSING" ]; then
             echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            ITEMS="${MISSING# }"
+            ITEMS="${ITEMS// /, }"
             FAILED=true
           fi
           if [ ! -f "$DOCKERFILE" ]; then
             echo "::error title=$(m wf_preview.precheck_dockerfile_title)::$(m wf_preview.precheck_dockerfile_body path="${PROJECT_PATH}/${DOCKERFILE#./}")"
+            ITEMS="${ITEMS:+$ITEMS, }Dockerfile"
             FAILED=true
           fi
           if [ "$FAILED" = "true" ]; then
+            # The failure comment names what blocked the later steps instead of showing them as waiting
+            echo "missing=$ITEMS" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           m wf_preview.precheck_ok
@@ -1400,6 +1419,8 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PRECHECK_OUTCOME: ${{ steps.precheck.outcome }}
+          PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING: ${{ steps.precheck.outputs.missing }}
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
@@ -1420,9 +1441,13 @@ jobs:
             if (!commentId) {
               dockerStatus = m('wf_preview.status_init_failed');
               deployStatus = '-';
+            } else if (process.env.PAW_IN_STEPS_PRECHECK_OUTCOME === 'failure') {
+              // The pre-check stopped the run before any build step: say why nothing ran
+              dockerStatus = deployStatus = m('wf_preview.status_precheck_blocked', { missing: process.env.PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING || '-' });
             } else if (!dockerDuration || dockerDuration === '') {
+              // Failed at the Docker build stage; the deploy step never ran
               dockerStatus = m('wf_preview.status_failed');
-              deployStatus = m('wf_preview.status_waiting');
+              deployStatus = m('wf_preview.status_not_run');
             } else {
               dockerStatus = m('wf_preview.status_done');
               deployStatus = m('wf_preview.status_failed');
@@ -2066,6 +2091,7 @@ jobs:
 
       # If a required secret or the Dockerfile is missing, report the missing items and stop instead of surfacing a third-party error such as a docker login failure
       - name: Deploy pre-check (Secrets and Dockerfile)
+        id: precheck
         if: steps.branch_info.outputs.branch_exists == 'true'
         working-directory: ${{ env.PROJECT_PATH }}
         env:
@@ -2090,15 +2116,21 @@ jobs:
             [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
           fi
           FAILED=false
+          ITEMS=""
           if [ -n "$MISSING" ]; then
             echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            ITEMS="${MISSING# }"
+            ITEMS="${ITEMS// /, }"
             FAILED=true
           fi
           if [ ! -f "$DOCKERFILE" ]; then
             echo "::error title=$(m wf_preview.precheck_dockerfile_title)::$(m wf_preview.precheck_dockerfile_body path="${PROJECT_PATH}/${DOCKERFILE#./}")"
+            ITEMS="${ITEMS:+$ITEMS, }Dockerfile"
             FAILED=true
           fi
           if [ "$FAILED" = "true" ]; then
+            # The failure comment names what blocked the later steps instead of showing them as waiting
+            echo "missing=$ITEMS" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           m wf_preview.precheck_ok
@@ -2427,6 +2459,8 @@ jobs:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
           PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PRECHECK_OUTCOME: ${{ steps.precheck.outcome }}
+          PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING: ${{ steps.precheck.outputs.missing }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
@@ -2444,9 +2478,13 @@ jobs:
             if (!commentId) {
               dockerStatus = m('wf_preview.status_init_failed');
               deployStatus = '-';
+            } else if (process.env.PAW_IN_STEPS_PRECHECK_OUTCOME === 'failure') {
+              // The pre-check stopped the run before any build step: say why nothing ran
+              dockerStatus = deployStatus = m('wf_preview.status_precheck_blocked', { missing: process.env.PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING || '-' });
             } else if (!dockerDuration || dockerDuration === '') {
+              // Failed at the Docker build stage; the deploy step never ran
               dockerStatus = m('wf_preview.status_failed');
-              deployStatus = m('wf_preview.status_waiting');
+              deployStatus = m('wf_preview.status_not_run');
             } else {
               dockerStatus = m('wf_preview.status_done');
               deployStatus = m('wf_preview.status_failed');
