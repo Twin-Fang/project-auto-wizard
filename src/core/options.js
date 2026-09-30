@@ -6,6 +6,7 @@
 // legacyDefault : value on an existing install (version.yml present) whose file lacks this key
 //   semver_auto    - false: an install from before the feature must not silently turn on and let one ambiguous commit bump major
 //   copilot_ai     - false: opt-in because it consumes AI Credits
+//   release_automerge - true for both: automerge is what every existing install already does, so a missing key means ON
 // conflictKey   : i18n key of the error thrown when --<flag> and --no-<flag> are both given (catalog lives in src/i18n)
 // logLabel      : label used by the install log line ("option <logLabel> on|off")
 // ask           : present only for options the interactive wizard asks about / lists in the edit menu
@@ -31,6 +32,12 @@ export const OPTIONS = Object.freeze([
       menuLabelKey: "ui.prompts.edit.copilotAi", summaryKey: "interactive.summary.copilotAi",
       cardIcon: "🤖", cardLabelKey: "ui.status-cards.card.copilot",
     },
+  },
+  {
+    // No `ask`: the wizard never asks about it - the flag or version.yml is the control (default ON).
+    key: "release_automerge", name: "releaseAutomerge", ctxField: "includeReleaseAutomerge",
+    flag: "release-automerge", default: true, legacyDefault: true,
+    conflictKey: "cli.args.releaseAutomergeConflict", logLabel: "release-automerge",
   },
 ]);
 

@@ -30,6 +30,7 @@ metadata:
     options:
       semver_auto: true
       copilot_ai: false
+      release_automerge: true
       deploy_style: "simple" # simple | nginx | traefik | none
 
 deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)
@@ -64,6 +65,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 |---|---|---|
 | `semver_auto` | `true`(기본) / `false` | 커밋 타입 기반 승격. `false`면 매 릴리스 patch+1, major/minor는 직접 수정 |
 | `copilot_ai` | `false`(기본) / `true` | 요약 워크플로우가 Copilot CLI를 호출 (AI Credits 소비) |
+| `release_automerge` | `true`(기본, 키가 없어도 켜짐) / `false` | 릴리스 PR 자동 머지. `false`면 직접 머지(머지 커밋 또는 squash, rebase 금지) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | 서버 배포 방식. 서버 배포 워크플로우가 있는 타입일 때 기록 |
 | `env_mode` | `dart-define` / `dotenv` | Flutter 전용. 환경변수 방식 |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter 전용. 스토어 배포 대상 |

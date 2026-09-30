@@ -15,26 +15,26 @@ const ymlWith = (body) => `metadata:\n  template:\n    version: "1.0.0"\n    opt
 
 // ── resolution ───────────────────────────────────────────────────────────────
 test("resolve: new install defaults to semver on, copilot off", () => {
-  assert.deepStrictEqual(resolveReleaseOptions({}, null), { includeSemverAuto: true, includeCopilotAi: false });
+  assert.deepStrictEqual(resolveReleaseOptions({}, null), { includeSemverAuto: true, includeCopilotAi: false, includeReleaseAutomerge: true });
 });
 
 test("resolve: existing install without the keys stays semver off, copilot off", () => {
   const existing = { options: { semverAuto: null, copilotAi: null } };
-  assert.deepStrictEqual(resolveReleaseOptions({}, existing), { includeSemverAuto: false, includeCopilotAi: false });
+  assert.deepStrictEqual(resolveReleaseOptions({}, existing), { includeSemverAuto: false, includeCopilotAi: false, includeReleaseAutomerge: true });
 });
 
 test("resolve: explicit value beats the saved value; saved value beats the default", () => {
   const existing = { options: { semverAuto: false, copilotAi: true } };
-  assert.deepStrictEqual(resolveReleaseOptions({}, existing), { includeSemverAuto: false, includeCopilotAi: true });
+  assert.deepStrictEqual(resolveReleaseOptions({}, existing), { includeSemverAuto: false, includeCopilotAi: true, includeReleaseAutomerge: true });
   assert.deepStrictEqual(
     resolveReleaseOptions({ semverAuto: true, copilotAi: false }, existing),
-    { includeSemverAuto: true, includeCopilotAi: false });
+    { includeSemverAuto: true, includeCopilotAi: false, includeReleaseAutomerge: true });
 });
 
 test("pick: undecided stays null (interactive mode uses it to decide whether to ask)", () => {
-  assert.deepStrictEqual(pickReleaseOptions({}, null), { semverAuto: null, copilotAi: null });
+  assert.deepStrictEqual(pickReleaseOptions({}, null), { semverAuto: null, copilotAi: null, releaseAutomerge: null });
   assert.deepStrictEqual(pickReleaseOptions({ semverAuto: false }, { options: { copilotAi: true } }),
-    { semverAuto: false, copilotAi: true });
+    { semverAuto: false, copilotAi: true, releaseAutomerge: null });
 });
 
 // ── CLI flags ────────────────────────────────────────────────────────────────

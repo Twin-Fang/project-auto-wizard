@@ -26,6 +26,7 @@ npx project-auto-wizard [옵션]
 | `--ios-deploy-mode MODE` | `store_only` \| `store_prepare` \| `store_submit` | `store_only` | iOS 배포 모드 |
 | `--semver-auto` / `--no-semver-auto` | — | 사용함 | 커밋 타입 기반 자동 major/minor/patch 승격 |
 | `--copilot` / `--no-copilot` | — | 사용 안 함 | Copilot으로 AI 요약 생성 (GitHub Copilot AI Credits 소비) |
+| `--release-automerge` / `--no-release-automerge` | — | 사용함 | 릴리스 PR 자동 머지. 끄면 직접 머지 |
 | `--lang LANG` | `en` \| `ko` | `PROJECT_AUTO_WIZARD_LANG` → `version.yml`의 `language` → `en` | 메시지 언어. 고른 값은 `version.yml`에 저장되고 업데이트 때 유지됩니다. |
 | `--force` | — | — | full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용) |
 | `--dry-run` | — | — | 실제 파일 변경 없이 무엇이 바뀔지만 미리 보여 줌 (full/uninstall 지원) |
@@ -88,6 +89,7 @@ project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 �
       --ios-deploy-mode MODE         iOS 배포 모드: store_only | store_prepare | store_submit (기본: store_only)
       --semver-auto / --no-semver-auto  커밋 타입 기반 자동 major/minor/patch 승격 (기본: 사용함)
       --copilot / --no-copilot  Copilot으로 AI 요약 생성 (기본: 사용 안 함, GitHub Copilot AI Credits 소비)
+      --release-automerge / --no-release-automerge  릴리스 PR 자동 머지 (기본: 사용함, 끄면 직접 머지)
       --lang LANG          메시지 언어: en | ko (기본: en)
       --force              full 실행에 필수, uninstall은 비대화형 삭제 (모든 확인 생략, 기본값 사용)
       --dry-run            실제 파일 변경 없이 무엇이 바뀔지만 미리 보여줌 (full/uninstall 지원)
