@@ -139,7 +139,7 @@ test("detectBy and detectOrder declarations are intact", () => {
 test("each type is auto-detected as declared in the registry", () => {
   for (const t of TYPES.filter((x) => x.detectBy === "markers")) {
     for (const m of t.markers) {
-      assert.ok(detectTypesFromMarkers({ has: (f) => f === m }).includes(t.id), `${t.id}: ${m}alone must be enough to detect it`);
+      assert.ok(detectTypesFromMarkers({ has: (f) => f === m }).includes(t.id), `${t.id}: ${m} alone must be enough to detect it`);
     }
   }
   for (const t of TYPES.filter((x) => x.detectBy === "package")) {

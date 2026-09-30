@@ -258,7 +258,7 @@ test("executePurge --keep-workflows: does not remove the .gitignore entry that h
     });
     runFull(ctx("simple"), payload, target);
     const simple = join(target, ".github/workflows/PROJECT-SPRING-SIMPLE-CICD.yaml");
-    writeFileSync(simple, readFile(simple, "utf8") + "# 직접 수정\n");
+    writeFileSync(simple, readFile(simple, "utf8") + "# manual edit\n");
     runFull(ctx("traefik"), payload, target); // the modified copy is moved to .bak and .gitignore is created
     assert.ok(existsSync(simple + ".bak"));
     const gitignore = readFile(join(target, ".gitignore"), "utf8");

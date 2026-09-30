@@ -187,7 +187,7 @@ test("existing install without a stored store value: does not infer from install
     mkdirSync(join(target, "lib"));
     writeFileSync(join(target, "version.yml"), 'version: "1.0.0"\nversion_code: 1\nproject_types: ["flutter"]\n');
     mkdirSync(join(target, ".github", "workflows"), { recursive: true });
-    writeFileSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "# 기존 설치본\n");
+    writeFileSync(join(target, ".github", "workflows", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "# existing install\n");
     assert.strictEqual(await install(target, ["--type", "flutter"]), 0);
     assert.strictEqual(optionsOf(target).flutterStore, "android");
     assert.ok(!existsSync(join(target, "ios", "fastlane", "Fastfile")), "must not create iOS fastlane files that were not selected");

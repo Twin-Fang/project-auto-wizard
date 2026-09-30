@@ -107,7 +107,7 @@ test("existing install without stored values: dotenv as the initial choice, stor
     // A project installed before this feature — version.yml has no stored options and the iOS store workflow is installed.
     writeFileSync(join(target, "version.yml"), 'version: "1.0.0"\nversion_code: 1\nproject_types: ["flutter"]\n');
     mkdirSync(join(target, WF_DIR), { recursive: true });
-    writeFileSync(join(target, WF_DIR, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "# 기존 설치본\n");
+    writeFileSync(join(target, WF_DIR, "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml"), "# existing install\n");
 
     const { io, calls } = stubIo();
     assert.strictEqual(await runInteractive({}, { cwd: target, io }), 0);

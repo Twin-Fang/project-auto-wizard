@@ -22,7 +22,7 @@ function stubSelectIo(returnValue) {
 test("pickBranch: even when def is in the middle of the list, it comes first in the sorted options and initialIndex points to it", async () => {
   const { io, calls } = stubSelectIo("main");
   const remoteBranches = ["20260810_feature", "develop", "main", "zzz-old"];
-  const result = await pickBranch(io, "릴리스 브랜치를 선택하세요 (기본: main)", "main", remoteBranches, isCancel);
+  const result = await pickBranch(io, "Select the release branch (default: main)", "main", remoteBranches, isCancel);
 
   assert.strictEqual(result, "main");
   assert.strictEqual(calls.length, 1);
@@ -37,7 +37,7 @@ test("pickBranch: even when def is in the middle of the list, it comes first in 
 test("pickBranch: the cursor points to develop on the development branch prompt (def=develop) too", async () => {
   const { io, calls } = stubSelectIo("develop");
   const remoteBranches = ["20260810_feature", "develop", "main"];
-  const result = await pickBranch(io, "개발 브랜치를 선택하세요 (기본: develop)", "develop", remoteBranches, isCancel);
+  const result = await pickBranch(io, "Select the dev branch (default: develop)", "develop", remoteBranches, isCancel);
 
   assert.strictEqual(result, "develop");
   const { options, initialIndex } = calls[0];
@@ -51,7 +51,7 @@ test("pickBranch: the cursor points to develop on the development branch prompt 
 test("pickBranch: when def is a new branch not on the remote, the placeholder comes first (index 0) and initialIndex is also 0", async () => {
   const { io, calls } = stubSelectIo("release");
   const remoteBranches = ["20260810_feature", "develop"];
-  const result = await pickBranch(io, "릴리스 브랜치를 선택하세요 (기본: release)", "release", remoteBranches, isCancel);
+  const result = await pickBranch(io, "Select the release branch (default: release)", "release", remoteBranches, isCancel);
 
   assert.strictEqual(result, "release");
   const { options, initialIndex } = calls[0];
@@ -63,14 +63,14 @@ test("pickBranch: when def is a new branch not on the remote, the placeholder co
 test("pickBranch: when the user picks another branch, that value is returned as is (sorting does not affect the selection)", async () => {
   const { io } = stubSelectIo("develop");
   const remoteBranches = ["20260810_feature", "develop", "main"];
-  const result = await pickBranch(io, "릴리스 브랜치를 선택하세요 (기본: main)", "main", remoteBranches, isCancel);
+  const result = await pickBranch(io, "Select the release branch (default: main)", "main", remoteBranches, isCancel);
   assert.strictEqual(result, "develop");
 });
 
 test("pickBranch: without engineIo.select (non-TTY), falls back to askText as before — regression check", async () => {
   const askTextCalls = [];
   const io = { askText: async (message, def) => { askTextCalls.push({ message, def }); return def; } };
-  const result = await pickBranch(io, "릴리스 브랜치를 선택하세요 (기본: main)", "main", ["develop", "main"], isCancel);
+  const result = await pickBranch(io, "Select the release branch (default: main)", "main", ["develop", "main"], isCancel);
   assert.strictEqual(result, "main");
   assert.strictEqual(askTextCalls.length, 1);
 });

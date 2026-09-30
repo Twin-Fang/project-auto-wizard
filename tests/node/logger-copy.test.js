@@ -50,7 +50,7 @@ test("reinstall: a user-modified file is recorded as keep-local with its reason"
     resetLogger();
     runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
     const wf = join(target, ".github/workflows/PROJECT-COMMON-VERSION-CONTROL.yaml");
-    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# 사용자가 추가한 줄\n");
+    writeFileSync(wf, readFileSync(wf, "utf8") + "\n# line added by the user\n");
     const r = initLogger(target, { action: "update", now: "2026-08-26 12:10:00" });
     runFull(ctxFor(target, "2026-08-26 12:10:00"), resolvePayloadRoot(), target);
     closeLogger();
@@ -80,7 +80,7 @@ test("reinstall: an auto-updated file is not counted twice in the summary, under
     runFull(ctxFor(target, "2026-08-26 12:03:41"), resolvePayloadRoot(), target);
     // Mimics a file installed by a previous version — the content differs but matches baseline's installed, so it is unmodified by the user.
     const name = "PROJECT-COMMON-VERSION-CONTROL.yaml";
-    const old = "# 이전 버전 템플릿\n";
+    const old = "# previous version template\n";
     writeFileSync(join(target, ".github/workflows", name), old);
     const bp = join(target, BASELINE_PATH);
     const baseline = JSON.parse(readFileSync(bp, "utf8"));

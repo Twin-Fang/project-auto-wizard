@@ -268,7 +268,7 @@ test("promptEnvPlan: flutterStore is passed through to collectAsks so the answer
 
 test("validateAskValue: validates port, SSH auth method and JDK version formats", async () => {
   const { validateAskValue } = await import("../../src/ui/env-plan.js");
-  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "아무 값"]]) {
+  for (const ok of [["DEPLOY_PORT", "8080"], ["SSH_PORT", "22"], ["SSH_AUTH_METHOD", "key"], ["JAVA_VERSION", "21"], ["PROJECT_NAME", "any value"]]) {
     assert.strictEqual(validateAskValue(...ok), "", ok.join("="));
   }
   for (const bad of [["DEPLOY_PORT", 'key"#: x'], ["SSH_PORT", "0"], ["BLUE_PORT", "70000"], ["SSH_AUTH_METHOD", "pw"], ["JAVA_VERSION", "latest"]]) {

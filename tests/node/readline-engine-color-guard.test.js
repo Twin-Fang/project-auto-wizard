@@ -24,7 +24,7 @@ test("intro(): includes ANSI color codes on a TTY with NO_COLOR unset", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
-    const output = withStdoutTTY(true, () => captureStdout(() => intro("테스트")));
+    const output = withStdoutTTY(true, () => captureStdout(() => intro("test")));
     assert.ok(output.includes("\x1b["));
   } finally {
     if (originalNoColor !== undefined) process.env.NO_COLOR = originalNoColor;
@@ -35,9 +35,9 @@ test("intro(): has no ANSI color codes with NO_COLOR=1 even on a TTY", () => {
   const originalNoColor = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
   try {
-    const output = withStdoutTTY(true, () => captureStdout(() => intro("테스트")));
+    const output = withStdoutTTY(true, () => captureStdout(() => intro("test")));
     assert.ok(!output.includes("\x1b["));
-    assert.ok(output.includes("테스트"));
+    assert.ok(output.includes("test"));
   } finally {
     if (originalNoColor === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = originalNoColor;
   }
@@ -47,7 +47,7 @@ test("note(): has no ANSI color codes when not a TTY", () => {
   const originalNoColor = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
-    const output = withStdoutTTY(false, () => captureStdout(() => note("본문", "제목")));
+    const output = withStdoutTTY(false, () => captureStdout(() => note("body", "title")));
     assert.ok(!output.includes("\x1b["));
   } finally {
     if (originalNoColor !== undefined) process.env.NO_COLOR = originalNoColor;
@@ -71,7 +71,7 @@ test("TERM=dumb: emits no color, cursor-move or erase sequences at all", async (
     stdin.emit("keypress", undefined, { name: "down" });
     stdin.emit("keypress", "\r", { name: "return" });
     assert.strictEqual(await p, "b");
-    const t = text({ message: "이름", defaultValue: "d" });
+    const t = text({ message: "name", defaultValue: "d" });
     stdin.emit("keypress", "x", { name: "x" });
     stdin.emit("keypress", undefined, { name: "backspace" });
     stdin.emit("keypress", "y", { name: "y" });

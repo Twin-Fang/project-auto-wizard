@@ -11,7 +11,7 @@ import { buildTypeRootFilter } from "../../src/core/copy/workflows.js";
 test("hooksFor: returns only types that have hooks, in the given order", () => {
   assert.deepStrictEqual(hooksFor(["spring", "flutter", "react"], "statusLabels").map((h) => h.id), ["flutter"]);
   assert.deepStrictEqual(hooksFor(["spring", "react"], "statusLabels"), []);
-  assert.deepStrictEqual(hooksFor(["flutter"], "없는훅"), []);
+  assert.deepStrictEqual(hooksFor(["flutter"], "no-such-hook"), []);
 });
 
 test("a type without hooks has an empty app file plan", () => {
