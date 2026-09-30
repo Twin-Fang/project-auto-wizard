@@ -1,10 +1,11 @@
-// 브랜치 구성 — main/develop 브랜치와 pr-flow·trunk-based 모드.
-// on: push: branches: 는 YAML 정적 값 — 마법사가 릴리스/개발 브랜치를 물어(또는 플래그로 받아)
-// {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} 플레이스홀더를 치환한다 (치환 자체는 branding.js).
-// main === develop 이면 trunk-based 모드 → RELEASE-PUBLISH 단독 설치.
+// Branch configuration: main/develop branches and the pr-flow / trunk-based modes.
+// on: push: branches: is a static YAML value, so the wizard asks for (or takes via flags) the release/develop
+// branches and substitutes the {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}} placeholders (the substitution itself lives in branding.js).
+// When main === develop it is trunk-based mode, and RELEASE-PUBLISH is installed alone.
 import { execFile } from "node:child_process";
+import { t } from "../i18n/index.js";
 
-// 기본 exec — git 명령 실행. 반환 {code, stdout, stderr}. 테스트는 mock 주입.
+// Default exec: runs a git command. Returns {code, stdout, stderr}. Tests inject a mock.
 export function defaultExec(cmd, args, { cwd } = {}) {
   return new Promise((resolve) => {
     execFile(cmd, args, { cwd, windowsHide: true }, (err, stdout, stderr) => {
@@ -13,22 +14,23 @@ export function defaultExec(cmd, args, { cwd } = {}) {
   });
 }
 
-// 감지: 로컬 git에서 원격 브랜치 목록 (네트워크 없이 — 로컬이 아는 origin/* 기준).
-// git이 없거나 레포가 아니면 빈 목록 (질문 기본값 경로로 폴백).
+// Detection: remote branch list from local git (no network, based on the origin/* refs local knows).
+// Empty list when git is missing or this is not a repo (falls back to the prompt-default path).
 export async function detectRemoteBranches(cwd, exec = defaultExec) {
   const r = await exec("git", ["branch", "-r", "--format=%(refname:short)"], { cwd });
   if (r.code !== 0) return [];
   return r.stdout
     .split(/\r?\n/)
     .map((s) => s.trim())
-    .filter((s) => s && !s.includes("->")) // "origin/HEAD -> origin/main" 제외
+    .filter((s) => s && !s.includes("->")) // exclude "origin/HEAD -> origin/main"
     .map((s) => s.replace(/^origin\//, ""))
     .filter((s, i, a) => a.indexOf(s) === i);
 }
 
-// 브랜치 이름 검증 — git check-ref-format --branch 규칙에 더해, 워크플로우 YAML·셸 명령에 그대로
-// 치환되는 값이라 공백·괄호·따옴표 같은 셸 특수문자도 거부한다. 빈 원격이 돌려주는 "(unknown)" 같은
-// 감지 실패 값이나 공백만 입력한 값이 트리거에 기록되면 워크플로우가 영영 돌지 않는다.
+// Branch name validation: on top of the git check-ref-format --branch rules, shell special characters such as
+// whitespace, parentheses and quotes are rejected because the value is substituted verbatim into workflow YAML and
+// shell commands. If a detection-failure value like "(unknown)" from an empty remote, or a whitespace-only input,
+// were written into the trigger, the workflow would never run.
 export function isValidBranchName(name) {
   if (typeof name !== "string" || name === "") return false;
   if (/[\s~^:?*[\\\x00-\x1f\x7f()"'`$;&|<>!{}]/.test(name)) return false;
@@ -38,23 +40,23 @@ export function isValidBranchName(name) {
   return !name.split("/").some((part) => part.startsWith("."));
 }
 
-// 원격에 브랜치가 하나도 없거나(빈 원격·origin 없음) develop 생성을 건너뛴 경우의 안내.
-// develop이 없으면 pr-flow 워크플로우가 트리거되지 않으므로 조용히 넘어가면 안 된다.
+// Notice for when the remote has no branches at all (empty remote, no origin) or develop creation was skipped.
+// Without develop the pr-flow workflows are never triggered, so this must not pass silently.
 export function developMissingNotice({ main, develop }) {
-  return `원격에 '${develop}' 브랜치가 없습니다 — 설치 파일을 커밋해 '${main}'을 push한 뒤 만들어 주세요: git push origin ${main}:${develop}`;
+  return t("core.branches.developMissing", { main, develop });
 }
 
-// 결정 (순수 함수): 플래그/답변 → 최종 구성.
-// 우선순위: 명시값(mainBranch/developBranch) → 감지 default → 하드 폴백(main/develop).
+// Decision (pure function): flags/answers to the final configuration.
+// Priority: explicit values (mainBranch/developBranch), then detected default, then hard fallback (main/develop).
 export function resolveBranchConfig({ mainBranch = "", developBranch = "", defaultBranch = "" } = {}) {
   const main = mainBranch || defaultBranch || "main";
   const develop = developBranch || "develop";
   return { main, develop, mode: main === develop ? "trunk-based" : "pr-flow" };
 }
 
-// 브랜치 선택 프롬프트용 정렬. def를 최우선으로, 그다음 priority(main/develop)
-// 순서로 목록 앞에 배치한다. 나머지는 remoteBranches의 원래 순서(git이 준 알파벳순)를 유지한다.
-// 순수 함수 — remoteBranches 원본은 변경하지 않는다.
+// Ordering for the branch selection prompt. def goes first, then priority (main/develop) in that order, at the
+// front of the list. The rest keep remoteBranches' original order (alphabetical as given by git).
+// Pure function: the remoteBranches original is not modified.
 export function sortBranchesForSelection(remoteBranches, def, priority = ["main", "develop"]) {
   const priorityOrder = [def, ...priority].filter((b, i, arr) => arr.indexOf(b) === i);
   const inPriority = priorityOrder.filter((b) => remoteBranches.includes(b));
@@ -62,27 +64,27 @@ export function sortBranchesForSelection(remoteBranches, def, priority = ["main"
   return [...inPriority, ...rest];
 }
 
-// 생성: develop이 원격에 없으면 현 HEAD 기준으로 생성 + push.
-// confirm: async(message)→bool — 대화형 확인 질문. null이면(--force) 질문 없이 자동 생성.
-// exec 주입 가능 (테스트 mock). 반환 { created, pushed?, skipped? }.
+// Creation: when develop is missing on the remote, create it from the current HEAD and push.
+// confirm: async(message)->bool, the interactive confirmation. When null (--force) it is created without asking.
+// exec is injectable (test mock). Returns { created, pushed?, skipped? }.
 export async function ensureDevelopBranch({ develop, remoteBranches = [], confirm = null, cwd, exec = defaultExec, log = null }) {
   if (remoteBranches.includes(develop)) return { created: false };
 
   if (confirm) {
-    const ok = await confirm(`원격에 '${develop}' 브랜치가 없습니다. 현재 HEAD 기준으로 생성하고 push할까요?`);
+    const ok = await confirm(t("core.branches.confirmCreate", { develop }));
     if (ok !== true) return { created: false, skipped: true };
   }
 
   const br = await exec("git", ["branch", develop], { cwd });
   if (br.code !== 0) {
-    // 이미 로컬에 존재하는 경우 등 — push만 시도
-    log?.(`'${develop}' 로컬 브랜치 생성 생략 (${(br.stderr || "").trim() || "이미 존재"})`);
+    // e.g. it already exists locally: just try the push
+    log?.(t("core.branches.localSkipped", { develop, reason: (br.stderr || "").trim() || t("core.branches.alreadyExists") }));
   }
   const push = await exec("git", ["push", "-u", "origin", develop], { cwd });
   if (push.code !== 0) {
-    log?.(`⚠️  '${develop}' 브랜치 push 실패 — 원격 설정을 확인한 뒤 수동으로 push하세요 (git push -u origin ${develop})`);
+    log?.(t("core.branches.pushFailed", { develop }));
     return { created: true, pushed: false };
   }
-  log?.(`'${develop}' 브랜치를 생성하고 push했습니다.`);
+  log?.(t("core.branches.created", { develop }));
   return { created: true, pushed: true };
 }

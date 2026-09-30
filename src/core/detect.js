@@ -1,10 +1,11 @@
+import { t as tr } from "../i18n/index.js";
 import {
   typeInfo, FALLBACK_TYPE, MARKER_DETECTED_TYPES, PACKAGE_DETECTED_TYPES, PACKAGE_FALLBACK_TYPE,
 } from "./types.js";
 
-// package.json 분류 — 의존성 "키"를 정확히 비교한다. 원문 부분문자열로 보면 export 스크립트나
-// exponential-backoff가 expo로, react-native-web을 쓰는 웹앱이 react-native로, keywords의 "next"가
-// next로 오감지된다. 입력은 package.json 원문 문자열(raw). 판정 순서는 레지스트리의 detectOrder.
+// package.json classification: compares dependency "keys" exactly. A raw substring match would misdetect an
+// export script or exponential-backoff as expo, a web app using react-native-web as react-native, and
+// "next" in keywords as next. Input is the raw package.json string. Evaluation order is the registry's detectOrder.
 export function classifyPackageText(raw) {
   let pkg;
   try { pkg = JSON.parse(String(raw || "")); } catch { return PACKAGE_FALLBACK_TYPE; }
@@ -17,14 +18,14 @@ export function classifyPackageText(raw) {
   return PACKAGE_DETECTED_TYPES.find((t) => deps.has(t.packageDep))?.id ?? PACKAGE_FALLBACK_TYPE;
 }
 
-// 편의: 파싱된 객체를 받는 경우 원문으로 재직렬화해 위 규칙 적용
+// Convenience: when given a parsed object, re-serialize it and apply the rule above.
 export function classifyPackageJson(pkgOrRaw) {
   const raw = typeof pkgOrRaw === "string" ? pkgOrRaw : JSON.stringify(pkgOrRaw || {});
   return classifyPackageText(raw);
 }
 
-// 마커 스캔. has(relpath)=>bool 주입. node는 다른 타입 있으면 미추가.
-// read(relpath)=>string|null 로 package.json 원문을 받아 classifyPackageText에 넘긴다.
+// Marker scan. has(relpath)=>bool is injected. node is not added when another type is present.
+// read(relpath)=>string|null supplies the raw package.json passed to classifyPackageText.
 export function detectTypesFromMarkers({ has, read }) {
   const types = [];
   for (const t of MARKER_DETECTED_TYPES) if (t.markers.some(has)) types.push(t.id);
@@ -36,25 +37,25 @@ export function detectTypesFromMarkers({ has, read }) {
   return types.length ? [...new Set(types)] : [FALLBACK_TYPE];
 }
 
-// 1.2.3-rc.1·1.2.3+7·1.2.0-SNAPSHOT 같은 prerelease/빌드 메타데이터는 x.y.z 코어만 쓴다.
-// version.yml은 x.y.z만 받으므로 감지 실패(0.0.1)로 떨어지는 것보다 코어가 정확하다.
-// 릴리스 시 읽기(payload/scripts/version_manager.py core_version)와 같은 규칙이어야 설치 직후 값이 유지된다.
+// For prerelease/build metadata such as 1.2.3-rc.1, 1.2.3+7, 1.2.0-SNAPSHOT only the x.y.z core is used.
+// version.yml accepts only x.y.z, so the core is more accurate than falling back to 0.0.1.
+// Must match the release-time read (payload/scripts/version_manager.py core_version) so the value survives right after install.
 function coreVersion(v) {
   const m = String(v ?? "").trim().match(/^v?(\d+\.\d+\.\d+)(?:[-+][0-9A-Za-z.+-]*)?$/);
   return m ? m[1] : null;
 }
 
-// setup.py의 setup(version="x.y.z"). python_version 같은 다른 키는 단어 경계로 거른다.
+// setup(version="x.y.z") in setup.py. Other keys such as python_version are filtered out by the word boundary.
 export function versionFromSetupPy(content) {
   if (!content) return null;
   const m = String(content).match(/(?<![\w.])version\s*=\s*["']([^"']+)["']/);
   return m ? coreVersion(m[1]) : null;
 }
 
-// React Native 앱 버전 — 릴리스 때 version_manager가 쓰는 파일(ios/<앱>/Info.plist,
-// android/app/build.gradle)에서 읽는다. package.json version은 동기화 대상이 아니라 기준이 되면 어긋난다.
-// $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아니면 건너뛴다.
-// list(relDir)=>string[]|null 로 ios 아래 앱 폴더 이름을 받는다(Pods 등 깊은 plist는 보지 않는다).
+// React Native app version: read from the files version_manager writes at release time (ios/<app>/Info.plist,
+// android/app/build.gradle). package.json version is not a sync target, so using it as the source would drift.
+// Values that are not x.y.z, such as a $(MARKETING_VERSION) reference or the template default "1.0", are skipped.
+// list(relDir)=>string[]|null supplies the app folder names under ios (deep plists such as Pods are not inspected).
 export function versionFromReactNative({ read, list }) {
   for (const dir of [...(list?.("ios") || [])].sort()) {
     const m = String(read(`ios/${dir}/Info.plist`) || "").match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/);
@@ -65,12 +66,12 @@ export function versionFromReactNative({ read, list }) {
   return m ? coreVersion(m[1]) : null;
 }
 
-// 버전 감지 — 순서대로 첫 성공. read(relpath)=>string|null 주입.
-// package.json은 이미 Node JSON.parse로 파싱을 마친 값이므로 jq 설치 여부와 무관하게 항상 사용한다.
-// hint: 폴백 경고 뒤에 붙일 "그럼 어떻게 고치나" 한 줄. 대화형과 CLI가 서로 다른 방법을
-// 안내해야 하므로 호출부가 정한다. 미지정 시 CLI 문구를 쓴다.
-// types: 주 타입(첫 항목)의 버전 파일을 먼저 읽는다. 릴리스 때 version_manager가 주 타입
-// 파일과 version.yml을 비교하므로, 다른 타입 버전을 잡으면 첫 릴리스에서 버전이 뛴다.
+// Version detection: first success in order. read(relpath)=>string|null is injected.
+// package.json is already parsed with Node JSON.parse, so it is always used regardless of whether jq is installed.
+// hint: one line appended to the fallback warning saying how to fix it. Interactive mode and the CLI
+// suggest different fixes, so the caller decides. The CLI wording is used when omitted.
+// types: the primary type's (first entry) version file is read first. At release time version_manager compares
+// the primary type's file with version.yml, so picking another type's version would make the version jump on the first release.
 export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hint, types = [] }) {
   const grab = (content, re) => {
     for (const line of (content || "").split("\n")) {
@@ -79,17 +80,17 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
     }
     return null;
   };
-  // 줄 시작 앵커가 없으면 ext.kotlin_version 같은 의존성 버전 변수가 먼저 걸린다.
-  // 따옴표로 감싼 값만 본다 — 릴리스 때 동기화가 고칠 수 있는 형태가 이것뿐이다.
+  // Without a line-start anchor, dependency version variables such as ext.kotlin_version match first.
+  // Only quoted values are considered: that is the only form the release-time sync can rewrite.
   const gradleRe = /^(\s*)version\s*=\s*(["'])([^"'\n]*)\2/;
-  // 들여쓰지 않은 `version =`을 우선하고, 없을 때만 allprojects/subprojects 블록 안의 들여쓴 줄을 쓴다.
-  // `node { version = '20.11.0' }` 같은 플러그인 설정 블록이 프로젝트 버전으로 읽히면 첫 릴리스에서 버전이 뛴다.
-  // 릴리스 때의 version_manager.py와 같은 규칙이어야 한다.
-  // 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다 — url 'https://…'의 `//`나 문자열 속 중괄호가
-  // 블록 깊이 계산을 흐트러뜨리지 않게 한다. version_manager.py와 같은 규칙이어야 한다.
-  // quote는 이 줄이 시작될 때 열려 있던 따옴표다. 삼중따옴표(""" ''')는 여러 줄에 걸치므로
-  // { code, quote }로 줄 끝에서 열려 있는 따옴표를 돌려줘 다음 줄이 이어받게 한다.
-  // 한 줄짜리 따옴표는 줄 끝에서 닫힌 것으로 본다.
+  // Prefer a non-indented `version =`; only when none exists use an indented line inside an allprojects/subprojects block.
+  // If a plugin config block such as `node { version = '20.11.0' }` were read as the project version, the version would jump on the first release.
+  // Must follow the same rule as version_manager.py at release time.
+  // Strip comments and blank out characters inside quotes so the `//` in url 'https://...' or braces inside strings
+  // do not throw off the block-depth count. Must follow the same rule as version_manager.py.
+  // quote is the quote that was open when this line started. Triple quotes (""" ''') span several lines, so
+  // { code, quote } returns the quote still open at the end of the line for the next line to continue.
+  // A single-line quote is treated as closed at the end of the line.
   const gradleCode = (line, quote) => {
     let out = "";
     for (let i = 0; i < line.length;) {
@@ -109,7 +110,7 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
   };
   const gradleVersion = (content) => {
     const top = [], shared = [], stack = [];
-    let quote = ""; // 여러 줄 문자열 안이면 그 따옴표. 문자열 속 줄은 코드가 아니다
+    let quote = ""; // the open quote when inside a multi-line string; lines inside a string are not code
     for (const line of (content || "").split("\n")) {
       const m = quote ? null : line.match(gradleRe);
       if (m) {
@@ -131,8 +132,8 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
   const sources = {
     packageJson: () => coreVersion(readJson?.("package.json")?.version),
     appJson: () => coreVersion(readJson?.("app.json")?.expo?.version),
-    // Groovy DSL과 Kotlin DSL은 같은 문법(`version = "x.y.z"`)이라 정규식을 공유한다.
-    // .kts를 빼먹으면 Kotlin DSL Spring 프로젝트가 전부 0.0.1로 초기화된다.
+    // Groovy DSL and Kotlin DSL share the same syntax (`version = "x.y.z"`), so they share the regex.
+    // Omitting .kts would reset every Kotlin DSL Spring project to 0.0.1.
     gradle: () => gradleVersion(read("build.gradle")),
     gradleKts: () => gradleVersion(read("build.gradle.kts")),
     pom: () => versionFromPom(read("pom.xml")),
@@ -150,13 +151,13 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
     if (v) return v;
   }
   if (gitTag) { const t = coreVersion(gitTag); if (t) return t; }
-  const tail = hint ?? "--project-version으로 직접 지정하거나 version.yml을 확인하세요.";
-  warn?.(`⚠️  버전을 자동 감지하지 못해 기본값 0.0.1을 사용합니다 — ${tail}`);
+  const tail = hint ?? tr("core.detect.versionFallbackHint");
+  warn?.(tr("core.detect.versionFallbackWarn", { tail }));
   return "0.0.1";
 }
 
-// pyproject.toml의 패키지 버전. [tool.*] 등 다른 섹션의 `version =`은 도구 설정이라
-// [project]·[tool.poetry] 섹션 안에서만 읽는다.
+// Package version in pyproject.toml. `version =` in other sections such as [tool.*] is tool config,
+// so it is read only inside the [project] and [tool.poetry] sections.
 export function versionFromPyproject(content) {
   if (!content) return null;
   let section = "";
@@ -170,9 +171,9 @@ export function versionFromPyproject(content) {
   return null;
 }
 
-// Maven pom.xml의 프로젝트 버전 — <project> 바로 아래의 <version>만 본다.
-// <parent>(스프링 부트 BOM)나 <dependencies> 안의 버전은 프로젝트 버전이 아니므로 깊이로 구분한다.
-// 프로젝트 버전이 없으면(부모에서 상속) null — 의존성 버전을 대신 고르지 않는다.
+// Maven pom.xml project version: only the <version> directly under <project> counts.
+// Versions inside <parent> (Spring Boot BOM) or <dependencies> are not the project version, so depth tells them apart.
+// Returns null when there is no project version (inherited from the parent); a dependency version is never picked instead.
 export function versionFromPom(content) {
   if (!content) return null;
   const text = String(content);
@@ -197,42 +198,43 @@ export function versionFromPom(content) {
   return null;
 }
 
-// 타입의 대표 마커 파일. 마커가 없는 타입(basic)·미지 타입은 package.json을 돌려준다.
+// A type's representative marker file. Types without markers (basic) and unknown types return package.json.
 export function markerForType(type) {
   return typeInfo(type)?.markers[0] || "package.json";
 }
 
-// 대표 파일 외의 보조 마커 (예: Spring의 build.gradle.kts·pom.xml).
+// Secondary markers besides the representative file (e.g. Spring's build.gradle.kts and pom.xml).
 export function extraMarkers(type) {
   return typeInfo(type)?.markers.slice(1) || [];
 }
 
-// 그 타입을 감지하는 데 실제로 쓰인 파일. markerForType은 타입당 대표 파일 하나를
-// 고정 반환하므로, build.gradle.kts만 있는 레포에서도 "build.gradle 발견"이라고 출력돼
-// 같은 설치 로그 안에서 경로 확정 화면과 파일명이 어긋났다. has()로 실재하는 것을 고른다.
-// 실재하는 후보가 없으면(감지 전 화면 등) 대표 파일을 쓴다. 단 "근거"로 보여줄 때는(fallback:false)
-// 빈 문자열을 돌려준다 — 직접 고른 타입에 없는 파일을 근거로 붙이면 감지된 것처럼 보인다.
+// The file actually used to detect that type. markerForType always returns one representative file per type,
+// so even a repo with only build.gradle.kts printed "found build.gradle" and the file name disagreed with the
+// path-confirmation screen in the same install log. has() picks the one that really exists.
+// When no candidate exists (e.g. screens before detection) the representative file is used. When shown as
+// "evidence" (fallback:false) an empty string is returned instead: attaching a file that does not exist for a
+// manually chosen type as evidence would make it look detected.
 export function resolveMarker(type, has, { fallback = true } = {}) {
   const candidates = [markerForType(type), ...extraMarkers(type)];
   return candidates.find(has) ?? (fallback ? candidates[0] : "");
 }
 
-// 빌드 JDK 감지 — 배포 워크플로우의 JAVA_VERSION 기본값이 21로 고정돼 있어
-// toolchain이 다른 프로젝트(예: 25)는 그대로 Enter를 누르면 러너 JDK와 어긋나 빌드가 깨진다.
-// 빌드 번호를 프로젝트 파일에서 읽는 detectBuildNumberFromFiles와 같은 방식으로 실측한다.
-// 반환: "21" 같은 메이저 버전 문자열, 못 찾으면 null.
+// Build JDK detection: the deploy workflow's JAVA_VERSION default is fixed at 21, so a project with a
+// different toolchain (e.g. 25) that just presses Enter ends up with a runner JDK mismatch and a broken build.
+// Measured from project files the same way detectBuildNumberFromFiles reads the build number.
+// Returns a major version string such as "21", or null when not found.
 export function detectJdkFromFiles({ read }) {
   const pick = (content, patterns) => {
     if (!content) return null;
     for (const re of patterns) {
       const m = String(content).match(re);
-      // JavaVersion.VERSION_1_8 처럼 1_8 표기는 8로 정규화한다.
+      // Normalize the 1_8 notation (JavaVersion.VERSION_1_8) to 8.
       if (m) return m[1] === "1_8" ? "8" : m[1].replace("1_", "");
     }
     return null;
   };
   const gradlePatterns = [
-    /JavaLanguageVersion\.of\((\d+)\)/,                  // toolchain (Gradle 권장 표기)
+    /JavaLanguageVersion\.of\((\d+)\)/,                  // toolchain (recommended Gradle notation)
     /JavaVersion\.VERSION_(\d+(?:_\d+)?)/,               // sourceCompatibility = JavaVersion.VERSION_21
     /(?:source|target)Compatibility\s*=?\s*["'](\d+)["']/, // sourceCompatibility = '17'
   ];
@@ -246,40 +248,40 @@ export function detectJdkFromFiles({ read }) {
   return null;
 }
 
-// 타입별 실제 마커 파일 맵 — 감지 로그·설치 로그가 같은 근거를 쓰도록 한 곳에서 만든다.
+// Map of the real marker file per type: built in one place so the detection log and install log cite the same evidence.
 export function resolveMarkers(types = [], has) {
   const out = new Map();
   for (const t of types) {
     if (t === "basic") continue;
-    // 실제로 있는 파일만 근거로 삼는다 — 없으면 맵에서 빠져 화면·로그가 "직접 선택"으로 다룬다.
+    // Only files that actually exist count as evidence: otherwise the type is left out of the map and screens/logs treat it as "manually chosen".
     const found = resolveMarker(t, has, { fallback: false });
     if (found) out.set(t, found);
   }
   return out;
 }
 
-// 빌드 번호 감지 — 신규 통합 시 pubspec.yaml/build.gradle/app.json에 이미 기록된
-// 빌드 번호를 읽어 version_code가 항상 1로 초기화되는 걸 막는다. types 배열에서 먼저 매칭되는
-// 첫 타입만 사용한다(다른 감지 로직의 types[0]=primary 관례와 동일). read(rel)=>string|null,
-// readJson(rel)=>object|null 로 주입.
+// Build number detection: on a fresh integration, read the build number already recorded in
+// pubspec.yaml/build.gradle/app.json so version_code is not always reset to 1. Only the first matching
+// type in the types array is used (same types[0]=primary convention as the other detection logic).
+// read(rel)=>string|null and readJson(rel)=>object|null are injected.
 export function detectBuildNumberFromFiles({ types = [], read, readJson, warn }) {
   const tryFlutter = () => {
     const content = read("pubspec.yaml");
     if (content == null) return null;
-    // 1.2.3-rc.1+4처럼 prerelease가 있어도 +N은 빌드 번호다(릴리스 시 읽기와 같은 규칙).
+    // +N is the build number even with a prerelease such as 1.2.3-rc.1+4 (same rule as the release-time read).
     const m = content.match(/^version:\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\+(\d+)/m);
     if (m) return parseInt(m[1], 10);
-    warn?.("⚠️  pubspec.yaml에 빌드 번호(+N)가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    warn?.(tr("core.detect.buildNumber.pubspecMissing"));
     return null;
   };
   const tryReactNative = () => {
     const content = read("android/app/build.gradle");
     if (content == null) return null;
-    // 앵커 + m 플래그로 한 줄 전체가 "versionCode N"인 라인만 매칭 — 주석 처리된
-    // "// versionCode 2"나 다른 블록의 versionCode 참조에 오매칭되지 않도록 함.
+    // Anchors + the m flag match only lines that are entirely "versionCode N", so a commented-out
+    // "// versionCode 2" or a versionCode reference in another block is not matched by mistake.
     const m = content.match(/^\s*versionCode\s+(\d+)\s*$/m);
     if (m) return parseInt(m[1], 10);
-    warn?.("⚠️  android/app/build.gradle에 versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    warn?.(tr("core.detect.buildNumber.gradleMissing"));
     return null;
   };
   const tryExpo = () => {
@@ -287,7 +289,7 @@ export function detectBuildNumberFromFiles({ types = [], read, readJson, warn })
     if (data == null) return null;
     const code = data?.expo?.android?.versionCode;
     if (Number.isInteger(code)) return code;
-    warn?.("⚠️  app.json의 expo.android.versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.");
+    warn?.(tr("core.detect.buildNumber.expoMissing"));
     return null;
   };
   const readers = { pubspec: tryFlutter, androidGradle: tryReactNative, expoAppJson: tryExpo };

@@ -1,40 +1,40 @@
 import { flutterHooks } from "./flutter-hooks.js";
 
-// 프로젝트 타입 레지스트리 — 타입별 지식(감지 마커, 감지 순서, 버전·빌드 번호 파일)을 한 곳에 둔다.
-// 타입 목록·마커 맵·감지 체인은 모두 이 표에서 만들어지므로, 새 타입은 여기에 한 줄을 더하는 것에서 시작한다.
-// (릴리스 시점의 버전 파일 쓰기는 payload/scripts/version_manager.py가 따로 담당한다.)
+// Project type registry: keeps per-type knowledge (detection markers, detection order, version and build-number files) in one place.
+// The type list, marker map and detection chain are all built from this table, so a new type starts with one more line here.
+// (Writing version files at release time is handled separately by payload/scripts/version_manager.py.)
 //
-// 필드:
-//   id                 CLI·version.yml에 쓰이는 타입 이름. 배열 순서가 곧 --help·대화형 선택지 표시 순서다.
-//   markers            그 타입의 근거 파일. [0]이 대표 파일이고, 모노레포 경로 탐색은 이 순서로 우선순위를 둔다.
-//   detectBy           자동 감지 방식 — "markers": markers 중 하나라도 있으면 감지
-//                      "package": package.json 의존성 키(packageDep)로 감지
-//                      "package-fallback": package.json은 있지만 위 어느 것도 아닐 때
-//                      없음: 자동 감지하지 않는다(basic은 아무것도 감지되지 않았을 때의 결과).
-//   detectOrder        같은 detectBy 안에서의 판정 순서. 앞선 규칙이 이긴다(expo 앱은 react-native 의존성도 가짐).
-//   versionSources     설치 시 버전을 읽을 파일 키(detect.js의 sources) — 주 타입일 때 이 순서로 먼저 읽는다.
-//   buildNumberSource  모바일 빌드 번호를 읽을 파일 키(detect.js의 detectBuildNumberFromFiles).
-//   singleServerCd     배포 방식 변형 없이 서버 배포 CD가 하나뿐일 때 그 워크플로우 파일명.
-//   hooks              타입 전용 동작. 없는 훅은 "할 일 없음"이라 공통 코드는 hooksFor()로 있는 것만 호출한다.
-//     workflowFilter(context)                         타입 루트 워크플로우 파일 필터(filename → bool) 또는 null
+// Fields:
+//   id                 Type name used in the CLI and version.yml. Array order is also the display order of --help and interactive choices.
+//   markers            Evidence files for the type. [0] is the representative file, and monorepo path search prioritizes in this order.
+//   detectBy           Auto-detection method - "markers": detected when any of markers exists
+//                      "package": detected by a package.json dependency key (packageDep)
+//                      "package-fallback": package.json exists but none of the above matched
+//                      absent: not auto-detected (basic is the result when nothing was detected).
+//   detectOrder        Evaluation order within the same detectBy. The earlier rule wins (an expo app also has a react-native dependency).
+//   versionSources     File keys to read the version from at install (sources in detect.js); read first in this order for the primary type.
+//   buildNumberSource  File key to read the mobile build number from (detectBuildNumberFromFiles in detect.js).
+//   singleServerCd     The workflow file name when there is exactly one server-deploy CD with no deploy-style variants.
+//   hooks              Type-specific behavior. A missing hook means "nothing to do", so common code calls only the existing ones through hooksFor().
+//     workflowFilter(context)                         Filter for the type's root workflow files (filename -> bool) or null
 //     cleanupWorkflows(dir, installed, context, baseline, opts)
-//                                                     선택에서 빠진 워크플로우 정리 → { removed, backedUp }
+//                                                     Cleanup of workflows dropped from the selection -> { removed, backedUp }
 //     planAppFiles / copyAppFiles(context, payloadRoot, targetRoot)
-//                                                     사용자 소유 앱 파일(없을 때만 생성) 계획/복사 → { created, kept }
-//     appFilesTag                                     앱 파일 복사 로그의 분류 이름
-//     statusLabels(options)                           status 옵션 줄에 덧붙일 문자열
-//     doctorChecks(cwd, existing, { docs })           doctor 진단 행 배열
-//     resolveOptions({ opts, existing, workflowsDir }) CLI 옵션 → 저장값 → 기본값 순으로 확정한 타입 옵션 객체
-//                                                     (workflowsDir는 설치된 워크플로우로 추론할 때만 넘긴다)
-//     contextDefaults                                 createContext의 미결정 기본 필드
+//                                                     Plan/copy of user-owned app files (created only when missing) -> { created, kept }
+//     appFilesTag                                     Category name in the app-file copy log
+//     statusLabels(options)                           String appended to the status options line
+//     doctorChecks(cwd, existing, { docs })           Array of doctor diagnostic rows
+//     resolveOptions({ opts, existing, workflowsDir }) Type option object decided as CLI options, then saved values, then defaults
+//                                                     (workflowsDir is passed only when inferring from installed workflows)
+//     contextDefaults                                 Undecided default fields of createContext
 //     contextFields(options) / optionsFromContext(context)
-//                                                     옵션 객체 ↔ 설치 컨텍스트 필드 변환
-//     versionOptionsBlock(options)                    version.yml options 아래에 덧붙일 블록(6칸 들여쓰기)
-//     savedOptionKeys                                 version.yml 저장 키 → parseExisting 옵션 필드
-//     cliFlags[{ flag, field, initial, parse(v) }]    타입 전용 CLI 플래그(파싱 결과 opts[field]에 담긴다)
-//     installNotices(options)                         설치 직후 알릴 경고 배열(빈 값은 무시)
-//     logChoices(context)                             설치 로그에 남길 선택값 [이름, 값] 배열
-// (타입 전용 대화형 질문 흐름은 아직 interactive.js에 남아 있다.)
+//                                                     Conversion between the option object and install-context fields
+//     versionOptionsBlock(options)                    Block appended under version.yml options (6-space indent)
+//     savedOptionKeys                                 Saved version.yml key to parseExisting option field
+//     cliFlags[{ flag, field, initial, parse(v) }]    Type-specific CLI flags (the parsed result goes into opts[field])
+//     installNotices(options)                         Array of warnings shown right after install (empty values ignored)
+//     logChoices(context)                             Array of selected [name, value] pairs to record in the install log
+// (The type-specific interactive question flow still lives in interactive.js.)
 export const TYPES = [
   {
     id: "spring",
@@ -68,13 +68,13 @@ export const TYPES = [
     id: "react-native",
     markers: ["package.json"],
     detectBy: "package", packageDep: "react-native", detectOrder: 2,
-    // 릴리스 때 동기화하는 네이티브 파일이 기준이고, 거기서 못 읽을 때만 package.json을 본다.
+    // The native files synced at release time are the reference; package.json is consulted only when they cannot be read.
     versionSources: ["reactNative", "packageJson"],
     buildNumberSource: "androidGradle",
   },
   {
-    // Expo는 최신 create-expo-app 템플릿처럼 app.json 없이 app.config.ts/js만 쓸 수 있다.
-    // 구성 파일이 아예 없어도 expo 의존성이 있는 package.json이 곧 근거다.
+    // Expo may use only app.config.ts/js without app.json, as in the latest create-expo-app template.
+    // Even with no config file at all, a package.json with an expo dependency is the evidence.
     id: "react-native-expo",
     markers: ["app.json", "app.config.ts", "app.config.js", "package.json"],
     detectBy: "package", packageDep: "expo", detectOrder: 1,
@@ -94,7 +94,7 @@ export const TYPES = [
     versionSources: ["pyproject", "setupPy"],
   },
   {
-    // 마커 파일이 없는 타입 — 아무것도 감지되지 않았을 때의 결과이자 경로가 필요 없는 타입.
+    // A type with no marker files: the result when nothing was detected, and a type that needs no path.
     id: "basic",
     markers: [],
   },
@@ -106,15 +106,15 @@ export const TYPES = [
   },
 ];
 
-// 감지 결과가 하나도 없을 때의 타입
+// Type used when nothing was detected
 export const FALLBACK_TYPE = "basic";
 
 const BY_ID = new Map(TYPES.map((t) => [t.id, t]));
 
-// 알 수 없는 타입은 undefined — 호출부가 각자의 기본값을 정한다.
+// Unknown types give undefined; callers decide their own defaults.
 export const typeInfo = (id) => BY_ID.get(id);
 
-// types 중 훅 name을 가진 것만 [{ id, hook }]으로 — 주어진 타입 순서를 유지한다.
+// Only those of types that have hook `name`, as [{ id, hook }], keeping the given type order.
 export function hooksFor(types, name) {
   const found = [];
   for (const id of types) {
@@ -124,31 +124,31 @@ export function hooksFor(types, name) {
   return found;
 }
 
-// types 중 훅 name을 가진 타입들의 반환값(객체)을 하나로 합친다 — 옵션·컨텍스트 필드처럼 타입마다 다른 키를 낼 때 쓴다.
+// Merges into one object the return values of the hook `name` from the types that have it; used when each type contributes different keys, such as options and context fields.
 export function mergeHookResults(types, name, ...args) {
   return Object.assign({}, ...hooksFor(types, name).map(({ hook }) => hook(...args)));
 }
 
-// 모든 타입이 선언한 훅 상수(contextDefaults·savedOptionKeys 등)를 하나로 합친다 — 타입이 정해지기 전에 필요한 기본 형태용.
+// Merges the hook constants declared by all types (contextDefaults, savedOptionKeys, etc.) into one; for the default shape needed before the types are decided.
 export const allHookValues = (name) => Object.assign({}, ...TYPES.map((t) => t.hooks?.[name]));
 
-// 표시 순서 그대로의 타입 이름 목록
-// VALID_TYPES·ALL_TYPES가 같은 배열을 공유하므로 한쪽에서 바꿔 다른 쪽이 오염되지 않게 고정한다.
+// Type names in display order.
+// VALID_TYPES and ALL_TYPES share the same array, so it is frozen to keep a change on one side from polluting the other.
 export const TYPE_IDS = Object.freeze(TYPES.map((t) => t.id));
 
 const byDetectOrder = (a, b) => a.detectOrder - b.detectOrder;
 
-// 파일 존재만으로 감지하는 타입 (감지 순서대로)
+// Types detected by file existence alone (in detection order)
 export const MARKER_DETECTED_TYPES = TYPES.filter((t) => t.detectBy === "markers").sort(byDetectOrder);
 
-// package.json 의존성으로 가르는 타입 (판정 순서대로)
+// Types told apart by package.json dependencies (in evaluation order)
 export const PACKAGE_DETECTED_TYPES = TYPES.filter((t) => t.detectBy === "package").sort(byDetectOrder);
 
-// package.json이 있지만 알려진 프레임워크 의존성이 없을 때의 타입
+// Type used when package.json exists but has no known framework dependency
 export const PACKAGE_FALLBACK_TYPE = TYPES.find((t) => t.detectBy === "package-fallback").id;
 
-// 모바일 빌드 번호(version_code)를 가진 타입
+// Types that have a mobile build number (version_code)
 export const BUILD_NUMBER_TYPES = new Set(TYPES.filter((t) => t.buildNumberSource).map((t) => t.id));
 
-// 배포 방식 변형 없이 서버 배포 CD가 하나뿐인 워크플로우 파일명
+// Workflow file names for which there is exactly one server-deploy CD, with no deploy-style variants
 export const SINGLE_SERVER_CD_FILES = new Set(TYPES.filter((t) => t.singleServerCd).map((t) => t.singleServerCd));

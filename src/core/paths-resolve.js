@@ -1,37 +1,38 @@
-// 타입별 프로젝트 경로 감지·확정. 모노레포에서 각 타입의 버전 파일이
-// 어느 폴더에 있는지 5단계 우선순위로 확정한다.
+// Per-type project path detection and confirmation. In a monorepo, decides which folder holds each
+// type's version file using a 5-step priority.
 //
-// io 주입 계약(readline-engine 시그니처 그대로):
+// io injection contract (same as the readline-engine signatures):
 //   io.select({message, options:[{value,label}]}) → value | CANCEL(symbol)
 //   io.text({message, defaultValue})              → string | CANCEL
 //   io.confirm({message, initialValue})           → bool | CANCEL
-//   io.log(line)                                   → 안내 출력 (없으면 stderr)
+//   io.log(line)                                   → notice output (stderr when absent)
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { markerForType as baseMarkerForType, resolveMarker } from "./detect.js";
 import { TYPES, typeInfo } from "./types.js";
 import { normalizePath, isRepoRelativePath } from "./paths.js";
 import { CliError } from "./errors.js";
+import { t as tr } from "../i18n/index.js";
 
-// 취소(ESC)는 CANCEL 심볼(Ctrl+C는 엔진이 예외로 중단시킨다) — ui를 import하지 않고 심볼 여부로만 판정 (core→ui 역참조 방지)
+// Cancel (ESC) is the CANCEL symbol (the engine aborts on Ctrl+C with an exception); judged only by being a symbol, without importing ui (avoids a core-to-ui back reference).
 const isCancel = (v) => typeof v === "symbol";
 
-// 타입의 대표 마커 파일명.
-// detect.js는 미지 타입에 package.json을 기본 반환하지만, 경로 탐색에서는 마커가 없는 타입(basic 등)을 빈 문자열로 구분해야 해서 래핑한다.
+// A type's representative marker file name.
+// detect.js returns package.json by default for unknown types, but path search must tell marker-less types (basic etc.) apart with an empty string, hence the wrapper.
 const KNOWN_MARKER_TYPES = new Set(TYPES.filter((t) => t.markers.length).map((t) => t.id));
 export function markerForType(type) {
   return KNOWN_MARKER_TYPES.has(type) ? baseMarkerForType(type) : "";
 }
 
-// 디렉토리에 실재하는 마커 파일명 반환 — resolveMarker의 fs 구동판.
-// (보조 마커 포함: spring build.gradle/.kts/pom.xml, python pyproject/setup.py/requirements.txt)
+// Returns the marker file name that really exists in a directory: the fs-driven version of resolveMarker.
+// (including secondary markers: spring build.gradle/.kts/pom.xml, python pyproject/setup.py/requirements.txt)
 export function existingMarkerInDir(type, dir) {
-  if (!markerForType(type)) return ""; // 미지 타입은 빈 문자열
+  if (!markerForType(type)) return ""; // empty string for unknown types
   return resolveMarker(type, (n) => existsSync(join(dir, n)));
 }
 
-// maxdepth 3 재귀 파일 탐색 — 매치 파일의 "디렉토리" 상대경로(루트는 ".")를 수집.
-// find의 maxdepth는 파일 경로 컴포넌트 수 기준(./a/b/f = depth 3)이므로 동일하게 계산.
+// Recursive file search with maxdepth 3: collects the relative "directory" path of matching files (root is ".").
+// find's maxdepth counts file path components (./a/b/f = depth 3), so it is computed the same way.
 function walkFindDirs(root, { prune, match, maxDepth = 3 }) {
   const hits = [];
   const walk = (rel, depth) => {
@@ -41,37 +42,37 @@ function walkFindDirs(root, { prune, match, maxDepth = 3 }) {
       const childDepth = depth + 1;
       const childRel = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) {
-        // prune 폴더는 하위 전체 제외
+        // prune folders are excluded along with everything below them
         if (prune.has(e.name)) continue;
-        // 자식 파일이 depth ≤ maxDepth 안에 들어올 때만 하강
+        // descend only when child files fall within depth <= maxDepth
         if (childDepth < maxDepth) walk(childRel, childDepth);
-        // childDepth === maxDepth-0 인 디렉토리 내부 파일은 depth maxDepth+1 → find가 안 봄
-        else if (childDepth === maxDepth) { /* 파일만 maxDepth까지 — 디렉토리 하강 불필요 */ }
+        // files inside a directory at childDepth === maxDepth are at depth maxDepth+1, which find does not see
+        else if (childDepth === maxDepth) { /* files count only up to maxDepth; no need to descend into directories */ }
       } else if (childDepth <= maxDepth && match(e.name)) {
         hits.push(rel === "" ? "." : rel);
       }
     }
   };
   walk("", 0);
-  return [...new Set(hits)].sort(); // 중복 제거 + 정렬
+  return [...new Set(hits)].sort(); // dedupe + sort
 }
 
-// 타입별 마커 파일 후보 검색.
-// 반환: 후보 디렉토리 상대경로 배열 (루트는 ".").
+// Marker-file candidate search per type.
+// Returns an array of candidate directory relative paths (root is ".").
 export function findTypePathCandidates(root, type) {
-  // ── Spring 멀티모듈: settings.gradle(.kts) 폴더 = 모듈 루트로 축약 ──
-  // version_manager가 그 폴더 아래 build.gradle 전부를 갱신하므로 하위 모듈을 펼치지 않는다.
-  // android/ 의 settings.gradle(Flutter/RN)은 spring이 아니므로 prune.
+  // -- Spring multi-module: the settings.gradle(.kts) folder collapses to the module root --
+  // version_manager updates every build.gradle beneath that folder, so submodules are not expanded.
+  // The settings.gradle under android/ (Flutter/RN) is not spring, so it is pruned.
   if (type === "spring") {
     const mm = walkFindDirs(root, {
       prune: new Set(["node_modules", ".git", "build", "dist", ".gradle", "android", "ios"]),
       match: (n) => n === "settings.gradle" || n === "settings.gradle.kts",
     });
     if (mm.length) return mm;
-    // settings.gradle 없음 → 단일 모듈, 아래 build.gradle 폴백
+    // no settings.gradle: single module, fall back to build.gradle below
   }
 
-  // 레지스트리의 마커 순서가 곧 우선순위다 (대표 파일 먼저).
+  // The marker order in the registry is the priority (representative file first).
   const names = typeInfo(type)?.markers;
   if (!names?.length) return [];
 
@@ -79,7 +80,7 @@ export function findTypePathCandidates(root, type) {
     "node_modules", ".git", "build", "dist", ".dart_tool", "android", "ios",
     ".gradle", "venv", ".venv", "__pycache__",
   ]);
-  // 우선순위 높은 마커에서 발견되면 그것만 사용
+  // If found with a higher-priority marker, use only that
   let found = [];
   for (const n of names) {
     found = walkFindDirs(root, { prune, match: (name) => name === n });
@@ -88,43 +89,43 @@ export function findTypePathCandidates(root, type) {
 
   return found.filter((d) => {
     if (type === "flutter") {
-      // example/ 제외 + lib/ 동반 확인 — 오탐 방지
+      // exclude example/ and require a sibling lib/ to avoid false positives
       if (d.includes("example")) return false;
       const libDir = d === "." ? join(root, "lib") : join(root, d, "lib");
       if (!existsSync(libDir)) return false;
     }
     if (type === "spring") {
-      // Flutter/RN의 android/build.gradle 오탐 제외
+      // exclude the false positive of Flutter/RN's android/build.gradle
       if (d.includes("android")) return false;
     }
     return true;
   });
 }
 
-// 선택된 모든 타입의 경로를 감지·확인하여 Map<type,path> 확정
-// (5단계 우선순위).
-//   ① paths에 이미 있음(--paths) → 유지
-//   ② 루트에 마커 존재 → "." 자동
-//   ③ existingPaths(version.yml 저장값)
-//   ④ 후보 스캔
-//   ⑤ 분기 — 비대화형: 기존값→후보1개→에러 / 대화형: 확인·선택·직접입력
+// Detects and confirms the paths of all selected types into a Map<type,path>
+// (5-step priority).
+//   1. already in paths (--paths): kept
+//   2. marker exists at the root: "." automatically
+//   3. existingPaths (value saved in version.yml)
+//   4. candidate scan
+//   5. branch - non-interactive: existing value, then a single candidate, then error / interactive: confirm, select, enter manually
 export async function resolveProjectPaths({
   root, types = [], paths = new Map(), existingPaths = new Map(),
   force = false, tty = true, io = {},
 }) {
   const say = io.log || ((m) => process.stderr.write(`${m}\n`));
-  const result = new Map(paths); // --paths 사전값 유지 (호출부 Map은 불변)
-  const targets = types.filter((t) => t !== "basic"); // basic은 경로 불필요
+  const result = new Map(paths); // keep the pre-set --paths values (the caller's Map is left unchanged)
+  const targets = types.filter((t) => t !== "basic"); // basic needs no path
   if (targets.length === 0) return result;
 
   const total = targets.length;
-  // ── 도입부 안내 (감지 결과 + 무엇을 할지 설명) ──
+  // -- Intro notice (detection result + what will happen) --
   say("");
-  if (total > 1) say(`🔍 멀티타입 프로젝트가 감지되었습니다 — 총 ${total}개 타입`);
-  else say(`🔍 ${targets[0]} 프로젝트가 감지되었습니다 — 총 1개 타입`);
+  if (total > 1) say(tr("core.paths.intro.multi", { total }));
+  else say(tr("core.paths.intro.single", { type: targets[0] }));
   for (const t of targets) say(`   • ${t.padEnd(8)} → ${existingMarkerInDir(t, root)}`);
   say("");
-  say("💡 '프로젝트 루트' = 그 타입의 버전 파일이 있는 폴더 (레포 루트 기준 상대경로)");
+  say(tr("core.paths.intro.rootDef"));
   say("");
 
   let idx = 0;
@@ -132,133 +133,134 @@ export async function resolveProjectPaths({
     idx += 1;
     const prog = `[${idx}/${total}]`;
 
-    // ① --paths 등으로 이미 지정됨 → 최우선
+    // 1. already given via --paths etc.: highest priority
     if (result.get(t)) {
       const p = result.get(t);
       if (!existsSync(join(root, p))) {
-        throw new CliError(`--paths로 지정한 경로가 존재하지 않습니다: '${t}=${p}'`);
+        throw new CliError(tr("core.paths.err.pathMissing", { type: t, path: p }));
       }
-      say(`  ${t} → ${p} (--paths 지정)`);
-      // 막지는 않는다(마커 없이 쓰는 구성도 있다) — 오타로 엉뚱한 폴더를 준 경우를 알린다.
+      say(tr("core.paths.say.explicit", { type: t, path: p }));
+      // Not blocking (some setups work without the marker); this only flags a typo that pointed to the wrong folder.
       const pm = existingMarkerInDir(t, join(root, p));
       if (pm && !existsSync(join(root, p, pm))) {
-        say(`  ⚠️ ${p}에 ${t} 프로젝트 파일(${pm})이 없습니다 — 경로가 맞는지 확인하세요.`);
+        say(tr("core.paths.warn.noMarker", { path: p, type: t, marker: pm }));
       }
       continue;
     }
 
-    // ② 루트에 마커 존재 → "." 자동 확정 (보조 마커 포함)
+    // 2. marker exists at the root: "." confirmed automatically (including secondary markers)
     const rootMarker = existingMarkerInDir(t, root);
     if (rootMarker && existsSync(join(root, rootMarker))) {
       result.set(t, ".");
-      say(`  ${t} → . (루트의 ${rootMarker})`);
+      say(tr("core.paths.say.rootMarker", { type: t, marker: rootMarker }));
       continue;
     }
 
-    // ③ 기존 version.yml 저장값 → 기본 제안값
+    // 3. value saved in the existing version.yml: default suggestion
     const existing = existingPaths.get(t) || "";
 
-    // ④ 후보 검색
+    // 4. candidate search
     const candidates = findTypePathCandidates(root, t);
     let chosen = "";
 
-    // ── ⑤-a 비대화형 (--force 또는 TTY 없음 — root 폴백 의도적 불포함) ──
+    // -- 5a. non-interactive (--force or no TTY; root fallback intentionally excluded) --
     if (force || !tty) {
       if (existing) {
         chosen = existing;
-        say(`  ${t} → ${chosen} (기존 project_paths 유지)`);
+        say(tr("core.paths.say.keepExisting", { type: t, path: chosen }));
       } else if (candidates.length === 1) {
         chosen = candidates[0];
-        say(`  ${t} → ${chosen} (자동 감지)`);
+        say(tr("core.paths.say.auto", { type: t, path: chosen }));
       } else if (candidates.length === 0) {
-        throw new CliError(`${t}: 프로젝트 경로를 찾지 못했습니다. --paths "${t}=경로"로 직접 지정하세요.`);
+        throw new CliError(tr("core.paths.err.none", { type: t }));
       } else {
-        throw new CliError(`${t}: 경로 후보가 ${candidates.length}개로 모호합니다(${candidates.join(", ")}). --paths "${t}=경로"로 직접 지정하세요.`);
+        throw new CliError(tr("core.paths.err.ambiguous", { type: t, count: candidates.length, list: candidates.join(", ") }));
       }
       result.set(t, chosen);
       continue;
     }
 
-    // ── ⑤-b 대화형: 후보 개수별 분기 ──
+    // -- 5b. interactive: branch by candidate count --
     if (candidates.length === 1) {
       const cand = candidates[0];
       const candMarker = existingMarkerInDir(t, cand === "." ? root : join(root, cand));
       const candFull = cand === "." ? candMarker : `${cand}/${candMarker}`;
       say("");
-      say(`  ${prog} 🔍 ${t} — ${candMarker} 발견`);
-      say(`      위치: <레포루트>/${candFull}`);
-      // '아니오'/취소 시 chosen 미설정 → 아래 직접입력 루프로
+      say(tr("core.paths.found.one", { prog, type: t, marker: candMarker }));
+      say(tr("core.paths.found.location", { file: candFull }));
+      // On 'No'/cancel chosen stays unset, falling through to the manual-entry loop below
       const ok = await io.confirm({
-        message: `  ${t} 프로젝트 루트를 '${cand}'(으)로 설정할까요? (${candFull} 기준 — 아니오 선택 시 직접 입력)`,
+        message: tr("core.paths.confirm.candidate", { type: t, cand, file: candFull }),
         initialValue: true,
       });
       if (ok === true) chosen = cand;
     } else if (candidates.length > 1) {
       say("");
-      say(`  ${prog} 🔍 ${t}: 경로 후보 ${candidates.length}개 발견`);
-      // 후보들 + '직접 입력' 메뉴 — value 자체를 한국어로 (센티넬 노출 방지)
+      say(tr("core.paths.found.many", { prog, type: t, count: candidates.length }));
+      // Candidates + a 'manual entry' menu: the value itself is the display text (avoids exposing a sentinel)
+      const manual = tr("core.paths.manualInput");
       const options = candidates.map((c) => ({
         value: c,
         label: `${c} (${existingMarkerInDir(t, c === "." ? root : join(root, c))})`,
       }));
-      options.push({ value: "직접 입력", label: "직접 입력" });
-      const sel = await io.select({ message: `  ${t} 프로젝트 루트를 선택하세요`, options });
-      // ESC(취소)도 직접 입력으로 폴백
-      if (!isCancel(sel) && sel != null && sel !== "직접 입력") chosen = sel;
+      options.push({ value: manual, label: manual });
+      const sel = await io.select({ message: tr("core.paths.select.root", { type: t }), options });
+      // ESC (cancel) also falls back to manual entry
+      if (!isCancel(sel) && sel != null && sel !== manual) chosen = sel;
     } else {
       say("");
-      say(`  ⚠️ ${prog} ${t}: 프로젝트를 찾지 못했습니다 (maxdepth 3).`);
+      say(tr("core.paths.found.none", { prog, type: t }));
     }
 
-    // ── 직접 입력 루프 (위에서 미확정 시) ──
+    // -- Manual-entry loop (when still undecided above) --
     while (!chosen) {
       const hintMarker = existingMarkerInDir(t, root);
-      let prompt = `  ${t} 프로젝트 루트 경로 입력 (${hintMarker} 이 있는 폴더, 예: server, app — 루트면 그냥 Enter`;
-      if (existing) prompt += `, 현재값: ${existing}`;
+      let prompt = tr("core.paths.prompt.base", { type: t, marker: hintMarker });
+      if (existing) prompt += tr("core.paths.prompt.current", { existing });
       prompt += "): ";
       let input = await io.text({ message: prompt, defaultValue: "" });
-      if (isCancel(input) || input == null) input = ""; // ESC → 빈값 (아래 폴백)
+      if (isCancel(input) || input == null) input = ""; // ESC becomes empty (falls back below)
       input = String(input).trim();
-      // 빈값 → 기존값 또는 루트 — normalizePath 전에 판정
+      // Empty means the existing value or the root; decided before normalizePath
       input = input === "" ? (existing || ".") : normalizePath(input);
       if (!isRepoRelativePath(input)) {
-        say(`  ⚠️ '${input}'은(는) 레포 밖 경로입니다 — 레포 루트 기준 상대경로로 입력하세요.`);
+        say(tr("core.paths.warn.outsideRepo", { input }));
         continue;
       }
-      // 검증: 입력 경로에 마커 존재 확인 (보조 마커 포함)
+      // Validation: confirm a marker exists at the entered path (including secondary markers)
       const m = existingMarkerInDir(t, input === "." ? root : join(root, input));
       if (m && existsSync(join(root, input === "." ? "" : input, m))) {
         chosen = input;
       } else {
-        say(`  ⚠️ ${input}/${m} 파일이 없습니다.`);
-        // 기본(Enter)·ESC는 이 경로를 그대로 쓴다 — 기본을 '아니오'로 두면 마커가 아직 없는 타입
-        // (프로젝트 생성 전에 미리 추가한 타입 등)은 Enter만으로는 빠져나갈 수 없었다.
-        // 다시 입력하려면 '아니오'를 명시적으로 고른다. 경로는 version.yml project_paths에서 나중에 고칠 수 있다.
-        const forceOk = await io.confirm({ message: "  그래도 이 경로를 사용할까요? (아니오 = 다시 입력)", initialValue: true });
+        say(tr("core.paths.warn.noFile", { input, marker: m }));
+        // Default (Enter) and ESC keep this path as is. With 'No' as the default, a type whose marker does not exist yet
+        // (e.g. added before the project is created) could not be exited with Enter alone.
+        // To enter it again, explicitly choose 'No'. The path can be fixed later in version.yml project_paths.
+        const forceOk = await io.confirm({ message: tr("core.paths.confirm.useAnyway"), initialValue: true });
         if (forceOk !== false) chosen = input;
       }
     }
 
     result.set(t, chosen);
-    say(`  ✅ ${t} → ${chosen}`);
+    say(tr("core.paths.say.chosen", { type: t, chosen }));
   }
 
-  // ── 요약 + 같은 마커 파일 중복 경고 ──
+  // -- Summary + duplicate-marker-file warning --
   say("");
-  say("📂 타입별 버전 파일 경로 확정:");
-  const fileToTypes = new Map(); // 마커 파일 상대경로 → 그 파일을 쓰는 타입들
+  say(tr("core.paths.summary.title"));
+  const fileToTypes = new Map(); // marker file relative path to the types using that file
   for (const [pt, pp] of result) {
     const m = existingMarkerInDir(pt, pp === "." ? root : join(root, pp));
     const file = pp === "." ? m : `${pp}/${m}`;
-    say(`   ${pt} → ${file}`);
+    say(tr("core.paths.summary.row", { type: pt, file }));
     if (!fileToTypes.has(file)) fileToTypes.set(file, []);
     fileToTypes.get(file).push(pt);
   }
   for (const [file, ts] of fileToTypes) {
     if (ts.length > 1) {
-      // 멱등 동작이라 막지는 않고 경고만
-      say(`  ⚠️ 같은 파일(${file})을 여러 타입(${ts.join(" ")})이 바라봅니다.`);
-      say("     → sync 때 모두 같은 버전이 기록됩니다. 동작에는 문제없지만 의도한 구성인지 확인하세요.");
+      // Idempotent behavior, so only a warning rather than a block
+      say(tr("core.paths.dup.warn", { file, types: ts.join(" ") }));
+      say(tr("core.paths.dup.note"));
     }
   }
   say("");
