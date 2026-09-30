@@ -1,7 +1,7 @@
 // tests/node/deploy-style-types.test.js
 // Deploy style must follow the same rules for every type.
-//  - none: no type installs server-deploy workflows (CD, react/next single CD, PR preview)
-//  - nginx/traefik: types without a zero-downtime workflow (python, go, react, next) install the single-server deploy and say so
+//  - none: no type installs server-deploy workflows (CD, react single CD, PR preview)
+//  - nginx/traefik: types without a zero-downtime workflow (python, go, react) install the single-server deploy and say so
 //  - on a first install, a just-written file is not mistaken for a "user edit" and moved to .bak
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
@@ -39,13 +39,11 @@ async function install(dir, argv) {
 const workflows = (dir) => readdirSync(join(dir, ".github", "workflows"));
 
 const REACT = { "package.json": JSON.stringify({ name: "my-app", version: "1.0.0", dependencies: { react: "18" } }) };
-const NEXT = { "package.json": JSON.stringify({ name: "my-app", version: "1.0.0", dependencies: { next: "14", react: "18" } }) };
 const PYTHON = { "pyproject.toml": '[project]\nname = "my-service"\nversion = "1.0.0"\n' };
 const GO = { "go.mod": "module example.com/my-service\n\ngo 1.22\n" };
 
 for (const [type, files, ci] of [
   ["react", REACT, "PROJECT-REACT-CI.yaml"],
-  ["next", NEXT, "PROJECT-NEXT-CI.yaml"],
   ["python", PYTHON, "PROJECT-PYTHON-CI.yaml"],
   ["go", GO, "PROJECT-GO-CI.yaml"],
 ]) {

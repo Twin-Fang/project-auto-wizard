@@ -98,9 +98,6 @@ function setupRepo({ releaseMerge = true } = {}) {
     if (basename(f) === "PROJECT-REACT-CICD.yaml") {
       body = body.replace(/^( *)# @wizard paths-anchor.*$/m, "$1paths: ['web/**']");
     }
-    if (basename(f) === "PROJECT-NEXT-CICD.yaml") {
-      body = body.replace(/^( *)# @wizard paths-anchor.*$/m, "$1paths:\n$1  - 'site/**'");
-    }
     writeFileSync(join(work, ".github", "workflows", basename(f)), body);
   }
   // Leave user workflows not installed by the wizard untouched
