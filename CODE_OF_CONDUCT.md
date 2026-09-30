@@ -1,31 +1,31 @@
-# 행동 강령 (Code of Conduct)
+# Code of Conduct
 
-## 우리의 약속
+## Our pledge
 
-project-auto-wizard 커뮤니티는 나이, 신체 조건, 장애, 민족, 성 정체성 및 표현, 경험 수준, 국적, 외모, 인종, 종교, 성적 정체성과 지향에 관계없이 모두에게 괴롭힘 없는 경험을 제공하는 것을 약속합니다.
+The project-auto-wizard community pledges to make participation a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
-## 우리의 기준
+## Our standards
 
-긍정적인 환경에 기여하는 행동의 예:
+Examples of behavior that contributes to a positive environment:
 
-- 다른 관점과 경험을 존중하기
-- 건설적인 비판을 정중하게 수용하기
-- 커뮤니티에 가장 도움이 되는 방향에 집중하기
+- Respecting differing viewpoints and experiences
+- Gracefully accepting constructive criticism
+- Focusing on what is best for the community
 
-용납되지 않는 행동의 예:
+Examples of unacceptable behavior:
 
-- 성적인 언어나 이미지 사용, 원치 않는 성적 관심이나 접근
-- 트롤링, 모욕적/경멸적 댓글, 인신공격 또는 정치적 공격
-- 공개적·사적인 괴롭힘
-- 명시적 허가 없이 타인의 개인정보(주소 등)를 공개하는 행위
+- The use of sexualized language or imagery, and unwelcome sexual attention or advances
+- Trolling, insulting or derogatory comments, and personal or political attacks
+- Public or private harassment
+- Publishing others' private information, such as a physical address, without explicit permission
 
-## 적용 범위
+## Scope
 
-이 행동 강령은 프로젝트 공간(이슈, PR, Discussions) 및 개인이 프로젝트나 커뮤니티를 대표할 때 적용됩니다.
+This Code of Conduct applies within project spaces (issues, pull requests, Discussions) and when an individual represents the project or its community.
 
-## 신고
+## Reporting
 
-부적절한 행동은 이슈 또는 저장소 관리자에게 비공개로 신고할 수 있습니다. 모든 신고는 신중하고 공정하게 검토됩니다.
+Report unacceptable behavior privately, through an issue or to the repository maintainers. All reports are reviewed thoughtfully and fairly.
 
 ---
-[Contributor Covenant](https://www.contributor-covenant.org) v2.1을 기반으로 작성되었습니다.
+Adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.

@@ -25,24 +25,24 @@ Read-only and rule-based (no AI). It calls `gh api`, so it needs network access 
 
 Each line shows what the setting is for. Only problems are expanded, in the order: what is wrong → what stops working if you leave it → where to click to fix it → documentation link. Healthy items are a single line. Labels that appear in GitHub's settings screens (such as `Read and write permissions`) are printed verbatim so you can search for them.
 
-The CLI prints in Korean. A typical run (abridged):
+A typical run in English (abridged):
 
 ```
-◆  환경 진단 — project-auto-wizard doctor
+◆  Environment check — project-auto-wizard doctor
 
-  [✓] 설치 상태 — 이 폴더의 마법사 설치 여부          version.yml 있음
-  [✓] gh CLI — 레포 설정 조회용                       gh version 2.96.0 (2026-09-01)
-  [✓] GitHub 로그인 — 레포 설정 조회 권한             인증됨
-  [✓] merge commit 허용 — 릴리스 PR 자동 머지 조건    허용됨
+  [✓] Install state — is the wizard installed here       version.yml found
+  [✓] gh CLI — used to read repo settings               gh version 2.96.0 (2026-09-01)
+  [✓] GitHub login — permission to read repo settings   authenticated
+  [✓] Merge commits — needed to automerge release PRs   allowed
 
-  [i] Workflow permissions — 직접 추가한 워크플로우의 기본 권한
-      현재 read 입니다 — 마법사가 설치한 워크플로우는 각자 권한을 선언하므로 그대로 동작합니다.
-  [i] WORKFLOW_PAT — 자동 태그·Release 발행
-      secret이 없어도 폴백이 자동으로 이어받아 태그·Release 발행과 main 배포 워크플로우 실행까지 진행됩니다.
-  [i] Copilot AI 요약 — AI 릴리스 노트 생성(선택)
-      꺼져 있습니다 (version.yml의 copilot_ai: false)
+  [i] Workflow permissions — default for workflows you add yourself
+      Currently read — workflows installed by the wizard declare their own permissions, so they work as is.
+  [i] WORKFLOW_PAT — automatic tag and Release publishing
+      Without the secret, the fallback takes over and still publishes the tag and Release and triggers the main deploy workflow.
+  [i] Copilot AI summaries — AI release notes (optional)
+      Off (copilot_ai: false in version.yml)
 
-  ✓ 문제를 찾지 못했습니다.
+  ✓ No problems found.
 ```
 
 In this example everything required is fine. The `[i]` lines are informational: workflow permissions can stay at read because installed workflows declare their own, `WORKFLOW_PAT` is optional, and Copilot is off.
