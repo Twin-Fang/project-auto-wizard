@@ -1,3 +1,5 @@
+import { flutterHooks } from "./flutter-hooks.js";
+
 // 프로젝트 타입 레지스트리 — 타입별 지식(감지 마커, 감지 순서, 버전·빌드 번호 파일)을 한 곳에 둔다.
 // 타입 목록·마커 맵·감지 체인은 모두 이 표에서 만들어지므로, 새 타입은 여기에 한 줄을 더하는 것에서 시작한다.
 // (릴리스 시점의 버전 파일 쓰기는 payload/scripts/version_manager.py가 따로 담당한다.)
@@ -13,6 +15,16 @@
 //   versionSources     설치 시 버전을 읽을 파일 키(detect.js의 sources) — 주 타입일 때 이 순서로 먼저 읽는다.
 //   buildNumberSource  모바일 빌드 번호를 읽을 파일 키(detect.js의 detectBuildNumberFromFiles).
 //   singleServerCd     배포 방식 변형 없이 서버 배포 CD가 하나뿐일 때 그 워크플로우 파일명.
+//   hooks              타입 전용 동작. 없는 훅은 "할 일 없음"이라 공통 코드는 hooksFor()로 있는 것만 호출한다.
+//     workflowFilter(context)                         타입 루트 워크플로우 파일 필터(filename → bool) 또는 null
+//     cleanupWorkflows(dir, installed, context, baseline, opts)
+//                                                     선택에서 빠진 워크플로우 정리 → { removed, backedUp }
+//     planAppFiles / copyAppFiles(context, payloadRoot, targetRoot)
+//                                                     사용자 소유 앱 파일(없을 때만 생성) 계획/복사 → { created, kept }
+//     appFilesTag                                     앱 파일 복사 로그의 분류 이름
+//     statusLabels(options)                           status 옵션 줄에 덧붙일 문자열
+//     doctorChecks(cwd, existing, { docs })           doctor 진단 행 배열
+// (타입 전용 옵션 해석·CLI 플래그·version.yml 블록·대화형 질문은 아직 각 호출부에 남아 있다.)
 export const TYPES = [
   {
     id: "spring",
@@ -26,6 +38,7 @@ export const TYPES = [
     detectBy: "markers", detectOrder: 1,
     versionSources: ["pubspec"],
     buildNumberSource: "pubspec",
+    hooks: flutterHooks,
   },
   {
     id: "next",
@@ -90,6 +103,16 @@ const BY_ID = new Map(TYPES.map((t) => [t.id, t]));
 
 // 알 수 없는 타입은 undefined — 호출부가 각자의 기본값을 정한다.
 export const typeInfo = (id) => BY_ID.get(id);
+
+// types 중 훅 name을 가진 것만 [{ id, hook }]으로 — 주어진 타입 순서를 유지한다.
+export function hooksFor(types, name) {
+  const found = [];
+  for (const id of types) {
+    const hook = BY_ID.get(id)?.hooks?.[name];
+    if (hook !== undefined) found.push({ id, hook });
+  }
+  return found;
+}
 
 // 표시 순서 그대로의 타입 이름 목록
 // VALID_TYPES·ALL_TYPES가 같은 배열을 공유하므로 한쪽에서 바꿔 다른 쪽이 오염되지 않게 고정한다.

@@ -27,10 +27,12 @@ src/
     wizard-env.js            @wizard marker engine (line based, no YAML re-serialization)
     wizard-labels.js         payload/config/wizard-prompts.yml parser (question labels)
     copy/                    installers: workflows.js, simple.js (scripts), readme.js,
-                             gitignore.js, flutter-app.js
+                             gitignore.js, app-files.js (type hooks), flutter-app.js
     baseline.js              .github/.wizard/baseline.json — 3-way update base
     deploy-style.js          server deploy style filter (simple / nginx / traefik / none)
     flutter-options.js       Flutter env mode, store targets, store deploy modes
+    flutter-hooks.js         Flutter's type hooks (workflow filter, cleanup, app files, status, doctor) wired in types.js
+    flutter-doctor.js        Flutter doctor checks, called through the doctorChecks hook
     removal-plan.js          what counts as "installed by the wizard" (uninstall, purge, stale cleanup)
     version-yml.js           version.yml render/parse
     verify.js                post-install checks (unsubstituted tokens, required secrets)
@@ -43,7 +45,8 @@ payload/                     everything that gets installed into a user repo (si
   config/                    wizard-prompts.yml (question text), breaking-changes.json
   flutter-app/               fastlane / ExportOptions files for Flutter store deploys
   version.yml.template       rendered into the user's version.yml
-scripts/                     repo tooling (sync-dogfood.mjs, run-py-tests.mjs) — not shipped
+templates/workflows/         shared pieces + per-type values that generate some payload workflows — not shipped
+scripts/                     repo tooling (generate-workflows.mjs, sync-dogfood.mjs, run-py-tests.mjs) — not shipped
 tests/node, tests/py         test suites (see "Tests")
 ```
 
@@ -176,6 +179,23 @@ After changing a source, run `npm run sync:dogfood`. Intended differences (ISSUE
 the NPM publish trigger in RELEASE-PUBLISH) are declared as `PATCHES` in
 `scripts/sync-dogfood.mjs`. `npm run sync:dogfood:check` and `tests/node/dogfood-parity.test.js`
 fail when the copies drift.
+
+## Generated payload workflows
+
+Workflows that differ only in a few values are generated instead of edited by hand. Currently the
+Go and Python PR previews (`payload/workflows/{go,python}/PROJECT-*-PR-PREVIEW.yaml`) and the React
+and Next.js deploys (`payload/workflows/{react,next}/PROJECT-*-CICD.yaml`):
+
+- `templates/workflows/pr-preview.base.yaml`, `cicd-frontend.base.yaml` — the shared bodies with `%%NAME%%` placeholders
+- `templates/workflows/targets.mjs` — which output file gets which values
+- `scripts/generate-workflows.mjs` — fills the placeholders; a placeholder alone on a line is replaced
+  by an array of lines (an empty array drops the line; empty strings stay unindented), one inside a line by a string
+
+The generated files stay committed, so what gets installed into a user repo is unchanged and the
+templates are not shipped. To change a generated workflow, edit the template or the values, run
+`npm run generate:workflows`, and commit the result. `npm run generate:workflows:check` and
+`tests/node/workflow-generator.test.js` fail when a committed file differs from what the generator
+produces, so editing a generated file by hand is caught.
 
 ## Tests
 

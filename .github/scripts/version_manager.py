@@ -436,6 +436,64 @@ def sync_maven(path_dir, new_version):
 
 
 _GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*)\2""", re.MULTILINE)
+_GRADLE_SHARED_BLOCKS = ("allprojects", "subprojects")
+
+
+def _gradle_code(line, quote=""):
+    """한 줄에서 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다. url 'https://…'의 `//`나
+    문자열 속 중괄호가 블록 깊이 계산을 흐트러뜨리지 않게 한다. detect.js와 같은 규칙.
+
+    quote는 이 줄이 시작될 때 열려 있던 따옴표다. 삼중따옴표(\"\"\" ''')는 여러 줄에 걸치므로
+    (코드, 줄 끝에서 열려 있는 따옴표)를 돌려줘 다음 줄이 이어받게 한다. 한 줄짜리 따옴표는
+    줄 끝에서 닫힌 것으로 본다."""
+    out, i = [], 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\" and i + 1 < len(line):
+                out.append("  "); i += 2; continue
+            if line.startswith(quote, i):
+                out.append(quote); i += len(quote); quote = ""; continue
+            out.append(" ")
+        elif line.startswith(('"""', "'''"), i):
+            quote = line[i:i + 3]; out.append(quote); i += 3; continue
+        elif ch in "'\"":
+            quote = ch; out.append(ch)
+        elif line.startswith("//", i):
+            break
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out), quote if len(quote) == 3 else ""
+
+
+def _gradle_version_matches(text):
+    """프로젝트 버전 줄의 match 목록. 읽기와 동기화가 이 한 곳을 공유해 같은 줄만 다룬다.
+
+    들여쓰지 않은 `version =`이 있으면 그것만 쓴다. 없을 때만 allprojects/subprojects 블록 안의
+    들여쓴 줄을 인정한다 — `node { version = '20.11.0' }` 같은 플러그인 설정 블록을
+    프로젝트 버전으로 오인하면 버전이 뛰고 빌드 설정이 깨진다."""
+    top, shared = [], []
+    stack = []  # 열린 블록 이름. 줄 끝이 `{`로 끝나는 줄의 마지막 단어
+    quote = ""  # 여러 줄 문자열 안이면 그 따옴표. 문자열 속 줄은 코드가 아니다
+    pos = 0
+    for line in text.splitlines(keepends=True):
+        m = None if quote else _GRADLE_VERSION_RE.match(line)
+        if m:
+            m = _GRADLE_VERSION_RE.match(text, pos)
+            if not m.group(1)[:1].isspace():
+                top.append(m)
+            elif any(b in _GRADLE_SHARED_BLOCKS for b in stack):
+                shared.append(m)
+        code, quote = _gradle_code(line, quote)
+        name = re.search(r"(\w+)\s*\{[^{}]*$", code)
+        for ch in code:
+            if ch == "{":
+                stack.append(name.group(1) if name else "")
+            elif ch == "}" and stack:
+                stack.pop()
+        pos += len(line)
+    return top or shared
 
 
 def sync_spring(path_dir, new_version):
@@ -455,10 +513,13 @@ def sync_spring(path_dir, new_version):
         text = read_file(gradle_file)
         # 줄 시작의 `version =`만 프로젝트 버전이다. 앵커가 없으면 kotlin_version 같은
         # 의존성 버전 변수까지 함께 바뀌어 빌드가 깨진다.
-        new_text, count = _GRADLE_VERSION_RE.subn(
-            lambda m: f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}", text,
-        )
-        if count == 0:
+        matches = _gradle_version_matches(text)
+        new_text = text
+        # 뒤에서부터 바꿔 앞쪽 span이 밀리지 않게 한다.
+        for m in reversed(matches):
+            replaced = f"{m.group(1)}{m.group(2)}{_keep_snapshot(m.group(3), new_version)}{m.group(2)}"
+            new_text = new_text[:m.start()] + replaced + new_text[m.end():]
+        if not matches:
             log(f"WARNING: spring: no `version = '...'` line in {gradle_file} — skipping")
             continue
         write_file(gradle_file, new_text)
@@ -586,21 +647,36 @@ def sync_python(path_dir, new_version):
         log(f"updated: {target}")
 
 
+_PLIST_VERSION_RE = re.compile(r'(<key>CFBundleShortVersionString</key>\s*<string>)([^<]*)(</string>)')
+
+
+def _rn_app_plists(ios_dir):
+    """앱 타깃의 Info.plist만 이름순으로. Pods·빌드 산출물·테스트 타깃은 우리 버전이 아니다.
+    읽기와 동기화가 같은 파일 집합을 보도록 한 곳에서 고른다."""
+    skip = {"Pods", "build"}
+    return [
+        p for p in sorted(ios_dir.glob("*/Info.plist"))
+        if p.parent.name not in skip and not p.parent.name.endswith("Tests")
+    ]
+
+
 def sync_react_native(path_dir, new_version):
     ios_dir = Path(path_dir) / "ios"
     found_plist = False
     if ios_dir.is_dir():
-        for plist_file in ios_dir.rglob("Info.plist"):
+        for plist_file in _rn_app_plists(ios_dir):
             text = read_file(plist_file)
-            if "CFBundleShortVersionString" in text:
-                new_text = re.sub(
-                    r'(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)',
-                    r'\g<1>' + new_version + r'\g<2>',
-                    text,
-                )
-                write_file(plist_file, new_text)
-                log(f"updated: {plist_file}")
-                found_plist = True
+            m = _PLIST_VERSION_RE.search(text)
+            if not m:
+                continue
+            # $(MARKETING_VERSION) 같은 빌드 변수 참조는 Xcode 설정이 원본이라 덮어쓰지 않는다.
+            if m.group(2).strip().startswith("$("):
+                log(f"skipped: {plist_file} — CFBundleShortVersionString references a build variable")
+                continue
+            new_text = _PLIST_VERSION_RE.sub(lambda mm: mm.group(1) + new_version + mm.group(3), text)
+            write_file(plist_file, new_text)
+            log(f"updated: {plist_file}")
+            found_plist = True
     else:
         log(f"WARNING: react-native: {ios_dir} not found — skipping")
 
@@ -691,7 +767,7 @@ def _read_spring(path_dir):
     for name in ("build.gradle", "build.gradle.kts"):
         p = Path(path_dir) / name
         if p.is_file():
-            for m in _GRADLE_VERSION_RE.finditer(read_file(p)):
+            for m in _gradle_version_matches(read_file(p)):
                 version = core_version(m.group(3))
                 if version:
                     return version
@@ -725,10 +801,9 @@ def _read_react_native(path_dir):
     $(MARKETING_VERSION) 참조나 템플릿 기본값 "1.0"처럼 x.y.z가 아닌 값은 건너뛴다."""
     ios_dir = Path(path_dir) / "ios"
     if ios_dir.is_dir():
-        # rglob 첫 결과는 파일시스템 순서라 Pods·테스트 타깃 plist가 걸릴 수 있다 — 앱 폴더 한 단계만, 이름순.
-        for plist in sorted(ios_dir.glob("*/Info.plist")):
-            m = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]*)</string>', read_file(plist))
-            version = core_version(m.group(1)) if m else None
+        for plist in _rn_app_plists(ios_dir):
+            m = _PLIST_VERSION_RE.search(read_file(plist))
+            version = core_version(m.group(2)) if m else None
             if version:
                 return version
     gradle_file = Path(path_dir) / "android" / "app" / "build.gradle"

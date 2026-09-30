@@ -38,6 +38,7 @@ npm run test:py   # Python 테스트만 (tests/py)
 - 워크플로우 YAML과 파이썬 스크립트를 수정할 때는 **`payload/`가 단일 진실**입니다. `.github/workflows/PROJECT-COMMON-*.yaml`과 `.github/scripts/*.py`는 이 레포 자신에게 설치된 사본(도그푸딩)이므로 직접 고치지 말고, `payload/`를 고친 뒤 `npm run sync:dogfood`로 다시 만드세요. 브랜치 플레이스홀더(`{{MAIN_BRANCH}}` → `main`, `{{DEVELOP_BRANCH}}` → `develop`)는 스크립트가 치환합니다.
   - 사본에만 필요한 차이(ISSUE-HELPER 기본값, RELEASE-PUBLISH의 NPM-PUBLISH 트리거 스텝)는 `scripts/sync-dogfood.mjs`의 `PATCHES`에 선언합니다. 새 차이가 필요하면 사본을 손으로 고치지 말고 이 목록에 추가하세요.
   - `npm run sync:dogfood:check`는 파일을 쓰지 않고 비교만 하며, 어긋나면 실패합니다. `npm test`에도 같은 검사(`tests/node/dogfood-parity.test.js`)가 들어 있습니다.
+- Go/Python PR 프리뷰, React/Next 배포(CICD)처럼 **생성되는 payload 워크플로우**(`templates/workflows/targets.mjs`에 등록된 파일)는 payload 파일을 직접 고치지 말고 `templates/workflows/`의 조각이나 값을 고친 뒤 `npm run generate:workflows`로 다시 만들어 함께 커밋하세요. `npm run generate:workflows:check`는 쓰지 않고 비교만 하며, `npm test`에도 같은 검사(`tests/node/workflow-generator.test.js`)가 들어 있습니다.
 - 커밋 메시지는 [Conventional Commits](https://www.conventionalcommits.org/) 형식을 따릅니다(`feat:`, `fix:`, `docs:`, `chore:` 등 타입 접두사는 영어). 단, 접두사 뒤 설명 부분은 **한국어로 작성**합니다. 예: `feat: 로그인 실패 시 재시도 로직 추가`
 
 ## PR 규칙

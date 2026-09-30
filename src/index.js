@@ -8,13 +8,12 @@ import { readFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError } from "./cli/args.js";
 import { HELP_TEXT } from "./cli/help.js";
-import { createContext } from "./context.js";
-import { DEFAULT_DEPLOY_STYLE, isDeployStyle, hasServerDeployWorkflows, fallbackStyleTypes, effectiveDeployStyle } from "./core/deploy-style.js";
+import { fallbackStyleTypes } from "./core/deploy-style.js";
 import { resolveFlutterOptions } from "./core/flutter-options.js";
 import { inferInstalledStores } from "./core/installed-stores.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
-import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectBuildNumber, detectMarkers } from "./core/detect-fs.js";
+import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
@@ -29,6 +28,7 @@ import { runUninstall, runUninstallFlow } from "./commands/uninstall.js";
 import * as prompts from "./ui/prompts.js";
 import { isPromptAbort } from "./ui/readline-engine.js";
 import { runInteractive } from "./commands/interactive.js";
+import { resolveDeployStyle, resolveVersion, resolveVersionCode, buildInstallContext } from "./commands/install-settings.js";
 import { initLogger, closeLogger, currentLogPath, hasLegacyMdLogs, log } from "./core/logger.js";
 import { runStatus, printStatus } from "./commands/status.js";
 import { runDoctor, printDoctorReport } from "./commands/doctor.js";
@@ -286,9 +286,11 @@ async function runInner(argv, {
   // version: 기존 version.yml 최우선(SSoT — 재실행 시 덮어쓰기 방지) → CLI 지정 → 파일 감지
   // 비대화형이므로 폴백 안내는 CLI 문구(--project-version)를 그대로 쓴다.
   // 경로 확정 뒤에 감지해야 모노레포 하위 폴더의 버전·빌드 번호를 읽는다.
-  const version = (existing?.version) || opts.version
-    || detectVersion(cwd, { types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); } });
-  const versionCode = existing?.versionCode ?? detectBuildNumber(cwd, { types, paths }) ?? 1; // 기존 빌드번호 보존, 신규 통합 시 프로젝트 파일에서 감지
+  const version = resolveVersion({
+    cwd, existing, explicit: opts.version,
+    types, paths, warn: (m) => { detectWarnings.push(m); console.error(m); },
+  });
+  const versionCode = resolveVersionCode({ cwd, existing, types, paths });
 
   // 브랜치 구성 (--main-branch/--develop-branch → version.yml 저장값 → 감지 default → main/develop)
   // 이전 버전이 저장한 감지 실패 값("(unknown)" 등)은 저장값으로 인정하지 않는다 — 그대로 두면 재실행해도 복구되지 않는다.
@@ -331,37 +333,30 @@ async function runInner(argv, {
     existing,
   });
 
-  const context = createContext({
-    mode: opts.mode, force: opts.force, types, version, versionCode, branch,
+  // 고른 배포 방식 — 플래그 → 저장값 → 기본값. 실제 설치되는 방식으로의 정리는 컨텍스트 조립에서 한다.
+  const chosenDeployStyle = resolveDeployStyle({ payload, types, explicit: opts.deployStyle, existing });
+
+  const context = buildInstallContext({
+    payload, existing, templateVersion: readTemplateVersion(), types, deployStyle: chosenDeployStyle,
+    flutterOptions,
+    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
+    releaseOptions: resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
+    mode: opts.mode, force: opts.force, version, versionCode, branch,
     branches,
     paths,
-    // 옵션: CLI 플래그 최우선 → version.yml 저장 옵션 → 기본값 (대화형과 같은 규칙)
-    ...resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
     repoName,
     // @wizard ask/auto 토큰 값을 계산하는 resolver
     resolvers: makeResolvers(cwd, repoName, paths, flutterOptions),
     now, today,
     // 설치 로그용 부가 문맥 — 설치 동작 자체는 바꾸지 않는다.
     markers: detectMarkers(cwd, types), detectWarnings,
-    // 서버 배포 워크플로우가 없는 타입은 배포 방식이 설치에 영향이 없으므로 기록하지 않는다(null).
-    deployStyle: !hasServerDeployWorkflows(payload, types) ? null : opts.deployStyle
-      || (isDeployStyle(existing?.options?.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE),
-    previousTemplateVersion: existing?.templateVersion || "",
-    envMode: flutterOptions.envMode,
-    flutterStore: flutterOptions.stores,
-    androidDeployMode: flutterOptions.androidDeployMode,
-    iosDeployMode: flutterOptions.iosDeployMode,
   });
 
-  context.templateVersion = readTemplateVersion();
-
   // 무중단(nginx·traefik) 워크플로우가 없는 타입은 단일 서버 배포로 설치한다 — 조용히 넘어가지 않게 알린다.
-  const fallbackTypes = fallbackStyleTypes(payload, types, context.deployStyle);
+  const fallbackTypes = fallbackStyleTypes(payload, types, chosenDeployStyle);
   if (fallbackTypes.length) {
-    console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${context.deployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
+    console.error(`⚠️  ${fallbackTypes.join(", ")}에는 ${chosenDeployStyle} 무중단 배포 워크플로우가 없어 단일 서버 배포(simple)로 설치합니다.`);
   }
-  // 안내는 고른 값으로 하되, 기록은 실제로 설치되는 방식으로 한다.
-  context.deployStyle = effectiveDeployStyle(payload, types, context.deployStyle);
 
   // 비대화형 축약 배너 (1줄, 로그 오염 최소)
   printBannerCompact({ version: context.templateVersion, mode: opts.mode });

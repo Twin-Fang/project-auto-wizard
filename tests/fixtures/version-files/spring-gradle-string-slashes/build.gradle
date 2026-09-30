@@ -1,0 +1,10 @@
+allprojects {
+    repositories {
+        maven { url 'https://jitpack.io' }
+    }
+    version = '2.3.4'
+}
+
+node {
+    version = '20.11.0'
+}

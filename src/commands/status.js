@@ -9,6 +9,7 @@ import { resolveFlutterOptions } from "../core/flutter-options.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { findStaleWorkflows } from "../core/removal-plan.js";
 import { readBaseline } from "../core/baseline.js";
+import { hooksFor } from "../core/types.js";
 
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 상태를 확인할 대상 레포.
 export function runStatus(payloadRoot, targetRoot = ".") {
@@ -77,9 +78,9 @@ export function printStatus(status) {
   const boolLabel = (v) => (v === null ? "미설정(기본 false)" : v);
   const semverAutoLabel = status.options.semverAuto === null ? "미설정(기본 false)" : status.options.semverAuto;
   const copilotAiLabel = boolLabel(status.options.copilotAi ?? null);
-  const flutterLabels = status.types.includes("flutter") ? flutterOptionLabels(status.options) : "";
+  const typeLabels = hooksFor(status.types, "statusLabels").map(({ hook }) => hook(status.options)).join("");
   const deployLabel = status.options.deployStyle ? ` deploy_style=${status.options.deployStyle}` : "";
-  lines.push(`옵션            : semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${deployLabel}${flutterLabels}`);
+  lines.push(`옵션            : semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${deployLabel}${typeLabels}`);
   if (status.modifiedFiles.length) {
     lines.push("", `사용자가 수정한 워크플로우 파일 (${status.modifiedFiles.length}개):`);
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);
@@ -103,14 +104,4 @@ export function printStatus(status) {
   }
   lines.push("");
   console.log(lines.join("\n"));
-}
-
-// Flutter 타입일 때만 붙는 옵션. 저장값이 없으면 그 상태에서 실제로 적용되는 동작을 함께 알린다.
-function flutterOptionLabels(options) {
-  return [
-    ` env_mode=${options.envMode ?? "미설정(dotenv 유지)"}`,
-    ` flutter_store=${options.flutterStore ?? "미설정(둘 다 설치)"}`,
-    ` android_deploy_mode=${options.androidDeployMode ?? "미설정(store_only)"}`,
-    ` ios_deploy_mode=${options.iosDeployMode ?? "미설정(store_only)"}`,
-  ].join("");
 }
