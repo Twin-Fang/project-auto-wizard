@@ -1,8 +1,6 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
-import {
-  ENV_MODES, DEPLOY_MODES, DEFAULT_ENV_MODE, DEFAULT_DEPLOY_MODE, STORE_PLATFORMS, formatStoreList,
-} from "./flutter-options.js";
+import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
 
 // version.yml 파싱·생성 (전체 재생성 전략).
 // ⚠️ YAML 재직렬화 금지 — 주석이 데이터.
@@ -37,20 +35,18 @@ export function parseExtraTopLevel(content) {
   return blocks;
 }
 
-// Flutter 옵션 키 → 반환 필드. 값은 원문 문자열로 돌려주고, 유효성 판정은 resolveFlutterOptions 몫이다.
-const FLUTTER_OPTION_KEYS = {
-  env_mode: "envMode", flutter_store: "flutterStore",
-  android_deploy_mode: "androidDeployMode", ios_deploy_mode: "iosDeployMode",
-};
+// 타입 전용 옵션 키 → 반환 필드(타입 훅 savedOptionKeys). 값은 원문 문자열로 돌려주고, 유효성 판정은 타입 훅의 resolveOptions 몫이다.
+const TYPE_OPTION_KEYS = allHookValues("savedOptionKeys");
+const TYPE_OPTION_LINE = new RegExp(`^\\s+(${Object.keys(TYPE_OPTION_KEYS).join("|")}):\\s*(.+)`);
 
 // metadata.template.options 상태머신 파싱.
 // 반환: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
-//         envMode/flutterStore/androidDeployMode/iosDeployMode: string|null } — null=미기재.
+//         타입 전용 옵션 필드(예: envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } — null=미기재.
 // 구 synology·coderabbit 키 등 다른 키는 어느 분기에도 안 걸려 자연히 무시된다(파싱 에러 없음).
 export function parseTemplateOptions(content) {
   const out = {
     semverAuto: null, copilotAi: null, deployStyle: null,
-    envMode: null, flutterStore: null, androidDeployMode: null, iosDeployMode: null,
+    ...Object.fromEntries(Object.values(TYPE_OPTION_KEYS).map((field) => [field, null])),
   };
   // 값 정규화: 따옴표 제거 + 트림
   // 인라인 주석(` # ...`)을 먼저 떼고 따옴표·공백을 정리한다. 문자열 값을 받는 키(deploy_style)는
@@ -64,8 +60,8 @@ export function parseTemplateOptions(content) {
     if (inTemplate && inOptions) {
       let m = line.match(/^\s+deploy_style:\s*(.+)/);
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
-      m = line.match(/^\s+(env_mode|flutter_store|android_deploy_mode|ios_deploy_mode):\s*(.+)/);
-      if (m) { const v = strip(m[2]); if (v) out[FLUTTER_OPTION_KEYS[m[1]]] = v; continue; }
+      m = line.match(TYPE_OPTION_LINE);
+      if (m) { const v = strip(m[2]); if (v) out[TYPE_OPTION_KEYS[m[1]]] = v; continue; }
       m = line.match(/^\s+semver_auto:\s*(.+)/);
       if (m) {
         const v = strip(m[1]);
@@ -187,24 +183,11 @@ export function parseTemplateBranches(content) {
   return out.main && out.develop && out.mode ? out : null;
 }
 
-// Flutter 옵션 블록 (전체 줄 토큰 {{FLUTTER_OPTIONS}} — Flutter 타입일 때만). options 아래 6칸 들여쓰기.
-// 값이 비었으면 워크플로우 템플릿의 기본값과 같은 값으로 채운다 — 저장값과 실제 설치 내용이 어긋나지 않게.
-// stores가 null(미결정)이면 현행 동작대로 둘 다 설치되므로 "android,ios"로 기록한다.
-function buildFlutterOptionsBlock({ envMode, stores, androidDeployMode, iosDeployMode } = {}) {
-  const quote = (v) => `"${escapeYamlDoubleQuoted(v)}"`;
-  return [
-    `      env_mode: ${quote(envMode || DEFAULT_ENV_MODE)} # ${ENV_MODES.join(" | ")} (Flutter 환경변수 주입 방식)`,
-    `      flutter_store: ${quote(formatStoreList(stores ?? STORE_PLATFORMS))} # android | ios | android,ios | none (스토어 배포 대상)`,
-    `      android_deploy_mode: ${quote(androidDeployMode || DEFAULT_DEPLOY_MODE)} # ${DEPLOY_MODES.join(" | ")} (Play Store 배포 모드)`,
-    `      ios_deploy_mode: ${quote(iosDeployMode || DEFAULT_DEPLOY_MODE)} # ${DEPLOY_MODES.join(" | ")} (iOS 배포 모드)`,
-  ].join("\n");
-}
-
 // version.yml 전체 생성 — payload/version.yml.template 렌더링.
 // opts: { templateText, version, types:[], paths:Map, pathMarkers?:Map,
 //         branch, branches?, versionCode, now, today, templateOptions?, deployValues?,
 //         extraTopLevel?:string[],  ← 기존 version.yml의 알려지지 않은 최상위 필드 보존
-//         flutterOptions?:{ envMode, stores, androidDeployMode, iosDeployMode } }  ← Flutter 타입일 때만 렌더
+//         typeOptions?:object }  ← 타입 훅(versionOptionsBlock)이 해당 타입일 때만 렌더하는 옵션 블록의 입력
 //   templateText = payload/version.yml.template 원문 (readVersionYmlTemplate — 필수)
 //   now   = "YYYY-MM-DD HH:MM:SS" (UTC) — 결정성 위해 주입 / today = "YYYY-MM-DD"
 //   branches = { main, develop, mode } (resolveBranchConfig 결과. 없으면 branch 기반 기본값)
@@ -213,7 +196,7 @@ function buildFlutterOptionsBlock({ envMode, stores, androidDeployMode, iosDeplo
 export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
-  templateOptions = null, deployValues = new Map(), extraTopLevel = [], flutterOptions = {},
+  templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {},
 }) {
   if (!templateText) throw new Error("version.yml.template 원문이 필요합니다 (payload/version.yml.template 누락?)");
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -249,8 +232,8 @@ export function buildVersionYml({
     deployBlock = rows.join("\n");
   }
 
-  // Flutter 옵션 블록 (full-line 토큰 {{FLUTTER_OPTIONS}} — Flutter 타입일 때만, 아니면 줄 제거)
-  const flutterBlock = types.includes("flutter") ? buildFlutterOptionsBlock(flutterOptions) : "";
+  // 타입 옵션 블록 (full-line 토큰 {{TYPE_OPTIONS}} — 블록을 내는 타입이 있을 때만, 아니면 줄 제거)
+  const typeOptionsBlock = hooksFor(types, "versionOptionsBlock").map(({ hook }) => hook(typeOptions)).join("\n");
 
   const scalars = {
     VERSION: version, VERSION_CODE: String(versionCode),
@@ -267,7 +250,7 @@ export function buildVersionYml({
   for (const line of String(templateText).split("\n")) {
     const t = line.trim();
     if (t === "{{PROJECT_PATHS}}") { if (pathsBlock) out.push(pathsBlock); continue; }
-    if (t === "{{FLUTTER_OPTIONS}}") { if (flutterBlock) out.push(flutterBlock); continue; }
+    if (t === "{{TYPE_OPTIONS}}") { if (typeOptionsBlock) out.push(typeOptionsBlock); continue; }
     if (t === "{{DEPLOY}}") { if (deployBlock) out.push(deployBlock); continue; }
     if (t.startsWith("deploy_style:") && deployStyle === null) continue; // 서버 배포가 없는 타입은 기록하지 않는다
     out.push(line.replace(/\{\{([A-Z][A-Z0-9_]*)\}\}/g, (_, name) => {
@@ -298,12 +281,11 @@ export function sameIgnoringTimestamps(a, b) {
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null,
-    includeSemverAuto, includeCopilotAi, deployStyle,
-    envMode, flutterStore, androidDeployMode, iosDeployMode } = context;
+    includeSemverAuto, includeCopilotAi, deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
     deployValues, extraTopLevel,
-    flutterOptions: { envMode, stores: flutterStore, androidDeployMode, iosDeployMode },
+    typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,
       includeSemverAuto: includeSemverAuto !== false,

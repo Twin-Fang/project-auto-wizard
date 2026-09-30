@@ -24,7 +24,17 @@ import { flutterHooks } from "./flutter-hooks.js";
 //     appFilesTag                                     앱 파일 복사 로그의 분류 이름
 //     statusLabels(options)                           status 옵션 줄에 덧붙일 문자열
 //     doctorChecks(cwd, existing, { docs })           doctor 진단 행 배열
-// (타입 전용 옵션 해석·CLI 플래그·version.yml 블록·대화형 질문은 아직 각 호출부에 남아 있다.)
+//     resolveOptions({ opts, existing, workflowsDir }) CLI 옵션 → 저장값 → 기본값 순으로 확정한 타입 옵션 객체
+//                                                     (workflowsDir는 설치된 워크플로우로 추론할 때만 넘긴다)
+//     contextDefaults                                 createContext의 미결정 기본 필드
+//     contextFields(options) / optionsFromContext(context)
+//                                                     옵션 객체 ↔ 설치 컨텍스트 필드 변환
+//     versionOptionsBlock(options)                    version.yml options 아래에 덧붙일 블록(6칸 들여쓰기)
+//     savedOptionKeys                                 version.yml 저장 키 → parseExisting 옵션 필드
+//     cliFlags[{ flag, field, initial, parse(v) }]    타입 전용 CLI 플래그(파싱 결과 opts[field]에 담긴다)
+//     installNotices(options)                         설치 직후 알릴 경고 배열(빈 값은 무시)
+//     logChoices(context)                             설치 로그에 남길 선택값 [이름, 값] 배열
+// (타입 전용 대화형 질문 흐름은 아직 interactive.js에 남아 있다.)
 export const TYPES = [
   {
     id: "spring",
@@ -113,6 +123,14 @@ export function hooksFor(types, name) {
   }
   return found;
 }
+
+// types 중 훅 name을 가진 타입들의 반환값(객체)을 하나로 합친다 — 옵션·컨텍스트 필드처럼 타입마다 다른 키를 낼 때 쓴다.
+export function mergeHookResults(types, name, ...args) {
+  return Object.assign({}, ...hooksFor(types, name).map(({ hook }) => hook(...args)));
+}
+
+// 모든 타입이 선언한 훅 상수(contextDefaults·savedOptionKeys 등)를 하나로 합친다 — 타입이 정해지기 전에 필요한 기본 형태용.
+export const allHookValues = (name) => Object.assign({}, ...TYPES.map((t) => t.hooks?.[name]));
 
 // 표시 순서 그대로의 타입 이름 목록
 // VALID_TYPES·ALL_TYPES가 같은 배열을 공유하므로 한쪽에서 바꿔 다른 쪽이 오염되지 않게 고정한다.

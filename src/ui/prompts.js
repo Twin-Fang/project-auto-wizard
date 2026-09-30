@@ -5,7 +5,7 @@
 import * as engine from "./readline-engine.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { TYPE_IDS } from "../core/types.js";
-import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
+import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE, deployModeWarning } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
 
@@ -188,10 +188,8 @@ export async function selectDeployMode({ platform, initialValue = DEFAULT_DEPLOY
   });
 }
 
-// store_submit은 main push마다 심사를 제출하므로 고른 직후 한 줄로 알린다. 호출부(interactive)가 note로 출력한다.
-export function deployModeWarning(mode) {
-  return mode === "store_submit" ? "store_submit을 고르면 main push마다 심사가 자동 제출됩니다." : "";
-}
+// store_submit 경고 문구 — 정의는 core에 있고, 호출부(interactive)가 note로 출력한다.
+export { deployModeWarning };
 
 // 브랜치 전략 선택. 종전에는 "릴리스 브랜치"/"개발 브랜치" 두 질문에
 // 같은 이름을 입력해야만 trunk-based가 됐는데, 그 규칙이 사전에 안내되지 않아

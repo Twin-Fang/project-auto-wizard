@@ -143,7 +143,7 @@ const buildYml = (extra) => buildVersionYml({ templateText: readVersionYmlTempla
 test("buildVersionYml: Flutter 타입이면 options 아래 4개 키를 지정값으로 렌더한다", () => {
   const out = buildYml({
     types: ["flutter"],
-    flutterOptions: { envMode: "dotenv", stores: ["ios"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit" },
+    typeOptions: { envMode: "dotenv", stores: ["ios"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit" },
   });
   assert.match(out, /^      env_mode: "dotenv"/m);
   assert.match(out, /^      flutter_store: "ios"/m);
@@ -152,7 +152,7 @@ test("buildVersionYml: Flutter 타입이면 options 아래 4개 키를 지정값
   assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
 });
 
-test("buildVersionYml: flutterOptions를 생략한 Flutter는 템플릿 기본값과 같은 값으로 렌더한다", () => {
+test("buildVersionYml: typeOptions를 생략한 Flutter는 템플릿 기본값과 같은 값으로 렌더한다", () => {
   const out = buildYml({ types: ["flutter"] });
   assert.match(out, /^      env_mode: "dart-define"/m);
   assert.match(out, /^      flutter_store: "android,ios"/m);
@@ -161,12 +161,12 @@ test("buildVersionYml: flutterOptions를 생략한 Flutter는 템플릿 기본�
 });
 
 test("buildVersionYml: 스토어를 하나도 고르지 않으면(빈 배열) flutter_store는 \"none\"이다", () => {
-  const out = buildYml({ types: ["flutter"], flutterOptions: { stores: [] } });
+  const out = buildYml({ types: ["flutter"], typeOptions: { stores: [] } });
   assert.match(out, /^      flutter_store: "none"/m);
 });
 
 test("buildVersionYml: Flutter 타입이 없으면 4개 키도 빈 줄도 남기지 않는다", () => {
-  const out = buildYml({ types: ["react"], flutterOptions: { envMode: "dotenv", stores: ["ios"] } });
+  const out = buildYml({ types: ["react"], typeOptions: { envMode: "dotenv", stores: ["ios"] } });
   assert.doesNotMatch(out, FLUTTER_KEYS_RE);
   const lastLine = out.trimEnd().split("\n").at(-1);
   assert.match(lastLine, /^      deploy_style:/, `options의 마지막 줄이 deploy_style이어야 한다:\n${out}`);
@@ -216,8 +216,8 @@ test("렌더 → 파싱 왕복: buildVersionYml 결과를 parseExisting이 그�
     { envMode: "dart-define", stores: [], androidDeployMode: "store_only", iosDeployMode: "store_only", flutterStore: "none" },
   ];
   for (const c of cases) {
-    const { flutterStore, ...flutterOptions } = c;
-    const { options } = parseExisting(buildYml({ types: ["flutter"], flutterOptions }));
+    const { flutterStore, ...typeOptions } = c;
+    const { options } = parseExisting(buildYml({ types: ["flutter"], typeOptions }));
     assert.strictEqual(options.envMode, c.envMode);
     assert.strictEqual(options.flutterStore, flutterStore);
     assert.strictEqual(options.androidDeployMode, c.androidDeployMode);

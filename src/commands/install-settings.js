@@ -3,6 +3,7 @@
 // 설치 컨텍스트로 조립하는 규칙은 한 곳에 둬야 한쪽만 고쳐 두 모드의 결과가 갈라지지 않는다.
 import { detectVersion, detectBuildNumber } from "../core/detect-fs.js";
 import { createContext } from "../context.js";
+import { mergeHookResults } from "../core/types.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE, hasServerDeployWorkflows, effectiveDeployStyle } from "../core/deploy-style.js";
 
 // version.yml에 저장된 배포 방식 — 없거나 알 수 없는 값이면 "".
@@ -29,21 +30,18 @@ export function resolveVersionCode({ cwd, existing, types, paths }) {
 
 // 확정된 값들을 설치 컨텍스트로 조립한다.
 //   deployStyle: resolveDeployStyle 결과(고른 값). 실제 설치되는 방식으로 바꿔 기록한다.
-//   flutterOptions: { envMode, stores, androidDeployMode, iosDeployMode } — 두 경로 모두 확정된 값.
+//   typeOptions: 타입 훅(resolveOptions)이 확정한 타입 전용 옵션 — 두 경로 모두 확정된 값. 컨텍스트 필드로의 변환도 타입 훅이 한다.
 //   releaseOptions: { includeSemverAuto, includeCopilotAi } — resolveReleaseOptions 결과.
 //   extra: 경로별로만 쓰는 필드(envValues 등).
 export function buildInstallContext({
-  payload, existing, templateVersion, types, deployStyle, flutterOptions, releaseOptions, ...rest
+  payload, existing, templateVersion, types, deployStyle, typeOptions, releaseOptions, ...rest
 }) {
   return createContext({
     types,
     ...releaseOptions,
     // 안내는 고른 값으로 하되, 기록은 실제로 설치되는 방식으로 한다.
     deployStyle: effectiveDeployStyle(payload, types, deployStyle),
-    envMode: flutterOptions.envMode,
-    flutterStore: flutterOptions.stores,
-    androidDeployMode: flutterOptions.androidDeployMode,
-    iosDeployMode: flutterOptions.iosDeployMode,
+    ...mergeHookResults(types, "contextFields", typeOptions),
     previousTemplateVersion: existing?.templateVersion || "",
     templateVersion,
     ...rest,

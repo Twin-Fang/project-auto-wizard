@@ -5,11 +5,10 @@ import { parseExisting } from "../core/version-yml.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
 import { PATHS } from "../core/paths.js";
-import { resolveFlutterOptions } from "../core/flutter-options.js";
 import { isDeployStyle, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { findStaleWorkflows } from "../core/removal-plan.js";
 import { readBaseline } from "../core/baseline.js";
-import { hooksFor } from "../core/types.js";
+import { hooksFor, mergeHookResults } from "../core/types.js";
 
 // payloadRoot: 패키지 payload/ 루트. targetRoot: 상태를 확인할 대상 레포.
 export function runStatus(payloadRoot, targetRoot = ".") {
@@ -20,10 +19,8 @@ export function runStatus(payloadRoot, targetRoot = ".") {
   const repoName = detectRepoName(targetRoot);
   // 설치 때 워크플로우에 치환된 환경변수 방식·배포 모드와 스토어 선택을 비교 기준에도 똑같이 적용한다 —
   // 그렇지 않으면 미수정 파일이 드리프트로, 선택 해제한 스토어 워크플로우가 "삭제함"으로 오탐된다.
-  const flutterOptions = resolveFlutterOptions({
-    cli: { envMode: "", stores: null, androidDeployMode: "", iosDeployMode: "" }, existing,
-  });
-  const resolvers = makeResolvers(targetRoot, repoName, existing.paths, flutterOptions);
+  const typeOptions = mergeHookResults(existing.types, "resolveOptions", { existing });
+  const resolvers = makeResolvers(targetRoot, repoName, existing.paths, typeOptions);
   // version.yml에 branches 블록이 없으면(신기능 이전 설치·수기 편집) makeSrcText(null)이
   // {{MAIN_BRANCH}}/{{DEVELOP_BRANCH}}를 치환하지 못해 모든 워크플로우가 드리프트로 오탐된다 —
   // 비교용 기본값으로 폴백(실제 저장값은 아니지만 드리프트 비교 목적에는 충분).
@@ -31,7 +28,7 @@ export function runStatus(payloadRoot, targetRoot = ".") {
   const context = {
     types: existing.types, paths: existing.paths,
     repoName, resolvers, branches: branchesForCompare,
-    flutterStore: flutterOptions.stores,
+    ...mergeHookResults(existing.types, "contextFields", typeOptions),
     // 설치 때 고른 배포 방식으로 비교해야 nginx·traefik CD 수정도 드리프트로 잡힌다.
     // 빠지면 기본값(simple)으로 걸러 설치된 무중단 CD가 비교 대상에서 사라진다.
     deployStyle: isDeployStyle(existing.options.deployStyle) ? existing.options.deployStyle : DEFAULT_DEPLOY_STYLE,
