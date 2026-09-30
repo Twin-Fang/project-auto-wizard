@@ -15,13 +15,13 @@ A result summary is appended at the end.
 ```
 === project-auto-wizard v0.12.2 | install | 2026-09-29 08:01:22 UTC ===
 ...
-08:01:22.919 INFO  detect    type        spring (근거: build.gradle)
+08:01:22.919 INFO  detect    type        spring (evidence: build.gradle)
 08:01:22.921 INFO  copy      write       PROJECT-SPRING-SIMPLE-CICD.yaml (new)
-08:01:22.922 INFO  copy      keep-local  PROJECT-COMMON-VERSION-CONTROL.yaml (업스트림 무변경, 사용자 수정본 유지)
+08:01:22.922 INFO  copy      keep-local  PROJECT-COMMON-VERSION-CONTROL.yaml (upstream unchanged, your edited copy kept)
 08:01:22.948 WARN  verify    unresolved  PROJECT-SPRING-PR-PREVIEW.yaml:43 __APPLICATION_YML_PATH__
 ```
 
-The messages are in Korean; the action keywords (`write`, `keep-local`, `auto-update`, `backup`, `template`, `skip`, `unresolved`, …) are stable and easy to grep.
+The messages follow the selected language (English by default); the action keywords (`write`, `keep-local`, `auto-update`, `backup`, `template`, `skip`, `unresolved`, …) are stable and easy to grep.
 
 ## Details
 

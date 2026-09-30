@@ -57,4 +57,4 @@ No. Everything it installs is GitHub Actions.
 
 ## Is the CLI available in English?
 
-Not yet; prompts and messages are currently Korean only. Flags, file names and workflow names are the same in any language, and this site documents them in English.
+Yes. Prompts and messages are in English by default, and Korean is available with `--lang ko` or `PROJECT_AUTO_WIZARD_LANG=ko`. Flags, file names and workflow names are the same in any language.

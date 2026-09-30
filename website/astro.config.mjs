@@ -4,7 +4,7 @@ import starlight from '@astrojs/starlight';
 
 const REPO = 'https://github.com/Twin-Fang/project-auto-wizard';
 
-// 프로젝트 Pages는 /<레포명>/ 아래에서 서빙되므로 base를 맞춰야 에셋 경로가 깨지지 않는다.
+// Project Pages are served under /<repo-name>/, so base must match or asset paths break.
 export default defineConfig({
   site: 'https://twin-fang.github.io',
   base: '/project-auto-wizard',
@@ -12,7 +12,7 @@ export default defineConfig({
     starlight({
       title: 'project-auto-wizard',
       description: 'One command sets up versioning, CHANGELOG, GitHub Releases and CI/CD in your repo.',
-      // 영어가 루트(/), 나머지는 /ko/ 등 하위 경로. 번역이 없는 페이지는 영어로 보인다.
+      // English is the root (/); other languages live under /ko/ etc. Pages without a translation fall back to English.
       defaultLocale: 'root',
       locales: {
         root: { label: 'English', lang: 'en' },

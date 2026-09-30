@@ -50,7 +50,7 @@ npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignor
 
 ## `--help` output
 
-The CLI prints its help in Korean. This is the exact output of `npx project-auto-wizard --help`:
+This is the exact output of `npx project-auto-wizard --help`. The help text is not translated yet and follows the selected language once CLI messages move to the catalog:
 
 ```text
 project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 설치 마법사

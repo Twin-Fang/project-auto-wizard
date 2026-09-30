@@ -1,14 +1,14 @@
-## 무엇을 변경했나요?
+## What changed?
 
-## 왜 필요한가요?
+## Why is it needed?
 
-## 테스트
+## Tests
 
-- [ ] `npm run test:node` 통과
-- [ ] `npm run test:py` 통과
-- [ ] (해당 시) 새 동작을 커버하는 테스트를 추가했습니다
+- [ ] `npm run test:node` passes
+- [ ] `npm run test:py` passes
+- [ ] (if applicable) I added tests that cover the new behavior
 
-## 체크리스트
+## Checklist
 
-- [ ] `payload/` 변경 시, 이 레포 자신의 `.github/` 사본도 동기화했습니다(도그푸딩 레포)
-- [ ] 새 의존성을 추가하지 않았습니다(zero-dependency 원칙)
+- [ ] If I changed `payload/`, I also synced this repo's own `.github/` copies (dogfooding repo)
+- [ ] I did not add any new dependency (zero-dependency principle)

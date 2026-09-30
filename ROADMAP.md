@@ -1,22 +1,22 @@
-# 로드맵
+# Roadmap
 
-project-auto-wizard가 다음에 어디로 향하는지 공유합니다. 우선순위는 사용자 피드백에 따라 바뀔 수 있습니다.
+Where project-auto-wizard is heading next. Priorities may change based on user feedback.
 
-## 완료됨
+## Done
 
-- npx 마법사(Go 포함 10타입 + 멀티타입 + 모노레포 자동 감지)
-- GitHub-native 릴리스 자동화(3단 요약 엔진 체인: 사용자 지정 AI → GitHub Copilot CLI → 규칙 기반. AI는 선택이며 기본 꺼짐)
-- `status` — 설치 상태·드리프트 확인 명령
-- `doctor` — 설치 환경 진단 명령
-- `--dry-run` — 실제 변경 없이 미리보기
-- PR 변경 요약 자동 생성(상용 SaaS 비의존)
-- 자동 semver 승격(커밋 타입 기반 major/minor/patch)
+- npx wizard (10 types including Go, plus multi-type and monorepo auto-detection)
+- GitHub-native release automation (three-stage summary engine chain: custom AI → GitHub Copilot CLI → rule-based; AI is optional and off by default)
+- `status` — check the install state and drift
+- `doctor` — diagnose the install environment
+- `--dry-run` — preview without changing anything
+- Automatic PR change summaries (no commercial SaaS dependency)
+- Automatic semver bumps (major/minor/patch from commit types)
 
-## 검토 중
+## Under consideration
 
-- 프로젝트 타입 커버리지 확장 여부(Rust, Django, Docker 등) — 현재는 깊이 우선 전략으로 보류 중
-- CLI 다국어(i18n) 지원
+- Whether to add more project types (Rust, Django, Docker, ...) — on hold while depth comes first
+- CLI internationalization: English by default, Korean selectable (in progress)
 
-## 기여를 환영합니다
+## Contributions welcome
 
-새 프로젝트 타입이나 워크플로우를 제안하고 싶다면 이슈를 먼저 열어 논의해 주세요.
+If you want to propose a new project type or workflow, please open an issue first to discuss it.

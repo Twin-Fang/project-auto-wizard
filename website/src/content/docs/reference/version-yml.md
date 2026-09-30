@@ -10,7 +10,7 @@ version: "1.4.2"
 version_code: 57 # app build number
 project_types: ["spring", "react"] # first entry is primary
 language: "en" # message language: en | ko
-project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
+project_paths: # project folder per type (relative to the repo root)
   spring: "server" # server/build.gradle
   react: "client" # client/package.json
 metadata:
@@ -32,7 +32,7 @@ metadata:
       copilot_ai: false
       deploy_style: "simple" # simple | nginx | traefik | none
 
-deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)
+deploy: # deploy settings the wizard remembers (non-sensitive / safe to edit)
   spring:
     DEPLOY_PORT: "8080"
 ```
