@@ -2,7 +2,7 @@
 // collectBreaking (pure comparison) is in breaking.js - this module handles loading (bundled copy), display and the confirmation gate.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { collectBreaking } from "./breaking.js";
+import { collectBreaking, localizedField } from "./breaking.js";
 import { parseExisting } from "./version-yml.js";
 import { t } from "../i18n/index.js";
 
@@ -41,8 +41,8 @@ export async function runBreakingCheck({ cwd, payloadRoot, templateVersion, askY
   e("╔══════════════════════════════════════════════════════════════════╗");
   e(`║  ⚠️  BREAKING CHANGES (v${current} → v${templateVersion})`);
   e("╠══════════════════════════════════════════════════════════════════╣");
-  for (const c of critical) { e("║"); e(`║  [CRITICAL] ${c.version} - ${c.title || ""}`); e(`║  → ${c.message || ""}`); }
-  for (const w of warnings) { e("║"); e(`║  [WARNING] ${w.version} - ${w.title || ""}`); e(`║  → ${w.message || ""}`); }
+  for (const c of critical) { e("║"); e(`║  [CRITICAL] ${c.version} - ${localizedField(c, "title")}`); e(`║  → ${localizedField(c, "message")}`); }
+  for (const w of warnings) { e("║"); e(`║  [WARNING] ${w.version} - ${localizedField(w, "title")}`); e(`║  → ${localizedField(w, "message")}`); }
   e("║");
   e("╚══════════════════════════════════════════════════════════════════╝");
   e("");

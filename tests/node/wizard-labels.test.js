@@ -145,3 +145,102 @@ test("bundled wizard-prompts.yml: every @wizard ask key has a label and help", a
   walk(join(payload, "workflows"), null);
   assert.deepStrictEqual([...new Set(missing)], []);
 });
+
+// ── language variants ────────────────────────────────────
+const bundledPrompts = async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { resolvePayloadRoot } = await import("../../src/core/assets.js");
+  return parseWizardPrompts(readFileSync(join(resolvePayloadRoot(), "config", "wizard-prompts.yml"), "utf8"));
+};
+
+test("parseWizardPrompts: label_ko and _workflow_names_ko are parsed as language variants", () => {
+  const { fields, workflowNames } = parseWizardPrompts(`
+PROJECT_NAME:
+  label: "Name"
+  label_ko: "이름"
+_workflow_names:
+  REACT-CI: "Frontend build"
+_workflow_names_ko:
+  REACT-CI: "프론트 빌드"
+`);
+  assert.deepStrictEqual(fields.get("PROJECT_NAME"), { label: "Name", label_ko: "이름" });
+  assert.deepStrictEqual(workflowNames, [
+    { key: "REACT-CI", value: "Frontend build" },
+    { key: "REACT-CI", value: "프론트 빌드", lang: "ko" },
+  ]);
+});
+
+test("wfField / workflowDisplayName: pick the requested language and fall back to the plain text", () => {
+  const prompts = parseWizardPrompts(`
+A:
+  label: "English A"
+  label_ko: "한글 A"
+B:
+  label: "English B"
+_workflow_names:
+  REACT-CI: "Frontend build"
+_workflow_names_ko:
+  REACT-CI: "프론트 빌드"
+`);
+  assert.strictEqual(wfField(prompts, "react", "A", "label", "en"), "English A");
+  assert.strictEqual(wfField(prompts, "react", "A", "label", "ko"), "한글 A");
+  assert.strictEqual(wfField(prompts, "react", "B", "label", "ko"), "English B");
+  assert.strictEqual(workflowDisplayName(prompts, "PROJECT-REACT-CI.yaml", "en"), "Frontend build");
+  assert.strictEqual(workflowDisplayName(prompts, "PROJECT-REACT-CI.yaml", "ko"), "프론트 빌드");
+});
+
+test("loadWizardPrompts: a plain user label overrides the bundled text in every language", () => {
+  const files = {
+    "payload/config/wizard-prompts.yml": `PROJECT_NAME:\n  label: "Bundled"\n  label_ko: "번들"\n_workflow_names:\n  REACT-CI: "Build"\n_workflow_names_ko:\n  REACT-CI: "빌드"\n`,
+    "target/.github/config/wizard-prompts.yml": `PROJECT_NAME:\n  label: "Mine"\n_workflow_names:\n  REACT-CI: "My build"\n`,
+  };
+  const fakeFs = {
+    existsSync: (p) => String(p).replaceAll("\\", "/") in files,
+    readFileSync: (p) => files[String(p).replaceAll("\\", "/")],
+  };
+  const result = loadWizardPrompts("target", "payload", fakeFs);
+  for (const lang of ["en", "ko"]) {
+    assert.strictEqual(wfField(result, "react", "PROJECT_NAME", "label", lang), "Mine");
+    assert.strictEqual(workflowDisplayName(result, "PROJECT-REACT-CI.yaml", lang), "My build");
+  }
+});
+
+test("bundled wizard-prompts.yml: plain fields and names are English, every one has a Korean variant", async () => {
+  const { fields, workflowNames } = await bundledPrompts();
+  const HANGUL = /[ㄱ-ㆎ가-힣]/;
+  for (const [key, entry] of fields) {
+    for (const f of ["label", "help", "example"]) {
+      if (entry[f] == null) continue;
+      assert.ok(!HANGUL.test(entry[f]), `${key}.${f} must be English`);
+      if (f !== "example") assert.ok(entry[`${f}_ko`], `${key}.${f}_ko missing`);
+    }
+  }
+  const plain = workflowNames.filter((w) => !w.lang);
+  const ko = workflowNames.filter((w) => w.lang === "ko");
+  assert.ok(plain.every((w) => !HANGUL.test(w.value)));
+  assert.deepStrictEqual(ko.map((w) => w.key), plain.map((w) => w.key));
+});
+
+test("printFieldCard: default (en) prints English question text, ko prints the original Korean", async () => {
+  const { printFieldCard } = await import("../../src/ui/env-plan.js");
+  const { setLanguage, getLanguage } = await import("../../src/i18n/index.js");
+  const prompts = await bundledPrompts();
+  const before = getLanguage();
+  const render = (lang) => {
+    setLanguage(lang);
+    const lines = [];
+    printFieldCard(prompts, "SSH_AUTH_METHOD", { default: "password", usages: [{ type: "spring", workflowName: workflowDisplayName(prompts, "PROJECT-SPRING-SIMPLE-CICD.yaml") }] }, 1, 2, (l) => lines.push(l));
+    return lines.join("\n");
+  };
+  try {
+    const en = render("en");
+    assert.ok(!/[가-힣]/.test(en), en);
+    assert.match(en, /SSH authentication method/);
+    assert.match(en, /Single-server deploy/);
+    const ko = render("ko");
+    assert.match(ko, /SSH 인증 방식/);
+    assert.match(ko, /단일 서버 배포/);
+    assert.match(ko, /password 또는 key/);
+  } finally { setLanguage(before); }
+});

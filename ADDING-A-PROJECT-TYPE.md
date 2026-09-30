@@ -98,6 +98,7 @@ no usable version (Node falls back to `0.0.1` with a warning, Python to the `ver
 
 Only needed when the type's workflows introduce new `ask` keys, need a type-specific wording
 (`<id>.KEY`), or when a new workflow name should get a short display name in `_workflow_names`.
+The plain `label`/`help`/`example` and `_workflow_names` are English; add `label_ko`/`help_ko` and `_workflow_names_ko` for Korean.
 
 ## 5. Docs and templates
 

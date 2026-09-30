@@ -1,108 +1,164 @@
-# @wizard ask 마커의 사용자 질문 문구.
-# 형식 1 (구형, 지원 유지): KEY: "라벨"
-# 형식 2 (신규 블록): KEY 아래 label/help/example 들여쓰기 2칸
-# 형식 3 (타입 오버라이드): "{type}.KEY" 키로 타입별 문구 분리
-# 조회 우선순위: {type}.KEY -> KEY -> 구형 -> 폴백(KEY명)
-# 기본값/resolver는 여기 두지 않는다(@wizard 마커 소관).
+# User-facing question text for @wizard ask markers.
+# Format 1 (legacy, still supported): KEY: "label"
+# Format 2 (block): label/help/example indented by 2 spaces under KEY
+# Format 3 (type override): a "{type}.KEY" key holds type-specific text
+# Language: label/help/example are English (the default); add label_ko/help_ko/example_ko for Korean.
+#          A field with no language variant falls back to the plain field.
+# Lookup order: {type}.KEY -> KEY -> legacy -> fallback (KEY name)
+# Defaults/resolvers do not belong here (the @wizard marker owns them).
 
 PROJECT_NAME:
-  label: "서비스 식별자 (영문 슬러그)"
-  help: "Docker 컨테이너명·이미지명·배포 도메인 prefix에 그대로 사용됩니다. 소문자-하이픈 권장."
+  label: "Service identifier (English slug)"
+  label_ko: "서비스 식별자 (영문 슬러그)"
+  help: "Used as-is for the Docker container name, image name and deploy domain prefix. Lowercase with hyphens is recommended."
+  help_ko: "Docker 컨테이너명·이미지명·배포 도메인 prefix에 그대로 사용됩니다. 소문자-하이픈 권장."
   example: "my-service"
 
 flutter.APP_ARTIFACT_NAME:
-  label: "앱 산출물 이름 (영문)"
-  help: "빌드된 APK 파일명·아티팩트명·빌드 히스토리 파일명에 사용됩니다."
+  label: "App artifact name (English)"
+  label_ko: "앱 산출물 이름 (영문)"
+  help: "Used for the built APK file name, artifact name and build history file name."
+  help_ko: "빌드된 APK 파일명·아티팩트명·빌드 히스토리 파일명에 사용됩니다."
   example: "my-app"
 
 SERVICE_DOMAIN:
-  label: "서비스 도메인"
-  help: "배포 후 외부에서 접속할 운영 도메인입니다. 실제 보유한 도메인으로 바꿔야 합니다."
+  label: "Service domain"
+  label_ko: "서비스 도메인"
+  help: "The production domain the service is reached at after deploy. Replace it with a domain you actually own."
+  help_ko: "배포 후 외부에서 접속할 운영 도메인입니다. 실제 보유한 도메인으로 바꿔야 합니다."
   example: "api.example.com"
 
 JAVA_VERSION:
-  label: "빌드 JDK 버전"
-  help: "GitHub Actions 빌드 러너의 JDK 버전입니다. Spring은 보통 21, Flutter Android는 17."
+  label: "Build JDK version"
+  label_ko: "빌드 JDK 버전"
+  help: "JDK version of the GitHub Actions build runner. Usually 21 for Spring, 17 for Flutter Android."
+  help_ko: "GitHub Actions 빌드 러너의 JDK 버전입니다. Spring은 보통 21, Flutter Android는 17."
   example: "21"
 
 DEPLOY_PORT:
-  label: "외부 노출 포트"
-  help: "호스트(서버)에서 컨테이너로 연결할 포트입니다. 다른 서비스와 겹치지 않게 정하세요."
+  label: "Exposed port"
+  label_ko: "외부 노출 포트"
+  help: "The host (server) port that maps to the container. Pick one that does not clash with other services."
+  help_ko: "호스트(서버)에서 컨테이너로 연결할 포트입니다. 다른 서비스와 겹치지 않게 정하세요."
   example: "8080"
 
 ENABLE_VOLUME_MOUNT:
-  label: "볼륨 마운트 사용"
-  help: "켜면 아래 호스트/컨테이너 경로가 실제 배포에 반영되어 컨테이너에 볼륨이 마운트됩니다. 끄면(기본값) 경로를 입력해도 무시됩니다."
+  label: "Enable volume mount"
+  label_ko: "볼륨 마운트 사용"
+  help: "When on, the host/container paths below are applied to the real deploy and the volume is mounted. When off (default), the paths are ignored even if filled in."
+  help_ko: "켜면 아래 호스트/컨테이너 경로가 실제 배포에 반영되어 컨테이너에 볼륨이 마운트됩니다. 끄면(기본값) 경로를 입력해도 무시됩니다."
   example: "true"
 
 VOLUME_HOST_PATH:
-  label: "호스트(NAS) 볼륨 경로"
-  help: "서버에 데이터를 영구 저장할 실제 디렉토리 경로입니다."
+  label: "Host (NAS) volume path"
+  label_ko: "호스트(NAS) 볼륨 경로"
+  help: "The real directory on the server where data is stored permanently."
+  help_ko: "서버에 데이터를 영구 저장할 실제 디렉토리 경로입니다."
   example: "/volume1/projects/my-service"
 
 VOLUME_CONTAINER_PATH:
-  label: "컨테이너 내부 마운트 경로"
-  help: "컨테이너 안에서 위 볼륨이 보일 위치입니다."
+  label: "Container mount path"
+  label_ko: "컨테이너 내부 마운트 경로"
+  help: "Where the volume above appears inside the container."
+  help_ko: "컨테이너 안에서 위 볼륨이 보일 위치입니다."
   example: "/mnt/my-service"
 
 SSH_AUTH_METHOD:
-  label: "SSH 인증 방식"
-  help: "배포 서버 접속 방식입니다. 둘 중 하나를 그대로 입력하세요."
-  example: "password 또는 key"
+  label: "SSH authentication method"
+  label_ko: "SSH 인증 방식"
+  help: "How to connect to the deploy server. Enter one of the two values exactly."
+  help_ko: "배포 서버 접속 방식입니다. 둘 중 하나를 그대로 입력하세요."
+  example: "password or key"
+  example_ko: "password 또는 key"
 
 SSH_PORT:
-  label: "SSH 포트"
-  help: "배포 서버에서 SSH가 열려 있는 포트입니다 (일반 서버는 보통 22, NAS 등은 따로 정한 포트)."
+  label: "SSH port"
+  label_ko: "SSH 포트"
+  help: "The port SSH listens on at the deploy server (usually 22 for regular servers, a custom port for NAS and similar)."
+  help_ko: "배포 서버에서 SSH가 열려 있는 포트입니다 (일반 서버는 보통 22, NAS 등은 따로 정한 포트)."
   example: "22"
 
 BLUE_PORT:
-  label: "무중단 배포 Blue 포트"
-  help: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Blue 쪽 호스트 포트입니다. 다른 서비스·Green 포트와 겹치지 않게 정하세요."
+  label: "Zero-downtime deploy Blue port"
+  label_ko: "무중단 배포 Blue 포트"
+  help: "Host port of the Blue side of the containers that alternate as Blue/Green. Must not clash with other services or the Green port."
+  help_ko: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Blue 쪽 호스트 포트입니다. 다른 서비스·Green 포트와 겹치지 않게 정하세요."
   example: "8080"
 
 GREEN_PORT:
-  label: "무중단 배포 Green 포트"
-  help: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Green 쪽 호스트 포트입니다. Blue 포트와 달라야 합니다."
+  label: "Zero-downtime deploy Green port"
+  label_ko: "무중단 배포 Green 포트"
+  help: "Host port of the Green side of the containers that alternate as Blue/Green. Must differ from the Blue port."
+  help_ko: "Blue/Green으로 번갈아 뜨는 컨테이너 중 Green 쪽 호스트 포트입니다. Blue 포트와 달라야 합니다."
   example: "8081"
 
 NGINX_RP_CONF:
-  label: "Nginx 리버스 프록시 설정 파일 경로"
-  help: "배포 때 proxy_pass 포트를 Blue/Green으로 바꿔 쓰는 서버의 Nginx 설정 파일입니다. 경로가 틀리면 무중단 전환이 동작하지 않습니다."
+  label: "Nginx reverse proxy config file path"
+  label_ko: "Nginx 리버스 프록시 설정 파일 경로"
+  help: "The server's Nginx config file whose proxy_pass port is switched between Blue/Green on deploy. A wrong path breaks the zero-downtime switch."
+  help_ko: "배포 때 proxy_pass 포트를 Blue/Green으로 바꿔 쓰는 서버의 Nginx 설정 파일입니다. 경로가 틀리면 무중단 전환이 동작하지 않습니다."
   example: "/etc/nginx/sites-enabled/my-service.conf"
 
 NGINX_BACKUP_DIR:
-  label: "Nginx 설정 백업 폴더"
-  help: "설정 파일을 바꾸기 전에 백업을 남길 서버의 폴더입니다."
+  label: "Nginx config backup folder"
+  label_ko: "Nginx 설정 백업 폴더"
+  help: "Server folder where a backup is kept before the config file is changed."
+  help_ko: "설정 파일을 바꾸기 전에 백업을 남길 서버의 폴더입니다."
   example: "/volume1/projects/nginx/backups"
 
 JAR_PATH:
-  label: "빌드 산출물(JAR) 경로"
-  help: "Gradle 빌드 후 PR 프리뷰 컨테이너에 넣을 JAR 파일 경로입니다 (프로젝트 루트 기준, 와일드카드 가능)."
+  label: "Build artifact (JAR) path"
+  label_ko: "빌드 산출물(JAR) 경로"
+  help: "Path of the JAR to put into the PR preview container after the Gradle build (relative to the project root, wildcards allowed)."
+  help_ko: "Gradle 빌드 후 PR 프리뷰 컨테이너에 넣을 JAR 파일 경로입니다 (프로젝트 루트 기준, 와일드카드 가능)."
   example: "build/libs/*.jar"
 
 PREVIEW_DOMAIN_SUFFIX:
-  label: "PR 프리뷰 도메인 접미사"
-  help: "PR마다 뜨는 프리뷰 서버 주소의 뒷부분입니다. 이 도메인의 와일드카드 DNS가 서버(Traefik)를 가리켜야 합니다."
+  label: "PR preview domain suffix"
+  label_ko: "PR 프리뷰 도메인 접미사"
+  help: "The trailing part of each PR preview server address. Wildcard DNS for this domain must point at the server (Traefik)."
+  help_ko: "PR마다 뜨는 프리뷰 서버 주소의 뒷부분입니다. 이 도메인의 와일드카드 DNS가 서버(Traefik)를 가리켜야 합니다."
   example: "pr.example.com"
 
 PROJECT_TARGET_DIR:
-  label: "PR 프리뷰 호스트 볼륨 경로"
-  help: "PR 프리뷰 컨테이너에 마운트할 서버의 데이터 디렉토리입니다. 비워 두면 마운트하지 않습니다."
+  label: "PR preview host volume path"
+  label_ko: "PR 프리뷰 호스트 볼륨 경로"
+  help: "Server data directory to mount into the PR preview container. Leave empty to skip mounting."
+  help_ko: "PR 프리뷰 컨테이너에 마운트할 서버의 데이터 디렉토리입니다. 비워 두면 마운트하지 않습니다."
   example: "/volume1/projects/my-service"
 
 PROJECT_MNT_DIR:
-  label: "PR 프리뷰 컨테이너 마운트 경로"
-  help: "위 호스트 볼륨이 PR 프리뷰 컨테이너 안에서 보일 위치입니다."
+  label: "PR preview container mount path"
+  label_ko: "PR 프리뷰 컨테이너 마운트 경로"
+  help: "Where the host volume above appears inside the PR preview container."
+  help_ko: "위 호스트 볼륨이 PR 프리뷰 컨테이너 안에서 보일 위치입니다."
   example: "/mnt/my-service"
 
 ISSUE_HELPER_CREATE_BRANCH:
-  label: "이슈 생성 시 브랜치 자동 생성"
-  help: "이슈가 열리면 base 브랜치 기준으로 브랜치를 자동으로 만듭니다. 원치 않으면 기본값(아니오)을 그대로 두세요."
+  label: "Auto-create a branch when an issue is opened"
+  label_ko: "이슈 생성 시 브랜치 자동 생성"
+  help: "When an issue is opened, a branch is created from the base branch automatically. Keep the default (no) if you do not want that."
+  help_ko: "이슈가 열리면 base 브랜치 기준으로 브랜치를 자동으로 만듭니다. 원치 않으면 기본값(아니오)을 그대로 두세요."
   example: "true"
 
 # workflow filename (partial match) -> human readable short name
-# wizard uses this to build "[usage]" in env questions.
+# the wizard uses this to build "[usage]" in env questions. `_workflow_names_ko` holds the Korean names.
 _workflow_names:
+  NONSTOP-NGINX: "Zero-downtime deploy (Nginx)"
+  NONSTOP-TRAEFIK: "Zero-downtime deploy (Traefik)"
+  PR-PREVIEW: "PR preview"
+  SIMPLE-CICD: "Single-server deploy"
+  REACT-CICD: "Frontend deploy"
+  REACT-CI: "Frontend build"
+  NEXT-CICD: "Frontend deploy"
+  NEXT-CI: "Frontend build"
+  PYTHON-CI: "Build check"
+  FLUTTER-ANDROID-SELFHOSTED: "Android self-hosted deploy"
+  FLUTTER-ANDROID-PLAYSTORE: "Play Store deploy"
+  FLUTTER-ANDROID-FIREBASE: "Firebase deploy"
+  ISSUE-HELPER: "Issue helper"
+
+_workflow_names_ko:
   NONSTOP-NGINX: "무중단배포(Nginx)"
   NONSTOP-TRAEFIK: "무중단배포(Traefik)"
   PR-PREVIEW: "PR 프리뷰"
