@@ -73,7 +73,7 @@
       "message_ko": "PROJECT-COMMON-SECRET-FILE-UPLOAD.yaml을 더 이상 설치하지 않습니다. 설치해 두었다면 업데이트 때 손대지 않은 파일은 삭제되고 수정한 파일은 .bak으로 옮겨집니다. 계속 쓰려면 .bak을 직접 관리하는 워크플로우로 옮기세요."
     }
   ],
-  "0.16.0": [
+  "0.15.1": [
     {
       "severity": "warning",
       "types": [
