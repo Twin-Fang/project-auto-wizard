@@ -67,3 +67,13 @@ for (const file of FILES) {
     }
   });
 }
+
+for (const file of FILES) {
+  const text = readFileSync(join(ROOT, file), "utf8");
+  test(`${file}: destroy and status jobs run the secrets pre-check, and destroy skips when it is not ready`, () => {
+    assert.equal((text.match(/name: Deploy pre-check \(Secrets\)/g) || []).length, 4);
+    const destroy = text.slice(text.indexOf("  destroy-preview:\n"), text.indexOf("  check-status:\n"));
+    assert.match(destroy, /id: precheck/);
+    assert.equal((destroy.match(/steps\.precheck\.outputs\.ready == 'true'/g) || []).length, 2);
+  });
+}
