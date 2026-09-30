@@ -251,5 +251,15 @@ class TestCli(unittest.TestCase):
         self.assertEqual(_run("bogus").returncode, 2)
 
 
+class TestTimestampLabels(unittest.TestCase):
+    def test_ci_result_blocks_label_their_timestamp_the_same_way(self):
+        # Go/Python CI and React CI print the same "checked at" line in every language
+        for lang in messages.SUPPORTED:
+            self.assertEqual(
+                messages.template("cibuild.info_time", lang),
+                messages.template("cibuild.node_result_time", lang),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

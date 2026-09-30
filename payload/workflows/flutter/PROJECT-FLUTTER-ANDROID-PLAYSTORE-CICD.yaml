@@ -83,6 +83,7 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
           ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64; do
@@ -103,6 +104,7 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
@@ -139,6 +141,7 @@ jobs:
         id: current_version
         working-directory: ${{ github.workspace }}   # version_manager.py must read the repo-root version.yml
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Get VERSION (x.y.z format)
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
@@ -167,6 +170,7 @@ jobs:
         id: release_notes
         working-directory: ${{ github.workspace }}   # CHANGELOG.json, changelog_manager.py and final_release_notes.txt (paired with the upload) are relative to the repo root
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION="${{ steps.current_version.outputs.version }}"
 
@@ -246,6 +250,7 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
@@ -264,6 +269,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # An empty keystore built from an empty Secret leaves it unclear which key signed the build, or ends in a misleading error in a later step
           MISSING=""
@@ -285,6 +291,7 @@ jobs:
 
       - name: Create key.properties
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > android/key.properties << EOF
           storeFile=app/keystore/key.jks
@@ -299,6 +306,7 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             mkdir -p android/app
@@ -347,6 +355,7 @@ jobs:
 
       - name: Configure Android build for release
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Add the release signing config to build.gradle.kts if it is missing
           if ! grep -q "signingConfigs" android/app/build.gradle.kts; then
@@ -360,6 +369,7 @@ jobs:
 
       - name: Build Android App Bundle (AAB)
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION_NAME="${{ needs.prepare-build.outputs.version }}"
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"
@@ -601,6 +611,7 @@ jobs:
         env:
           SERVICE_ACCOUNT_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -z "$SERVICE_ACCOUNT_BASE64" ]; then
             echo "::error::$(m flutter_a.google_play_service_account_json)"
@@ -630,6 +641,7 @@ jobs:
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # If the repository Gemfile has fastlane, use it as is (committing Gemfile.lock is recommended). Otherwise create one.
           if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
@@ -646,6 +658,7 @@ jobs:
       # Use android/fastlane/Fastfile.playstore to stay consistent
       - name: Copy Fastfile for Play Store
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           mkdir -p android/fastlane
           cp android/fastlane/Fastfile.playstore android/fastlane/Fastfile
@@ -658,6 +671,7 @@ jobs:
           DEPLOY_MODE: ${{ env.DEPLOY_MODE }}
           PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo "=========================================="
           m flutter_a.starting_play_store_deployment
@@ -771,6 +785,7 @@ jobs:
       - name: Notify Play Store Upload Success
         if: success()
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.play_store_internal_testing_deployment
           m flutter_a.version version="${{ needs.prepare-build.outputs.version }}" version_code="${{ needs.prepare-build.outputs.version_code }}"
@@ -784,6 +799,7 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.play_store_deployment_failed
           m flutter_a.please_check_logs

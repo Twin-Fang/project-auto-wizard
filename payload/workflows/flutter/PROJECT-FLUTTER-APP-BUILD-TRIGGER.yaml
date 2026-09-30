@@ -60,7 +60,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
 
       - name: Add 👀 reaction to the comment
         uses: actions/github-script@v9
@@ -537,9 +539,12 @@ jobs:
       # The trigger-complete comment was removed - the per-platform progress comments (Android/iOS) take over that role
       - name: Log trigger completion
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
+        env:
+          PAW_BRANCH_NAME: ${{ steps.source_info.outputs.branchName }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           m app_trigger.done_log
           m app_trigger.done_build_number number="${{ steps.build_number_calc.outputs.buildNumber }}"
-          m app_trigger.done_branch branch="${{ steps.source_info.outputs.branchName }}"
+          m app_trigger.done_branch branch="$PAW_BRANCH_NAME"
           m app_trigger.done_progress_note

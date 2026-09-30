@@ -348,7 +348,7 @@ test("release PR version confirmation does not skip versions across reruns, extr
   }
   const root = mkdtempSync(join(tmpdir(), "paw-confirm-"));
   const work = join(root, "work");
-  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1" };
+  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1", GITHUB_WORKSPACE: work };
   const run = (cmd, args, cwd = work) => {
     const r = spawnSync(cmd, args, { cwd, encoding: "utf-8", env });
     assert.strictEqual(r.status, 0, `${cmd} ${args.join(" ")}\n${r.stdout}\n${r.stderr}`);
@@ -423,7 +423,7 @@ test("the VERSION-CONTROL safety-net path updates CHANGELOG from commits since t
     .replaceAll("${{ steps.project_info.outputs.project_types }}", "node");
 
   const dir = mkdtempSync(join(tmpdir(), "paw-safety-"));
-  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1" };
+  const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", AI_API_KEY: "", COPILOT_AI: "false", GIT_CONFIG_NOSYSTEM: "1", GITHUB_WORKSPACE: dir };
   const run = (cmd, args) => {
     const r = spawnSync(cmd, args, { cwd: dir, encoding: "utf-8", env });
     assert.strictEqual(r.status, 0, `${cmd} ${args.join(" ")}\n${r.stdout}\n${r.stderr}`);

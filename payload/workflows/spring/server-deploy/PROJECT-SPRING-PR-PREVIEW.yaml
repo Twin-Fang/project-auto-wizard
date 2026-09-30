@@ -119,6 +119,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -225,6 +226,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -869,6 +871,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -986,6 +989,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -1086,11 +1090,13 @@ jobs:
       - name: Set issue info
         if: steps.check_branch.outputs.exists == 'true'
         id: issue
+        env:
+          PAW_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
         run: |
-          echo "ref=${{ needs.get-branch-from-issue.outputs.branch_name }}" >> $GITHUB_OUTPUT
+          echo "ref=$PAW_BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "issue_number=${{ needs.get-branch-from-issue.outputs.issue_number }}" >> $GITHUB_OUTPUT
           # Get the latest commit SHA of the branch
-          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git refs/heads/${{ needs.get-branch-from-issue.outputs.branch_name }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git "refs/heads/$PAW_BRANCH_NAME" | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Create progress comment
         if: steps.check_branch.outputs.exists == 'true'
@@ -1686,6 +1692,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -1873,6 +1880,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -2072,6 +2080,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -2686,6 +2695,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg
@@ -2863,6 +2873,7 @@ jobs:
         run: |
           # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
           rm -rf .paw-msg

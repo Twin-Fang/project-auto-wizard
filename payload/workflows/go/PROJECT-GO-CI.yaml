@@ -88,13 +88,16 @@ jobs:
           working-directory: ${{ env.PROJECT_PATH }}
 
       - name: Build verification complete
+        env:
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.go_done
           echo ""
           m cibuild.info_title
           m cibuild.info_project project="${{ env.PROJECT_NAME }}"
-          m cibuild.info_branch branch="${{ github.ref_name }}"
+          m cibuild.info_branch branch="$PAW_REF_NAME"
           m cibuild.info_commit sha="${{ github.sha }}"
           m cibuild.info_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
@@ -118,6 +121,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

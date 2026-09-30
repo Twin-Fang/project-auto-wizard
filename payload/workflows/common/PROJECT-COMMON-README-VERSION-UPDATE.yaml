@@ -95,6 +95,7 @@ jobs:
       - name: Detect branch mode
         id: mode
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> branches: chain so an
           # unrelated top-level "mode:" key can never hijack the value
@@ -113,6 +114,7 @@ jobs:
         id: precheck
         if: steps.mode.outputs.skip != 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           if [ -f README.md ]; then
             echo "readme_exists=true" >> $GITHUB_OUTPUT
@@ -125,6 +127,7 @@ jobs:
         id: version_info
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           LATEST_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           # Guard: an empty version must never reach the README rewrite —
@@ -141,6 +144,7 @@ jobs:
       - name: Update version line in README.md
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           LATEST_VERSION="${{ steps.version_info.outputs.latest_version }}"
           RELEASE_DATE="${{ steps.version_info.outputs.release_date }}"
@@ -285,6 +289,7 @@ jobs:
       - name: Commit and push changes
         if: steps.precheck.outputs.readme_exists == 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git add README.md
 

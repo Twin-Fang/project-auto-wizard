@@ -75,25 +75,48 @@ test("github-script bodies contain no ${{ }} expression at all (numbers included
   assert.deepStrictEqual(hits, [], `pass these through env instead:\n  ${hits.join("\n  ")}`);
 });
 
-test("shell run steps do not inline branch names (head_ref / pull_request.head.ref)", () => {
-  // A branch name may contain shell metacharacters; inside a run script it must be read from an env variable.
+// Branch names, dispatch payload fields and issue titles are free text: inside a run script they must come from a step env variable.
+const UNSAFE_IN_RUN = /\$\{\{\s*(github\.head_ref|github\.ref_name|github\.event\.pull_request\.head\.ref|github\.event\.client_payload\.|needs\.[\w-]+\.outputs\.(?:branch_name|custom_branch|issue_title)|steps\.\w+\.outputs\.(?:branch_name|branchName|issue_title))/;
+
+// Scans the `run:` bodies (block and one-line form) of every workflow file and returns the offending lines
+function inlinedInRun(text, file) {
+  const hits = [];
+  const lines = text.split("\n");
+  let runIndent = -1;
+  lines.forEach((l, i) => {
+    const m = /^(\s*)(?:- )?run:\s*(.*)$/.exec(l);
+    if (m) {
+      runIndent = m[1].length;
+      if (m[2] && !/^[|>]/.test(m[2]) && UNSAFE_IN_RUN.test(m[2])) hits.push(`${file}:${i + 1}: ${l.trim()}`);
+      return;
+    }
+    if (runIndent >= 0 && l.trim() !== "" && l.length - l.trimStart().length <= runIndent) runIndent = -1;
+    if (runIndent >= 0 && !l.trim().startsWith("#") && UNSAFE_IN_RUN.test(l)) hits.push(`${file}:${i + 1}: ${l.trim()}`);
+  });
+  return hits;
+}
+
+test("shell run steps do not inline branch names, dispatch payload fields or issue titles", () => {
   const hits = [];
   const dirs = [...SCAN_DIRS, join(REPO_ROOT, ".github", "workflows")];
-  for (const file of dirs.flatMap(walk)) {
-    const lines = readFileSync(file, "utf8").split("\n");
-    let runIndent = -1;
-    lines.forEach((l, i) => {
-      const m = /^(\s*)(?:- )?run:\s*(.*)$/.exec(l);
-      if (m) {
-        runIndent = m[1].length;
-        if (m[2] && !/^[|>]/.test(m[2]) && /\$\{\{\s*(github\.head_ref|github\.event\.pull_request\.head\.ref)/.test(m[2])) hits.push(`${file.slice(REPO_ROOT.length)}:${i + 1}`);
-        return;
-      }
-      if (runIndent >= 0 && l.trim() !== "" && l.length - l.trimStart().length <= runIndent) runIndent = -1;
-      if (runIndent >= 0 && /\$\{\{\s*(github\.head_ref|github\.event\.pull_request\.head\.ref)/.test(l)) hits.push(`${file.slice(REPO_ROOT.length)}:${i + 1}: ${l.trim()}`);
-    });
-  }
+  for (const file of dirs.flatMap(walk)) hits.push(...inlinedInRun(readFileSync(file, "utf8"), file.slice(REPO_ROOT.length)));
   assert.deepStrictEqual(hits, [], `pass these through a step env variable instead:\n  ${hits.join("\n  ")}`);
+});
+
+test("the run-step scan flags block and one-line forms of the newly covered expressions", () => {
+  const sample = [
+    "      - name: a",
+    "        run: |",
+    '          echo "ref=${{ needs.get-branch-from-issue.outputs.branch_name }}"',
+    "      - name: b",
+    '        run: git pull origin ${{ github.event.client_payload.branch_name }}',
+    "      - name: c",
+    "        env:",
+    "          PAW_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}",
+    "        run: |",
+    '          echo "$PAW_BRANCH_NAME"',
+  ].join("\n");
+  assert.equal(inlinedInRun(sample, "x").length, 2);
 });
 
 test("github-script bodies with their remaining expressions stubbed out are valid JavaScript", () => {
