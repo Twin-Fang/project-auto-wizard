@@ -1,5 +1,5 @@
 import { TYPE_IDS } from "../core/types.js";
-import { t, SUPPORTED_LANGUAGES } from "../i18n/index.js";
+import { t, getLanguage, SUPPORTED_LANGUAGES } from "../i18n/index.js";
 
 // Supported type list: wrapped at 40 characters per line in registry order; continuation lines align after the "Supported:" label.
 function typeListLines(width = 40) {
@@ -12,8 +12,9 @@ function typeListLines(width = 40) {
   return lines.join(`\n${" ".repeat(33)}`);
 }
 
-// --help text. Built lazily because the language is only resolved after import time.
-export const helpText = () => t("cli.help.text", {
+// --help text. Built lazily because the language is only resolved after import time;
+// `lang` lets callers (docs checks) render a specific language regardless of the current one.
+export const helpText = (lang = getLanguage()) => t("cli.help.text", {
   types: typeListLines(),
-  langHelp: t("cli.lang.help", { supported: SUPPORTED_LANGUAGES.join(" | ") }),
-});
+  langHelp: t("cli.lang.help", { supported: SUPPORTED_LANGUAGES.join(" | ") }, lang),
+}, lang);

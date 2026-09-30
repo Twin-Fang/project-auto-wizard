@@ -50,7 +50,7 @@ npx project-auto-wizard --mode uninstall --force --purge-readme --purge-gitignor
 
 ## `--help` 출력
 
-`npx project-auto-wizard --help`의 출력 그대로입니다:
+`npx project-auto-wizard --lang ko --help`의 출력 그대로입니다 (`--lang`을 생략하면 영어로 출력됩니다):
 
 ```text
 project-auto-wizard — One command DevOps: GitHub-native 릴리스 자동화 설치 마법사

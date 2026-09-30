@@ -44,11 +44,11 @@ test("문서 사이트의 명령 예시는 모두 현재 파서로 해석된다"
 });
 
 test("CLI 레퍼런스의 --help 블록은 실제 도움말과 같다", () => {
-  for (const rel of ["reference/cli.md", "ko/reference/cli.md"]) {
+  for (const [rel, lang] of [["reference/cli.md", "en"], ["ko/reference/cli.md", "ko"]]) {
     const text = readFileSync(join(DOCS_DIR, rel), "utf8");
     const m = text.match(/```text\n([\s\S]*?)\n```/);
     assert.ok(m, `${rel}: --help 코드 블록이 없다`);
-    assert.strictEqual(m[1], helpText().replace(/\n+$/, ""), `${rel}: --help 출력과 다르다 — 도움말을 바꿨다면 문서도 갱신하세요`);
+    assert.strictEqual(m[1], helpText(lang).replace(/\n+$/, ""), `${rel}: --help 출력과 다르다 — 도움말을 바꿨다면 문서도 갱신하세요`);
   }
 });
 
