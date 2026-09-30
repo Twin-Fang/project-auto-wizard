@@ -85,7 +85,7 @@ export default {
   "cmd.doctor.automerge.on": "켜져 있습니다 (version.yml의 release_automerge: true, 또는 키가 없음).",
   "cmd.doctor.automerge.onHow": "릴리스 PR을 직접 머지하려면 --no-release-automerge로 다시 설치하거나 version.yml의 release_automerge를 false로 바꾸세요.",
   "cmd.doctor.automerge.off": "꺼져 있습니다 (version.yml의 release_automerge: false) — 워크플로우가 릴리스 PR을 준비만 하고 머지하지 않습니다.",
-  "cmd.doctor.automerge.offHow": "릴리스가 정상 배포되도록 머지 커밋으로 직접 머지하세요(squash·rebase 금지). 다시 켜려면 --release-automerge를 쓰세요.",
+  "cmd.doctor.automerge.offHow": "머지 커밋으로 직접 머지하는 것을 권장합니다. squash·rebase 머지는 [skip ci] 때문에 릴리스 워크플로우가 건너뛰어지므로, 그렇게 머지했다면 PROJECT-RELEASE-PUBLISH를 수동 실행하세요. 다시 켜려면 --release-automerge를 쓰세요.",
   "cmd.doctor.automerge.invalid": "version.yml의 release_automerge 값 \"{value}\"이(가) true도 false도 아닙니다. false로 읽으므로 워크플로우가 릴리스 PR을 머지하지 않습니다.",
   "cmd.doctor.automerge.invalidHow": "version.yml의 release_automerge를 true 또는 false로 고치세요(또는 --release-automerge / --no-release-automerge로 다시 설치).",
   "cmd.doctor.copilot.fallback": "꺼져 있거나 사용할 수 없으면 규칙 기반 요약으로 자동 전환되므로 그대로 두셔도 됩니다.",

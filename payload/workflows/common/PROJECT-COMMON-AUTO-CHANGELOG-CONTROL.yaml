@@ -31,7 +31,9 @@
 #
 # With version.yml release_automerge: false, step 5 and the wait job are
 # skipped: the PR is renamed to the release-confirm subject and one guidance
-# comment asks the maintainer to merge it with a merge commit (not squash or rebase).
+# comment asks the maintainer to merge it with a merge commit. Squash and rebase merges
+# put the [skip ci] of the confirm commit into the merge result, so GitHub skips the push
+# workflows and PROJECT-RELEASE-PUBLISH has to be run manually for them.
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -189,11 +191,14 @@ jobs:
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin {{MAIN_BRANCH}}
-          git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
+          # --cherry-pick --right-only drops commits whose change already exists on {{MAIN_BRANCH}} under another hash
+          # (a release PR that was rebase-merged earlier), so they are not listed in the next release notes again.
+          # A squash merge leaves no such trace and cannot be told apart this way.
+          git log --cherry-pick --right-only --pretty=%s "origin/{{MAIN_BRANCH}}...HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
-          git log --pretty=%b "origin/{{MAIN_BRANCH}}..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          git log --cherry-pick --right-only --pretty=%b "origin/{{MAIN_BRANCH}}...HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/{{MAIN_BRANCH}}...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
@@ -211,7 +216,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          git log --pretty=%H "origin/{{MAIN_BRANCH}}..HEAD" > commit_shas.txt
+          git log --cherry-pick --right-only --pretty=%H "origin/{{MAIN_BRANCH}}...HEAD" > commit_shas.txt
 
           gh pr list --state merged --base {{DEVELOP_BRANCH}} \
             --json number,headRefName,mergeCommit --limit 200 > merged_prs.json

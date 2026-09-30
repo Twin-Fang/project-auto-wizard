@@ -81,11 +81,11 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
 
           git fetch origin main
-          git log --pretty=%s "origin/main..HEAD" > commits.txt
+          git log --cherry-pick --right-only --pretty=%s "origin/main...HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
-          git log --pretty=%b "origin/main..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          git log --cherry-pick --right-only --pretty=%b "origin/main...HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt

@@ -65,7 +65,7 @@ Unknown top-level fields you add are preserved when the wizard rewrites the file
 |---|---|---|
 | `semver_auto` | `true` (default) / `false` | Bump from commit types. `false` means patch + 1 every release; edit major/minor by hand. |
 | `copilot_ai` | `false` (default) / `true` | Let the summary workflows call the Copilot CLI (consumes AI Credits) |
-| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge (merge commit, not squash or rebase) |
+| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge; use a merge commit (squash and rebase skip the release workflow, see [Release flow](../../understand/release-flow/)) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | Server deploy style. Written when a type has server deploy workflows. |
 | `env_mode` | `dart-define` / `dotenv` | Flutter only. Environment variable mode. |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter only. Store deploy targets. |

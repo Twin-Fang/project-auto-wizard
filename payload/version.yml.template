@@ -11,7 +11,8 @@
 #   Falls back to rule-based summaries whenever Copilot is off or unavailable.
 # - release_automerge: default true — false stops the release PR (develop -> main)
 #   from being merged automatically. Merge it yourself with a merge commit
-#   (not squash or rebase); the workflow renames the PR so the release still publishes.
+#   (recommended); squash and rebase merges skip the release workflow, so run
+#   PROJECT-RELEASE-PUBLISH manually if you used one.
 # ===
 # Supported project types: spring, flutter, react, react-native,
 #                          react-native-expo, node, python, basic, go
