@@ -331,13 +331,13 @@ def get_version_code():
         if re.search(r'^version:', text, re.MULTILINE):
             new_text = re.sub(
                 r'^(version:[^\n]*\n)',
-                r'\1version_code: 1  # app build number\n',
+                r'\1version_code: 1 # app build number\n',
                 text,
                 count=1,
                 flags=re.MULTILINE,
             )
         else:
-            new_text = text.rstrip("\n") + '\nversion_code: 1  # app build number\n'
+            new_text = text.rstrip("\n") + '\nversion_code: 1 # app build number\n'
         write_text(new_text)
         return "1"
     return code.strip()
@@ -353,7 +353,7 @@ def set_version_code(new_code):
             pass
     text = read_text()
     pattern = re.compile(r'^version_code:[ \t]*.*$', re.MULTILINE)
-    replacement = f'version_code: {new_code}  # app build number'
+    replacement = f'version_code: {new_code} # app build number'
     if pattern.search(text):
         new_text = pattern.sub(replacement, text, count=1)
     else:
