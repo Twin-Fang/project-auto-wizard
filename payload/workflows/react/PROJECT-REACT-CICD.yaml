@@ -1,5 +1,5 @@
 # project-auto-wizard:managed-workflow
-# React CI/CD deployment
+# React / Next.js CI/CD deployment
 # Builds a Docker image and deploys it when the {{MAIN_BRANCH}} branch is pushed.
 #
 # GitHub Secrets
@@ -283,11 +283,14 @@ jobs:
             # Start the new container
             m "${{ env.PAW_M_cicd_container_run }}" container="$CONTAINER_NAME"
 
+            # NODE_ENV=production: Next.js (SSR) and most React servers expect it at runtime
             SUDO docker run -d \
               -p ${PORT}:3000 \
               --name $CONTAINER_NAME \
               -e TZ=Asia/Seoul \
+              -e NODE_ENV=production \
               -v /etc/localtime:/etc/localtime:ro \
+              --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}
 
             # Confirm the deployment

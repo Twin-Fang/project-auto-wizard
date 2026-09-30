@@ -26,7 +26,7 @@
     },
     {
       "severity": "warning",
-      "types": ["flutter", "go", "next", "python", "react", "spring"],
+      "types": ["flutter", "go", "python", "react", "spring"],
       "title": "Register only ci-gate as the monorepo CI required check",
       "message": "CI workflows (Flutter, Go, Next, Python, React, Spring CI) always run and skip their jobs when nothing changed. To use them as a required check, register only the CI Gate (ci-gate), not the individual jobs.",
       "title_ko": "모노레포 CI required check는 ci-gate 하나만 등록",

@@ -176,6 +176,21 @@ def get_current_version():
     return read_scalar_key("version", "0.0.0")
 
 
+# Names that used to be separate types. A version.yml written before the merge may still carry them,
+# and the release workflow can run before the wizard rewrites that file, so they are read as the new name.
+TYPE_ALIASES = {"next": "react"}
+
+
+def _canonical_types(types):
+    """Map aliased type names to their current name, dropping duplicates while keeping order."""
+    out = []
+    for t in types:
+        t = TYPE_ALIASES.get(t, t)
+        if t not in out:
+            out.append(t)
+    return out
+
+
 def get_project_types_csv():
     """Return project_types as a list. Supports both:
       project_types: ["a", "b"]
@@ -196,7 +211,7 @@ def get_project_types_csv():
         inner = m.group(1)
         items = re.findall(r'"([^"]*)"|\'([^\']*)\'', inner)
         types = [a or b for a, b in items]
-        return [t for t in types if t]
+        return _canonical_types([t for t in types if t])
 
     # Block list form:
     # project_types:
@@ -207,7 +222,7 @@ def get_project_types_csv():
         block = m.group(1)
         # trailing comments are allowed on list items too
         types = re.findall(r'-[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$', block, re.MULTILINE)
-        return [t.strip() for t in types if t.strip()]
+        return _canonical_types([t.strip() for t in types if t.strip()])
 
     return []
 
@@ -221,16 +236,19 @@ def get_type_path(project_type, project_types_list=None):
     if not m:
         return "."
     block = m.group(1)
-    km = re.search(
-        r'^[ \t]+["\']?' + re.escape(project_type)
-        + r'["\']?:[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$',
-        block,
-        re.MULTILINE,
-    )
-    if km:
-        val = km.group(1).strip()
-        if val and val != "null":
-            return val
+    # The current name first, then any older name that maps to it (e.g. next -> react).
+    names = [project_type] + [old for old, new in TYPE_ALIASES.items() if new == project_type]
+    for name in names:
+        km = re.search(
+            r'^[ \t]+["\']?' + re.escape(name)
+            + r'["\']?:[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$',
+            block,
+            re.MULTILINE,
+        )
+        if km:
+            val = km.group(1).strip()
+            if val and val != "null":
+                return val
     return "."
 
 
@@ -859,7 +877,6 @@ TYPE_HANDLERS = {
     # Only types that need a build number compute version_code (this has a pubspec-adjusting side effect).
     "flutter": TypeHandler(read=_read_flutter, sync=lambda d, v, code: sync_flutter(d, v, code())),
     "react": _PACKAGE_JSON,
-    "next": _PACKAGE_JSON,
     "node": _PACKAGE_JSON,
     "python": TypeHandler(read=_read_python, sync=lambda d, v, _code: sync_python(d, v)),
     "react-native": TypeHandler(read=_read_react_native, sync=lambda d, v, _code: sync_react_native(d, v)),

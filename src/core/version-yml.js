@@ -1,6 +1,6 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
-import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
+import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
 import { DEFAULT_LANGUAGE, isSupportedLanguage, normalizeLanguage } from "../i18n/languages.js";
 // Aliased: `t` is used as a local variable name (type, trimmed line) throughout this file.
 import { t as tr } from "../i18n/index.js";
@@ -107,7 +107,8 @@ export function parseExisting(content) {
   // project_types: ["a","b"]
   const typesRaw = line(/^project_types:\s*(\[[^\]]*\])/);
   let types = [];
-  if (typesRaw) types = [...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  // Old names (next) are read as their current type so every later step, including the rewrite, only sees canonical ids.
+  if (typesRaw) types = canonicalTypeIds([...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]));
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
@@ -118,7 +119,8 @@ export function parseExisting(content) {
     if (/^project_paths:/.test(l)) { inPaths = true; continue; }
     if (inPaths) {
       const m = l.match(/^\s+([a-z-]+):\s*"([^"]*)"/);
-      if (m) paths.set(m[1], m[2]);
+      // The first entry wins when an old name and its current name are both present.
+      if (m) { if (!paths.has(canonicalTypeId(m[1]))) paths.set(canonicalTypeId(m[1]), m[2]); }
       else if (/^\S/.test(l)) inPaths = false; // end of indentation -> end of block
     }
   }
@@ -157,9 +159,15 @@ export function parseDeployBlock(content) {
     if (!inDeploy) continue;
     if (/^\S/.test(l)) { inDeploy = false; continue; } // next top-level key -> end of block
     const t = l.match(/^ {2}([a-z][a-z-]*):\s*(?:#.*)?$/);
-    if (t) { current = new Map(); out.set(t[1], current); continue; }
+    if (t) {
+      // An old type name shares the block of its current name; keys already present there win.
+      const id = canonicalTypeId(t[1]);
+      current = out.get(id) ?? new Map();
+      out.set(id, current);
+      continue;
+    }
     const kv = l.match(/^ {4}([A-Za-z_][A-Za-z0-9_]*):\s*"((?:[^"\\]|\\.)*)"/);
-    if (kv && current) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
+    if (kv && current && !current.has(kv[1])) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
   }
   return out;
 }

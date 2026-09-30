@@ -7,7 +7,7 @@
 #   type bumps major. Set semver_auto: false to always patch-bump instead
 #   (then edit major/minor manually, e.g., 1.0.5 -> 1.1.0 or 2.0.0).
 # ===
-# Supported project types: spring, flutter, next, react, react-native,
+# Supported project types: spring, flutter, react, react-native,
 #                          react-native-expo, node, python, basic, go
 # Multi-type projects: list every type in the project_types array
 #   -> the first entry is the primary type (project_types is the single source of truth)
@@ -17,7 +17,7 @@
 # Synced files per type:
 # - spring: build.gradle / build.gradle.kts
 # - flutter: pubspec.yaml
-# - next/react/node: package.json
+# - react/node: package.json
 # - react-native: Info.plist + build.gradle
 # - react-native-expo: app.json
 # - python: pyproject.toml

@@ -20,6 +20,7 @@ export default {
   "cli.args.unknownOption": "알 수 없는 옵션: {option}",
   "cli.args.modeUnsupported": "지원하지 않는 모드: '{mode}'\n지원 모드: interactive full uninstall status doctor",
   "cli.args.pathsTypeUnsupported": "--paths에 지원하지 않는 타입: '{type}'",
+  "cli.args.pathsDuplicateType": "--paths에 '{type}'이 서로 다른 폴더로 두 번 지정됨 (next는 react의 이전 이름입니다): 한 항목만 남기세요",
   "cli.args.pathsRelativeOnly": "--paths는 레포 안의 상대경로만 지정할 수 있습니다: '{pair}'",
   "cli.index.purgePrompt": "purge를 실행하려면 정확히 이 레포명을 입력하세요: {repoName}\n> ",
   "cli.index.dryRunNeedsMode": "--dry-run은 --mode <full|uninstall>와 함께 사용하세요 (대화형 모드에서는 지원하지 않습니다).",

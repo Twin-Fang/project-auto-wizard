@@ -10,7 +10,7 @@
 #   workflows call GitHub Copilot CLI, which consumes GitHub Copilot AI Credits.
 #   Falls back to rule-based summaries whenever Copilot is off or unavailable.
 # ===
-# Supported project types: spring, flutter, next, react, react-native,
+# Supported project types: spring, flutter, react, react-native,
 #                          react-native-expo, node, python, basic, go
 # Multi-type projects: list every type in the project_types array
 #   -> the first entry is the primary type (project_types is the single source of truth)
@@ -20,7 +20,7 @@
 # Synced files per type:
 # - spring: build.gradle / build.gradle.kts / pom.xml
 # - flutter: pubspec.yaml
-# - next/react/node: package.json
+# - react/node: package.json
 # - react-native: Info.plist + build.gradle
 # - react-native-expo: app.json
 # - python: pyproject.toml / setup.py

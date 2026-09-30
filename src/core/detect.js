@@ -5,7 +5,7 @@ import {
 
 // package.json classification: compares dependency "keys" exactly. A raw substring match would misdetect an
 // export script or exponential-backoff as expo, a web app using react-native-web as react-native, and
-// "next" in keywords as next. Input is the raw package.json string. Evaluation order is the registry's detectOrder.
+// "react" in keywords as react. Input is the raw package.json string. Evaluation order is the registry's detectOrder.
 export function classifyPackageText(raw) {
   let pkg;
   try { pkg = JSON.parse(String(raw || "")); } catch { return PACKAGE_FALLBACK_TYPE; }
@@ -15,7 +15,8 @@ export function classifyPackageText(raw) {
     const d = pkg[field];
     if (d && typeof d === "object") for (const k of Object.keys(d)) deps.add(k);
   }
-  return PACKAGE_DETECTED_TYPES.find((t) => deps.has(t.packageDep))?.id ?? PACKAGE_FALLBACK_TYPE;
+  const hasDep = (t) => [t.packageDep, ...(t.extraPackageDeps || [])].some((k) => deps.has(k));
+  return PACKAGE_DETECTED_TYPES.find(hasDep)?.id ?? PACKAGE_FALLBACK_TYPE;
 }
 
 // Convenience: when given a parsed object, re-serialize it and apply the rule above.

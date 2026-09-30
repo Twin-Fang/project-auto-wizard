@@ -48,7 +48,7 @@ export function readSavedDeployValues(targetRoot = ".") {
 // and status/dry-run never see different file sets. When flutterStore is not an array (null = undecided,
 // non-interactive default) no store filter is applied. It always returns a function even without filters,
 // because processDir cannot take null.
-// Some types (go/python, react/next) keep server deploy workflows directly in the type root, so the deploy style
+// Some types (go, python, react) keep server deploy workflows directly in the type root, so the deploy style
 // filter is always applied. `available` (set of payload file names) lets a type without the chosen style fall back
 // to the single server deploy.
 export function buildTypeRootFilter(type, deployStyle, flutterStore, available = null) {
@@ -64,7 +64,7 @@ export function buildTypeRootFilter(type, deployStyle, flutterStore, available =
 export function typeWorkflowSources(type, payloadRoot, { deployStyle, flutterStore = null, available = null }) {
   const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
   const sources = [];
-  // Some types (go/python, react/next) keep server deploy workflows directly in the type root, so filter the root by deploy style too.
+  // Some types (go, python, react) keep server deploy workflows directly in the type root, so filter the root by deploy style too.
   if (exists(typeDir)) sources.push({ srcDir: typeDir, type, filter: buildTypeRootFilter(type, deployStyle, flutterStore, available) });
   // "No deploy" excludes the whole folder
   if (exists(serverDeployDir) && deployStyle !== NO_DEPLOY_STYLE) {
