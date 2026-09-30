@@ -19,6 +19,7 @@ npx project-auto-wizard --mode doctor
 | `WORKFLOW_PAT` secret 등록 | 선택. 태그·Release 발행을 더 빠르게 |
 | merge commit 허용 | 릴리스 PR automerge 조건 |
 | Copilot 요약 | `copilot_ai`가 켜져 있는지, 켜면 무엇이 소비되는지 |
+| 릴리스 PR 자동 머지 | `release_automerge`가 켜져 있는지 (설치된 경우에만 표시, 키가 없으면 켜짐) |
 | Flutter 스토어 파일 | 고른 스토어 플랫폼의 `Fastfile`, `ExportOptions.plist`와 `ExportOptions.plist`의 플레이스홀더 잔존 여부 (로컬 파일만 확인, 스토어 Secret 등록 여부는 점검하지 않음) |
 
 ## 출력 읽는 법

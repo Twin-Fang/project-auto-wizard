@@ -172,7 +172,9 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   }
 
   // Show the actual setting: telling a user who turned it on that it is off would misrepresent the current state.
-  const copilotAi = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options.copilotAi : null;
+  // version.yml is read once; both option notes below use it.
+  const savedOptions = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options : null;
+  const copilotAi = savedOptions ? savedOptions.copilotAi : null;
   const copilotState = copilotAi === true
     ? t("cmd.doctor.copilot.on")
     : copilotAi === false
@@ -188,13 +190,15 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   });
 
   // release_automerge is on unless version.yml says false (a missing key also means on), so only an explicit false is reported as off.
-  const releaseAutomerge = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options.releaseAutomerge : null;
-  add({
-    name: t("cmd.doctor.automerge.name"), label: t("cmd.doctor.automerge.name"), purpose: t("cmd.doctor.automerge.purpose"), status: "INFO",
-    note: releaseAutomerge === false
-      ? [t("cmd.doctor.automerge.off"), t("cmd.doctor.automerge.offHow")]
-      : [t("cmd.doctor.automerge.on"), t("cmd.doctor.automerge.onHow")],
-  });
+  // Without an install there is no saved setting to report, so the item is left out.
+  if (savedOptions) {
+    add({
+      name: t("cmd.doctor.automerge.name"), label: t("cmd.doctor.automerge.name"), purpose: t("cmd.doctor.automerge.purpose"), status: "INFO",
+      note: savedOptions.releaseAutomerge === false
+        ? [t("cmd.doctor.automerge.off"), t("cmd.doctor.automerge.offHow")]
+        : [t("cmd.doctor.automerge.on"), t("cmd.doctor.automerge.onHow")],
+    });
+  }
 
   return results;
 }

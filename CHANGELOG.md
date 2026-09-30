@@ -1,7 +1,19 @@
 # Changelog
 
-**Current version:** 0.16.0  
-**Last updated:** 2026-09-30T15:36:21Z  
+**Current version:** 0.16.1  
+**Last updated:** 2026-09-30T16:00:46Z  
+
+---
+
+## [0.16.1] - 2026-09-30
+
+**PR:** #396  
+
+**🐛 Fixes**
+- 수동 머지 안내의 제목 변경을 REST로 바꾸고 댓글 조회 실패·제목 변경 실패 대응, doctor 미설치 표기와 릴리스 옵션 문서를 보완 (#365)
+
+**🔧 Changes**
+- main 브랜치의 릴리스 버전 커밋을 develop에 병합
 
 ---
 
