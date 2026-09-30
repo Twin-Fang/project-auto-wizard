@@ -38,7 +38,7 @@ class TestCmdIncrementBumpFlag(unittest.TestCase):
         import os
         os.chdir(self.tmp)
         self.addCleanup(os.chdir, self.cwd)
-        # project_types is a required key — sync fails explicitly without it
+        # project_types is a required key — without it sync fails explicitly
         Path("version.yml").write_text(
             'version: "1.0.0"\nversion_code: 1\nproject_types: ["basic"]\n', encoding="utf-8")
 

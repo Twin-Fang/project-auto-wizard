@@ -78,8 +78,9 @@ jobs:
 
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
-          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
-          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
+          # line. The script reads each line as one entry, so passing the whole body (%B)
+          # would turn description lines into change entries.
           git log --pretty=%b "origin/main..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
@@ -89,10 +90,12 @@ jobs:
           fi
           rm -f _full_diff_stat.txt
 
-          # 헤더에는 이미 발행된 현재 버전이 아니라 이 PR이 병합되면 붙을 예상 버전을 보인다.
-          # 병합 뒤 버전을 올리는 쪽과 같은 규칙: trunk-based는 RELEASE-PUBLISH가 semver_auto면
-          # 커밋으로 승격 폭을 정하고, pr-flow에서 main로 바로 들어가는 PR은
-          # VERSION-CONTROL 안전망이 patch를 올린다. 예상치라 AI 보조 판정 없이 규칙만 쓴다.
+          # The header shows the version this PR will get once merged, not the version
+          # that is already published. Same rules as whatever bumps the version after the
+          # merge: in trunk-based mode RELEASE-PUBLISH picks the bump size from the commits
+          # when semver_auto is on, and in pr-flow a PR going straight into main
+          # gets a patch bump from the VERSION-CONTROL safety net. It is only an estimate,
+          # so rules alone are used, without any AI-assisted classification.
           CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
           MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
           SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
@@ -111,12 +114,12 @@ jobs:
             --pr-title "$PR_TITLE" \
             --diff-stat-file diff_stat.txt | tail -n 1)
           ENGINE=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("engine") or "unknown")' "$SUMMARY_RESULT" 2>/dev/null || echo "unknown")
-          # fallback이면 사유(스크립트가 ::warning::으로도 남김)를 engine 줄에 붙인다 — 잡 로그를 열지 않아도 원인이 보이게
+          # On fallback, append the reason (the script also emits it as ::warning::) to the engine line so the cause is visible without opening the job log
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
           echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
 
-          # push마다 댓글이 쌓이지 않도록 이 봇이 남긴 요약 댓글을 표식으로 찾아 최신 내용으로 교체한다
+          # Find this bot's earlier summary comment by its marker and replace it with the latest content so pushes do not pile up comments
           MARKER="<!-- project-auto-wizard:pr-summary -->"
           {
             echo "$MARKER"
@@ -143,15 +146,17 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # 브랜치명을 run: 스크립트에 직접 ${{ }} 보간하지 않고 env로 전달한다 —
-          # git ref 이름은 $, 백틱, 세미콜론 등을 포함할 수 있어 직접 보간하면
-          # 셸 인젝션 경로가 된다(AUTO-CHANGELOG-CONTROL의 PR_TITLE과 동일한 이유).
+          # Pass the branch name through env instead of interpolating ${{ }} into the run:
+          # script - git ref names can contain $, backticks, semicolons and so on, so direct
+          # interpolation would be a shell-injection path (same reason as PR_TITLE in
+          # AUTO-CHANGELOG-CONTROL).
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           ISSUE_NUM=$(python3 .github/scripts/issue_helper.py extract-branch-issue "$HEAD_REF")
 
           if [ -z "$ISSUE_NUM" ]; then
-            echo "브랜치명에서 이슈 번호를 찾지 못함 — 건너뜀: $HEAD_REF"
+            echo "$(m wf_aisum.no_issue_in_branch ref="$HEAD_REF")"
             exit 0
           fi
 

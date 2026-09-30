@@ -6,7 +6,8 @@ import { chmodSync, readFileSync, readdirSync, rmSync, rmdirSync } from "node:fs
 import { PATHS, PAYLOAD } from "../paths.js";
 import { exists, copyFileSync } from "../fsutil.js";
 
-export const SCRIPT_NAMES = ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py"];
+// messages.py is the shared message catalog the other scripts and the workflows import/call.
+export const SCRIPT_NAMES = ["version_manager.py", "changelog_manager.py", "truncate_release_notes.py", "issue_helper.py", "messages.py"];
 
 // Computes what will happen per file (writes nothing), so the real copy and --dry-run share one decision.
 // Returns: [{ name, action: "create" | "overwrite" | "unchanged" }]

@@ -1,80 +1,81 @@
 # project-auto-wizard:managed-workflow
-# Python FastAPI CI/CD 배포 (SSH + Docker)
-# {{MAIN_BRANCH}} 브랜치 푸시 시 Docker 이미지를 빌드하고
-# SSH로 접속 가능한 서버(Synology·AWS EC2·VPS 등)에 자동 배포합니다.
+# Python FastAPI CI/CD deployment (SSH + Docker)
+# Builds a Docker image when the {{MAIN_BRANCH}} branch is pushed and
+# deploys it automatically to any server reachable over SSH (Synology, AWS EC2, VPS, ...).
 #
-# 필수 GitHub Secrets
-# ENV_FILE: .env 파일 내용
-# DOCKERHUB_USERNAME: DockerHub 사용자명
-# DOCKERHUB_TOKEN: DockerHub 액세스 토큰
-# SERVER_HOST: 배포 서버 주소
-# SERVER_USER: SSH 사용자명
-# SERVER_PASSWORD: SSH 비밀번호 (SSH_AUTH_METHOD=password일 때)
-# SSH_KEY: SSH 개인키 .pem 내용 (SSH_AUTH_METHOD=key일 때, AWS EC2 등)
+# Required GitHub Secrets
+# ENV_FILE: contents of the .env file
+# DOCKERHUB_USERNAME: DockerHub username
+# DOCKERHUB_TOKEN: DockerHub access token
+# SERVER_HOST: deploy server address
+# SERVER_USER: SSH username
+# SERVER_PASSWORD: SSH password (when SSH_AUTH_METHOD=password)
+# SSH_KEY: contents of the SSH private key .pem (when SSH_AUTH_METHOD=key, e.g. AWS EC2)
 #
-# 환경변수는 아래 env 섹션에서 설정하며, 항목별 설명과 기본값은 각 줄에 적혀 있습니다.
-# HEALTHCHECK_PATH 예시: FastAPI "/docs", 커스텀 "/api/v1/health"
+# Environment variables are set in the env section below; each line has its description and default.
+# HEALTHCHECK_PATH examples: FastAPI "/docs", custom "/api/v1/health"
 
 name: PROJECT-PYTHON-SIMPLE-CICD
 
 on:
   push:
     branches:
-      - "{{MAIN_BRANCH}}"  # 프로덕션 배포
-    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
-  workflow_dispatch:  # 수동 실행 허용
+      - "{{MAIN_BRANCH}}"  # production deploy
+    # @wizard paths-anchor (for a monorepo the integrator injects the paths filter here)
+  workflow_dispatch:  # allow manual runs
 
 env:
-  # 프로젝트 고유 식별자
+  # Unique project identifier
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
-  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  # Subdirectory of this project in a monorepo (--paths). Base for the build and Docker context ('.' means the repo root)
   PROJECT_PATH: "."  # @wizard auto:project-path
-  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-python'를 붙여
-  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-python)
+  # In a monorepo (PROJECT_PATH is not '.') '-python' is appended to the image, container and domain names
+  # so they do not collide with services of other types in the same repo (e.g. my-app-python)
 
-  # 포트 설정
+  # Port settings
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8000
 
-  # 컨테이너 이름 설정 (비워두면 PROJECT_NAME 사용)
+  # Container name (uses PROJECT_NAME when empty)
   CONTAINER_NAME: ""
 
-  # 볼륨 마운트 설정 (빈값이면 마운트 안함)
+  # Volume mount settings (no mount when empty)
   ENABLE_VOLUME_MOUNT: "false"  # @wizard ask:false
   VOLUME_HOST_PATH: "/volume1/projects/__PROJECT_NAME__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
   VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__"  # @wizard ask:/mnt/__PROJECT_NAME__
 
-  # SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
-  #   password → SERVER_PASSWORD secret 사용
-  #   key      → SSH_KEY secret 사용 (.pem 파일 전체 내용을 secret 값으로)
+  # SSH auth method: "password" (Synology, generic servers) | "key" (AWS EC2, .pem)
+  #   password -> uses the SERVER_PASSWORD secret
+  #   key      -> uses the SSH_KEY secret (the whole .pem file content as the secret value)
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
-  # SSH 연결 설정
+  # SSH connection settings
   SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
-  SSH_COMMAND_TIMEOUT: "600s"  # SSH 명령 실행 타임아웃
-  SSH_CONNECTION_TIMEOUT: "60s"  # SSH 연결 타임아웃
+  SSH_COMMAND_TIMEOUT: "600s"  # SSH command execution timeout
+  SSH_CONNECTION_TIMEOUT: "60s"  # SSH connection timeout
 
-  # 컨테이너 포트 설정
-  CONTAINER_INTERNAL_PORT: "8000"  # FastAPI 내부 포트
+  # Container port settings
+  CONTAINER_INTERNAL_PORT: "8000"  # FastAPI internal port
 
-  # 헬스체크 설정
-  HEALTHCHECK_WAIT_SECONDS: "10"  # 컨테이너 초기화 대기 시간 (초)
-  HEALTHCHECK_PATH: "/docs"  # HTTP 엔드포인트 경로 (비어있으면 로그 패턴만 사용)
-  HEALTHCHECK_MAX_RETRIES: "5"  # HTTP 재시도 횟수
-  HEALTHCHECK_RETRY_INTERVAL: "3"  # 재시도 간격 (초)
-  HEALTHCHECK_LOG_PATTERN: "Uvicorn running on"  # Fallback 로그 검색 패턴
+  # Health check settings
+  HEALTHCHECK_WAIT_SECONDS: "10"  # wait for container initialization (seconds)
+  HEALTHCHECK_PATH: "/docs"  # HTTP endpoint path (only the log pattern is used when empty)
+  HEALTHCHECK_MAX_RETRIES: "5"  # HTTP retry count
+  HEALTHCHECK_RETRY_INTERVAL: "3"  # retry interval (seconds)
+  HEALTHCHECK_LOG_PATTERN: "Uvicorn running on"  # Fallback log search pattern
 
 jobs:
-  # Job: 빌드
+  # Job: build
   build:
-    name: Python FastAPI 애플리케이션 빌드
+    name: Build Python FastAPI application
     runs-on: ubuntu-latest
 
     steps:
-      - name: 코드 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v7
 
-      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
-      - name: 배포 사전 점검 (Secret·Dockerfile)
+      # If a required Secret or the Dockerfile is missing, report the missing item and stop
+      # instead of failing later with a third-party error such as docker login
+      - name: Deploy pre-check (Secrets and Dockerfile)
         working-directory: ${{ env.PROJECT_PATH }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -85,11 +86,12 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: Dockerfile
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
             [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
           done
-          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          # SSH_AUTH_METHOD=key needs SSH_KEY, otherwise SERVER_PASSWORD is required
           if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
             [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
           else
@@ -97,78 +99,95 @@ jobs:
           fi
           FAILED=false
           if [ -n "$MISSING" ]; then
-            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            echo "::error title=$(m cicd.precheck_secret_title)::$(m cicd.precheck_secret_body missing="$MISSING")"
             FAILED=true
           fi
           if [ ! -f "$DOCKERFILE" ]; then
-            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            echo "::error title=$(m cicd.precheck_dockerfile_title)::$(m cicd.precheck_dockerfile_body path="${PROJECT_PATH}/${DOCKERFILE#./}")"
             FAILED=true
           fi
           if [ "$FAILED" = "true" ]; then
             exit 1
           fi
-          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+          m cicd.precheck_ok
 
-      - name: 디스크 공간 확보
+      - name: Free up disk space
         run: |
-          echo "📊 빌드 전 디스크 사용량:"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cicd.disk_before
           df -h
 
-          echo "🧹 불필요한 파일 정리 중..."
+          m cicd.disk_cleaning
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /usr/local/share/boost || true
           sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
 
-          echo "🐳 Docker 시스템 정리 중..."
+          m cicd.disk_docker_prune
           docker system prune -af --volumes || true
 
-          echo "📊 정리 후 디스크 사용량:"
+          m cicd.disk_after_cleanup
           df -h
 
-      - name: .env 파일 생성
+      - name: Create .env file
         working-directory: ${{ env.PROJECT_PATH }}
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
           EOF
-          echo "✅ .env 파일이 생성되었습니다"
+          m cicd.dotenv_created
 
-      - name: Docker 빌드환경 설정
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: DockerHub 로그인
+      - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker 이미지 빌드 및 푸시
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}:${{ github.ref_name }}
-          # GitHub Actions 캐시 사용 (로컬 디스크 공간 절약)
+          # Use the GitHub Actions cache (saves local disk space)
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: 빌드 후 정리
+      - name: Clean up after build
         if: always()
         run: |
-          echo "🧹 빌드 후 정리 중..."
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cicd.post_build_cleanup
           docker system prune -f || true
-          echo "📊 최종 디스크 사용량:"
+          m cicd.disk_final
           df -h
 
-  # Job: 배포
+  # Job: deploy
   deploy:
-    name: 원격 서버 배포
+    name: Deploy to remote server
     needs: build
     runs-on: ubuntu-latest
 
     steps:
+      # The deploy script runs on the remote server, so the messages are resolved here
+      # and handed to it through env vars (PAW_M_*)
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Load messages
+        run: |
+          python3 .github/scripts/messages.py dump cicd. | PYTHONIOENCODING=utf-8 python3 -c 'import json,sys; [print("PAW_M_" + k.replace(".", "_") + "=" + v) for k, v in json.load(sys.stdin).items()]' >> "$GITHUB_ENV"
+
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -185,76 +204,79 @@ jobs:
           script: |
             set -e
 
-            # 배포 환경 변수 설정
-            echo "🔧 환경변수 설정.."
+            # Fill the {name} placeholders of a message template (usage: m "template" name=value ...)
+            m() { local s="$1" kv; shift; for kv in "$@"; do s="${s//\{${kv%%=*}\}/${kv#*=}}"; done; printf '%s\n' "$s"; }
+
+            # Set deploy environment variables
+            m "${{ env.PAW_M_cicd_setup_env }}"
             export PATH=$PATH:/usr/local/bin
             export PW=${{ secrets.SERVER_PASSWORD }}
 
-            # SSH 인증 방식에 따른 sudo 추상화
-            #   password 모드: echo $PW | sudo -S  (Synology 등 sudo 비밀번호 필요 서버)
-            #   key 모드: sudo 직접  (AWS EC2 등 passwordless sudo 서버)
+            # sudo abstraction per SSH auth method
+            #   password mode: echo $PW | sudo -S  (servers that need a sudo password, e.g. Synology)
+            #   key mode: plain sudo  (passwordless-sudo servers, e.g. AWS EC2)
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
             else
               SUDO() { echo "$PW" | sudo -S "$@"; }
             fi
-            echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
+            m "${{ env.PAW_M_cicd_ssh_auth }}" method="${SSH_AUTH_METHOD}"
 
             BRANCH=${{ github.ref_name }}
 
             PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-python', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
-            # 포트 및 컨테이너명 설정
+            # Port and container name
             PORT=${{ env.DEPLOY_PORT }}
 
             if [ -z "${{ env.CONTAINER_NAME }}" ]; then
               CONTAINER_NAME="${PROJECT_NAME}"
-              echo "ℹ️ CONTAINER_NAME이 설정되지 않아 PROJECT_NAME을 사용합니다: $CONTAINER_NAME"
+              m "${{ env.PAW_M_cicd_container_default }}" container="$CONTAINER_NAME"
             else
               CONTAINER_NAME="${{ env.CONTAINER_NAME }}"
-              echo "ℹ️ 사용자 지정 CONTAINER_NAME 사용: $CONTAINER_NAME"
+              m "${{ env.PAW_M_cicd_container_custom }}" container="$CONTAINER_NAME"
             fi
 
-            echo "🚀 배포 환경으로 배포합니다 (브랜치: $BRANCH)"
+            m "${{ env.PAW_M_cicd_deploy_start }}" branch="$BRANCH"
 
-            echo "📋 배포 설정 정보:"
-            echo "  - 브랜치: $BRANCH"
-            echo "  - 프로젝트: $PROJECT_NAME"
-            echo "  - 컨테이너 이름: $CONTAINER_NAME"
-            echo "  - 포트: $PORT"
-            echo "  - Docker 이미지: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+            m "${{ env.PAW_M_cicd_config_title }}"
+            m "${{ env.PAW_M_cicd_config_branch }}" branch="$BRANCH"
+            m "${{ env.PAW_M_cicd_config_project }}" project="$PROJECT_NAME"
+            m "${{ env.PAW_M_cicd_config_container }}" container="$CONTAINER_NAME"
+            m "${{ env.PAW_M_cicd_config_port }}" port="$PORT"
+            m "${{ env.PAW_M_cicd_config_image }}" image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
 
-            # Docker 이미지 풀 (Pull)
-            echo "⬇️ Docker 이미지 풀: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+            # Pull the Docker image
+            m "${{ env.PAW_M_cicd_pull_image }}" image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
             SUDO docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}
 
-            # 기존 컨테이너 정리
-            echo "🧹 컨테이너 $CONTAINER_NAME 존재 여부 확인 중..."
+            # Clean up the existing container
+            m "${{ env.PAW_M_cicd_container_check }}" container="$CONTAINER_NAME"
 
             if SUDO docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
-              echo "⚠️ 컨테이너 $CONTAINER_NAME 이(가) 존재합니다. 중지 및 삭제 중..."
+              m "${{ env.PAW_M_cicd_container_exists }}" container="$CONTAINER_NAME"
               SUDO docker rm -f $CONTAINER_NAME
-              echo "✅ 컨테이너 $CONTAINER_NAME 이(가) 삭제되었습니다."
+              m "${{ env.PAW_M_cicd_container_removed }}" container="$CONTAINER_NAME"
             else
-              echo "ℹ️ 존재하는 컨테이너 $CONTAINER_NAME 이(가) 없습니다."
+              m "${{ env.PAW_M_cicd_container_none }}" container="$CONTAINER_NAME"
             fi
 
-            # 새 컨테이너 실행
-            echo "🚀 새로운 컨테이너 $CONTAINER_NAME 실행 중..."
+            # Start the new container
+            m "${{ env.PAW_M_cicd_container_run }}" container="$CONTAINER_NAME"
 
-            # .env 파일은 이미 Docker 이미지에 포함되어 있습니다
+            # The .env file is already baked into the Docker image
 
             VOLUME_OPTS="-v /etc/localtime:/etc/localtime:ro"
             if [ "${{ env.ENABLE_VOLUME_MOUNT }}" == "true" ]; then
               if [ ! -d "${{ env.VOLUME_HOST_PATH }}" ]; then
-                echo "📁 볼륨 마운트 디렉토리 생성: ${{ env.VOLUME_HOST_PATH }}"
+                m "${{ env.PAW_M_cicd_volume_mkdir }}" path="${{ env.VOLUME_HOST_PATH }}"
                 SUDO mkdir -p "${{ env.VOLUME_HOST_PATH }}"
               fi
               VOLUME_OPTS="$VOLUME_OPTS -v ${{ env.VOLUME_HOST_PATH }}:${{ env.VOLUME_CONTAINER_PATH }}"
-              echo "📦 볼륨 마운트 활성화: $VOLUME_OPTS"
+              m "${{ env.PAW_M_cicd_volume_on }}" opts="$VOLUME_OPTS"
             else
-              echo "ℹ️ 볼륨 마운트 비활성화됨"
+              m "${{ env.PAW_M_cicd_volume_off }}"
             fi
 
             SUDO docker run -d \
@@ -264,84 +286,84 @@ jobs:
               $VOLUME_OPTS \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}
 
-            # 컨테이너 헬스체크
-            echo "⏳ 컨테이너 초기화 대기 중... (${{ env.HEALTHCHECK_WAIT_SECONDS }}초)"
+            # Container health check
+            m "${{ env.PAW_M_cicd_health_wait }}" seconds="${{ env.HEALTHCHECK_WAIT_SECONDS }}"
             sleep ${{ env.HEALTHCHECK_WAIT_SECONDS }}
 
-            # 1단계: 컨테이너 프로세스 확인
-            echo "🏥 컨테이너 헬스체크 중..."
+            # Step 1: check the container process
+            m "${{ env.PAW_M_cicd_health_check }}"
             if ! SUDO docker ps --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
-              echo "❌ 컨테이너 $CONTAINER_NAME 프로세스가 실행되지 않았습니다"
+              m "${{ env.PAW_M_cicd_health_no_process }}" container="$CONTAINER_NAME"
               SUDO docker logs --tail 50 $CONTAINER_NAME || true
               exit 1
             fi
-            echo "✅ 컨테이너 프로세스 실행 확인 완료"
+            m "${{ env.PAW_M_cicd_health_process_ok }}"
 
-            # 2단계: HTTP 엔드포인트 체크 (설정된 경우)
+            # Step 2: check the HTTP endpoint (when configured)
             HEALTHCHECK_SUCCESS=false
             if [ -n "${{ env.HEALTHCHECK_PATH }}" ]; then
-              echo "🌐 HTTP 헬스체크 시작: http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }}"
+              m "${{ env.PAW_M_cicd_http_start }}" url="http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }}"
 
               for i in $(seq 1 ${{ env.HEALTHCHECK_MAX_RETRIES }}); do
-                echo "  시도 $i/${{ env.HEALTHCHECK_MAX_RETRIES }}..."
+                m "${{ env.PAW_M_cicd_http_try }}" i="$i" max="${{ env.HEALTHCHECK_MAX_RETRIES }}"
 
                 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }} || echo "000")
 
                 if [ "$HTTP_CODE" = "200" ]; then
-                  echo "✅ HTTP 헬스체크 성공 (응답 코드: $HTTP_CODE)"
+                  m "${{ env.PAW_M_cicd_http_ok }}" code="$HTTP_CODE"
                   HEALTHCHECK_SUCCESS=true
                   break
                 else
-                  echo "⚠️ HTTP 헬스체크 실패 (응답 코드: $HTTP_CODE)"
+                  m "${{ env.PAW_M_cicd_http_fail }}" code="$HTTP_CODE"
                   if [ $i -lt ${{ env.HEALTHCHECK_MAX_RETRIES }} ]; then
-                    echo "  ${{ env.HEALTHCHECK_RETRY_INTERVAL }}초 후 재시도..."
+                    m "${{ env.PAW_M_cicd_http_retry }}" interval="${{ env.HEALTHCHECK_RETRY_INTERVAL }}"
                     sleep ${{ env.HEALTHCHECK_RETRY_INTERVAL }}
                   fi
                 fi
               done
 
-              # HTTP 체크 실패 시 fallback으로 로그 패턴 매칭
+              # If the HTTP check fails, fall back to log pattern matching
               if [ "$HEALTHCHECK_SUCCESS" = "false" ]; then
-                echo "⚠️ HTTP 헬스체크 최종 실패, 로그 패턴 매칭으로 fallback..."
+                m "${{ env.PAW_M_cicd_http_final_fail }}"
               fi
             else
-              echo "ℹ️ HEALTHCHECK_PATH가 설정되지 않아 로그 패턴 매칭만 사용합니다"
+              m "${{ env.PAW_M_cicd_http_skipped }}"
             fi
 
-            # 3단계: 로그 패턴 매칭 (HTTP 실패 시 또는 HTTP 체크 비활성화 시)
+            # Step 3: log pattern matching (when HTTP failed or the HTTP check is disabled)
             if [ "$HEALTHCHECK_SUCCESS" = "false" ]; then
-              echo "📋 로그 패턴 매칭 시작: '${{ env.HEALTHCHECK_LOG_PATTERN }}'"
+              m "${{ env.PAW_M_cicd_log_start }}" pattern="${{ env.HEALTHCHECK_LOG_PATTERN }}"
 
               if SUDO docker logs $CONTAINER_NAME 2>&1 | grep -q "${{ env.HEALTHCHECK_LOG_PATTERN }}"; then
-                echo "✅ 로그 패턴 매칭 성공: 애플리케이션이 정상적으로 시작되었습니다"
+                m "${{ env.PAW_M_cicd_log_ok }}"
                 HEALTHCHECK_SUCCESS=true
               else
-                echo "❌ 로그 패턴 매칭 실패: 애플리케이션 시작 로그를 찾을 수 없습니다"
+                m "${{ env.PAW_M_cicd_log_fail }}"
                 echo ""
-                echo "📋 디버깅 정보:"
-                echo "  - 검색 패턴: ${{ env.HEALTHCHECK_LOG_PATTERN }}"
-                echo "  - 컨테이너: $CONTAINER_NAME"
-                echo "  - 이미지: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
-                echo "  - 포트: ${PORT}:${{ env.CONTAINER_INTERNAL_PORT }}"
-                echo "  - 볼륨: $VOLUME_OPTS"
+                m "${{ env.PAW_M_cicd_debug_title }}"
+                m "${{ env.PAW_M_cicd_debug_pattern }}" pattern="${{ env.HEALTHCHECK_LOG_PATTERN }}"
+                m "${{ env.PAW_M_cicd_debug_container }}" container="$CONTAINER_NAME"
+                m "${{ env.PAW_M_cicd_debug_image }}" image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+                m "${{ env.PAW_M_cicd_debug_port }}" port="${PORT}:${{ env.CONTAINER_INTERNAL_PORT }}"
+                m "${{ env.PAW_M_cicd_debug_volume }}" volume="$VOLUME_OPTS"
                 echo ""
-                echo "📋 컨테이너 로그 (최근 50줄):"
+                m "${{ env.PAW_M_cicd_debug_logs }}"
                 SUDO docker logs --tail 50 $CONTAINER_NAME || true
                 exit 1
               fi
             fi
 
             if [ "$HEALTHCHECK_SUCCESS" = "true" ]; then
-              echo "✅ 헬스체크 완료: 컨테이너 $CONTAINER_NAME 이(가) 정상적으로 실행 중입니다"
+              m "${{ env.PAW_M_cicd_health_done }}" container="$CONTAINER_NAME"
             fi
 
-            echo "✅ 배포가 성공적으로 완료되었습니다!"
+            m "${{ env.PAW_M_cicd_deploy_done }}"
             echo ""
-            echo "📋 배포 결과 요약:"
-            echo "  🎯 프로젝트: $PROJECT_NAME"
-            echo "  🌿 브랜치: $BRANCH"
-            echo "  🐳 컨테이너: $CONTAINER_NAME"
-            echo "  🌐 포트: $PORT"
-            echo "  ⏰ 배포 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+            m "${{ env.PAW_M_cicd_summary_title }}"
+            m "${{ env.PAW_M_cicd_summary_project }}" project="$PROJECT_NAME"
+            m "${{ env.PAW_M_cicd_summary_branch }}" branch="$BRANCH"
+            m "${{ env.PAW_M_cicd_summary_container }}" container="$CONTAINER_NAME"
+            m "${{ env.PAW_M_cicd_summary_port }}" port="$PORT"
+            m "${{ env.PAW_M_cicd_summary_time }}" time="$(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
-            echo "🔗 접속 URL: http://${{ secrets.SERVER_HOST }}:${PORT}/docs"
+            m "${{ env.PAW_M_cicd_summary_url }}" url="http://${{ secrets.SERVER_HOST }}:${PORT}/docs"

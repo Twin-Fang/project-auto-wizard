@@ -43,7 +43,7 @@ elif not BASH_AVAILABLE:
 
 def run_py(args, cwd):
     return subprocess.run([sys.executable, str(PY_SCRIPT), *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8")
 
 
 def run_sh(args, cwd):
@@ -51,7 +51,7 @@ def run_sh(args, cwd):
     # to be invoked with version.yml present in cwd (its own usage docs run
     # it as `./version_manager.sh [command] [options]` from the repo root).
     return subprocess.run(["bash", SH_REF, *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8")
 
 
 def last_line(text):

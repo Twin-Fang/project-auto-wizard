@@ -1,27 +1,27 @@
 # project-auto-wizard:managed-workflow
-# Flutter 테스트 앱 빌드 트리거 워크플로우
+# Flutter test app build trigger workflow
 #
-# 이 워크플로우는 PR 또는 이슈에 댓글로 빌드 명령어를 작성하면
-# Android와 iOS 테스트 앱 빌드를 자동으로 트리거합니다.
+# When a build command is posted as a comment on a PR or issue, this workflow
+# triggers the Android and iOS test app builds automatically.
 #
-# 주요 특징:
-# - PR/이슈 댓글 감지: "/wizard app build / apk build / ios build" 키워드 감지 (어순 무관: build app 도 동작)
-# - repository_dispatch 이벤트로 빌드 워크플로우 트리거
-# - PR/이슈 번호 + 빌드 횟수로 고유한 빌드 번호 생성 (예: 38700, 38701...)
-# - 브랜치명에서 이슈 번호 자동 추출 (YYYYMMDD_#이슈번호_내용 형식)
-# - 테스트 버전은 version.yml에서 동적으로 읽어 사용 (빌드 번호로 운영/테스트 구분)
+# Highlights:
+# - Detects PR/issue comments: "/wizard app build / apk build / ios build" keywords (word order does not matter: "build app" works too)
+# - Triggers the build workflows through repository_dispatch events
+# - Builds a unique build number from the PR/issue number + build count (e.g. 38700, 38701...)
+# - Extracts the issue number from the branch name automatically (YYYYMMDD_#issue-number_title format)
+# - The test version is read dynamically from version.yml (production and test builds are told apart by build number)
 #
-# 사용 방법:
-# - PR에 댓글 작성: "/wizard app build" (Android + iOS 모두 빌드)
-# - PR에 댓글 작성: "/wizard apk build" (Android만 빌드)
-# - PR에 댓글 작성: "/wizard ios build" (iOS만 빌드)
-# - 이슈에 댓글 작성: 위 명령어 동일 (Issue Helper 댓글 필요)
-# - 어순은 무관: "build app" / "build apk" / "build ios"로 적어도 동일하게 동작
-# - 특정 브랜치 지정: "/wizard app build <브랜치명>" (명령어 뒤에 브랜치명을 적으면 해당 브랜치를 빌드)
-#   예: "/wizard apk build 20260609_#349_feature" → 해당 브랜치로 Android 빌드
-#   브랜치명을 생략하면 PR head 또는 이슈의 Issue Helper 댓글 브랜치를 사용
+# Usage:
+# - Comment on a PR: "/wizard app build" (builds Android + iOS)
+# - Comment on a PR: "/wizard apk build" (Android only)
+# - Comment on a PR: "/wizard ios build" (iOS only)
+# - Comment on an issue: same commands (an Issue Helper comment is required)
+# - Word order does not matter: "build app" / "build apk" / "build ios" behave the same
+# - To build a specific branch: "/wizard app build <branch-name>" (a branch name after the command builds that branch)
+#   e.g. "/wizard apk build 20260609_#12_feature" -> Android build of that branch
+#   If the branch name is omitted, the PR head or the branch in the issue's Issue Helper comment is used
 #
-# 트리거되는 워크플로우:
+# Workflows triggered:
 # - PROJECT-FLUTTER-ANDROID-TEST-APK.yaml (event_type: build-android-app)
 # - PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml (event_type: build-ios-app)
 
@@ -38,8 +38,8 @@ permissions:
 
 jobs:
   trigger-builds:
-    name: 빌드 워크플로우 트리거
-    # /wizard app build / /wizard apk build / /wizard ios build 키워드 감지 (어순 무관)
+    name: Trigger build workflows
+    # Detect the /wizard app build / /wizard apk build / /wizard ios build keywords (word order does not matter)
     if: |
       contains(github.event.comment.body, '/wizard') &&
       (
@@ -50,11 +50,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 댓글에 👀 리액션 추가
+      # Messages come from the default branch (issue_comment runs there); only the message catalog and version.yml are needed
+      - name: Checkout messages
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Load messages
+        run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
+
+      - name: Add 👀 reaction to the comment
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const commentId = context.payload.comment.id;
 
             await github.rest.reactions.createForIssueComment({
@@ -64,15 +78,17 @@ jobs:
               content: 'eyes'
             });
 
-            console.log('👀 댓글에 확인 리액션 추가 완료');
+            console.log(msg('app_trigger.reaction_done'));
 
-      - name: 빌드 타입 판별
+      - name: Detect build type
         id: build_type
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // 키워드 판별은 소문자로(대소문자 무관 인식), 브랜치명 캡처는 원본 본문에서(대소문자 보존)
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
+            // Keywords are matched on the lower-cased text (case-insensitive); the branch name is captured from the original body (case preserved)
             const comment = context.payload.comment.body.toLowerCase();
             const rawComment = context.payload.comment.body;
 
@@ -82,29 +98,29 @@ jobs:
             let customBranch = '';
             let m;
 
-            // 명령어 키워드 뒤의 같은 줄 토큰을 옵셔널 브랜치 인자로 캡처
-            // (줄바꿈 너머 단어가 브랜치로 오인되지 않도록 [^\S\r\n]+ 로 같은 줄 공백만 허용)
-            // 브랜치명은 rawComment에서 i 플래그로 다시 추출 → Feature/MyBranch 같은 대문자 브랜치 보존
+            // Capture the same-line token after the command keyword as an optional branch argument
+            // (only same-line whitespace is allowed via [^\S\r\n]+ so a word on the next line is not mistaken for a branch)
+            // The branch name is extracted again from rawComment with the i flag -> uppercase branches such as Feature/MyBranch are preserved
             //
-            // 어순은 양방향 지원: "{타입} build"(app/apk/ios build)와 "build {타입}"(build app 등) 모두 허용.
-            // apk가 app으로 오인되지 않도록 app 토큰은 \b 단어경계로 정확히 끊는다(apk·application 제외).
-            // apk/ios를 app보다 먼저 검사해, "apk build"가 app 분기로 새지 않게 한다.
+            // Both word orders are supported: "{type} build" (app/apk/ios build) and "build {type}" (build app, etc.).
+            // The app token is cut at a \b word boundary so apk is not mistaken for app (apk and application are excluded).
+            // apk/ios are checked before app so "apk build" does not fall into the app branch.
             if (comment.match(/\/wizard[^\S\r\n]+apk[^\S\r\n]+build/) || comment.match(/\/wizard[^\S\r\n]+build[^\S\r\n]+apk/)) {
-              // /wizard apk build [브랜치] (또는 build apk) → Android만
+              // /wizard apk build [branch] (or build apk) -> Android only
               buildAndroid = true;
               buildType = 'apk';
               m = rawComment.match(/\/wizard[^\S\r\n]+apk[^\S\r\n]+build(?:[^\S\r\n]+(\S+))?/i)
                 || rawComment.match(/\/wizard[^\S\r\n]+build[^\S\r\n]+apk(?:[^\S\r\n]+(\S+))?/i);
               customBranch = (m && m[1]) || '';
             } else if (comment.match(/\/wizard[^\S\r\n]+ios[^\S\r\n]+build/) || comment.match(/\/wizard[^\S\r\n]+build[^\S\r\n]+ios/)) {
-              // /wizard ios build [브랜치] (또는 build ios) → iOS만
+              // /wizard ios build [branch] (or build ios) -> iOS only
               buildIos = true;
               buildType = 'ios';
               m = rawComment.match(/\/wizard[^\S\r\n]+ios[^\S\r\n]+build(?:[^\S\r\n]+(\S+))?/i)
                 || rawComment.match(/\/wizard[^\S\r\n]+build[^\S\r\n]+ios(?:[^\S\r\n]+(\S+))?/i);
               customBranch = (m && m[1]) || '';
             } else if (comment.match(/\/wizard[^\S\r\n]+app\b[^\S\r\n]+build/) || comment.match(/\/wizard[^\S\r\n]+build[^\S\r\n]+app\b/)) {
-              // /wizard app build [브랜치] (또는 build app) → Android + iOS 모두
+              // /wizard app build [branch] (or build app) -> Android + iOS
               buildAndroid = true;
               buildIos = true;
               buildType = 'app';
@@ -118,12 +134,12 @@ jobs:
             core.setOutput('buildType', buildType);
             core.setOutput('customBranch', customBranch);
 
-            console.log(`📱 빌드 타입: ${buildType} (Android=${buildAndroid}, iOS=${buildIos})`);
+            console.log(msg('app_trigger.build_type', { type: buildType, android: buildAndroid, ios: buildIos }));
             if (customBranch) {
-              console.log(`🌿 댓글에서 지정된 브랜치: ${customBranch}`);
+              console.log(msg('app_trigger.branch_from_comment', { branch: customBranch }));
             }
 
-      - name: PR/이슈 정보 확인 및 추출
+      - name: Resolve PR/issue info
         id: source_info
         uses: actions/github-script@v9
         env:
@@ -131,6 +147,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const customBranch = (process.env.CUSTOM_BRANCH || '').trim();
             const issueNumber = context.payload.issue.number;
             let sourceType = '';
@@ -139,7 +157,7 @@ jobs:
             let headSha = '';
             let relatedIssueNumber = '';
 
-            // 1. 먼저 PR인지 확인
+            // 1. Check whether it is a PR first
             try {
               const pr = await github.rest.pulls.get({
                 owner: context.repo.owner,
@@ -153,34 +171,34 @@ jobs:
               headSha = pr.data.head.sha;
 
               if (customBranch) {
-                console.log(`🌿 댓글 지정 브랜치 우선 적용: ${customBranch} (PR head=${pr.data.head.ref})`);
+                console.log(msg('app_trigger.branch_override', { branch: customBranch, head: pr.data.head.ref }));
               }
 
-              console.log(`✅ PR 확인: #${sourceNumber}`);
-              console.log(`🌿 브랜치명: ${branchName}`);
-              console.log(`📝 커밋 해시: ${headSha}`);
+              console.log(msg('app_trigger.pr_confirmed', { number: sourceNumber }));
+              console.log(msg('app_trigger.branch_name', { branch: branchName }));
+              console.log(msg('app_trigger.commit_sha', { sha: headSha }));
 
-              // 브랜치명에서 이슈 번호 추출 (#280 형식)
+              // Extract the issue number from the branch name (`<date>_#<number>_...` format)
               const issueMatch = branchName.match(/#(\d+)/);
               relatedIssueNumber = issueMatch ? issueMatch[1] : '';
 
               if (relatedIssueNumber) {
-                console.log(`📌 추출된 이슈 번호: #${relatedIssueNumber}`);
+                console.log(msg('app_trigger.issue_extracted', { number: relatedIssueNumber }));
               }
 
             } catch (error) {
-              console.log('ℹ️ PR이 아닙니다. 이슈에서 브랜치 정보를 찾습니다...');
+              console.log(msg('app_trigger.not_pr'));
 
-              // 2. PR이 아니면 이슈에서 "Issue Helper" 댓글 찾기
+              // 2. If it is not a PR, look for the "Issue Helper" comment on the issue
               sourceType = 'ISSUE';
               sourceNumber = issueNumber.toString();
               relatedIssueNumber = issueNumber.toString();
 
-              // 댓글에서 브랜치를 직접 지정한 경우 Guide 댓글 탐색을 건너뛴다
+              // If the branch is given directly in the comment, skip searching for the Guide comment
               if (customBranch) {
                 branchName = customBranch;
-                console.log(`🌿 댓글 지정 브랜치 사용 (Guide 댓글 건너뜀): ${branchName}`);
-                console.log(`📌 관련 이슈 번호: #${relatedIssueNumber}`);
+                console.log(msg('app_trigger.custom_branch_used', { branch: branchName }));
+                console.log(msg('app_trigger.related_issue', { number: relatedIssueNumber }));
 
                 core.setOutput('found', 'true');
                 core.setOutput('sourceType', sourceType);
@@ -199,43 +217,44 @@ jobs:
                   per_page: 100
                 });
 
-                // "Issue Helper" 댓글 찾기
+                // Find the "Issue Helper" comment
                 const guideComment = comments.data.find(c =>
                   c.body.includes('<!-- project-auto-wizard issue helper -->')
                 );
 
                 if (!guideComment) {
-                  console.log('❌ "Issue Helper" 댓글을 찾을 수 없습니다.');
+                  console.log(msg('app_trigger.helper_missing_log'));
                   core.setOutput('found', 'false');
-                  core.setOutput('errorMessage', '이슈에서 "Issue Helper" 댓글을 찾을 수 없습니다. 브랜치 정보가 포함된 댓글이 필요합니다.');
+                  core.setOutput('errorMessage', msg('app_trigger.helper_missing_error'));
                   return;
                 }
 
-                console.log('✅ "Issue Helper" 댓글 발견');
+                console.log(msg('app_trigger.helper_found'));
 
-                // 브랜치명 추출 (### 브랜치 다음 ``` 블록 내용)
-                const branchMatch = guideComment.body.match(/### 브랜치(?:명)?\s*```\s*([\s\S]*?)\s*```/);
+                // Extract the branch name (content of the ``` block after the branch heading).
+                // The heading is matched in English and Korean (the Korean words are written as \u escapes) so comments written before a language change still parse.
+                const branchMatch = guideComment.body.match(/### (?:\uBE0C\uB79C\uCE58(?:\uBA85)?|Branch(?: name)?)\s*```\s*([\s\S]*?)\s*```/i);
 
                 if (!branchMatch) {
-                  console.log('❌ 브랜치 정보를 파싱할 수 없습니다.');
+                  console.log(msg('app_trigger.branch_parse_log'));
                   core.setOutput('found', 'false');
-                  core.setOutput('errorMessage', '"Issue Helper" 댓글에서 브랜치 정보를 파싱할 수 없습니다. 댓글 형식을 확인해주세요.');
+                  core.setOutput('errorMessage', msg('app_trigger.branch_parse_error'));
                   return;
                 }
 
                 branchName = branchMatch[1].trim();
-                console.log(`🌿 추출된 브랜치명: ${branchName}`);
-                console.log(`✅ 이슈 #${sourceNumber}에서 빌드 정보 추출 완료`);
+                console.log(msg('app_trigger.branch_extracted', { branch: branchName }));
+                console.log(msg('app_trigger.build_info_extracted', { number: sourceNumber }));
 
               } catch (commentError) {
-                console.log('❌ 이슈 댓글 조회 중 오류 발생:', commentError.message);
+                console.log(msg('app_trigger.comments_error_log'), commentError.message);
                 core.setOutput('found', 'false');
-                core.setOutput('errorMessage', `이슈 댓글 조회 중 오류가 발생했습니다: ${commentError.message}`);
+                core.setOutput('errorMessage', msg('app_trigger.comments_error', { error: commentError.message }));
                 return;
               }
             }
 
-            // 결과 출력
+            // Publish the results
             core.setOutput('found', 'true');
             core.setOutput('sourceType', sourceType);
             core.setOutput('sourceNumber', sourceNumber);
@@ -243,24 +262,18 @@ jobs:
             core.setOutput('headSha', headSha);
             core.setOutput('relatedIssueNumber', relatedIssueNumber);
 
-      - name: 브랜치 정보를 찾을 수 없는 경우 에러 댓글 작성
+      - name: Post an error comment when the branch info is not found
         if: steps.source_info.outputs.found != 'true'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
             const errorMessage = '${{ steps.source_info.outputs.errorMessage }}';
 
-            const body = `❌ **앱 빌드 트리거 실패**
-
-            ${errorMessage}
-
-            **해결 방법:**
-            - PR에서 빌드하는 경우: PR 페이지에서 댓글을 작성해주세요.
-            - 이슈에서 빌드하는 경우: "Issue Helper" 댓글이 있어야 합니다.
-              - 댓글에 \`### 브랜치\` 섹션과 브랜치명이 포함되어 있어야 합니다.
-            - 또는 댓글에 브랜치명을 직접 지정할 수 있습니다: \`/wizard app build <브랜치명>\``;
+            const body = msg('app_trigger.trigger_failed_body', { error: errorMessage });
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -271,18 +284,20 @@ jobs:
 
             core.setFailed(errorMessage);
 
-      - name: 브랜치 존재 여부 확인
+      - name: Check that the branch exists
         id: check_branch
         if: steps.source_info.outputs.found == 'true'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const branchName = '${{ steps.source_info.outputs.branchName }}';
             const runId = '${{ github.run_id }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
-            console.log(`🔍 브랜치 존재 여부 확인: ${branchName}`);
+            console.log(msg('app_trigger.branch_check_log', { branch: branchName }));
 
             try {
               await github.rest.repos.getBranch({
@@ -290,45 +305,47 @@ jobs:
                 repo: context.repo.repo,
                 branch: branchName
               });
-              console.log(`✅ 브랜치 존재 확인됨: ${branchName}`);
+              console.log(msg('app_trigger.branch_exists_log', { branch: branchName }));
               core.setOutput('exists', 'true');
             } catch (error) {
               if (error.status === 404) {
-                console.log(`❌ 브랜치를 찾을 수 없음: ${branchName}`);
+                console.log(msg('app_trigger.branch_not_found_log', { branch: branchName }));
                 core.setOutput('exists', 'false');
-                core.setOutput('errorMessage', `브랜치 \`${branchName}\`를 찾을 수 없습니다.`);
+                core.setOutput('errorMessage', msg('app_trigger.branch_not_found_error', { branch: branchName }));
               } else {
-                console.log(`❌ 브랜치 확인 중 오류: ${error.message}`);
+                console.log(msg('app_trigger.branch_check_error_log', { error: error.message }));
                 core.setOutput('exists', 'false');
-                core.setOutput('errorMessage', `브랜치 확인 중 오류가 발생했습니다: ${error.message}`);
+                core.setOutput('errorMessage', msg('app_trigger.branch_check_error', { error: error.message }));
               }
             }
 
-      - name: 브랜치가 존재하지 않는 경우 에러 댓글 작성
+      - name: Post an error comment when the branch does not exist
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'false'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
             const branchName = '${{ steps.source_info.outputs.branchName }}';
             const runId = '${{ github.run_id }}';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const body = [
-              '❌ **앱 빌드 트리거 실패 - 브랜치를 찾을 수 없습니다**',
+              msg('app_trigger.branch_missing_title'),
               '',
-              '| 항목 | 값 |',
+              msg('app_trigger.table_head'),
               '|------|-----|',
-              `| **요청된 브랜치** | \`${branchName}\` |`,
-              `| **이슈/PR** | #${issueNumber} |`,
+              msg('app_trigger.row_requested_branch', { branch: branchName }),
+              msg('app_trigger.row_issue_pr', { number: issueNumber }),
               '',
-              '### 💡 확인 사항',
-              '1. 브랜치가 원격 저장소에 push되었는지 확인하세요',
-              '2. "Issue Helper" 댓글의 브랜치명이 올바른지 확인하세요',
-              '3. 브랜치명에 오타가 없는지 확인하세요',
+              msg('app_trigger.hint_title'),
+              msg('app_trigger.hint_pushed'),
+              msg('app_trigger.hint_helper_branch'),
+              msg('app_trigger.hint_typo'),
               '',
-              `🔗 [워크플로우 로그](${runUrl})`
+              msg('app_trigger.workflow_log_link', { url: runUrl })
             ].join('\n');
 
             await github.rest.issues.createComment({
@@ -338,23 +355,25 @@ jobs:
               body: body
             });
 
-            core.setFailed(`브랜치를 찾을 수 없습니다: ${branchName}`);
+            core.setFailed(msg('app_trigger.branch_not_found_fail', { branch: branchName }));
 
-      - name: 빌드 횟수 조회 및 빌드 번호 생성
+      - name: Look up the build count and generate the build number
         id: build_number_calc
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceNumber = parseInt('${{ steps.source_info.outputs.sourceNumber }}');
             const sourceType = '${{ steps.source_info.outputs.sourceType }}';
             const buildType = '${{ steps.build_type.outputs.buildType }}';
 
-            console.log(`📊 ${sourceType} #${sourceNumber}의 빌드 횟수 조회 중...`);
-            console.log(`📱 빌드 타입: ${buildType}`);
+            console.log(msg('app_trigger.count_lookup', { type: sourceType, number: sourceNumber }));
+            console.log(msg('app_trigger.count_build_type', { type: buildType }));
 
-            // PR/이슈의 모든 댓글 조회
+            // Fetch every comment on the PR/issue
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -362,35 +381,35 @@ jobs:
               per_page: 100
             });
 
-            // 빌드 타입에 따라 해당 플랫폼의 빌드 횟수 카운트
-            // 어순 무관 카운트: includes('build') && includes('{타입}') 로 "ios build"·"build ios" 모두 잡는다.
-            // iOS:  ios 빌드 + app(공용) 빌드 통합 (App Store Connect는 앱 전체에서 빌드 번호 unique)
-            // Android: apk 빌드 + app(공용) 빌드 통합 (Play Store도 동일)
-            // App: 모든 빌드 명령어 통합 카운트
+            // Count the builds of the matching platform for the build type
+            // Order-independent counting: includes('build') && includes('{type}') catches both "ios build" and "build ios".
+            // iOS: ios builds + app (shared) builds combined (App Store Connect requires unique build numbers across the whole app)
+            // Android: apk builds + app (shared) builds combined (same for the Play Store)
+            // App: every build command counted together
             let buildCount = 0;
 
             if (buildType === 'ios') {
-              // iOS 빌드: ios 빌드 + app 공용 빌드 둘 다 카운트 (어순 무관)
+              // iOS build: count both ios builds and shared app builds (word order does not matter)
               buildCount = comments.data.filter(c => {
                 const body = c.body.toLowerCase();
                 return body.includes('/wizard') && body.includes('build') && (
                   body.includes('ios') || body.includes('app')
                 );
               }).length;
-              console.log(`📊 iOS 빌드 카운트: ios + app(공용) 통합`);
+              console.log(msg('app_trigger.count_ios'));
 
             } else if (buildType === 'apk') {
-              // Android 빌드: apk 빌드 + app 공용 빌드 둘 다 카운트 (어순 무관)
+              // Android build: count both apk builds and shared app builds (word order does not matter)
               buildCount = comments.data.filter(c => {
                 const body = c.body.toLowerCase();
                 return body.includes('/wizard') && body.includes('build') && (
                   body.includes('apk') || body.includes('app')
                 );
               }).length;
-              console.log(`📊 Android 빌드 카운트: apk + app(공용) 통합`);
+              console.log(msg('app_trigger.count_android'));
 
             } else if (buildType === 'app') {
-              // 전체 앱 빌드: 모든 빌드 명령어 카운트 (어순 무관)
+              // Full app build: count every build command (word order does not matter)
               buildCount = comments.data.filter(c => {
                 const body = c.body.toLowerCase();
                 return body.includes('/wizard') && body.includes('build') && (
@@ -399,19 +418,19 @@ jobs:
                   body.includes('app')
                 );
               }).length;
-              console.log(`📊 전체 앱 빌드 카운트: 모든 빌드 명령어 통합`);
+              console.log(msg('app_trigger.count_app'));
             }
 
-            // 빌드 번호: 소스번호 + 2자리 카운트 (38800, 38801, 38802...)
+            // Build number: source number + 2-digit count (38800, 38801, 38802...)
             const buildNumber = `${sourceNumber}${String(buildCount).padStart(2, '0')}`;
 
-            console.log(`📊 ${sourceType} #${sourceNumber}: ${buildType} ${buildCount}번째 빌드`);
-            console.log(`📦 생성된 빌드 번호: ${buildNumber}`);
+            console.log(msg('app_trigger.count_result', { type: sourceType, number: sourceNumber, build_type: buildType, count: buildCount }));
+            console.log(msg('app_trigger.build_number_generated', { number: buildNumber }));
 
             core.setOutput('buildCount', buildCount.toString());
             core.setOutput('buildNumber', buildNumber);
 
-      - name: Android 빌드 워크플로우 트리거
+      - name: Trigger the Android build workflow
         if: |
           steps.source_info.outputs.found == 'true' &&
           steps.check_branch.outputs.exists == 'true' &&
@@ -420,17 +439,19 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceType = '${{ steps.source_info.outputs.sourceType }}';
             const sourceNumber = '${{ steps.source_info.outputs.sourceNumber }}';
             const branchName = '${{ steps.source_info.outputs.branchName }}';
             const relatedIssueNumber = '${{ steps.source_info.outputs.relatedIssueNumber }}';
             const buildNumber = '${{ steps.build_number_calc.outputs.buildNumber }}';
 
-            console.log(`🚀 Android 빌드 워크플로우 트리거 시작...`);
-            console.log(`   ${sourceType} 번호: #${sourceNumber}`);
-            console.log(`   빌드 번호: ${buildNumber}`);
-            console.log(`   브랜치: ${branchName}`);
-            console.log(`   관련 이슈 번호: ${relatedIssueNumber || '없음'}`);
+            console.log(msg('app_trigger.dispatch_start', { platform: 'Android' }));
+            console.log(msg('app_trigger.dispatch_source_number', { type: sourceType, number: sourceNumber }));
+            console.log(msg('app_trigger.dispatch_build_number', { number: buildNumber }));
+            console.log(msg('app_trigger.dispatch_branch', { branch: branchName }));
+            console.log(msg('app_trigger.dispatch_related_issue', { issue: relatedIssueNumber || msg('app_trigger.none') }));
 
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
@@ -447,9 +468,9 @@ jobs:
               }
             });
 
-            console.log('✅ Android 빌드 워크플로우 트리거 완료');
+            console.log(msg('app_trigger.dispatch_done', { platform: 'Android' }));
 
-      - name: iOS 빌드 워크플로우 트리거
+      - name: Trigger the iOS build workflow
         if: |
           steps.source_info.outputs.found == 'true' &&
           steps.check_branch.outputs.exists == 'true' &&
@@ -458,17 +479,19 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const M = JSON.parse(process.env.PAW_MSG);
+            const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceType = '${{ steps.source_info.outputs.sourceType }}';
             const sourceNumber = '${{ steps.source_info.outputs.sourceNumber }}';
             const branchName = '${{ steps.source_info.outputs.branchName }}';
             const relatedIssueNumber = '${{ steps.source_info.outputs.relatedIssueNumber }}';
             const buildNumber = '${{ steps.build_number_calc.outputs.buildNumber }}';
 
-            console.log(`🚀 iOS 빌드 워크플로우 트리거 시작...`);
-            console.log(`   ${sourceType} 번호: #${sourceNumber}`);
-            console.log(`   빌드 번호: ${buildNumber}`);
-            console.log(`   브랜치: ${branchName}`);
-            console.log(`   관련 이슈 번호: ${relatedIssueNumber || '없음'}`);
+            console.log(msg('app_trigger.dispatch_start', { platform: 'iOS' }));
+            console.log(msg('app_trigger.dispatch_source_number', { type: sourceType, number: sourceNumber }));
+            console.log(msg('app_trigger.dispatch_build_number', { number: buildNumber }));
+            console.log(msg('app_trigger.dispatch_branch', { branch: branchName }));
+            console.log(msg('app_trigger.dispatch_related_issue', { issue: relatedIssueNumber || msg('app_trigger.none') }));
 
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
@@ -485,13 +508,14 @@ jobs:
               }
             });
 
-            console.log('✅ iOS 빌드 워크플로우 트리거 완료');
+            console.log(msg('app_trigger.dispatch_done', { platform: 'iOS' }));
 
-      # 트리거 완료 댓글은 제거됨 - Android/iOS 각각의 진행상황 댓글이 이 역할을 대체
-      - name: 트리거 완료 로그
+      # The trigger-complete comment was removed - the per-platform progress comments (Android/iOS) take over that role
+      - name: Log trigger completion
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
         run: |
-          echo "✅ Android 및 iOS 빌드 워크플로우 트리거 완료"
-          echo "📦 빌드 번호: ${{ steps.build_number_calc.outputs.buildNumber }}"
-          echo "🌿 브랜치: ${{ steps.source_info.outputs.branchName }}"
-          echo "📋 각 플랫폼별 진행상황 댓글이 자동으로 생성됩니다."
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          m app_trigger.done_log
+          m app_trigger.done_build_number number="${{ steps.build_number_calc.outputs.buildNumber }}"
+          m app_trigger.done_branch branch="${{ steps.source_info.outputs.branchName }}"
+          m app_trigger.done_progress_note

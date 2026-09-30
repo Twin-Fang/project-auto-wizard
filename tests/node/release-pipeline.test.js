@@ -78,7 +78,7 @@ for (const path of bothCopies("RELEASE-PUBLISH")) {
 // 태그 스냅샷의 README는 README 버전 커밋보다 앞서 있어 항상 한 버전 전이다.
 test("NPM-PUBLISH는 패키징 전에 README 버전 줄을 배포 버전으로 맞춘다", () => {
   const body = read(join(".github", "workflows", "NPM-PUBLISH.yaml"));
-  const fix = body.indexOf("- name: README 버전 줄을 배포 버전으로 맞춤");
+  const fix = body.indexOf("- name: Align README version line to the published version");
   assert.ok(fix > -1, "README 버전 보정 스텝이 없다");
   assert.ok(fix > body.indexOf("uses: actions/checkout"), "체크아웃 뒤에 와야 한다");
   assert.ok(fix < body.indexOf("npm publish --dry-run"), "패키징(publish) 전에 와야 한다");
@@ -197,7 +197,7 @@ function runExpectedVersion(t, { mode, semverAuto, commits, withVersionYml = tru
   const dir = mkdtempSync(join(tmpdir(), "paw-nextver-"));
   try {
     mkdirSync(join(dir, ".github", "scripts"), { recursive: true });
-    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py", "messages.py"]) {
       writeFileSync(join(dir, ".github", "scripts", f), read(join("payload", "scripts", f)));
     }
     if (withVersionYml) {
@@ -318,7 +318,13 @@ for (const path of bothCopies("AUTO-CHANGELOG-CONTROL")) {
   test(`${path}: 충돌로 머지하지 못하면 develop 역병합을 안내한다`, () => {
     const body = read(path);
     assert.ok(body.includes('if [ "$MERGEABLE" = "CONFLICTING" ]; then'));
-    assert.match(body, /::error::릴리스 PR이 (\{\{MAIN_BRANCH\}\}|main)와 충돌합니다/);
+    // The error text now lives in the message catalog; the workflow only references its key.
+    assert.match(body, /::error::\$\(m wf_changelog\.merge_conflict /);
+    const say = (lang) => spawnSync("python3", [join("payload", "scripts", "messages.py"), "get", "wf_changelog.merge_conflict", "prod=main", "dev=develop"], {
+      encoding: "utf-8", env: { ...process.env, PROJECT_AUTO_WIZARD_LANG: lang },
+    }).stdout;
+    assert.match(say("en"), /^The release PR conflicts with main/);
+    assert.match(say("ko"), /^릴리스 PR이 main와 충돌합니다/);
   });
 }
 
@@ -363,7 +369,7 @@ test("릴리스 PR 버전 확정은 재실행·추가 push·main 역병합에도
     mkdirSync(join(work, ".github", "scripts"), { recursive: true });
     git("init", "-q");
     git("remote", "add", "origin", join(root, "remote.git"));
-    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py", "messages.py"]) {
       writeFileSync(join(work, ".github", "scripts", f), read(join("payload", "scripts", f)));
     }
     writeFileSync(join(work, "version.yml"), 'version: "0.3.0"\nversion_code: 1\nproject_types: ["basic"]\n');
@@ -425,7 +431,7 @@ test("VERSION-CONTROL 안전망 경로는 마지막 태그 이후 커밋으로 C
   const git = (...args) => run("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args]);
   try {
     mkdirSync(join(dir, ".github", "scripts"), { recursive: true });
-    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py"]) {
+    for (const f of ["version_manager.py", "changelog_manager.py", "issue_helper.py", "messages.py"]) {
       writeFileSync(join(dir, ".github", "scripts", f), read(join("payload", "scripts", f)));
     }
     git("init", "-q");

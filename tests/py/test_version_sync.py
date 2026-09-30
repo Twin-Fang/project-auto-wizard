@@ -171,7 +171,7 @@ class TestSyncMaven(SyncTestCase):
         self.assertEqual(r.stdout.strip().splitlines()[-1], "1.4.1")
         text = (Path(tmp) / "pom.xml").read_text(encoding="utf-8")
         self.assertIn("<artifactId>my-service</artifactId>\n  <version>1.4.1</version>", text)
-        # Versions in the parent BOM, dependencies and comments stay untouched
+        # The versions of the parent BOM, dependencies and comments stay as they are
         self.assertIn("<version>3.4.0</version>", text)
         self.assertIn("<artifactId>lib</artifactId>\n      <version>1.4.0</version>", text)
         self.assertIn("<!-- <version>0.0.0</version> -->", text)
@@ -249,7 +249,7 @@ class TestSyncReact(SyncTestCase):
 
 
 class TestSyncJsonKeepsFormatting(SyncTestCase):
-    # Only the version line may change — rewriting indentation with a fixed value would turn every release into a whole-file diff.
+    # Only the one version line may change — rewriting indentation with a fixed value would make every release a whole-file diff.
     def _sync_with(self, text):
         tmp = self.make_tmp("react")
         pkg = Path(tmp) / "package.json"
@@ -435,7 +435,7 @@ def last_line(r):
 
 
 class TestVersionSuffixesAndSources(SyncTestCase):
-    """Reads with the same rules as install-time detection and checks the file is still valid after bumping."""
+    """Read with the same rules as install-time detection and check the file is still valid after the bump."""
 
     def test_gradle_snapshot_is_read_as_core_and_kept_on_increment(self):
         tmp = self.make_tmp("spring")
@@ -478,7 +478,7 @@ class TestVersionSuffixesAndSources(SyncTestCase):
         self.assertEqual(last_line(run(["get-code"], tmp)), "4")
         r = run(["increment"], tmp)
         self.assertEqual(r.returncode, 0, r.stderr)
-        # A prerelease marker belongs to that version only, so it is not carried to the new version.
+        # A pre-release marker belongs to that version only, so it is not carried onto the new version.
         self.assertIn("version: 1.2.4+5", pubspec.read_text(encoding="utf-8"))
 
     def test_package_json_prerelease_is_read_as_core(self):
@@ -502,7 +502,7 @@ class TestVersionSuffixesAndSources(SyncTestCase):
         gradle = Path(tmp) / "android" / "app" / "build.gradle"
         gradle.write_text(re.sub(r'versionName\s+"[^"]*"', 'versionName "1.0"', gradle.read_text(encoding="utf-8")),
                           encoding="utf-8")
-        # Without x.y.z in the native file, use the version.yml value (at install time the package.json value is put there).
+        # If the native file has no x.y.z, the version.yml value is used (at install time the package.json value is put there).
         self.assertEqual(last_line(run(["get"], tmp)), "0.3.0")
         self.assertIn('versionName "0.3.0"', gradle.read_text(encoding="utf-8"))
 
@@ -526,7 +526,7 @@ if __name__ == "__main__":
 
 
 class TestGetReconcilesFilesToCore(SyncTestCase):
-    """Even though get looks read-only, the sync step re-aligns the file to the x.y.z core."""
+    """Even though get looks read-only, the sync step realigns the file to the core x.y.z."""
 
     def test_get_rewrites_package_json_prerelease_to_core(self):
         tmp = self.make_tmp("react")

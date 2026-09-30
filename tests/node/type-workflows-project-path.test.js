@@ -74,10 +74,10 @@ test("the React/Next CICD build job uses PROJECT_PATH as its working directory",
 
 test("Gradle steps of the Spring deploy workflows run in PROJECT_PATH", () => {
   const cases = [
-    ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-PR-PREVIEW.yaml", ["Gradle 권한 설정", "Gradle 빌드"]],
+    ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-PR-PREVIEW.yaml", ["Set Gradle permissions", "Gradle build"]],
   ];
   for (const [file, names] of cases) {
     const text = read(file);
@@ -91,10 +91,10 @@ test("Gradle steps of the Spring deploy workflows run in PROJECT_PATH", () => {
 
 test("the .env of Go/Python deploy/preview is created inside PROJECT_PATH (it must be in the Docker context)", () => {
   const cases = [
-    ["go/PROJECT-GO-SIMPLE-CICD.yaml", ".env 파일 생성"],
-    ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", ".env 파일 생성"],
-    ["go/PROJECT-GO-PR-PREVIEW.yaml", '"[필수] .env 파일 생성"'],
-    ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", '"[필수] .env 파일 생성"'],
+    ["go/PROJECT-GO-SIMPLE-CICD.yaml", "Create .env file"],
+    ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", "Create .env file"],
+    ["go/PROJECT-GO-PR-PREVIEW.yaml", '"[Required] Create .env file"'],
+    ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", '"[Required] Create .env file"'],
   ];
   for (const [file, name] of cases) {
     const blocks = stepBlocks(read(file), name);

@@ -1,6 +1,7 @@
 // English messages: argument parsing, --help, entry point (bin/, src/index.js, src/cli, src/context.js).
 export default {
   "cli.lang.invalid": "Unsupported language '{value}' ({source}). Supported: {supported}",
+  "cli.lang.defaultNotice": "Workflow messages now default to English. Use --lang ko to keep Korean.",
   "cli.lang.missing": "--lang requires a value. Supported: {supported}",
   "cli.lang.help": "Message language: {supported} (default: en)",
   "cli.bin.nodeVersion": "Node.js 20.12 or later is required (current: {current})",

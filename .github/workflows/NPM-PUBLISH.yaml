@@ -1,26 +1,29 @@
 # NPM-PUBLISH.yaml
-# project-auto-wizard npm 자동 배포 워크플로우 (이 레포 전용)
+# project-auto-wizard npm auto-publish workflow (repo-only)
 #
-# 동작:
-# - GitHub Release가 발행되면 그 태그를 체크아웃해 npm에 배포한다
-# - 태그에서 버전을 뽑고 version.yml과 대조해 불일치 시 실패시킨다
-# - 배포 전 테스트를 실행한다 (검증된 것만 배포)
-# - 이미 레지스트리에 있는 버전이면 성공 종료 (멱등)
-# - README 버전 줄은 태그보다 늦게 커밋되므로 패키징 직전에 배포 버전으로 맞춘다
-# - provenance를 첨부해 어느 커밋·워크플로우에서 빌드됐는지 검증 가능하게 한다
+# Behavior:
+# - When a GitHub Release is published, checks out that tag and publishes to npm
+# - Extracts the version from the tag and fails if it differs from version.yml
+# - Runs the tests before publishing (only verified code ships)
+# - Exits successfully if the version is already on the registry (idempotent)
+# - The README version line is committed after the tag, so it is aligned to the
+#   published version right before packaging
+# - Attaches provenance so the build commit and workflow can be verified
 #
-# 트리거: GitHub Release published (+ 수동 재배포는 workflow_dispatch)
+# Trigger: GitHub Release published (+ workflow_dispatch for manual republish)
 #
-# main push를 트리거로 쓰지 않는 이유:
-#   VERSION-CONTROL의 버전 bump와 동시에 시작해 경쟁했고, 지면 [skip ci] 때문에
-#   재트리거되지 않아 그 버전이 영영 배포되지 않았다. 실제로 0.1.13·0.1.15·0.1.19가
-#   누락됐다. 태그는 불변 스냅샷이라 무엇이 배포되는지가 타이밍과 무관해진다.
+# Why a main push is not the trigger:
+#   It started at the same time as the VERSION-CONTROL version bump and raced with
+#   it; when it lost, [skip ci] prevented a retrigger and that version was never
+#   published. 0.1.13, 0.1.15 and 0.1.19 were actually missed. A tag is an
+#   immutable snapshot, so what gets published no longer depends on timing.
 #
-# 전제: RELEASE-PUBLISH가 WORKFLOW_PAT으로 Release를 발행해야 이 워크플로우가 뜬다.
-#   GITHUB_TOKEN이 만든 이벤트는 GitHub 정책상 다른 워크플로우를 트리거하지 않는다.
+# Prerequisite: RELEASE-PUBLISH must publish the Release with WORKFLOW_PAT for this
+#   workflow to start. Events created by GITHUB_TOKEN do not trigger other
+#   workflows by GitHub policy.
 #
-# 필요 Secret: NPM_TOKEN (npm Granular Access Token)
-#   ※ npmjs.com에서 Trusted Publisher를 등록하면 이 시크릿 없이 OIDC로 배포할 수 있다.
+# Required secret: NPM_TOKEN (npm Granular Access Token)
+#   Note: registering a Trusted Publisher on npmjs.com lets you publish via OIDC without this secret.
 
 name: NPM-PUBLISH
 
@@ -34,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "재배포할 릴리스 태그 (예: v0.1.20)"
+        description: "Release tag to republish (e.g. v0.1.20)"
         required: true
         type: string
 
@@ -43,94 +46,95 @@ permissions:
   id-token: write
 
 env:
-  # 테스트가 payload/scripts를 import하며 만드는 __pycache__가 패키지에 실리지 않게 한다
+  # Keep __pycache__ (created when tests import payload/scripts) out of the package
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   publish-npm:
-    name: npm 패키지 배포
+    name: Publish npm package
     runs-on: ubuntu-latest
 
     steps:
-      - name: 배포 대상 태그 확정
+      - name: Resolve target tag
         id: target
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
           if [ -z "$TAG" ]; then
-            echo "배포 대상 태그를 확정할 수 없습니다"
+            echo "Cannot determine the tag to publish"
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-          echo "배포 대상: $TAG (버전 ${TAG#v})"
+          echo "Target: $TAG (version ${TAG#v})"
 
-      - name: 저장소 체크아웃 (릴리스 태그 기준)
+      - name: Checkout repository (at the release tag)
         uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.tag }}
 
-      - name: Node.js 설정
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Python 설정 (test:py용)
+      - name: Set up Python (for test:py)
         uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
-      - name: 태그와 version.yml 일치 확인
+      - name: Verify tag matches version.yml
         run: |
           FILE_VERSION=$(python3 payload/scripts/version_manager.py get | tail -n 1)
           TAG_VERSION="${{ steps.target.outputs.version }}"
           if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
-            echo "태그($TAG_VERSION)와 version.yml($FILE_VERSION)이 다릅니다 — 배포를 중단합니다"
+            echo "Tag ($TAG_VERSION) differs from version.yml ($FILE_VERSION) - aborting publish"
             exit 1
           fi
-          echo "버전 일치 확인: $TAG_VERSION"
+          echo "Version match confirmed: $TAG_VERSION"
 
-      - name: 테스트 실행 (배포 게이트)
+      - name: Run tests (publish gate)
         run: npm test
 
-      - name: package.json 버전 주입
+      - name: Inject package.json version
         run: npm pkg set version=${{ steps.target.outputs.version }}
 
-      - name: README 버전 줄을 배포 버전으로 맞춤
-        # README 버전 커밋은 릴리스 태그보다 늦게 만들어져, 태그 스냅샷의 README는 항상
-        # 한 버전 전이다. npm 페이지가 이 README를 보여주므로 패키징 직전에 고쳐 싣는다 (커밋하지 않음).
+      - name: Align README version line to the published version
+        # The README version commit is created after the release tag, so the README in
+        # the tag snapshot is always one version behind. The npm page shows this README,
+        # so it is fixed right before packaging (not committed).
         run: |
           VERSION="${{ steps.target.outputs.version }}"
           RELEASE_DATE=$(git log -1 --format=%cs)
           sed -i -E "/AUTO-VERSION-SECTION/{n;s/^(##[^:]*:[[:space:]]*).*/\1v${VERSION} (${RELEASE_DATE})/;}" README.md
           if grep -qF "v${VERSION} (${RELEASE_DATE})" README.md; then
-            echo "README 버전 줄: $(grep -A1 'AUTO-VERSION-SECTION' README.md | tail -n 1)"
+            echo "README version line: $(grep -A1 'AUTO-VERSION-SECTION' README.md | tail -n 1)"
           else
-            echo "::warning::README.md에서 AUTO-VERSION-SECTION 버전 줄을 찾지 못해 갱신하지 못했습니다"
+            echo "::warning::Could not find the AUTO-VERSION-SECTION version line in README.md, so it was not updated"
           fi
 
-      - name: 이미 배포된 버전인지 확인 (멱등)
+      - name: Check whether the version is already published (idempotent)
         id: check
         run: |
           PKG_NAME=$(npm pkg get name | tr -d '"')
           VERSION="${{ steps.target.outputs.version }}"
           if npm view "${PKG_NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "${PKG_NAME}@${VERSION} 은 이미 배포되어 있습니다. 건너뜁니다."
+            echo "${PKG_NAME}@${VERSION} is already published. Skipping."
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 배포 내용 미리 확인
+      - name: Preview publish contents
         if: steps.check.outputs.skip == 'false'
         run: npm publish --dry-run --access public
 
-      - name: npm 배포
+      - name: Publish to npm
         if: steps.check.outputs.skip == 'false'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: 배포 결과 요약
+      - name: Publish summary
         if: steps.check.outputs.skip == 'false'
-        run: echo "project-auto-wizard@${{ steps.target.outputs.version }} npm 배포 완료 (provenance 첨부)"
+        run: echo "project-auto-wizard@${{ steps.target.outputs.version }} published to npm (provenance attached)"

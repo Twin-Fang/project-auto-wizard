@@ -4,7 +4,7 @@
 // do not deploy twice by overlapping with the push event.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, existsSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
@@ -150,10 +150,13 @@ function runStep(t, { mergedBy = "", hasPat = "false", releaseMerge = true } = {
   }
   const { root, work, bin, log } = setupRepo({ releaseMerge });
   try {
+    // The step prints through the message catalog, so provide it like an installed repo does.
+    mkdirSync(join(work, ".github", "scripts"), { recursive: true });
+    copyFileSync(join("payload", "scripts", "messages.py"), join(work, ".github", "scripts", "messages.py"));
     const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", runScript(read(PAYLOAD_RP))], {
       cwd: work, encoding: "utf-8",
       env: {
-        ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "my-org/my-app",
+        ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_WORKSPACE: work, PROJECT_AUTO_WIZARD_LANG: "en", GITHUB_REPOSITORY: "my-org/my-app",
         FAKE_MERGED_BY: mergedBy, HAS_WORKFLOW_PAT: hasPat, RELEASE_VERSION: "0.2.0", MAIN_BRANCH: "main",
         PYTHONDONTWRITEBYTECODE: "1",
       },
@@ -174,6 +177,7 @@ test("a release merged by a bot token wakes all main deploy workflows", (t) => {
   const r = runStep(t, { mergedBy: "github-actions[bot]" });
   if (!r) return;
   assert.deepStrictEqual(r.api, ["api repos/my-org/my-app/pulls/7 --jq .merged_by.login // \"\""]);
+  assert.match(r.stdout, /PR #7 was merged with the bot token/);
   assert.deepStrictEqual(r.runs, [
     "PROJECT-FLUTTER-ANDROID-FIREBASE-CICD.yaml",
     "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml",

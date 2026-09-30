@@ -168,7 +168,7 @@ class TestAiAssistedBumpUpgrade(unittest.TestCase):
         ):
             rc, last_line = self._run(["completely rewrite the public API"])
         self.assertEqual(rc, 0)
-        # If the response breaks the format (not exactly MINOR), the rule result patch is final — major cannot occur.
+        # If the reply breaks the format (not exactly MINOR) the rule result patch stands — a major can never come out.
         self.assertEqual(last_line, "patch")
 
     def test_ai_call_failure_falls_back_to_rule_result(self):

@@ -16,9 +16,9 @@ if str(SCRIPT_DIR) not in sys.path:
 from changelog_manager import filter_release_issue_numbers  # noqa: E402
 
 
-def run(args, cwd):
-    # Windows 기본 코드페이지(cp1252)로 디코딩하면 한글 출력에서 깨진다
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+def run(args, cwd, lang="ko"):
+    # Decoding with the Windows default code page (cp1252) garbles non-ASCII output
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PROJECT_AUTO_WIZARD_LANG": lang}
     return subprocess.run([sys.executable, str(SCRIPT), *args],
                           cwd=cwd, capture_output=True, text=True, encoding="utf-8", env=env)
 
@@ -81,6 +81,22 @@ class TestUpdateFromSummaryIdempotence(unittest.TestCase):
         self.assertEqual(md.count("## [0.5.2]"), 1)
         self.assertIn("*변경사항 정보 없음*", md)
 
+    def test_empty_commit_summary_english(self):
+        r = self.update("0.5.3", summary="## [0.5.3]\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        run(["generate-md"], self.tmp, lang="en")
+        md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("**Current version:** 0.5.3", md)
+        self.assertIn("**Last updated:**", md)
+        self.assertIn("*No change information*", md)
+        self.assertFalse(any("\uac00" <= ch <= "\ud7a3" for ch in md))
+
+    def test_korean_header_kept_in_ko(self):
+        self.update("0.5.4", summary="## [0.5.4]\n")
+        run(["generate-md"], self.tmp, lang="ko")
+        md = (Path(self.tmp) / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertTrue(md.startswith("# Changelog\n\n**현재 버전:** 0.5.4  \n**마지막 업데이트:**"))
+
 
 class TestGenerateMd(unittest.TestCase):
     def setUp(self):
@@ -131,8 +147,8 @@ if __name__ == "__main__":
 
 
 class TestUpdateFromSummaryDegenerateJson(unittest.TestCase):
-    """실측 회귀 (dogfood PR #1): 스캐폴드가 만든 비정형 CHANGELOG.json({"versions": []})에서
-    update-from-summary가 KeyError: 'metadata'로 죽던 버그."""
+    """Regression: with an irregular scaffold CHANGELOG.json ({"versions": []}),
+    update-from-summary used to die with KeyError: 'metadata'."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

@@ -69,7 +69,7 @@ permissions:
   copilot-requests: write
 
 env:
-  # 스크립트 import가 .github/scripts/__pycache__를 만들어 봇 커밋에 섞이지 않게 한다
+  # Keep script imports from creating .github/scripts/__pycache__ so it never ends up in bot commits
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
@@ -96,9 +96,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          # 파이프라인 도중 develop에 push하면 그 실행은 대기열에서 기다렸다가 이미 병합된
-          # PR을 다시 처리한다 — 빈 요약 댓글, 중복 CHANGELOG 항목, develop에만 남는 확정 커밋이 생긴다.
-          # 이벤트 시점이 아니라 지금 상태를 본다. 조회에 실패하면 릴리스를 막지 않고 진행한다.
+          # A push to develop mid-pipeline queues a run that later reprocesses the
+          # already-merged PR - an empty summary comment, duplicate CHANGELOG entries and a
+          # confirm commit that lands only on develop.
+          # Look at the current state, not the event-time state. If the lookup fails,
+          # do not block the release and carry on.
           STATE=$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null || echo "UNKNOWN")
           if [ "$STATE" = "MERGED" ] || [ "$STATE" = "CLOSED" ]; then
             echo "open=false" >> "$GITHUB_OUTPUT"
@@ -152,8 +154,9 @@ jobs:
         run: |
           git fetch origin main
           git log --pretty=%s "origin/main..HEAD" > commits.txt
-          # 본문 푸터 BREAKING CHANGE:는 제목 목록 뒤에 한 줄씩 덧붙인다 — 스크립트는 한 줄을
-          # 한 항목으로 읽으므로 본문 전체(%B)를 넣으면 설명 줄까지 변경 항목으로 잡힌다.
+          # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
+          # line. The script reads each line as one entry, so passing the whole body (%B)
+          # would turn description lines into change entries.
           git log --pretty=%b "origin/main..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/main...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
@@ -170,6 +173,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git log --pretty=%H "origin/main..HEAD" > commit_shas.txt
 
           gh pr list --state merged --base develop \
@@ -177,7 +181,7 @@ jobs:
 
           MERGED_PR_COUNT=$(python3 -c "import json; print(len(json.load(open('merged_prs.json'))))")
           if [ "$MERGED_PR_COUNT" -ge 200 ]; then
-            echo "::warning::gh pr list가 --limit 200에 도달했습니다 — 오래된 병합 PR이 누락됐을 수 있습니다 (조회된 PR: $MERGED_PR_COUNT)"
+            echo "::warning::$(m wf_changelog.pr_list_limit count="$MERGED_PR_COUNT")"
           fi
 
           ISSUE_NUMBERS=$(python3 .github/scripts/changelog_manager.py collect-issue-closes \
@@ -187,7 +191,7 @@ jobs:
           rm -f commit_shas.txt merged_prs.json
 
           if [ -z "$ISSUE_NUMBERS" ]; then
-            echo "이번 릴리스에 연결할 이슈 없음 — 건너뜀"
+            echo "$(m wf_changelog.no_issues)"
             exit 0
           fi
 
@@ -196,7 +200,7 @@ jobs:
             --issue-numbers "$ISSUE_NUMBERS" \
             --replace
 
-          echo "이슈 연결: $ISSUE_NUMBERS"
+          echo "$(m wf_changelog.issues_linked issues="$ISSUE_NUMBERS")"
 
       - name: Confirm release version (bump + sync)
         id: bump
@@ -207,9 +211,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
-          # 멱등: 이 PR에서 이미 확정한(아직 발행 전) 버전을 다시 올리지 않는다.
-          # HEAD 커밋 메시지만 보면 확정 커밋 위에 커밋이 더 쌓일 때(develop 추가 push,
-          # main 역병합) 가드가 풀려 발행되지 않은 버전이 생기므로 버전과 태그로 판정한다.
+          # Idempotency: never raise a version this PR already confirmed (not yet published).
+          # Looking only at the HEAD commit message lets the guard slip when more commits
+          # pile on top of the confirm commit (extra develop pushes, a
+          # main back-merge) and an unpublished version appears, so decide by
+          # version and tag instead.
           HEAD_MSG=$(git log -1 --pretty=%s)
           HEAD_VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
           MAIN_VERSION=$(git show "origin/main:version.yml" 2>/dev/null | grep -m1 '^version:' | sed 's/version:[ \t]*"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/' || true)
@@ -224,8 +230,10 @@ jobs:
           echo "bump level: $BUMP"
 
           if [ -n "$MAIN_VERSION" ] && [ -n "$HEAD_VERSION" ] && version_gt "$HEAD_VERSION" "$MAIN_VERSION" && ! is_tagged "$HEAD_VERSION"; then
-            # 이미 확정된 버전 — main 버전 기준으로 다시 계산해 더 높아질 때만(예: 확정 뒤 feat 추가) 올린다.
-            # 버전을 건너뛰지 않고, AI 보조 판정이 재실행마다 달라도 낮아지지 않는다.
+            # Already-confirmed version - recompute from the main version and raise it
+            # only when the result is higher (e.g. a feat added after confirming).
+            # Versions are never skipped, and they never drop even if an AI-assisted
+            # classification differs between re-runs.
             TARGET=$(python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); from version_manager import increment_version; print(increment_version(sys.argv[1], sys.argv[2]))' "$MAIN_VERSION" "$BUMP")
             if version_gt "$TARGET" "$HEAD_VERSION"; then
               NEW_VERSION=$(python3 .github/scripts/version_manager.py set "$TARGET" | tail -n 1)
@@ -235,7 +243,7 @@ jobs:
               echo "version already confirmed and not yet released — reusing $NEW_VERSION (main is $MAIN_VERSION)"
             fi
           elif [ -z "$MAIN_VERSION" ] && printf '%s\n' "$HEAD_MSG" | grep -q "^chore(version): confirm v.* \[skip ci\]"; then
-            # main에 아직 version.yml이 없는 첫 릴리스의 재실행
+            # Re-run of a first release where main has no version.yml yet
             NEW_VERSION="$HEAD_VERSION"
             echo "version already confirmed by a previous run — reusing $NEW_VERSION (no re-increment)"
           else
@@ -270,7 +278,7 @@ jobs:
             --pr-title "$PR_TITLE" \
             --diff-stat-file diff_stat.txt | tail -n 1)
           ENGINE=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("engine") or "unknown")' "$SUMMARY_RESULT" 2>/dev/null || echo "unknown")
-          # fallback이면 사유(스크립트가 ::warning::으로도 남김)를 engine 줄에 붙인다 — 잡 로그를 열지 않아도 원인이 보이게
+          # On fallback, append the reason (the script also emits it as ::warning::) to the engine line so the cause is visible without opening the job log
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
           echo "summary engine: $ENGINE_LINE"
@@ -289,7 +297,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          # 재실행·재동기화 때 댓글이 쌓이지 않도록 이 봇이 남긴 요약 댓글을 표식으로 찾아 교체한다
+          # Find this bot's earlier summary comment by its marker and replace it so re-runs and re-syncs do not pile up comments
           MARKER="<!-- project-auto-wizard:pr-summary -->"
 
           {
@@ -343,17 +351,18 @@ jobs:
           # Working files must not land in the repo
           rm -f pr_body.md summary.md commits.txt diff_stat.txt comment_body.md comment_payload.json commit_shas.txt merged_prs.json
 
-          # "Re-run failed jobs"는 precheck 결과를 재사용한다 — 그사이 PR이 병합·종료됐다면
-          # 확정 커밋을 올리지 않는다 (병합 뒤 develop에만 남는 커밋이 된다).
+          # "Re-run failed jobs" reuses the precheck result - if the PR was merged or closed
+          # in the meantime, do not push the confirm commit (it would exist only on
+          # develop after the merge).
           PR_STATE=$(gh pr view "${{ github.event.pull_request.number }}" --json state -q .state 2>/dev/null || echo "UNKNOWN")
           if [ "$PR_STATE" = "MERGED" ] || [ "$PR_STATE" = "CLOSED" ]; then
             echo "::notice::PR is already $PR_STATE — not pushing release docs"
             exit 0
           fi
 
-          # -A는 러너가 만든 임시 파일·캐시까지 사용자 레포에 커밋한다.
-          # 버전 파일은 이미 추적 중이라 -u로 충분하고, 첫 릴리스에 새로 생기는
-          # CHANGELOG만 따로 올린다 (.gitignore에 있으면 건너뛴다).
+          # -A would also commit runner temp files and caches into the user's repo.
+          # Version files are already tracked, so -u is enough; only a CHANGELOG
+          # created by the first release is added separately (skipped if ignored).
           git add -u
           git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md | xargs -0 -r git add --
 
@@ -399,6 +408,7 @@ jobs:
           # (RELEASE-PUBLISH etc.); GITHUB_TOKEN merges do not.
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           VERSION="${{ steps.bump.outputs.new_version }}"
 
@@ -407,8 +417,9 @@ jobs:
           SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
           ERR_FILE="${RUNNER_TEMP:-/tmp}/merge_err.txt"
 
-          # 확정 커밋 push 직후에는 GitHub가 PR head 갱신을 아직 반영하지 못해 "Head branch is
-          # out of date"·"not mergeable"로 간헐 실패한다. 간격을 늘려 가며 다시 시도한다.
+          # Right after the confirm commit is pushed, GitHub may not have picked up the new PR
+          # head yet and intermittently fails with "Head branch is out of date" / "not
+          # mergeable". Retry with growing intervals.
           MERGED=false
           MAX_ATTEMPTS=4
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
@@ -430,11 +441,12 @@ jobs:
             fi
             cat "$ERR_FILE" >&2
             [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && break
-            # 충돌은 기다려도 풀리지 않는다
+            # A conflict never resolves by waiting
             [ "$(gh pr view "$PR_NUMBER" --json mergeable -q .mergeable 2>/dev/null)" = "CONFLICTING" ] && break
             if grep -qi "out of date" "$ERR_FILE"; then
-              # 브랜치 보호의 "최신 상태 요구"로 실제로 뒤처졌다면 base를 head에 병합해 따라잡는다
-              # (단순 반영 지연이면 "새 커밋 없음"으로 거절되고 그대로 재시도한다)
+              # If the head really fell behind because of branch protection's "require up to
+              # date" rule, merge base into head to catch up (a mere propagation delay is
+              # rejected as "no new commits" and simply retried)
               gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" > /dev/null 2>&1 \
                 && echo "head branch updated from base" || true
             fi
@@ -448,10 +460,10 @@ jobs:
             MERGEABLE=$(gh pr view "$PR_NUMBER" --json mergeable -q .mergeable 2>/dev/null || echo "unknown")
             ALLOW_MERGE_COMMIT=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_merge_commit' 2>/dev/null || echo "unknown")
             if [ "$MERGEABLE" = "CONFLICTING" ]; then
-              # 주로 main 직접 push 뒤 안전망 버전 bump가 develop에 반영되지 않았을 때다
-              echo "::error::릴리스 PR이 main와 충돌합니다 (버전 파일·CHANGELOG 등) — main에만 있는 커밋을 develop에 병합한 뒤 push하세요: git checkout develop && git merge origin/main (버전 줄 충돌은 어느 쪽을 택해도 다음 실행이 알맞게 다시 확정합니다)"
+              # Mostly happens when a safety-net version bump after a direct main push never reached develop
+              echo "::error::$(m wf_changelog.merge_conflict prod="main" dev="develop")"
             elif [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
-              echo "::error::이 레포는 merge commit이 비활성화되어 있습니다 — Settings에서 'Allow merge commits'를 켜세요; 릴리스 감지는 merge commit subject를 사용합니다"
+              echo "::error::$(m wf_changelog.merge_commit_disabled)"
             else
               echo "::error::PR merge failed after $MAX_ATTEMPTS attempts (allow_merge_commit=$ALLOW_MERGE_COMMIT) — check branch protection rules, required checks, and token permissions"
             fi
@@ -459,20 +471,32 @@ jobs:
           fi
 
   wait-for-merge-and-trigger-release:
-    name: Wait for merge and trigger RELEASE-PUBLISH (WORKFLOW_PAT 없이도 동작)
+    name: Wait for merge and trigger RELEASE-PUBLISH (works without WORKFLOW_PAT)
     needs: changelog-and-merge
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
+      # contents: read is needed for the sparse checkout that loads the message catalog
+      contents: read
       pull-requests: read
       actions: write
     steps:
+      # Only the message catalog and version.yml (language) are needed here
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
       - name: Poll for merge completion
         id: wait
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           MAX_WAIT=1800
           INTERVAL=20
@@ -483,7 +507,7 @@ jobs:
             PR_STATE=$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null || echo "")
             if [ "$PR_STATE" = "MERGED" ]; then
               MERGED=true
-              echo "PR #$PR_NUMBER 병합 확인 (경과 ${ELAPSED}s)"
+              echo "$(m wf_changelog.merge_confirmed pr="$PR_NUMBER" elapsed="$ELAPSED")"
               break
             fi
             sleep $INTERVAL
@@ -491,7 +515,7 @@ jobs:
           done
 
           if [ "$MERGED" != "true" ]; then
-            echo "::warning::PR #$PR_NUMBER 병합을 ${MAX_WAIT}s 내에 확인하지 못했습니다 — RELEASE-PUBLISH 자동 트리거를 건너뜁니다. WORKFLOW_PAT이 등록되어 있다면 기존 경로로 정상 진행되며, 없다면 필요 시 RELEASE-PUBLISH를 수동으로 workflow_dispatch 하세요."
+            echo "::warning::$(m wf_changelog.merge_timeout pr="$PR_NUMBER" max="$MAX_WAIT")"
           fi
 
           echo "merged=$MERGED" >> "$GITHUB_OUTPUT"
@@ -503,5 +527,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref main
-          echo "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)"
+          echo "$(m wf_changelog.release_publish_triggered)"

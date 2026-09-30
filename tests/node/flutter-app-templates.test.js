@@ -52,7 +52,7 @@ test("Fastfile.playstore는 Ruby 문법이 유효하다", { skip: SKIP_RUBY }, (
 
 test("Fastfile.playstore 상단에 사용자 소유 안내와 모드 매핑 표가 있다", () => {
   const text = readApp(ANDROID_FASTFILE);
-  assert.match(text, /이 파일은 사용자 소유입니다\. 모드별 동작을 여기서 수정하세요/);
+  assert.match(text, /This file is user-owned\. Edit the per-mode behavior here/);
   for (const mode of ["store_only", "store_prepare", "store_submit"]) {
     assert.match(text.split("default_platform")[0], new RegExp(mode), `모드 표에 ${mode}가 없습니다`);
   }
@@ -67,11 +67,11 @@ test("Fastfile.playstore가 읽는 환경변수는 공통 계약 §8과 정확�
   assert.deepStrictEqual([...read].sort(), [...ANDROID_ENV].sort());
 });
 
-test("Fastfile.playstore는 PACKAGE_NAME이 비면 한국어 안내와 함께 중단한다", () => {
+test("Fastfile.playstore는 PACKAGE_NAME이 비면 카탈로그 안내와 함께 중단한다", () => {
   const text = readApp(ANDROID_FASTFILE);
   assert.match(
     text,
-    /if package_name\.empty\?\s*\n\s*UI\.user_error!\("[^"\n]*ANDROID_PACKAGE_NAME secrets\/variables를 등록하세요/,
+    /if package_name\.empty\?\s*\n\s*UI\.user_error!\(paw_msg\("fastlane\.package_name_empty"\)\)/,
   );
 });
 
@@ -81,7 +81,7 @@ test("Fastfile.playstore는 배포 모드 3종을 트랙·상태로 매핑하고
   assert.match(text, /when "store_submit"\s*\n\s*\["production", "completed"\]/);
   assert.match(text, /when "store_only"\s*\n\s*\["internal", "completed"\]/);
   // else 분기(알 수 없는 값)도 store_only와 같은 internal 업로드
-  assert.match(text, /else\s*\n\s*UI\.important\("알 수 없는 DEPLOY_MODE[^\n]*store_only[^\n]*\n\s*\["internal", "completed"\]/);
+  assert.match(text, /else\s*\n\s*UI\.important\(paw_msg\("fastlane\.deploy_mode_unknown"[^\n]*\n\s*\["internal", "completed"\]/);
 });
 
 test("Fastfile.playstore의 upload_to_play_store 파라미터가 fastlane 공식 옵션 이름과 일치한다", () => {
@@ -162,7 +162,7 @@ test("ios Fastfile은 Ruby 문법이 유효하다", { skip: SKIP_RUBY }, () => {
 
 test("ios Fastfile 상단에 사용자 소유 안내와 모드 매핑 표가 있다", () => {
   const header = readApp(IOS_FASTFILE).split("default_platform")[0];
-  assert.match(header, /이 파일은 사용자 소유입니다\. 모드별 동작을 여기서 수정하세요/);
+  assert.match(header, /This file is user-owned\. Edit the per-mode behavior here/);
   for (const mode of ["store_only", "store_prepare", "store_submit"]) {
     assert.match(header, new RegExp(mode), `모드 표에 ${mode}가 없습니다`);
   }
@@ -196,10 +196,10 @@ test("ios Fastfile은 App Store Connect API 키로 인증한다", () => {
   assert.match(text, /api_key: api_key/);
 });
 
-test("ios Fastfile은 필수 환경변수가 비면 한국어 안내와 함께 중단한다", () => {
+test("ios Fastfile은 필수 환경변수가 비면 카탈로그 안내와 함께 중단한다", () => {
   assert.match(
     readApp(IOS_FASTFILE),
-    /UI\.user_error!\("#\{name\} 환경변수가 비어 있습니다\. 워크플로우에서 값을 전달하는지 확인하세요\."\)/,
+    /UI\.user_error!\(paw_msg\("fastlane\.env_empty", name: name\)\) if value\.empty\?/,
   );
 });
 
@@ -234,7 +234,7 @@ test("ios Fastfile은 배포 모드 3종을 분기하고 store_prepare는 심사
   assert.match(body, /when "store_prepare", "store_submit"/);
   assert.match(body, /when "store_only"/);
   // 모르는 값과 빈 값은 store_only와 같은 TestFlight 업로드로 처리
-  assert.match(body, /else\n\s*UI\.important\("알 수 없는 DEPLOY_MODE[^\n]*store_only[^\n]*\n\s*upload_ipa_to_testflight\(/);
+  assert.match(body, /else\n\s*UI\.important\(paw_msg\("fastlane\.deploy_mode_unknown"[^\n]*\n\s*upload_ipa_to_testflight\(/);
   // 심사 제출 여부는 store_submit일 때만 true — store_prepare는 false
   assert.match(body, /submit_for_review: deploy_mode == "store_submit"/);
   // 업로드는 TestFlight(pilot)가 하고, deliver는 이미 올라간 빌드를 App Store 버전에 연결만 한다

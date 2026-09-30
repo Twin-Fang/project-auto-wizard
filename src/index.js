@@ -98,10 +98,15 @@ async function runInner(argv, {
   let language;
   try {
     const savedVy = join(cwd, "version.yml");
-    language = resolveLanguage({
-      flag: opts.lang, env: process.env[LANG_ENV_VAR],
-      saved: existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")).language : null,
-    });
+    const saved = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")).language : null;
+    language = resolveLanguage({ flag: opts.lang, env: process.env[LANG_ENV_VAR], saved });
+    // An existing install without a saved language now falls back to English: say so once, since
+    // its workflow messages switch from Korean on the next update.
+    const existingWithoutLanguage = existsSync(savedVy) && !saved;
+    const unspecified = !normalizeLanguage(opts.lang) && !normalizeLanguage(process.env[LANG_ENV_VAR]);
+    if (existingWithoutLanguage && unspecified && ["full", "interactive"].includes(opts.mode)) {
+      console.error(t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
+    }
   } catch (e) {
     if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;

@@ -44,7 +44,7 @@ deploy: # deploy settings the wizard remembers (non-sensitive / safe to edit)
 | `version` | Current version, `x.y.z`. Updated by the release workflows. |
 | `version_code` | Monotonically increasing build number, bumped with every version (used by app builds). |
 | `project_types` | All project types. The first entry is the primary type; its version file is compared with `version.yml` during releases. |
-| `language` | Message language, `en` (default) or `ko`. Set with `--lang` or `PROJECT_AUTO_WIZARD_LANG`; kept on update. |
+| `language` | Message language for both the installer and the messages printed by the installed workflows and scripts, `en` (default) or `ko`. Set with `--lang` or `PROJECT_AUTO_WIZARD_LANG`; kept on update. An existing file without this key is treated as `en`; use `--lang ko` to keep Korean. |
 | `project_paths` | Per-type folder relative to the repository root. Omitted types live at the root. |
 | `deploy` | Non-secret values the wizard asked for per type (for example deploy ports), reused on the next run. Written only for types that have such values. |
 

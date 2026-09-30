@@ -189,7 +189,7 @@ function assertRenderedFlutterRoot(filename) {
 }
 
 // main push 앵커 → 모노레포에서 paths 필터 한 줄로 치환되고, 단일 레포에서는 주석으로 남는다.
-const PATHS_ANCHOR_LINE = "    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)";
+const PATHS_ANCHOR_LINE = "    # @wizard paths-anchor (in a monorepo the installer injects a paths filter here)";
 function assertPathsAnchor(filename) {
   const raw = rawWorkflow(filename);
   assert.strictEqual(raw.split("\n").filter((l) => l === PATHS_ANCHOR_LINE).length, 1, `${filename}: paths-anchor 줄`);
@@ -319,8 +319,8 @@ test("FIREBASE: FLUTTER_PROJECT_DIR 정비 — 레포 루트 기준 스텝은 �
   const blocks = jobBlocks(rawWorkflow(FIREBASE));
   // version.yml·changelog는 레포 루트 기준
   const prepare = blocks.get("prepare-build");
-  assert.match(prepare, /name: 현재 버전 정보 가져오기\n        id: current_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
-  assert.match(prepare, /name: 릴리즈 노트 생성\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: Get current version\n        id: current_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: Generate release notes\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
   // deploy 잡은 Flutter를 실행하지 않는다 — defaults 없이 AAB 경로에만 접두
   assert.ok(!blocks.get("deploy-firebase").includes("defaults:"));
   const text = rawWorkflow(FIREBASE);
@@ -526,10 +526,21 @@ test("IOS-TESTFLIGHT: 배포 모드 폴백 마커 — 설치 시 선택값이 �
   assert.ok(renderWorkflow(IOS_TESTFLIGHT, { iosDeployMode: "" }).includes("|| 'store_only' }}"));
 });
 
-test("IOS-TESTFLIGHT: ExportOptions.plist 플레이스홀더가 남아 있으면 명확한 메시지로 중단한다", () => {
+// Prints a catalog message in the given language through the installed CLI entry point.
+function catalogMessage(key, lang) {
+  const script = join(resolvePayloadRoot(), "scripts", "messages.py");
+  const r = spawnSync("python3", [script, "get", key], { encoding: "utf8", env: { ...process.env, PROJECT_AUTO_WIZARD_LANG: lang } });
+  assert.strictEqual(r.status, 0, r.stderr);
+  return r.stdout.trim();
+}
+
+test("IOS-TESTFLIGHT: stops with a clear message when ExportOptions.plist still has placeholders", () => {
   const verify = rawWorkflow(IOS_TESTFLIGHT).match(/- name: Verify ExportOptions\.plist\n[\s\S]*?(?=\n      - name: )/)[0];
   assert.ok(verify.includes("grep -Eq '__[A-Z][A-Z0-9_]*__' ExportOptions.plist"));
-  assert.ok(verify.includes("채워지지 않은 플레이스홀더"));
+  // The message comes from the catalog, so it follows the configured language (English by default)
+  assert.ok(verify.includes("m ios_testflight.plist_placeholders"));
+  assert.match(catalogMessage("ios_testflight.plist_placeholders", "en"), /unfilled placeholders/);
+  assert.ok(catalogMessage("ios_testflight.plist_placeholders", "ko").includes("채워지지 않은 플레이스홀더"));
   assert.ok(verify.includes("exit 1"));
   // 워크플로우 본문에 __TOKEN__ 리터럴이 실행 줄로 남으면 설치 후 검증(scanUnsubstituted)이 '미치환'으로 오탐한다
   assertNoUnsubstitutedPlaceholders(IOS_TESTFLIGHT);
@@ -590,8 +601,8 @@ test("IOS-TEST-TESTFLIGHT: FLUTTER_PROJECT_DIR 정비 — job 기본 경로·워
   assertJobsUseFlutterDir(IOS_TEST_TESTFLIGHT, ["prepare-test-build", "build-ios-test", "deploy-testflight-test"]);
   const blocks = jobBlocks(rawWorkflow(IOS_TEST_TESTFLIGHT));
   const prepare = blocks.get("prepare-test-build");
-  assert.match(prepare, /name: 테스트 빌드 버전 설정\n        id: test_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
-  assert.match(prepare, /name: 릴리즈 노트 생성\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: Set test build version\n        id: test_version\n        working-directory: \$\{\{ github\.workspace \}\}/);
+  assert.match(prepare, /name: Generate release notes\n        id: release_notes\n        working-directory: \$\{\{ github\.workspace \}\}/);
   const text = rawWorkflow(IOS_TEST_TESTFLIGHT);
   assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/ios/build/ipa/*.ipa\n"));
   assert.ok(text.includes("            ${{ env.FLUTTER_PROJECT_DIR }}/build-metadata.json\n"));
@@ -623,4 +634,68 @@ test("IOS-TEST-TESTFLIGHT: 끊긴 웹 마법사 안내가 없고 필요한 Secre
 test("IOS-TEST-TESTFLIGHT: 치환 후 미치환 토큰이 없고 actionlint 신규 경고가 없다", { skip: !HAS_ACTIONLINT && "actionlint 없음" }, () => {
   assertNoUnsubstitutedPlaceholders(IOS_TEST_TESTFLIGHT);
   assertActionlintClean(IOS_TEST_TESTFLIGHT);
+});
+
+// ---- language-following output (test APK, TestFlight, build trigger) -------------------------
+const LANGUAGE_AWARE = [
+  "PROJECT-FLUTTER-ANDROID-TEST-APK.yaml",
+  "PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml",
+  "PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml",
+  "PROJECT-FLUTTER-APP-BUILD-TRIGGER.yaml",
+];
+
+function catalogDump(lang) {
+  const script = join(resolvePayloadRoot(), "scripts", "messages.py");
+  const r = spawnSync("python3", [script, "dump", ""], { encoding: "utf8", env: { ...process.env, PROJECT_AUTO_WIZARD_LANG: lang } });
+  assert.strictEqual(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test("language-aware Flutter workflows: every message key they use exists in both catalogs", () => {
+  const en = catalogDump("en");
+  const ko = catalogDump("ko");
+  for (const filename of LANGUAGE_AWARE) {
+    const text = rawWorkflow(filename);
+    // bash: `m area.key ...`, github-script: msg('area.key'...), dump prefix in the Load messages step
+    const keys = new Set([
+      ...[...text.matchAll(/\bm ((?:apk_test|ios_testflight|ios_test_tf|app_trigger)\.\w+)/g)].map((m) => m[1]),
+      ...[...text.matchAll(/msg\('((?:apk_test|ios_test_tf|app_trigger)\.\w+)'/g)].map((m) => m[1]),
+    ].filter((key) => !key.endsWith("_"))); // keys ending in "_" are built dynamically (checked below)
+    assert.ok(keys.size > 0, `${filename}: no catalog keys found`);
+    for (const key of keys) {
+      assert.ok(key in en, `${filename}: ${key} is missing from the English catalog`);
+      assert.ok(key in ko, `${filename}: ${key} is missing from the Korean catalog`);
+    }
+    // Progress table rows are built as row('<step>', '<status>'): both parts must resolve to catalog keys
+    const area = /apk_test\./.test(text) ? "apk_test" : /ios_test_tf\./.test(text) ? "ios_test_tf" : null;
+    if (area) {
+      for (const m of text.matchAll(/\brow\('(\w+)', '(\w+)'/g)) {
+        assert.ok(`${area}.step_${m[1]}` in en, `${filename}: ${area}.step_${m[1]} is missing`);
+        assert.ok(`${area}.st_${m[2]}` in en, `${filename}: ${area}.st_${m[2]} is missing`);
+      }
+    }
+  }
+});
+
+test("language-aware Flutter workflows: no Korean text is left except the (선택 token in header comments", () => {
+  for (const filename of LANGUAGE_AWARE) {
+    const offenders = rawWorkflow(filename)
+      .split("\n")
+      .filter((line) => /[가-힣]/.test(line) && !/^#\s+[A-Z][A-Z0-9_]*\s+\(선택\):/.test(line));
+    assert.deepStrictEqual(offenders, [], `${filename}: Korean text belongs in the message catalog`);
+  }
+});
+
+test("language-aware Flutter workflows: English catalog has no Hangul and Korean keeps the original wording", () => {
+  const en = catalogDump("en");
+  const ko = catalogDump("ko");
+  for (const [key, value] of Object.entries(en)) {
+    if (!/^(apk_test|ios_testflight|ios_test_tf|app_trigger)\./.test(key)) continue;
+    assert.ok(!/[가-힣]/.test(value), `${key}: English message contains Hangul`);
+    assert.ok(key in ko, `${key}: missing from the Korean catalog`);
+  }
+  // Spot checks that the Korean texts are the previous ones
+  assert.strictEqual(ko["app_trigger.hint_pushed"], "1. 브랜치가 원격 저장소에 push되었는지 확인하세요");
+  assert.strictEqual(ko["ios_test_tf.log_ipa_failed"], "❌ 진행 상황 업데이트 완료: IPA 빌드 실패");
+  assert.strictEqual(en["ios_test_tf.log_ipa_failed"], "❌ Progress update complete: IPA build failed");
 });

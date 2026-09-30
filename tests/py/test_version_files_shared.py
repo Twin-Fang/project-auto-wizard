@@ -1,8 +1,8 @@
-"""Checks that release-time version reading (version_manager.py) reads the shared version-file examples as expected.
+"""Check that the release-time version read (version_manager.py) reads the shared version-file examples as expected.
 
-The same examples and expected values (tests/fixtures/version-files/expected.json) are used by the Node test
-(tests/node/version-files-shared.test.js), so if install-time detection and release-time reading
-diverge, one of the two fails.
+The same examples and expectations (tests/fixtures/version-files/expected.json) are
+used by the Node test (tests/node/version-files-shared.test.js), so a mismatch
+between install-time detection and release-time reading shows up on one side.
 """
 import contextlib
 import io
@@ -23,7 +23,7 @@ import version_manager  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "version-files"
 CASES = json.loads((ROOT / "expected.json").read_text(encoding="utf-8"))["cases"]
 
-# A missing version in the file falls back to the version.yml value, so use a non-version marker to tell them apart.
+# When no version is found in a file it falls back to the version.yml value, so a non-version marker is used to tell them apart.
 FALLBACK = "not-from-project-file"
 
 
@@ -43,7 +43,7 @@ class TestSharedVersionFiles(unittest.TestCase):
         shutil.copytree(ROOT / name, tmp, dirs_exist_ok=True)
         (Path(tmp) / "version.yml").write_text(
             f'version: "{FALLBACK}"\nproject_types: ["{case["type"]}"]\n', encoding="utf-8")
-        # version_manager works off the version.yml in the current directory.
+        # version_manager works against the version.yml in the current directory.
         cwd = os.getcwd()
         os.chdir(tmp)
         try:

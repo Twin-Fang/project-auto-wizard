@@ -55,25 +55,25 @@ test("gradlew·Podfile이 저장소에 없어도(기본 flutter create) 해당 �
   assert.strictEqual(pods, 4, "pod install 스텝 수");
 });
 
-test("iOS TestFlight 2종은 준비 job 초반에 Secret·ExportOptions 플레이스홀더·Fastfile을 먼저 검사한다", () => {
+test("both iOS TestFlight workflows check Secrets, ExportOptions placeholders and the Fastfile early in the prepare job", () => {
   for (const [f, job] of [["PROJECT-FLUTTER-IOS-TESTFLIGHT.yaml", "prepare-build"], ["PROJECT-FLUTTER-IOS-TEST-TESTFLIGHT.yaml", "prepare-test-build"]]) {
     const text = read(f);
     const jobStart = text.indexOf(`\n  ${job}:\n`);
-    const preflight = text.indexOf("- name: 배포 설정 사전 검증", jobStart);
-    assert.ok(jobStart !== -1 && preflight !== -1, `${f}: 사전 검증 스텝이 없습니다`);
-    // 같은 job 안, 인증서 import·Flutter 설치보다 앞이어야 기본 상태에서 안내 메시지에 도달한다
+    const preflight = text.indexOf("- name: Validate deploy settings", jobStart);
+    assert.ok(jobStart !== -1 && preflight !== -1, `${f}: pre-check step is missing`);
+    // Inside the same job and before the certificate import / Flutter install, so a default project reaches the guidance message
     const nextJob = text.slice(jobStart + 1).search(/\n  [a-z][\w-]*:\n/) + jobStart + 1;
-    assert.ok(preflight < nextJob, `${f}: 사전 검증이 ${job} 밖에 있습니다`);
-    assert.ok(preflight < text.indexOf("- name: Import Code-Signing Certificates"), `${f}: 인증서 import보다 뒤`);
-    assert.ok(preflight < text.indexOf("uses: subosito/flutter-action@v2"), `${f}: Flutter 설치보다 뒤`);
+    assert.ok(preflight < nextJob, `${f}: pre-check is outside ${job}`);
+    assert.ok(preflight < text.indexOf("- name: Import Code-Signing Certificates"), `${f}: pre-check comes after the certificate import`);
+    assert.ok(preflight < text.indexOf("uses: subosito/flutter-action@v2"), `${f}: pre-check comes after the Flutter install`);
     const step = text.slice(preflight, text.indexOf("\n      - name: ", preflight + 1));
     for (const secret of ["APPLE_CERTIFICATE_BASE64", "APPLE_PROVISIONING_PROFILE_BASE64", "IOS_PROVISIONING_PROFILE_NAME",
       "APP_STORE_CONNECT_API_KEY_ID", "APP_STORE_CONNECT_ISSUER_ID", "APP_STORE_CONNECT_API_KEY_BASE64"]) {
-      assert.ok(step.includes(`${secret}: \${{ secrets.${secret} }}`), `${f}: ${secret} 검사 누락`);
+      assert.ok(step.includes(`${secret}: \${{ secrets.${secret} }}`), `${f}: ${secret} check is missing`);
     }
-    assert.ok(step.includes("grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist"), `${f}: 플레이스홀더 검사 누락`);
-    assert.ok(step.includes("ios/fastlane/Fastfile"), `${f}: Fastfile 검사 누락`);
-    assert.ok(step.includes("exit 1"), `${f}: 누락 시 중단하지 않습니다`);
+    assert.ok(step.includes("grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist"), `${f}: placeholder check is missing`);
+    assert.ok(step.includes("ios/fastlane/Fastfile"), `${f}: Fastfile check is missing`);
+    assert.ok(step.includes("exit 1"), `${f}: does not stop when something is missing`);
   }
 });
 
@@ -92,8 +92,9 @@ test("빈 서명·자격증명 Secret을 성공처럼 넘기지 않는다", () =
     const start = text.indexOf("- name: Setup Release Keystore");
     const step = text.slice(start, text.indexOf("\n      - name: ", start));
     assert.ok(step.includes("for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do"), `${f}: 서명 Secret 검사 누락`);
-    assert.ok(step.includes("::error::서명 Secret이 비어 있습니다"), `${f}: 빈 서명 Secret으로 실패하지 않습니다`);
-    assert.ok(step.indexOf("exit 1") < step.indexOf("✅ Release Keystore 생성 완료"), `${f}: 검사 전에 성공 메시지를 냅니다`);
+    // the message text lives in the catalog; the step must fail through the signing_secrets_empty key
+    assert.ok(step.includes("::error::$(m flutter_a.signing_secrets_empty"), `${f}: 빈 서명 Secret으로 실패하지 않습니다`);
+    assert.ok(step.indexOf("exit 1") < step.indexOf("m flutter_a.release_keystore_created"), `${f}: 검사 전에 성공 메시지를 냅니다`);
   }
   const selfhosted = read("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml");
   assert.ok(selfhosted.includes('if [ -z "$DEBUG_KEYSTORE" ]; then'), "SELFHOSTED: DEBUG_KEYSTORE 검사 누락");
@@ -112,7 +113,7 @@ test("테스트·내부 배포 빌드는 서명 Secret이 없으면 경고 후 �
     const step = text.slice(start, text.indexOf("\n      - name: ", start));
     // 비어 있으면 실패 대신 경고 + debug 서명
     assert.ok(step.includes("::warning::"), `${f}: 빈 Secret 경고가 없습니다`);
-    assert.ok(!step.includes("::error::서명 Secret이 비어"), `${f}: 빈 Secret으로 실패합니다`);
+    assert.ok(!/::error::\$\(m [\w.]*signing_secrets_empty/.test(step), `${f}: 빈 Secret으로 실패합니다`);
     assert.ok(step.indexOf(fallback) < step.indexOf("exit 0"), `${f}: 폴백 후 종료가 없습니다`);
     // 깨진 값은 base64 디코딩이 실패하며 중단된다 (|| 로 삼키지 않음)
     assert.ok(/printf '%s' "\$\w+" \| base64 -d > \S+\n/.test(step), `${f}: 디코딩 실패를 삼킵니다`);
@@ -145,7 +146,7 @@ test("CI changes job은 push 때 이번 push의 커밋만 비교한다 (기본 �
 // Secret 없이 실행하면 빌드를 몇 분 진행한 뒤에야(또는 빈 SMB 주소로) 실패했다.
 // 첫 job의 체크아웃 직후에 필요한 Secret을 모두 점검하고, 선택 Secret은 점검하지 않는다.
 test("Android 배포 워크플로우는 체크아웃 직후 필수 Secret을 한꺼번에 점검한다", () => {
-  const STEP = "- name: 배포 사전 점검 (Secret)";
+  const STEP = "- name: Pre-deploy check (Secrets)";
   const SIGN = ["RELEASE_KEYSTORE_BASE64", "RELEASE_KEYSTORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD"];
   const cases = [
     ["PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml", ["SERVER_HOST", "SERVER_USER", "SERVER_PASSWORD"], ["DEBUG_KEYSTORE", "GOOGLE_SERVICES_JSON"]],
@@ -163,7 +164,7 @@ test("Android 배포 워크플로우는 체크아웃 직후 필수 Secret을 한
     const block = lines.slice(at, steps[2]).join("\n");
     for (const name of required) assert.ok(block.includes(`${name}: \${{ secrets.${name}`), `${f}: ${name} 점검 누락`);
     for (const name of optional) assert.ok(!block.includes(`secrets.${name} `), `${f}: 선택 Secret ${name}을 필수로 점검함`);
-    assert.match(block, /::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:\$MISSING/);
+    assert.match(block, /::error title=\$\(m flutter_a\.precheck_missing_title\)::\$\(m flutter_a\.precheck_missing_body missing="\$MISSING"\)/);
     assert.match(block, /exit 1/);
   }
 });
