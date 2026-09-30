@@ -403,7 +403,7 @@ jobs:
           BRANCH_NAME="${{ steps.issue_info.outputs.branch_name }}"
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
-          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           echo "commit_hash=$COMMIT_SHORT" >> $GITHUB_OUTPUT
 
@@ -705,7 +705,7 @@ jobs:
           fi
 
       - name: Import Code-Signing Certificates
-        uses: Apple-Actions/import-codesign-certs@v2
+        uses: Apple-Actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

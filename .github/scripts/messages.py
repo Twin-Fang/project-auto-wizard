@@ -75,8 +75,8 @@ def _version_yml_candidates(version_yml):
     return candidates
 
 
-def get_language(version_yml="version.yml"):
-    """Resolve the message language: env -> version.yml -> default.
+def _resolve_language(version_yml="version.yml"):
+    """(language, ignored): the resolved language and the unsupported value that was skipped on the way ('' if none).
 
     Same rules as the CLI (src/i18n): values are normalized and only supported ones count.
     Unlike the CLI, an unsupported env value is ignored instead of aborting, because a
@@ -84,7 +84,8 @@ def get_language(version_yml="version.yml"):
     non-UTF-8 version.yml is skipped; the first file that has a `language:` line decides."""
     env = normalize_language(os.environ.get(LANG_ENV))
     if env in SUPPORTED:
-        return env
+        return env, ""
+    ignored = env
     saved = ""
     for path in _version_yml_candidates(version_yml):
         try:
@@ -96,7 +97,14 @@ def get_language(version_yml="version.yml"):
         # A file without a language line says nothing; keep looking (monorepo subfolder copies etc.)
         if saved:
             break
-    return saved if saved in SUPPORTED else DEFAULT
+    if saved in SUPPORTED:
+        return saved, ignored
+    return DEFAULT, ignored or saved
+
+
+def get_language(version_yml="version.yml"):
+    """Resolve the message language: env -> version.yml -> default."""
+    return _resolve_language(version_yml)[0]
 
 
 def template(key, lang=None):
@@ -147,7 +155,11 @@ def main(argv):
         print(json.dumps(dump(argv[1]), ensure_ascii=False))
         return 0
     if argv == ["lang"]:
-        print(get_language())
+        lang, ignored = _resolve_language()
+        if ignored:
+            # stdout stays the bare language code (callers capture it); the notice goes to stderr
+            print(t("lang.fallback", lang, value=ignored, lang_code=lang, supported=", ".join(SUPPORTED)), file=sys.stderr)
+        print(lang)
         return 0
     print("usage: messages.py get KEY [name=value ...] | dump PREFIX | lang", file=sys.stderr)
     return 2
@@ -440,7 +452,7 @@ EN = {
     "cibuild.gate_failed": "Some jobs failed or were cancelled.",
     # --- cicd ---
     "cicd.precheck_secret_title": "Missing required Secret",
-    "cicd.precheck_secret_body": "GitHub Secrets not registered:{missing} — add them under Settings → Secrets and variables → Actions",
+    "cicd.precheck_secret_body": "Required GitHub Secrets are empty:{missing} — add them under Settings → Secrets and variables → Actions",
     "cicd.precheck_dockerfile_title": "Dockerfile not found",
     "cicd.precheck_dockerfile_body": "{path} does not exist. This workflow deploys a Docker image, so a Dockerfile is required (delete this workflow file if you do not deploy to a server)",
     "cicd.precheck_ok": "✅ Pre-check passed: all required Secrets and the Dockerfile are present",
@@ -515,7 +527,7 @@ EN = {
     "fastlane.play_deploy": "Play deploy: DEPLOY_MODE={deploy_mode} -> track={track}, release_status={release_status}",
     # --- flutter_a ---
     "flutter_a.precheck_missing_title": "Missing required Secret",
-    "flutter_a.precheck_missing_body": "GitHub Secrets not registered:{missing} - register them under Settings → Secrets and variables → Actions",
+    "flutter_a.precheck_missing_body": "Required GitHub Secrets are empty:{missing} — register them under Settings → Secrets and variables → Actions",
     "flutter_a.precheck_passed": "✅ Pre-check passed: all required Secrets are present",
     "flutter_a.debug_keystore_empty": "The DEBUG_KEYSTORE Secret is empty, so the build is signed with the runner's default debug key (the signature differs per build)",
     "flutter_a.debug_keystore_created": "Debug Keystore created (signed with DEBUG_KEYSTORE)",
@@ -881,6 +893,9 @@ EN = {
     "wf_changelog.merge_confirmed": "PR #{pr} merge confirmed (elapsed {elapsed}s)",
     "wf_changelog.merge_timeout": "Could not confirm the merge of PR #{pr} within {max}s — skipping the automatic RELEASE-PUBLISH trigger. If WORKFLOW_PAT is registered the normal path proceeds; otherwise run RELEASE-PUBLISH manually via workflow_dispatch if needed.",
     "wf_changelog.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch trigger requested (works without WORKFLOW_PAT)",
+    # --- lang ---
+    "lang.fallback": "Unsupported language '{value}' - falling back to '{lang_code}' (supported: {supported})",
+
     # --- wf_preview ---
     "wf_preview.chk_deleted_3": "3. Check that the branch has not been deleted",
     "wf_preview.chk_helper_exists": "1. Check that the Issue Helper comment exists",
@@ -962,7 +977,7 @@ EN = {
     "wf_preview.precheck_dockerfile_body": "{path} does not exist. This workflow deploys a Docker image, so a Dockerfile is required (delete this workflow file if you do not deploy to a server)",
     "wf_preview.precheck_dockerfile_title": "Dockerfile not found",
     "wf_preview.precheck_ok": "✅ Pre-check passed: all required Secrets and the Dockerfile are present",
-    "wf_preview.precheck_secret_body": "GitHub secrets not registered:{missing} — add them under Settings → Secrets and variables → Actions",
+    "wf_preview.precheck_secret_body": "Required GitHub Secrets are empty:{missing} — add them under Settings → Secrets and variables → Actions",
     "wf_preview.precheck_secret_title": "Missing required secrets",
     "wf_preview.precheck_skip_body": "Preview deploy secrets are not registered:{missing} — no preview could have been deployed, so there is nothing to remove",
     "wf_preview.precheck_skip_title": "Preview cleanup skipped",
@@ -1098,7 +1113,6 @@ EN = {
     "wf_spring_ci.fix_error": "- Fix the code based on the error messages",
     "wf_spring_ci.fix_test": "- If tests failed, run `./gradlew test` to run them locally",
     "wf_spring_ci.footer": "*🤖 Generated automatically by GitHub Actions - {time}*",
-    "wf_spring_ci.date_locale": "en-US",
     "wf_spring_ci.check_summary_success": "The build verification succeeded.",
     "wf_spring_ci.check_summary_failure": "The build verification failed.",
     "wf_spring_ci.check_compile": "Compile: {status}",
@@ -1245,7 +1259,7 @@ EN = {
     "version_manager.sync_project_version": "  project file: {version}",
     "version_manager.sync_mismatch": "Version mismatch detected, syncing to higher version: {version}",
     "version_manager.warn_format_invalid": "WARNING: version format invalid, cannot sync",
-    "version_manager.sync_multi": "Multi-type — reconciling all type files to version.yml version: {version}",
+    "version_manager.sync_reconciled": "Version files updated to match version.yml: {version}",
     "version_manager.sync_ok": "Version already in sync: {version}",
     "version_manager.err_invalid_version": "ERROR: invalid version format: {version}",
     "version_manager.err_invalid_version_xyz": "ERROR: invalid version format: {version} (must be x.y.z)",
@@ -1707,7 +1721,7 @@ KO = {
     "cibuild.gate_failed": "실패하거나 취소된 job이 있습니다.",
     # --- cicd ---
     "cicd.precheck_secret_title": "필수 Secret 누락",
-    "cicd.precheck_secret_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "cicd.precheck_secret_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "cicd.precheck_dockerfile_title": "Dockerfile 없음",
     "cicd.precheck_dockerfile_body": "{path} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)",
     "cicd.precheck_ok": "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다",
@@ -1782,7 +1796,7 @@ KO = {
     "fastlane.play_deploy": "Play 배포: DEPLOY_MODE={deploy_mode} → track={track}, release_status={release_status}",
     # --- flutter_a ---
     "flutter_a.precheck_missing_title": "필수 Secret 누락",
-    "flutter_a.precheck_missing_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "flutter_a.precheck_missing_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "flutter_a.precheck_passed": "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다",
     "flutter_a.debug_keystore_empty": "DEBUG_KEYSTORE Secret이 비어 있어 러너 기본 debug 키로 서명합니다 (빌드마다 서명이 달라집니다)",
     "flutter_a.debug_keystore_created": "Debug Keystore created (DEBUG_KEYSTORE로 서명)",
@@ -2148,6 +2162,9 @@ KO = {
     "wf_changelog.merge_confirmed": "PR #{pr} 병합 확인 (경과 {elapsed}s)",
     "wf_changelog.merge_timeout": "PR #{pr} 병합을 {max}s 내에 확인하지 못했습니다 — RELEASE-PUBLISH 자동 트리거를 건너뜁니다. WORKFLOW_PAT이 등록되어 있다면 기존 경로로 정상 진행되며, 없다면 필요 시 RELEASE-PUBLISH를 수동으로 workflow_dispatch 하세요.",
     "wf_changelog.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)",
+    # --- lang ---
+    "lang.fallback": "지원하지 않는 language 값 '{value}' - '{lang_code}'(으)로 대체합니다 (지원: {supported})",
+
     # --- wf_preview ---
     "wf_preview.chk_deleted_3": "3. 브랜치가 삭제되지 않았는지 확인하세요",
     "wf_preview.chk_helper_exists": "1. Issue Helper 댓글이 존재하는지 확인하세요",
@@ -2229,7 +2246,7 @@ KO = {
     "wf_preview.precheck_dockerfile_body": "{path} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)",
     "wf_preview.precheck_dockerfile_title": "Dockerfile 없음",
     "wf_preview.precheck_ok": "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다",
-    "wf_preview.precheck_secret_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "wf_preview.precheck_secret_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "wf_preview.precheck_secret_title": "필수 Secret 누락",
     "wf_preview.precheck_skip_body": "미리보기 배포용 Secret이 등록되지 않았습니다:{missing} — 배포된 미리보기가 없으므로 삭제할 것이 없습니다",
     "wf_preview.precheck_skip_title": "미리보기 정리 건너뜀",
@@ -2365,7 +2382,6 @@ KO = {
     "wf_spring_ci.fix_error": "- 에러 메시지를 참고하여 코드를 수정해주세요",
     "wf_spring_ci.fix_test": "- 테스트가 실패한 경우 `./gradlew test` 명령어로 테스트를 실행해보세요",
     "wf_spring_ci.footer": "*🤖 GitHub Actions에 의해 자동 생성됨 - {time}*",
-    "wf_spring_ci.date_locale": "ko-KR",
     "wf_spring_ci.check_summary_success": "빌드 검증이 성공했습니다.",
     "wf_spring_ci.check_summary_failure": "빌드 검증이 실패했습니다.",
     "wf_spring_ci.check_compile": "컴파일: {status}",
@@ -2512,7 +2528,7 @@ KO = {
     "version_manager.sync_project_version": "  프로젝트 파일: {version}",
     "version_manager.sync_mismatch": "버전 불일치를 감지해 더 높은 버전으로 맞춥니다: {version}",
     "version_manager.warn_format_invalid": "경고: 버전 형식이 올바르지 않아 동기화할 수 없습니다",
-    "version_manager.sync_multi": "멀티 타입 — 모든 타입 파일을 version.yml 버전({version})으로 맞춥니다",
+    "version_manager.sync_reconciled": "version.yml 버전({version})에 맞게 버전 파일을 수정했습니다",
     "version_manager.sync_ok": "이미 버전이 일치합니다: {version}",
     "version_manager.err_invalid_version": "오류: 올바르지 않은 버전 형식: {version}",
     "version_manager.err_invalid_version_xyz": "오류: 올바르지 않은 버전 형식: {version} (x.y.z 형식이어야 합니다)",
