@@ -1,0 +1,3 @@
+[      40ms] [ERROR] Unrecognized Content-Security-Policy directive 'prefetch-src'. @ https://docs.github.com/en/copilot/reference/ai-models/supported-models:0
+[     488ms] [LOG] Experiment readability_copilot is in the "treatment" group for this browser.
+Call function window.overrideControlGroup('readability_copilot', 'treatment' | 'control') to change your group for this session. @ https://docs.github.com/_next/static/chunks/pages/_app-d8486d163e8c96dd.js:76

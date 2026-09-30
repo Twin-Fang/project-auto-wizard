@@ -1,0 +1,2249 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - link "Skip to main content" [ref=e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=e6]:
+      - generic [ref=e9]:
+        - button "Close" [ref=e10] [cursor=pointer]
+        - paragraph [ref=e13]:
+          - text: This article is also available in
+          - link "Korean" [ref=e14] [cursor=pointer]:
+            - /url: /ko/copilot/reference/ai-models/supported-models
+          - text: .
+      - generic [ref=e16]:
+        - link "Skip to content" [ref=e17] [cursor=pointer]:
+          - /url: "#main-content"
+        - banner "Main" [ref=e20]:
+          - generic [ref=e21]:
+            - navigation "Header logo and title" [ref=e22]:
+              - list [ref=e23]:
+                - listitem [ref=e24]:
+                  - link "Github Home" [ref=e25] [cursor=pointer]:
+                    - /url: /en
+                - listitem [ref=e31]:
+                  - link "Docs home" [ref=e32] [cursor=pointer]:
+                    - /url: /en
+                    - generic [ref=e33]: GitHub Docs
+            - generic [ref=e35]:
+              - generic [ref=e36]: "Select your plan:"
+              - 'button "Select your plan: Free, Pro, & Team" [ref=e38] [cursor=pointer]':
+                - generic [ref=e39]: Free, Pro, & Team
+            - generic [ref=e46]:
+              - button "Search or ask Copilot" [ref=e48] [cursor=pointer]:
+                - generic [ref=e53]: /
+              - 'button "Select language: current language is English" [ref=e57] [cursor=pointer]':
+                - generic [ref=e61]: English
+              - link "Sign up" [ref=e70] [cursor=pointer]:
+                - /url: https://github.com/signup?ref_cta=Sign+up&ref_loc=docs+header&ref_page=docs
+    - generic [ref=e73]:
+      - generic [ref=e75]:
+        - button "Collapse sidebar" [expanded] [ref=e77] [cursor=pointer]
+        - navigation "Breadcrumb" [ref=e83]:
+          - list [ref=e84]:
+            - listitem [ref=e85]:
+              - link "Home" [ref=e86] [cursor=pointer]:
+                - /url: /en
+            - listitem [ref=e87]:
+              - link "GitHub Copilot" [ref=e88] [cursor=pointer]:
+                - /url: /en/copilot
+            - listitem [ref=e89]:
+              - link "Reference" [ref=e90] [cursor=pointer]:
+                - /url: /en/copilot/reference
+            - listitem [ref=e91]:
+              - link "AI models" [ref=e92] [cursor=pointer]:
+                - /url: /en/copilot/reference/ai-models
+            - listitem [ref=e93]:
+              - generic "Supported models"
+      - generic [ref=e94]:
+        - navigation [ref=e96]:
+          - heading [level=2] [ref=e98]:
+            - link "GitHub Copilot" [ref=e99] [cursor=pointer]:
+              - /url: /en/copilot
+          - region "Page navigation content" [ref=e100]:
+            - navigation "Product sidebar" [ref=e103]:
+              - list [ref=e104]:
+                - listitem [ref=e105]:
+                  - button "Get started" [ref=e107] [cursor=pointer]
+                - listitem [ref=e112]:
+                  - button "Concepts" [ref=e114] [cursor=pointer]
+                - listitem [ref=e119]:
+                  - button "How-tos" [ref=e121] [cursor=pointer]
+                - listitem [ref=e126]:
+                  - button "Reference" [expanded] [ref=e128] [cursor=pointer]
+                  - list "Reference" [ref=e133]:
+                    - listitem [ref=e134]:
+                      - link "Chat cheat sheet" [ref=e136] [cursor=pointer]:
+                        - /url: /en/copilot/reference/chat-cheat-sheet
+                    - listitem [ref=e139]:
+                      - link "Customization cheat sheet" [ref=e141] [cursor=pointer]:
+                        - /url: /en/copilot/reference/customization-cheat-sheet
+                    - listitem [ref=e144]:
+                      - button "AI models" [expanded] [ref=e146] [cursor=pointer]
+                      - list "AI models" [ref=e151]:
+                        - listitem [ref=e152]:
+                          - link "Supported models" [ref=e154] [cursor=pointer]:
+                            - /url: /en/copilot/reference/ai-models/supported-models
+                        - listitem [ref=e157]:
+                          - link "Model comparison" [ref=e159] [cursor=pointer]:
+                            - /url: /en/copilot/reference/ai-models/model-comparison
+                        - listitem [ref=e162]:
+                          - link "Model hosting" [ref=e164] [cursor=pointer]:
+                            - /url: /en/copilot/reference/ai-models/model-hosting
+                    - listitem [ref=e167]:
+                      - link "Copilot feature matrix" [ref=e169] [cursor=pointer]:
+                        - /url: /en/copilot/reference/copilot-feature-matrix
+                    - listitem [ref=e172]:
+                      - link "Keyboard shortcuts" [ref=e174] [cursor=pointer]:
+                        - /url: /en/copilot/reference/keyboard-shortcuts
+                    - listitem [ref=e177]:
+                      - button "Copilot CLI reference" [ref=e179] [cursor=pointer]
+                    - listitem [ref=e184]:
+                      - button "GitHub Copilot app reference" [ref=e186] [cursor=pointer]
+                    - listitem [ref=e191]:
+                      - link "Custom agents configuration" [ref=e193] [cursor=pointer]:
+                        - /url: /en/copilot/reference/custom-agents-configuration
+                    - listitem [ref=e196]:
+                      - link "Custom instructions support" [ref=e198] [cursor=pointer]:
+                        - /url: /en/copilot/reference/custom-instructions-support
+                    - listitem [ref=e201]:
+                      - link "Hooks reference" [ref=e203] [cursor=pointer]:
+                        - /url: /en/copilot/reference/hooks-reference
+                    - listitem [ref=e206]:
+                      - link "Supported surfaces for policies" [ref=e208] [cursor=pointer]:
+                        - /url: /en/copilot/reference/supported-surfaces-for-policies
+                    - listitem [ref=e211]:
+                      - link "Copilot allowlist reference" [ref=e213] [cursor=pointer]:
+                        - /url: /en/copilot/reference/copilot-allowlist-reference
+                    - listitem [ref=e216]:
+                      - link "Metrics data" [ref=e218] [cursor=pointer]:
+                        - /url: /en/copilot/reference/metrics-data
+                    - listitem [ref=e221]:
+                      - button "Copilot billing" [ref=e223] [cursor=pointer]
+                    - listitem [ref=e228]:
+                      - link "Review excluded files" [ref=e230] [cursor=pointer]:
+                        - /url: /en/copilot/reference/review-excluded-files
+                    - listitem [ref=e233]:
+                      - button "Copilot usage metrics" [ref=e235] [cursor=pointer]
+                    - listitem [ref=e240]:
+                      - button "Enterprise administrators" [ref=e242] [cursor=pointer]
+                - listitem [ref=e247]:
+                  - button "Tutorials" [ref=e249] [cursor=pointer]
+                - listitem [ref=e254]:
+                  - button "Responsible use" [ref=e256] [cursor=pointer]
+        - generic [ref=e261]:
+          - main [ref=e262]:
+            - button "In this article" [ref=e265] [cursor=pointer]
+            - generic [ref=e270]:
+              - heading "Supported AI models in GitHub Copilot" [level=1] [ref=e273]
+              - generic [ref=e274]:
+                - paragraph [ref=e276]: Learn about the supported AI models in GitHub Copilot.
+                - generic [ref=e278]:
+                  - button "Copy markdown" [ref=e279] [cursor=pointer]
+                  - button "More Markdown options" [ref=e281] [cursor=pointer]
+              - generic [ref=e286]:
+                - paragraph [ref=e287]:
+                  - text: GitHub Copilot supports multiple AI models, each with different strengths. Some prioritize speed and cost-efficiency, while others are optimized for accuracy, reasoning, or multimodal inputs. The right model depends on your task. For a side-by-side comparison to help you choose, see
+                  - link "AI model comparison" [ref=e288] [cursor=pointer]:
+                    - /url: /en/copilot/reference/ai-models/model-comparison
+                  - text: .
+                - paragraph [ref=e289]: The models available to you depend on your Copilot plan and where you're using Copilot, such as GitHub.com or an IDE.
+                - generic [ref=e290]:
+                  - paragraph [ref=e291]: Note
+                  - paragraph [ref=e294]: Model availability is subject to change. Some models may be replaced or updated over time.
+                - paragraph [ref=e295]: For all of the default AI models, input prompts and output completions run through GitHub Copilot's content filters for harmful, offensive, or off-topic content, and for public code matching when enabled.
+                - heading [level=2] [ref=e296]:
+                  - link "Supported AI models in Copilot" [ref=e297] [cursor=pointer]:
+                    - /url: "#supported-ai-models-in-copilot"
+                - paragraph [ref=e299]: This table lists the AI models available in Copilot, along with their release status.
+                - table [ref=e301]:
+                  - rowgroup [ref=e302]:
+                    - row [ref=e303]:
+                      - columnheader "Model name" [ref=e304]
+                      - columnheader "Provider" [ref=e305]
+                      - columnheader "Release status" [ref=e306]
+                  - rowgroup [ref=e307]:
+                    - row [ref=e308]:
+                      - rowheader "GPT-5 mini" [ref=e309]
+                      - cell "OpenAI" [ref=e310]
+                      - cell "GA" [ref=e311]
+                    - row [ref=e312]:
+                      - rowheader "GPT-5.3-Codex" [ref=e313]
+                      - cell "OpenAI" [ref=e314]
+                      - cell "GA" [ref=e315]
+                    - row [ref=e316]:
+                      - rowheader "GPT-5.4" [ref=e317]
+                      - cell "OpenAI" [ref=e318]
+                      - cell "GA" [ref=e319]
+                    - row [ref=e320]:
+                      - rowheader "GPT-5.4 mini" [ref=e321]
+                      - cell "OpenAI" [ref=e322]
+                      - cell "GA" [ref=e323]
+                    - row [ref=e324]:
+                      - rowheader [ref=e325]:
+                        - text: GPT-5.4 nano
+                        - superscript [ref=e326]:
+                          - link "[1]" [ref=e327] [cursor=pointer]:
+                            - /url: "#user-content-fn-gpt54nano"
+                      - cell "OpenAI" [ref=e328]
+                      - cell "GA" [ref=e329]
+                    - row [ref=e330]:
+                      - rowheader "GPT-5.5" [ref=e331]
+                      - cell "OpenAI" [ref=e332]
+                      - cell "GA" [ref=e333]
+                    - row [ref=e334]:
+                      - rowheader "GPT-5.6 Luna" [ref=e335]
+                      - cell "OpenAI" [ref=e336]
+                      - cell "GA" [ref=e337]
+                    - row [ref=e338]:
+                      - rowheader "GPT-5.6 Sol" [ref=e339]
+                      - cell "OpenAI" [ref=e340]
+                      - cell "GA" [ref=e341]
+                    - row [ref=e342]:
+                      - rowheader "GPT-5.6 Terra" [ref=e343]
+                      - cell "OpenAI" [ref=e344]
+                      - cell "GA" [ref=e345]
+                    - row [ref=e346]:
+                      - rowheader "GPT-6 Astra" [ref=e347]
+                      - cell "OpenAI" [ref=e348]
+                      - cell "GA" [ref=e349]
+                    - row [ref=e350]:
+                      - rowheader "GPT-6 Luna" [ref=e351]
+                      - cell "OpenAI" [ref=e352]
+                      - cell "GA" [ref=e353]
+                    - row [ref=e354]:
+                      - rowheader "GPT-6 Sol" [ref=e355]
+                      - cell "OpenAI" [ref=e356]
+                      - cell "GA" [ref=e357]
+                    - row [ref=e358]:
+                      - rowheader [ref=e359]:
+                        - text: Claude Fable 5
+                        - superscript [ref=e360]:
+                          - link "[2]" [ref=e361] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-fable-5"
+                      - cell "Anthropic" [ref=e362]
+                      - cell "GA" [ref=e363]
+                    - row [ref=e364]:
+                      - rowheader [ref=e365]:
+                        - text: Claude Fable 5.1
+                        - superscript [ref=e366]:
+                          - link "[2]" [ref=e367] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-fable-5"
+                      - cell "Anthropic" [ref=e368]
+                      - cell "GA" [ref=e369]
+                    - row [ref=e370]:
+                      - rowheader "Claude Haiku 4.5" [ref=e371]
+                      - cell "Anthropic" [ref=e372]
+                      - cell "GA" [ref=e373]
+                    - row [ref=e374]:
+                      - rowheader "Claude Opus 4.7" [ref=e375]
+                      - cell "Anthropic" [ref=e376]
+                      - cell "GA" [ref=e377]
+                    - row [ref=e378]:
+                      - rowheader "Claude Opus 4.8" [ref=e379]
+                      - cell "Anthropic" [ref=e380]
+                      - cell "GA" [ref=e381]
+                    - row [ref=e382]:
+                      - rowheader "Claude Opus 4.8 (fast mode) (preview)" [ref=e383]
+                      - cell "Anthropic" [ref=e384]
+                      - cell "GA" [ref=e385]
+                    - row [ref=e386]:
+                      - rowheader "Claude Opus 5" [ref=e387]
+                      - cell "Anthropic" [ref=e388]
+                      - cell "GA" [ref=e389]
+                    - row [ref=e390]:
+                      - rowheader "Claude Opus 5.5" [ref=e391]
+                      - cell "Anthropic" [ref=e392]
+                      - cell "GA" [ref=e393]
+                    - row [ref=e394]:
+                      - rowheader "Claude Sonnet 4.6" [ref=e395]
+                      - cell "Anthropic" [ref=e396]
+                      - cell "GA" [ref=e397]
+                    - row [ref=e398]:
+                      - rowheader "Claude Sonnet 5" [ref=e399]
+                      - cell "Anthropic" [ref=e400]
+                      - cell "GA" [ref=e401]
+                    - row [ref=e402]:
+                      - rowheader "Gemini 3.5 Flash" [ref=e403]
+                      - cell "Google" [ref=e404]
+                      - cell "GA" [ref=e405]
+                    - row [ref=e406]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e407]
+                      - cell "Google" [ref=e408]
+                      - cell "GA" [ref=e409]
+                    - row [ref=e410]:
+                      - rowheader "Gemini 3.7 Flash" [ref=e411]
+                      - cell "Google" [ref=e412]
+                      - cell "GA" [ref=e413]
+                    - row [ref=e414]:
+                      - rowheader "Gemini 3.8 Flash" [ref=e415]
+                      - cell "Google" [ref=e416]
+                      - cell "GA" [ref=e417]
+                    - row [ref=e418]:
+                      - rowheader [ref=e419]:
+                        - text: MAI-Code-1.1-Flash
+                        - superscript [ref=e420]:
+                          - link "[3]" [ref=e421] [cursor=pointer]:
+                            - /url: "#user-content-fn-mai-models"
+                      - cell "Microsoft" [ref=e422]
+                      - cell "GA" [ref=e423]
+                    - row [ref=e424]:
+                      - rowheader "Kimi K2.7 Code" [ref=e425]
+                      - cell "Moonshot AI" [ref=e426]
+                      - cell "GA" [ref=e427]
+                    - row [ref=e428]:
+                      - rowheader "Kimi K3" [ref=e429]
+                      - cell "Moonshot AI" [ref=e430]
+                      - cell "GA" [ref=e431]
+                    - row [ref=e432]:
+                      - rowheader "Grok 4.5" [ref=e433]
+                      - cell "xAI" [ref=e434]
+                      - cell "GA" [ref=e435]
+                    - row [ref=e436]:
+                      - rowheader "Grok 4.6" [ref=e437]
+                      - cell "xAI" [ref=e438]
+                      - cell "GA" [ref=e439]
+                    - row [ref=e440]:
+                      - rowheader "Grok 4.7" [ref=e441]
+                      - cell "xAI" [ref=e442]
+                      - cell "GA" [ref=e443]
+                - heading [level=2] [ref=e444]:
+                  - link "Supported AI models in Auto model selection" [ref=e445] [cursor=pointer]:
+                    - /url: "#supported-ai-models-in-auto-model-selection"
+                - paragraph [ref=e447]:
+                  - text: This table lists the supported AI models for Auto model selection. Available models may be limited by model policies. For example, as the long term support model, GPT-5.3-Codex will be used in the event no other models are available. See
+                  - link "Base and long-term support (LTS) models" [ref=e448] [cursor=pointer]:
+                    - /url: /en/copilot/concepts/models/fallback-and-lts-models
+                  - text: and
+                  - link "About Copilot auto model selection" [ref=e449] [cursor=pointer]:
+                    - /url: /en/copilot/concepts/models/auto-model-selection
+                  - text: .
+                - table [ref=e451]:
+                  - rowgroup [ref=e452]:
+                    - row [ref=e453]:
+                      - columnheader "Model" [ref=e454]
+                      - columnheader "Copilot cloud agent" [ref=e455]
+                      - columnheader "Copilot Chat" [ref=e456]
+                      - columnheader "Copilot CLI" [ref=e457]
+                      - columnheader "GitHub Copilot app" [ref=e458]
+                  - rowgroup [ref=e459]:
+                    - row [ref=e460]:
+                      - rowheader "GPT-5.4" [ref=e461]
+                      - cell [ref=e462]:
+                        - img "Not included" [ref=e463]
+                      - cell [ref=e465]:
+                        - img "Included" [ref=e466]
+                      - cell [ref=e468]:
+                        - img "Not included" [ref=e469]
+                      - cell [ref=e471]:
+                        - img "Not included" [ref=e472]
+                    - row [ref=e474]:
+                      - rowheader "GPT-5.5" [ref=e475]
+                      - cell [ref=e476]:
+                        - img "Included" [ref=e477]
+                      - cell [ref=e479]:
+                        - img "Included" [ref=e480]
+                      - cell [ref=e482]:
+                        - img "Included" [ref=e483]
+                      - cell [ref=e485]:
+                        - img "Included" [ref=e486]
+                    - row [ref=e488]:
+                      - rowheader "GPT-5.6 Luna" [ref=e489]
+                      - cell [ref=e490]:
+                        - img "Included" [ref=e491]
+                      - cell [ref=e493]:
+                        - img "Included" [ref=e494]
+                      - cell [ref=e496]:
+                        - img "Included" [ref=e497]
+                      - cell [ref=e499]:
+                        - img "Included" [ref=e500]
+                    - row [ref=e502]:
+                      - rowheader "GPT-5.6 Sol" [ref=e503]
+                      - cell [ref=e504]:
+                        - img "Included" [ref=e505]
+                      - cell [ref=e507]:
+                        - img "Included" [ref=e508]
+                      - cell [ref=e510]:
+                        - img "Included" [ref=e511]
+                      - cell [ref=e513]:
+                        - img "Included" [ref=e514]
+                    - row [ref=e516]:
+                      - rowheader "GPT-5.6 Terra" [ref=e517]
+                      - cell [ref=e518]:
+                        - img "Included" [ref=e519]
+                      - cell [ref=e521]:
+                        - img "Included" [ref=e522]
+                      - cell [ref=e524]:
+                        - img "Included" [ref=e525]
+                      - cell [ref=e527]:
+                        - img "Included" [ref=e528]
+                    - row [ref=e530]:
+                      - rowheader "GPT-6 Astra" [ref=e531]
+                      - cell [ref=e532]:
+                        - img "Included" [ref=e533]
+                      - cell [ref=e535]:
+                        - img "Included" [ref=e536]
+                      - cell [ref=e538]:
+                        - img "Included" [ref=e539]
+                      - cell [ref=e541]:
+                        - img "Included" [ref=e542]
+                    - row [ref=e544]:
+                      - rowheader "GPT-6 Luna" [ref=e545]
+                      - cell [ref=e546]:
+                        - img "Included" [ref=e547]
+                      - cell [ref=e549]:
+                        - img "Included" [ref=e550]
+                      - cell [ref=e552]:
+                        - img "Included" [ref=e553]
+                      - cell [ref=e555]:
+                        - img "Included" [ref=e556]
+                    - row [ref=e558]:
+                      - rowheader "GPT-6 Sol" [ref=e559]
+                      - cell [ref=e560]:
+                        - img "Included" [ref=e561]
+                      - cell [ref=e563]:
+                        - img "Included" [ref=e564]
+                      - cell [ref=e566]:
+                        - img "Included" [ref=e567]
+                      - cell [ref=e569]:
+                        - img "Included" [ref=e570]
+                    - row [ref=e572]:
+                      - rowheader "Claude Haiku 4.5" [ref=e573]
+                      - cell [ref=e574]:
+                        - img "Included" [ref=e575]
+                      - cell [ref=e577]:
+                        - img "Included" [ref=e578]
+                      - cell [ref=e580]:
+                        - img "Included" [ref=e581]
+                      - cell [ref=e583]:
+                        - img "Included" [ref=e584]
+                    - row [ref=e586]:
+                      - rowheader "Claude Opus 4.8" [ref=e587]
+                      - cell [ref=e588]:
+                        - img "Included" [ref=e589]
+                      - cell [ref=e591]:
+                        - img "Included" [ref=e592]
+                      - cell [ref=e594]:
+                        - img "Included" [ref=e595]
+                      - cell [ref=e597]:
+                        - img "Included" [ref=e598]
+                    - row [ref=e600]:
+                      - rowheader "Claude Opus 5" [ref=e601]
+                      - cell [ref=e602]:
+                        - img "Included" [ref=e603]
+                      - cell [ref=e605]:
+                        - img "Included" [ref=e606]
+                      - cell [ref=e608]:
+                        - img "Included" [ref=e609]
+                      - cell [ref=e611]:
+                        - img "Included" [ref=e612]
+                    - row [ref=e614]:
+                      - rowheader "Claude Opus 5.5" [ref=e615]
+                      - cell [ref=e616]:
+                        - img "Included" [ref=e617]
+                      - cell [ref=e619]:
+                        - img "Included" [ref=e620]
+                      - cell [ref=e622]:
+                        - img "Included" [ref=e623]
+                      - cell [ref=e625]:
+                        - img "Included" [ref=e626]
+                    - row [ref=e628]:
+                      - rowheader "Claude Sonnet 4.6" [ref=e629]
+                      - cell [ref=e630]:
+                        - img "Not included" [ref=e631]
+                      - cell [ref=e633]:
+                        - img "Included" [ref=e634]
+                      - cell [ref=e636]:
+                        - img "Not included" [ref=e637]
+                      - cell [ref=e639]:
+                        - img "Not included" [ref=e640]
+                    - row [ref=e642]:
+                      - rowheader "Claude Sonnet 5" [ref=e643]
+                      - cell [ref=e644]:
+                        - img "Included" [ref=e645]
+                      - cell [ref=e647]:
+                        - img "Included" [ref=e648]
+                      - cell [ref=e650]:
+                        - img "Included" [ref=e651]
+                      - cell [ref=e653]:
+                        - img "Included" [ref=e654]
+                    - row [ref=e656]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e657]
+                      - cell [ref=e658]:
+                        - img "Included" [ref=e659]
+                      - cell [ref=e661]:
+                        - img "Included" [ref=e662]
+                      - cell [ref=e664]:
+                        - img "Included" [ref=e665]
+                      - cell [ref=e667]:
+                        - img "Included" [ref=e668]
+                    - row [ref=e670]:
+                      - rowheader "Gemini 3.7 Flash" [ref=e671]
+                      - cell [ref=e672]:
+                        - img "Included" [ref=e673]
+                      - cell [ref=e675]:
+                        - img "Included" [ref=e676]
+                      - cell [ref=e678]:
+                        - img "Included" [ref=e679]
+                      - cell [ref=e681]:
+                        - img "Included" [ref=e682]
+                    - row [ref=e684]:
+                      - rowheader "MAI-Code-1.1-Flash" [ref=e685]
+                      - cell [ref=e686]:
+                        - img "Included" [ref=e687]
+                      - cell [ref=e689]:
+                        - img "Included" [ref=e690]
+                      - cell [ref=e692]:
+                        - img "Included" [ref=e693]
+                      - cell [ref=e695]:
+                        - img "Included" [ref=e696]
+                - heading [level=2] [ref=e698]:
+                  - link "Models with extended capabilities" [ref=e699] [cursor=pointer]:
+                    - /url: "#models-with-extended-capabilities"
+                - paragraph [ref=e701]: The latest Copilot models support the following extended capabilities.
+                - list [ref=e702]:
+                  - listitem [ref=e703]:
+                    - strong [ref=e704]: 1 million token context window
+                    - text: ": Allows the model to process significantly more content in a single session. This is useful when working across large codebases, long documents, or complex multi-file projects. When you select a supported model, you can choose between the default context size or the extended (1 million token) context."
+                  - listitem [ref=e705]:
+                    - strong [ref=e706]: Configurable reasoning levels
+                    - text: ": Controls the depth of the model's reasoning process before it generates a response. When you select a supported model, you can choose which reasoning level you want to use. Higher reasoning levels can improve the quality of responses to complex problems."
+                - paragraph [ref=e707]: Choosing a larger context window or higher reasoning will impact AI credits consumption; more tokens will be consumed, so more credits will be used. For this reason, we recommend that you use the regular context window and regular reasoning by default, selecting the larger context window and higher reasoning for more complex tasks only.
+                - generic [ref=e708]:
+                  - paragraph [ref=e709]: Note
+                  - paragraph
+                  - list [ref=e712]:
+                    - listitem [ref=e713]: The 1 million token context window is available in Visual Studio Code and Copilot CLI only.
+                    - listitem [ref=e714]: Configurable reasoning levels are available in Visual Studio Code, Copilot CLI, and Copilot cloud agent.
+                    - listitem [ref=e715]:
+                      - text: Some models have extended capability pricing see
+                      - link "Models and pricing for GitHub Copilot" [ref=e716] [cursor=pointer]:
+                        - /url: /en/copilot/reference/copilot-billing/models-and-pricing#pricing-tables
+                - table [ref=e718]:
+                  - rowgroup [ref=e719]:
+                    - row [ref=e720]:
+                      - columnheader "Model" [ref=e721]
+                      - columnheader "1 million token context window" [ref=e722]
+                      - columnheader "Configurable reasoning" [ref=e723]
+                  - rowgroup [ref=e724]:
+                    - row [ref=e725]:
+                      - rowheader "Claude Sonnet 4.6" [ref=e726]
+                      - cell [ref=e727]:
+                        - img "Supported" [ref=e728]
+                      - cell [ref=e730]:
+                        - img "Supported" [ref=e731]
+                    - row [ref=e733]:
+                      - rowheader "Claude Opus 4.7" [ref=e734]
+                      - cell [ref=e735]:
+                        - img "Supported" [ref=e736]
+                      - cell [ref=e738]:
+                        - img "Supported" [ref=e739]
+                    - row [ref=e741]:
+                      - rowheader "Claude Opus 4.8" [ref=e742]
+                      - cell [ref=e743]:
+                        - img "Supported" [ref=e744]
+                      - cell [ref=e746]:
+                        - img "Supported" [ref=e747]
+                    - row [ref=e749]:
+                      - rowheader "Claude Opus 5" [ref=e750]
+                      - cell [ref=e751]:
+                        - img "Supported" [ref=e752]
+                      - cell [ref=e754]:
+                        - img "Supported" [ref=e755]
+                    - row [ref=e757]:
+                      - rowheader "Claude Opus 5.5" [ref=e758]
+                      - cell [ref=e759]:
+                        - img "Supported" [ref=e760]
+                      - cell [ref=e762]:
+                        - img "Supported" [ref=e763]
+                    - row [ref=e765]:
+                      - rowheader "Claude Sonnet 5" [ref=e766]
+                      - cell [ref=e767]:
+                        - img "Supported" [ref=e768]
+                      - cell [ref=e770]:
+                        - img "Supported" [ref=e771]
+                    - row [ref=e773]:
+                      - rowheader "Claude Opus 4.8 (fast mode) (preview)" [ref=e774]
+                      - cell [ref=e775]:
+                        - img "Not supported" [ref=e776]
+                      - cell [ref=e778]:
+                        - img "Supported" [ref=e779]
+                    - row [ref=e781]:
+                      - rowheader "Claude Fable 5" [ref=e782]
+                      - cell [ref=e783]:
+                        - img "Supported" [ref=e784]
+                      - cell [ref=e786]:
+                        - img "Supported" [ref=e787]
+                    - row [ref=e789]:
+                      - rowheader "Claude Fable 5.1" [ref=e790]
+                      - cell [ref=e791]:
+                        - img "Supported" [ref=e792]
+                      - cell [ref=e794]:
+                        - img "Supported" [ref=e795]
+                    - row [ref=e797]:
+                      - rowheader "GPT-5.3-Codex" [ref=e798]
+                      - cell [ref=e799]:
+                        - img "Supported" [ref=e800]
+                      - cell [ref=e802]:
+                        - img "Supported" [ref=e803]
+                    - row [ref=e805]:
+                      - rowheader "GPT-5.4" [ref=e806]
+                      - cell [ref=e807]:
+                        - img "Supported" [ref=e808]
+                      - cell [ref=e810]:
+                        - img "Supported" [ref=e811]
+                    - row [ref=e813]:
+                      - rowheader "GPT-5.5" [ref=e814]
+                      - cell [ref=e815]:
+                        - img "Supported" [ref=e816]
+                      - cell [ref=e818]:
+                        - img "Supported" [ref=e819]
+                    - row [ref=e821]:
+                      - rowheader "GPT-5.6 Luna" [ref=e822]
+                      - cell [ref=e823]:
+                        - img "Supported" [ref=e824]
+                      - cell [ref=e826]:
+                        - img "Supported" [ref=e827]
+                    - row [ref=e829]:
+                      - rowheader "GPT-5.6 Sol" [ref=e830]
+                      - cell [ref=e831]:
+                        - img "Supported" [ref=e832]
+                      - cell [ref=e834]:
+                        - img "Supported" [ref=e835]
+                    - row [ref=e837]:
+                      - rowheader "GPT-5.6 Terra" [ref=e838]
+                      - cell [ref=e839]:
+                        - img "Supported" [ref=e840]
+                      - cell [ref=e842]:
+                        - img "Supported" [ref=e843]
+                    - row [ref=e845]:
+                      - rowheader "GPT-6 Astra" [ref=e846]
+                      - cell [ref=e847]:
+                        - img "Supported" [ref=e848]
+                      - cell [ref=e850]:
+                        - img "Supported" [ref=e851]
+                    - row [ref=e853]:
+                      - rowheader "GPT-6 Luna" [ref=e854]
+                      - cell [ref=e855]:
+                        - img "Supported" [ref=e856]
+                      - cell [ref=e858]:
+                        - img "Supported" [ref=e859]
+                    - row [ref=e861]:
+                      - rowheader "GPT-6 Sol" [ref=e862]
+                      - cell [ref=e863]:
+                        - img "Supported" [ref=e864]
+                      - cell [ref=e866]:
+                        - img "Supported" [ref=e867]
+                    - row [ref=e869]:
+                      - rowheader "Kimi K3" [ref=e870]
+                      - cell [ref=e871]:
+                        - img "Supported" [ref=e872]
+                      - cell [ref=e874]:
+                        - img "Supported" [ref=e875]
+                - heading [level=2] [ref=e877]:
+                  - link "Supported AI models per client" [ref=e878] [cursor=pointer]:
+                    - /url: "#supported-ai-models-per-client"
+                - paragraph [ref=e880]: The following table shows which models are available in each client.
+                - table [ref=e882]:
+                  - rowgroup [ref=e883]:
+                    - row [ref=e884]:
+                      - columnheader "Model" [ref=e885]
+                      - columnheader "GitHub.com" [ref=e886]
+                      - columnheader "Copilot CLI" [ref=e887]
+                      - columnheader "Visual Studio Code" [ref=e888]
+                      - columnheader "Visual Studio" [ref=e889]
+                      - columnheader "Eclipse" [ref=e890]
+                      - columnheader "Xcode" [ref=e891]
+                      - columnheader "JetBrains IDEs" [ref=e892]
+                  - rowgroup [ref=e893]:
+                    - row [ref=e894]:
+                      - rowheader "Claude Haiku 4.5" [ref=e895]
+                      - cell [ref=e896]:
+                        - img "Included" [ref=e897]
+                      - cell [ref=e899]:
+                        - img "Included" [ref=e900]
+                      - cell [ref=e902]:
+                        - img "Included" [ref=e903]
+                      - cell [ref=e905]:
+                        - img "Included" [ref=e906]
+                      - cell [ref=e908]:
+                        - img "Included" [ref=e909]
+                      - cell [ref=e911]:
+                        - img "Included" [ref=e912]
+                      - cell [ref=e914]:
+                        - img "Included" [ref=e915]
+                    - row [ref=e917]:
+                      - rowheader "Claude Opus 4.7" [ref=e918]
+                      - cell [ref=e919]:
+                        - img "Included" [ref=e920]
+                      - cell [ref=e922]:
+                        - img "Included" [ref=e923]
+                      - cell [ref=e925]:
+                        - img "Included" [ref=e926]
+                      - cell [ref=e928]:
+                        - img "Included" [ref=e929]
+                      - cell [ref=e931]:
+                        - img "Included" [ref=e932]
+                      - cell [ref=e934]:
+                        - img "Included" [ref=e935]
+                      - cell [ref=e937]:
+                        - img "Included" [ref=e938]
+                    - row [ref=e940]:
+                      - rowheader "Claude Opus 4.8" [ref=e941]
+                      - cell [ref=e942]:
+                        - img "Included" [ref=e943]
+                      - cell [ref=e945]:
+                        - img "Included" [ref=e946]
+                      - cell [ref=e948]:
+                        - img "Included" [ref=e949]
+                      - cell [ref=e951]:
+                        - img "Included" [ref=e952]
+                      - cell [ref=e954]:
+                        - img "Included" [ref=e955]
+                      - cell [ref=e957]:
+                        - img "Included" [ref=e958]
+                      - cell [ref=e960]:
+                        - img "Included" [ref=e961]
+                    - row [ref=e963]:
+                      - rowheader "Claude Opus 4.8 (fast mode) (preview)" [ref=e964]
+                      - cell [ref=e965]:
+                        - img "Not included" [ref=e966]
+                      - cell [ref=e968]:
+                        - img "Included" [ref=e969]
+                      - cell [ref=e971]:
+                        - img "Included" [ref=e972]
+                      - cell [ref=e974]:
+                        - img "Included" [ref=e975]
+                      - cell [ref=e977]:
+                        - img "Included" [ref=e978]
+                      - cell [ref=e980]:
+                        - img "Included" [ref=e981]
+                      - cell [ref=e983]:
+                        - img "Included" [ref=e984]
+                    - row [ref=e986]:
+                      - rowheader "Claude Opus 5" [ref=e987]
+                      - cell [ref=e988]:
+                        - img "Included" [ref=e989]
+                      - cell [ref=e991]:
+                        - img "Included" [ref=e992]
+                      - cell [ref=e994]:
+                        - img "Included" [ref=e995]
+                      - cell [ref=e997]:
+                        - img "Included" [ref=e998]
+                      - cell [ref=e1000]:
+                        - img "Included" [ref=e1001]
+                      - cell [ref=e1003]:
+                        - img "Included" [ref=e1004]
+                      - cell [ref=e1006]:
+                        - img "Included" [ref=e1007]
+                    - row [ref=e1009]:
+                      - rowheader "Claude Opus 5.5" [ref=e1010]
+                      - cell [ref=e1011]:
+                        - img "Included" [ref=e1012]
+                      - cell [ref=e1014]:
+                        - img "Included" [ref=e1015]
+                      - cell [ref=e1017]:
+                        - img "Included" [ref=e1018]
+                      - cell [ref=e1020]:
+                        - img "Included" [ref=e1021]
+                      - cell [ref=e1023]:
+                        - img "Included" [ref=e1024]
+                      - cell [ref=e1026]:
+                        - img "Included" [ref=e1027]
+                      - cell [ref=e1029]:
+                        - img "Included" [ref=e1030]
+                    - row [ref=e1032]:
+                      - rowheader "Claude Fable 5" [ref=e1033]
+                      - cell [ref=e1034]:
+                        - img "Included" [ref=e1035]
+                      - cell [ref=e1037]:
+                        - img "Included" [ref=e1038]
+                      - cell [ref=e1040]:
+                        - img "Included" [ref=e1041]
+                      - cell [ref=e1043]:
+                        - img "Included" [ref=e1044]
+                      - cell [ref=e1046]:
+                        - img "Included" [ref=e1047]
+                      - cell [ref=e1049]:
+                        - img "Included" [ref=e1050]
+                      - cell [ref=e1052]:
+                        - img "Included" [ref=e1053]
+                    - row [ref=e1055]:
+                      - rowheader "Claude Fable 5.1" [ref=e1056]
+                      - cell [ref=e1057]:
+                        - img "Included" [ref=e1058]
+                      - cell [ref=e1060]:
+                        - img "Included" [ref=e1061]
+                      - cell [ref=e1063]:
+                        - img "Included" [ref=e1064]
+                      - cell [ref=e1066]:
+                        - img "Included" [ref=e1067]
+                      - cell [ref=e1069]:
+                        - img "Included" [ref=e1070]
+                      - cell [ref=e1072]:
+                        - img "Included" [ref=e1073]
+                      - cell [ref=e1075]:
+                        - img "Included" [ref=e1076]
+                    - row [ref=e1078]:
+                      - rowheader "Claude Sonnet 4.6" [ref=e1079]
+                      - cell [ref=e1080]:
+                        - img "Included" [ref=e1081]
+                      - cell [ref=e1083]:
+                        - img "Included" [ref=e1084]
+                      - cell [ref=e1086]:
+                        - img "Included" [ref=e1087]
+                      - cell [ref=e1089]:
+                        - img "Included" [ref=e1090]
+                      - cell [ref=e1092]:
+                        - img "Not included" [ref=e1093]
+                      - cell [ref=e1095]:
+                        - img "Not included" [ref=e1096]
+                      - cell [ref=e1098]:
+                        - img "Not included" [ref=e1099]
+                    - row [ref=e1101]:
+                      - rowheader "Claude Sonnet 5" [ref=e1102]
+                      - cell [ref=e1103]:
+                        - img "Included" [ref=e1104]
+                      - cell [ref=e1106]:
+                        - img "Included" [ref=e1107]
+                      - cell [ref=e1109]:
+                        - img "Included" [ref=e1110]
+                      - cell [ref=e1112]:
+                        - img "Included" [ref=e1113]
+                      - cell [ref=e1115]:
+                        - img "Included" [ref=e1116]
+                      - cell [ref=e1118]:
+                        - img "Included" [ref=e1119]
+                      - cell [ref=e1121]:
+                        - img "Included" [ref=e1122]
+                    - row [ref=e1124]:
+                      - rowheader "Gemini 3.5 Flash" [ref=e1125]
+                      - cell [ref=e1126]:
+                        - img "Not included" [ref=e1127]
+                      - cell [ref=e1129]:
+                        - img "Included" [ref=e1130]
+                      - cell [ref=e1132]:
+                        - img "Included" [ref=e1133]
+                      - cell [ref=e1135]:
+                        - img "Included" [ref=e1136]
+                      - cell [ref=e1138]:
+                        - img "Included" [ref=e1139]
+                      - cell [ref=e1141]:
+                        - img "Included" [ref=e1142]
+                      - cell [ref=e1144]:
+                        - img "Included" [ref=e1145]
+                    - row [ref=e1147]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e1148]
+                      - cell [ref=e1149]:
+                        - img "Not included" [ref=e1150]
+                      - cell [ref=e1152]:
+                        - img "Included" [ref=e1153]
+                      - cell [ref=e1155]:
+                        - img "Included" [ref=e1156]
+                      - cell [ref=e1158]:
+                        - img "Included" [ref=e1159]
+                      - cell [ref=e1161]:
+                        - img "Included" [ref=e1162]
+                      - cell [ref=e1164]:
+                        - img "Included" [ref=e1165]
+                      - cell [ref=e1167]:
+                        - img "Included" [ref=e1168]
+                    - row [ref=e1170]:
+                      - rowheader "Gemini 3.7 Flash" [ref=e1171]
+                      - cell [ref=e1172]:
+                        - img "Not included" [ref=e1173]
+                      - cell [ref=e1175]:
+                        - img "Included" [ref=e1176]
+                      - cell [ref=e1178]:
+                        - img "Included" [ref=e1179]
+                      - cell [ref=e1181]:
+                        - img "Included" [ref=e1182]
+                      - cell [ref=e1184]:
+                        - img "Included" [ref=e1185]
+                      - cell [ref=e1187]:
+                        - img "Included" [ref=e1188]
+                      - cell [ref=e1190]:
+                        - img "Included" [ref=e1191]
+                    - row [ref=e1193]:
+                      - rowheader "Gemini 3.8 Flash" [ref=e1194]
+                      - cell [ref=e1195]:
+                        - img "Not included" [ref=e1196]
+                      - cell [ref=e1198]:
+                        - img "Included" [ref=e1199]
+                      - cell [ref=e1201]:
+                        - img "Included" [ref=e1202]
+                      - cell [ref=e1204]:
+                        - img "Included" [ref=e1205]
+                      - cell [ref=e1207]:
+                        - img "Included" [ref=e1208]
+                      - cell [ref=e1210]:
+                        - img "Included" [ref=e1211]
+                      - cell [ref=e1213]:
+                        - img "Included" [ref=e1214]
+                    - row [ref=e1216]:
+                      - rowheader "MAI-Code-1.1-Flash" [ref=e1217]
+                      - cell [ref=e1218]:
+                        - img "Included" [ref=e1219]
+                      - cell [ref=e1221]:
+                        - img "Included" [ref=e1222]
+                      - cell [ref=e1224]:
+                        - img "Included" [ref=e1225]
+                      - cell [ref=e1227]:
+                        - img "Included" [ref=e1228]
+                      - cell [ref=e1230]:
+                        - img "Included" [ref=e1231]
+                      - cell [ref=e1233]:
+                        - img "Included" [ref=e1234]
+                      - cell [ref=e1236]:
+                        - img "Included" [ref=e1237]
+                    - row [ref=e1239]:
+                      - rowheader "GPT-5 mini" [ref=e1240]
+                      - cell [ref=e1241]:
+                        - img "Not included" [ref=e1242]
+                      - cell [ref=e1244]:
+                        - img "Included" [ref=e1245]
+                      - cell [ref=e1247]:
+                        - img "Included" [ref=e1248]
+                      - cell [ref=e1250]:
+                        - img "Included" [ref=e1251]
+                      - cell [ref=e1253]:
+                        - img "Included" [ref=e1254]
+                      - cell [ref=e1256]:
+                        - img "Included" [ref=e1257]
+                      - cell [ref=e1259]:
+                        - img "Included" [ref=e1260]
+                    - row [ref=e1262]:
+                      - rowheader "GPT-5.3-Codex" [ref=e1263]
+                      - cell [ref=e1264]:
+                        - img "Included" [ref=e1265]
+                      - cell [ref=e1267]:
+                        - img "Included" [ref=e1268]
+                      - cell [ref=e1270]:
+                        - img "Included" [ref=e1271]
+                      - cell [ref=e1273]:
+                        - img "Included" [ref=e1274]
+                      - cell [ref=e1276]:
+                        - img "Included" [ref=e1277]
+                      - cell [ref=e1279]:
+                        - img "Included" [ref=e1280]
+                      - cell [ref=e1282]:
+                        - img "Included" [ref=e1283]
+                    - row [ref=e1285]:
+                      - rowheader "GPT-5.4" [ref=e1286]
+                      - cell [ref=e1287]:
+                        - img "Included" [ref=e1288]
+                      - cell [ref=e1290]:
+                        - img "Included" [ref=e1291]
+                      - cell [ref=e1293]:
+                        - img "Included" [ref=e1294]
+                      - cell [ref=e1296]:
+                        - img "Included" [ref=e1297]
+                      - cell [ref=e1299]:
+                        - img "Included" [ref=e1300]
+                      - cell [ref=e1302]:
+                        - img "Included" [ref=e1303]
+                      - cell [ref=e1305]:
+                        - img "Included" [ref=e1306]
+                    - row [ref=e1308]:
+                      - rowheader "GPT-5.4 mini" [ref=e1309]
+                      - cell [ref=e1310]:
+                        - img "Included" [ref=e1311]
+                      - cell [ref=e1313]:
+                        - img "Included" [ref=e1314]
+                      - cell [ref=e1316]:
+                        - img "Included" [ref=e1317]
+                      - cell [ref=e1319]:
+                        - img "Included" [ref=e1320]
+                      - cell [ref=e1322]:
+                        - img "Included" [ref=e1323]
+                      - cell [ref=e1325]:
+                        - img "Included" [ref=e1326]
+                      - cell [ref=e1328]:
+                        - img "Included" [ref=e1329]
+                    - row [ref=e1331]:
+                      - rowheader [ref=e1332]:
+                        - text: GPT-5.4 nano
+                        - superscript [ref=e1333]:
+                          - link "[1]" [ref=e1334] [cursor=pointer]:
+                            - /url: "#user-content-fn-gpt54nano"
+                      - cell [ref=e1335]:
+                        - img "Not included" [ref=e1336]
+                      - cell [ref=e1338]:
+                        - img "Not included" [ref=e1339]
+                      - cell [ref=e1341]:
+                        - img "Not included" [ref=e1342]
+                      - cell [ref=e1344]:
+                        - img "Not included" [ref=e1345]
+                      - cell [ref=e1347]:
+                        - img "Not included" [ref=e1348]
+                      - cell [ref=e1350]:
+                        - img "Not included" [ref=e1351]
+                      - cell [ref=e1353]:
+                        - img "Not included" [ref=e1354]
+                    - row [ref=e1356]:
+                      - rowheader "GPT-5.5" [ref=e1357]
+                      - cell [ref=e1358]:
+                        - img "Included" [ref=e1359]
+                      - cell [ref=e1361]:
+                        - img "Included" [ref=e1362]
+                      - cell [ref=e1364]:
+                        - img "Included" [ref=e1365]
+                      - cell [ref=e1367]:
+                        - img "Included" [ref=e1368]
+                      - cell [ref=e1370]:
+                        - img "Included" [ref=e1371]
+                      - cell [ref=e1373]:
+                        - img "Included" [ref=e1374]
+                      - cell [ref=e1376]:
+                        - img "Included" [ref=e1377]
+                    - row [ref=e1379]:
+                      - rowheader "GPT-5.6 Luna" [ref=e1380]
+                      - cell [ref=e1381]:
+                        - img "Included" [ref=e1382]
+                      - cell [ref=e1384]:
+                        - img "Included" [ref=e1385]
+                      - cell [ref=e1387]:
+                        - img "Included" [ref=e1388]
+                      - cell [ref=e1390]:
+                        - img "Included" [ref=e1391]
+                      - cell [ref=e1393]:
+                        - img "Not included" [ref=e1394]
+                      - cell [ref=e1396]:
+                        - img "Not included" [ref=e1397]
+                      - cell [ref=e1399]:
+                        - img "Not included" [ref=e1400]
+                    - row [ref=e1402]:
+                      - rowheader "GPT-5.6 Sol" [ref=e1403]
+                      - cell [ref=e1404]:
+                        - img "Included" [ref=e1405]
+                      - cell [ref=e1407]:
+                        - img "Included" [ref=e1408]
+                      - cell [ref=e1410]:
+                        - img "Included" [ref=e1411]
+                      - cell [ref=e1413]:
+                        - img "Included" [ref=e1414]
+                      - cell [ref=e1416]:
+                        - img "Not included" [ref=e1417]
+                      - cell [ref=e1419]:
+                        - img "Not included" [ref=e1420]
+                      - cell [ref=e1422]:
+                        - img "Not included" [ref=e1423]
+                    - row [ref=e1425]:
+                      - rowheader "GPT-5.6 Terra" [ref=e1426]
+                      - cell [ref=e1427]:
+                        - img "Included" [ref=e1428]
+                      - cell [ref=e1430]:
+                        - img "Included" [ref=e1431]
+                      - cell [ref=e1433]:
+                        - img "Included" [ref=e1434]
+                      - cell [ref=e1436]:
+                        - img "Included" [ref=e1437]
+                      - cell [ref=e1439]:
+                        - img "Not included" [ref=e1440]
+                      - cell [ref=e1442]:
+                        - img "Not included" [ref=e1443]
+                      - cell [ref=e1445]:
+                        - img "Not included" [ref=e1446]
+                    - row [ref=e1448]:
+                      - rowheader "GPT-6 Astra" [ref=e1449]
+                      - cell [ref=e1450]:
+                        - img "Included" [ref=e1451]
+                      - cell [ref=e1453]:
+                        - img "Included" [ref=e1454]
+                      - cell [ref=e1456]:
+                        - img "Included" [ref=e1457]
+                      - cell [ref=e1459]:
+                        - img "Included" [ref=e1460]
+                      - cell [ref=e1462]:
+                        - img "Included" [ref=e1463]
+                      - cell [ref=e1465]:
+                        - img "Included" [ref=e1466]
+                      - cell [ref=e1468]:
+                        - img "Included" [ref=e1469]
+                    - row [ref=e1471]:
+                      - rowheader "GPT-6 Luna" [ref=e1472]
+                      - cell [ref=e1473]:
+                        - img "Included" [ref=e1474]
+                      - cell [ref=e1476]:
+                        - img "Included" [ref=e1477]
+                      - cell [ref=e1479]:
+                        - img "Included" [ref=e1480]
+                      - cell [ref=e1482]:
+                        - img "Included" [ref=e1483]
+                      - cell [ref=e1485]:
+                        - img "Included" [ref=e1486]
+                      - cell [ref=e1488]:
+                        - img "Included" [ref=e1489]
+                      - cell [ref=e1491]:
+                        - img "Included" [ref=e1492]
+                    - row [ref=e1494]:
+                      - rowheader "GPT-6 Sol" [ref=e1495]
+                      - cell [ref=e1496]:
+                        - img "Included" [ref=e1497]
+                      - cell [ref=e1499]:
+                        - img "Included" [ref=e1500]
+                      - cell [ref=e1502]:
+                        - img "Included" [ref=e1503]
+                      - cell [ref=e1505]:
+                        - img "Included" [ref=e1506]
+                      - cell [ref=e1508]:
+                        - img "Included" [ref=e1509]
+                      - cell [ref=e1511]:
+                        - img "Included" [ref=e1512]
+                      - cell [ref=e1514]:
+                        - img "Included" [ref=e1515]
+                    - row [ref=e1517]:
+                      - rowheader "Grok 4.5" [ref=e1518]
+                      - cell [ref=e1519]:
+                        - img "Not included" [ref=e1520]
+                      - cell [ref=e1522]:
+                        - img "Included" [ref=e1523]
+                      - cell [ref=e1525]:
+                        - img "Included" [ref=e1526]
+                      - cell [ref=e1528]:
+                        - img "Included" [ref=e1529]
+                      - cell [ref=e1531]:
+                        - img "Included" [ref=e1532]
+                      - cell [ref=e1534]:
+                        - img "Included" [ref=e1535]
+                      - cell [ref=e1537]:
+                        - img "Included" [ref=e1538]
+                    - row [ref=e1540]:
+                      - rowheader "Grok 4.6" [ref=e1541]
+                      - cell [ref=e1542]:
+                        - img "Not included" [ref=e1543]
+                      - cell [ref=e1545]:
+                        - img "Included" [ref=e1546]
+                      - cell [ref=e1548]:
+                        - img "Included" [ref=e1549]
+                      - cell [ref=e1551]:
+                        - img "Included" [ref=e1552]
+                      - cell [ref=e1554]:
+                        - img "Included" [ref=e1555]
+                      - cell [ref=e1557]:
+                        - img "Included" [ref=e1558]
+                      - cell [ref=e1560]:
+                        - img "Included" [ref=e1561]
+                    - row [ref=e1563]:
+                      - rowheader "Grok 4.7" [ref=e1564]
+                      - cell [ref=e1565]:
+                        - img "Not included" [ref=e1566]
+                      - cell [ref=e1568]:
+                        - img "Included" [ref=e1569]
+                      - cell [ref=e1571]:
+                        - img "Included" [ref=e1572]
+                      - cell [ref=e1574]:
+                        - img "Included" [ref=e1575]
+                      - cell [ref=e1577]:
+                        - img "Included" [ref=e1578]
+                      - cell [ref=e1580]:
+                        - img "Included" [ref=e1581]
+                      - cell [ref=e1583]:
+                        - img "Included" [ref=e1584]
+                    - row [ref=e1586]:
+                      - rowheader "Kimi K2.7 Code" [ref=e1587]
+                      - cell [ref=e1588]:
+                        - img "Included" [ref=e1589]
+                      - cell [ref=e1591]:
+                        - img "Included" [ref=e1592]
+                      - cell [ref=e1594]:
+                        - img "Included" [ref=e1595]
+                      - cell [ref=e1597]:
+                        - img "Included" [ref=e1598]
+                      - cell [ref=e1600]:
+                        - img "Not included" [ref=e1601]
+                      - cell [ref=e1603]:
+                        - img "Not included" [ref=e1604]
+                      - cell [ref=e1606]:
+                        - img "Included" [ref=e1607]
+                    - row [ref=e1609]:
+                      - rowheader "Kimi K3" [ref=e1610]
+                      - cell [ref=e1611]:
+                        - img "Included" [ref=e1612]
+                      - cell [ref=e1614]:
+                        - img "Included" [ref=e1615]
+                      - cell [ref=e1617]:
+                        - img "Included" [ref=e1618]
+                      - cell [ref=e1620]:
+                        - img "Included" [ref=e1621]
+                      - cell [ref=e1623]:
+                        - img "Included" [ref=e1624]
+                      - cell [ref=e1626]:
+                        - img "Included" [ref=e1627]
+                      - cell [ref=e1629]:
+                        - img "Included" [ref=e1630]
+                - generic [ref=e1632]:
+                  - paragraph [ref=e1633]: Note
+                  - paragraph [ref=e1636]:
+                    - text: In Visual Studio Code you can add more models than those that are available by default with your Copilot subscription. See
+                    - link "Changing the AI model for GitHub Copilot Chat" [ref=e1637] [cursor=pointer]:
+                      - /url: /en/copilot/how-tos/use-ai-models/change-the-chat-model?tool=vscode#adding-more-models
+                    - text: .
+                - heading [level=2] [ref=e1638]:
+                  - link "Minimum IDE versions for recent models" [ref=e1639] [cursor=pointer]:
+                    - /url: "#minimum-ide-versions-for-recent-models"
+                - paragraph [ref=e1641]: Some Copilot models require minimum versions of supported IDEs or Copilot extensions or plugins. The table below lists the minimum versions known from changelog entries or provided release guidance. This information is tentative and subject to change as model support rolls out. For best results, keep your IDE and Copilot extension or plugin updated to the latest available version.
+                - table [ref=e1643]:
+                  - rowgroup [ref=e1644]:
+                    - row [ref=e1645]:
+                      - columnheader "Model" [ref=e1646]
+                      - columnheader "Visual Studio Code" [ref=e1647]
+                      - columnheader "Visual Studio" [ref=e1648]
+                      - columnheader "JetBrains IDEs" [ref=e1649]
+                      - columnheader "Xcode" [ref=e1650]
+                      - columnheader "Eclipse" [ref=e1651]
+                  - rowgroup [ref=e1652]:
+                    - row [ref=e1653]:
+                      - rowheader "Gemini 3.5 Flash" [ref=e1654]
+                      - cell [ref=e1655]:
+                        - code [ref=e1656]: v1.115.0
+                      - cell [ref=e1657]:
+                        - code [ref=e1658]: 17.14.22
+                        - text: or
+                        - code [ref=e1659]: 18.1.0
+                      - cell [ref=e1660]:
+                        - code [ref=e1661]: 1.5.62
+                      - cell [ref=e1662]:
+                        - code [ref=e1663]: 0.46.0
+                      - cell [ref=e1664]:
+                        - code [ref=e1665]: 0.14.0
+                    - row [ref=e1666]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e1667]
+                      - cell [ref=e1668]:
+                        - code [ref=e1669]: v1.128.0
+                      - cell [ref=e1670]:
+                        - code [ref=e1671]: 17.14.22
+                        - text: or
+                        - code [ref=e1672]: 18.1.0
+                      - cell "TBD" [ref=e1673]
+                      - cell "TBD" [ref=e1674]
+                      - cell "TBD" [ref=e1675]
+                    - row [ref=e1676]:
+                      - rowheader "Gemini 3.7 Flash" [ref=e1677]
+                      - cell [ref=e1678]:
+                        - code [ref=e1679]: v1.128.0
+                      - cell [ref=e1680]:
+                        - code [ref=e1681]: 17.14.22
+                        - text: or
+                        - code [ref=e1682]: 18.1.0
+                      - cell "TBD" [ref=e1683]
+                      - cell "TBD" [ref=e1684]
+                      - cell "TBD" [ref=e1685]
+                    - row [ref=e1686]:
+                      - rowheader "Gemini 3.8 Flash" [ref=e1687]
+                      - cell "TBD" [ref=e1688]
+                      - cell [ref=e1689]:
+                        - code [ref=e1690]: 17.14.22
+                        - text: or
+                        - code [ref=e1691]: 18.1.0
+                      - cell "TBD" [ref=e1692]
+                      - cell "TBD" [ref=e1693]
+                      - cell "TBD" [ref=e1694]
+                    - row [ref=e1695]:
+                      - rowheader "GPT-5.3-Codex" [ref=e1696]
+                      - cell [ref=e1697]:
+                        - code [ref=e1698]: v1.104.1
+                      - cell [ref=e1699]:
+                        - code [ref=e1700]: 17.14.19
+                      - cell [ref=e1701]:
+                        - code [ref=e1702]: 1.5.61
+                      - cell [ref=e1703]:
+                        - code [ref=e1704]: 0.45.0
+                      - cell [ref=e1705]:
+                        - code [ref=e1706]: 0.13.0
+                    - row [ref=e1707]:
+                      - rowheader "GPT-5.4" [ref=e1708]
+                      - cell [ref=e1709]:
+                        - code [ref=e1710]: v1.104.1
+                      - cell [ref=e1711]:
+                        - code [ref=e1712]: 17.14.19
+                      - cell [ref=e1713]:
+                        - code [ref=e1714]: 1.5.66
+                      - cell [ref=e1715]:
+                        - code [ref=e1716]: 0.47.0
+                      - cell [ref=e1717]:
+                        - code [ref=e1718]: 0.15.0
+                    - row [ref=e1719]:
+                      - rowheader "GPT-5.4 mini" [ref=e1720]
+                      - cell [ref=e1721]:
+                        - code [ref=e1722]: v1.104.1
+                      - cell [ref=e1723]:
+                        - code [ref=e1724]: 17.14.19
+                      - cell [ref=e1725]:
+                        - code [ref=e1726]: 1.5.66
+                      - cell [ref=e1727]:
+                        - code [ref=e1728]: 0.47.0
+                      - cell [ref=e1729]:
+                        - code [ref=e1730]: 0.15.0
+                    - row [ref=e1731]:
+                      - rowheader "GPT-5.5" [ref=e1732]
+                      - cell [ref=e1733]:
+                        - code [ref=e1734]: v1.117
+                      - cell [ref=e1735]:
+                        - code [ref=e1736]: 17.14.19
+                      - cell [ref=e1737]:
+                        - code [ref=e1738]: 1.5.66
+                      - cell [ref=e1739]:
+                        - code [ref=e1740]: 0.47.0
+                      - cell [ref=e1741]:
+                        - code [ref=e1742]: 0.15.0
+                    - row [ref=e1743]:
+                      - rowheader "GPT-5.6 Luna" [ref=e1744]
+                      - cell [ref=e1745]:
+                        - code [ref=e1746]: 1.128.0
+                      - cell "TBD" [ref=e1747]
+                      - cell "TBD" [ref=e1748]
+                      - cell "TBD" [ref=e1749]
+                      - cell "TBD" [ref=e1750]
+                    - row [ref=e1751]:
+                      - rowheader "GPT-5.6 Sol" [ref=e1752]
+                      - cell [ref=e1753]:
+                        - code [ref=e1754]: 1.128.0
+                      - cell "TBD" [ref=e1755]
+                      - cell "TBD" [ref=e1756]
+                      - cell "TBD" [ref=e1757]
+                      - cell "TBD" [ref=e1758]
+                    - row [ref=e1759]:
+                      - rowheader "GPT-5.6 Terra" [ref=e1760]
+                      - cell [ref=e1761]:
+                        - code [ref=e1762]: 1.128.0
+                      - cell "TBD" [ref=e1763]
+                      - cell "TBD" [ref=e1764]
+                      - cell "TBD" [ref=e1765]
+                      - cell "TBD" [ref=e1766]
+                    - row [ref=e1767]:
+                      - rowheader "GPT-6 Astra" [ref=e1768]
+                      - cell [ref=e1769]:
+                        - code [ref=e1770]: 1.136.1
+                      - cell [ref=e1771]:
+                        - code [ref=e1772]: 17.14.19
+                      - cell "TBD" [ref=e1773]
+                      - cell "TBD" [ref=e1774]
+                      - cell "TBD" [ref=e1775]
+                    - row [ref=e1776]:
+                      - rowheader "GPT-6 Luna" [ref=e1777]
+                      - cell "TBD" [ref=e1778]
+                      - cell [ref=e1779]:
+                        - code [ref=e1780]: 17.14.19
+                      - cell "TBD" [ref=e1781]
+                      - cell "TBD" [ref=e1782]
+                      - cell "TBD" [ref=e1783]
+                    - row [ref=e1784]:
+                      - rowheader "GPT-6 Sol" [ref=e1785]
+                      - cell "TBD" [ref=e1786]
+                      - cell [ref=e1787]:
+                        - code [ref=e1788]: 17.14.19
+                      - cell "TBD" [ref=e1789]
+                      - cell "TBD" [ref=e1790]
+                      - cell "TBD" [ref=e1791]
+                    - row [ref=e1792]:
+                      - rowheader "Claude Opus 4.8" [ref=e1793]
+                      - cell [ref=e1794]:
+                        - code [ref=e1795]: v1.118
+                      - cell [ref=e1796]:
+                        - code [ref=e1797]: 17.14.6
+                      - cell "TBD" [ref=e1798]
+                      - cell "TBD" [ref=e1799]
+                      - cell "TBD" [ref=e1800]
+                    - row [ref=e1801]:
+                      - rowheader "Claude Opus 5" [ref=e1802]
+                      - cell [ref=e1803]:
+                        - code [ref=e1804]: v1.128.0
+                      - cell [ref=e1805]:
+                        - code [ref=e1806]: 17.14.22
+                      - cell "TBD" [ref=e1807]
+                      - cell "TBD" [ref=e1808]
+                      - cell "TBD" [ref=e1809]
+                    - row [ref=e1810]:
+                      - rowheader "Claude Opus 5.5" [ref=e1811]
+                      - cell "TBD" [ref=e1812]
+                      - cell [ref=e1813]:
+                        - code [ref=e1814]: 17.14.6
+                      - cell "TBD" [ref=e1815]
+                      - cell "TBD" [ref=e1816]
+                      - cell "TBD" [ref=e1817]
+                    - row [ref=e1818]:
+                      - rowheader "Claude Sonnet 5" [ref=e1819]
+                      - cell [ref=e1820]:
+                        - code [ref=e1821]: v1.124
+                      - cell [ref=e1822]:
+                        - code [ref=e1823]: 17.14.6
+                      - cell "TBD" [ref=e1824]
+                      - cell "TBD" [ref=e1825]
+                      - cell "TBD" [ref=e1826]
+                    - row [ref=e1827]:
+                      - rowheader "Claude Fable 5" [ref=e1828]
+                      - cell [ref=e1829]:
+                        - code [ref=e1830]: v1.124
+                      - cell [ref=e1831]:
+                        - code [ref=e1832]: 17.14.6
+                      - cell "TBD" [ref=e1833]
+                      - cell "TBD" [ref=e1834]
+                      - cell "TBD" [ref=e1835]
+                    - row [ref=e1836]:
+                      - rowheader "Claude Fable 5.1" [ref=e1837]
+                      - cell "TBD" [ref=e1838]
+                      - cell "TBD" [ref=e1839]
+                      - cell "TBD" [ref=e1840]
+                      - cell "TBD" [ref=e1841]
+                      - cell "TBD" [ref=e1842]
+                    - row [ref=e1843]:
+                      - rowheader "Kimi K2.7 Code" [ref=e1844]
+                      - cell [ref=e1845]:
+                        - code [ref=e1846]: v1.127
+                      - cell [ref=e1847]:
+                        - code [ref=e1848]: 17.14.6
+                      - cell [ref=e1849]:
+                        - code [ref=e1850]: 1.9.1-251
+                      - cell "TBD" [ref=e1851]
+                      - cell "TBD" [ref=e1852]
+                    - row [ref=e1853]:
+                      - rowheader "Kimi K3" [ref=e1854]
+                      - cell [ref=e1855]:
+                        - code [ref=e1856]: v1.131
+                      - cell "TBD" [ref=e1857]
+                      - cell "TBD" [ref=e1858]
+                      - cell "TBD" [ref=e1859]
+                      - cell "TBD" [ref=e1860]
+                    - row [ref=e1861]:
+                      - rowheader "MAI-Code-1.1-Flash" [ref=e1862]
+                      - cell [ref=e1863]:
+                        - code [ref=e1864]: v1.121
+                      - cell "TBD" [ref=e1865]
+                      - cell "TBD" [ref=e1866]
+                      - cell "TBD" [ref=e1867]
+                      - cell "TBD" [ref=e1868]
+                    - row [ref=e1869]:
+                      - rowheader "Grok 4.5" [ref=e1870]
+                      - cell "TBD" [ref=e1871]
+                      - cell [ref=e1872]:
+                        - code [ref=e1873]: 17.14.19
+                      - cell "TBD" [ref=e1874]
+                      - cell "TBD" [ref=e1875]
+                      - cell "TBD" [ref=e1876]
+                    - row [ref=e1877]:
+                      - rowheader "Grok 4.6" [ref=e1878]
+                      - cell "TBD" [ref=e1879]
+                      - cell "TBD" [ref=e1880]
+                      - cell "TBD" [ref=e1881]
+                      - cell "TBD" [ref=e1882]
+                      - cell "TBD" [ref=e1883]
+                    - row [ref=e1884]:
+                      - rowheader "Grok 4.7" [ref=e1885]
+                      - cell "TBD" [ref=e1886]
+                      - cell [ref=e1887]:
+                        - code [ref=e1888]: 17.14.19
+                      - cell "TBD" [ref=e1889]
+                      - cell "TBD" [ref=e1890]
+                      - cell "TBD" [ref=e1891]
+                - generic [ref=e1892]:
+                  - paragraph [ref=e1893]: Note
+                  - paragraph
+                  - list [ref=e1896]:
+                    - listitem [ref=e1897]:
+                      - text: For GPT-5.3-Codex in Visual Studio Code,
+                      - code [ref=e1898]: v1.108
+                      - text: and later provide improved prompting and response quality.
+                    - listitem [ref=e1899]: "\"No minimum listed\" means the reviewed changelog or release guidance did not specify a minimum version, not that all older versions are supported."
+                    - listitem [ref=e1900]: Even when a model appears in the model picker on older supported versions, prompting and model behavior may work best with the latest IDE and Copilot extension or plugin versions.
+                - heading [level=2] [ref=e1901]:
+                  - link "Supported AI models per Copilot plan" [ref=e1902] [cursor=pointer]:
+                    - /url: "#supported-ai-models-per-copilot-plan"
+                - paragraph [ref=e1904]:
+                  - text: The following table shows which AI models are available in each Copilot plan. For more information about the plans, see
+                  - link "Plans for GitHub Copilot" [ref=e1905] [cursor=pointer]:
+                    - /url: /en/copilot/get-started/plans
+                  - text: .
+                - generic [ref=e1906]:
+                  - paragraph [ref=e1907]: Note
+                  - paragraph [ref=e1910]: Copilot Student and Copilot Free users have access to models through auto model selection only.
+                - table [ref=e1912]:
+                  - rowgroup [ref=e1913]:
+                    - row [ref=e1914]:
+                      - columnheader "Available models" [ref=e1915]
+                      - columnheader "Copilot Pro" [ref=e1916]
+                      - columnheader "Copilot Pro+" [ref=e1917]
+                      - columnheader "Copilot Max" [ref=e1918]
+                      - columnheader "Copilot Business" [ref=e1919]
+                      - columnheader "Copilot Enterprise" [ref=e1920]
+                  - rowgroup [ref=e1921]:
+                    - row [ref=e1922]:
+                      - rowheader "Claude Haiku 4.5" [ref=e1923]
+                      - cell [ref=e1924]:
+                        - img "Included" [ref=e1925]
+                      - cell [ref=e1927]:
+                        - img "Included" [ref=e1928]
+                      - cell [ref=e1930]:
+                        - img "Included" [ref=e1931]
+                      - cell [ref=e1933]:
+                        - img "Included" [ref=e1934]
+                      - cell [ref=e1936]:
+                        - img "Included" [ref=e1937]
+                    - row [ref=e1939]:
+                      - rowheader "Claude Opus 4.7" [ref=e1940]
+                      - cell [ref=e1941]:
+                        - img "Not included" [ref=e1942]
+                      - cell [ref=e1944]:
+                        - img "Included" [ref=e1945]
+                      - cell [ref=e1947]:
+                        - img "Included" [ref=e1948]
+                      - cell [ref=e1950]:
+                        - img "Included" [ref=e1951]
+                      - cell [ref=e1953]:
+                        - img "Included" [ref=e1954]
+                    - row [ref=e1956]:
+                      - rowheader "Claude Opus 4.8" [ref=e1957]
+                      - cell [ref=e1958]:
+                        - img "Not included" [ref=e1959]
+                      - cell [ref=e1961]:
+                        - img "Included" [ref=e1962]
+                      - cell [ref=e1964]:
+                        - img "Included" [ref=e1965]
+                      - cell [ref=e1967]:
+                        - img "Included" [ref=e1968]
+                      - cell [ref=e1970]:
+                        - img "Included" [ref=e1971]
+                    - row [ref=e1973]:
+                      - rowheader "Claude Opus 4.8 (fast mode) (preview)" [ref=e1974]
+                      - cell [ref=e1975]:
+                        - img "Not included" [ref=e1976]
+                      - cell [ref=e1978]:
+                        - img "Included" [ref=e1979]
+                      - cell [ref=e1981]:
+                        - img "Included" [ref=e1982]
+                      - cell [ref=e1984]:
+                        - img "Included" [ref=e1985]
+                      - cell [ref=e1987]:
+                        - img "Included" [ref=e1988]
+                    - row [ref=e1990]:
+                      - rowheader "Claude Opus 5" [ref=e1991]
+                      - cell [ref=e1992]:
+                        - img "Not included" [ref=e1993]
+                      - cell [ref=e1995]:
+                        - img "Included" [ref=e1996]
+                      - cell [ref=e1998]:
+                        - img "Included" [ref=e1999]
+                      - cell [ref=e2001]:
+                        - img "Included" [ref=e2002]
+                      - cell [ref=e2004]:
+                        - img "Included" [ref=e2005]
+                    - row [ref=e2007]:
+                      - rowheader "Claude Opus 5.5" [ref=e2008]
+                      - cell [ref=e2009]:
+                        - img "Not included" [ref=e2010]
+                      - cell [ref=e2012]:
+                        - img "Included" [ref=e2013]
+                      - cell [ref=e2015]:
+                        - img "Included" [ref=e2016]
+                      - cell [ref=e2018]:
+                        - img "Included" [ref=e2019]
+                      - cell [ref=e2021]:
+                        - img "Included" [ref=e2022]
+                    - row [ref=e2024]:
+                      - rowheader [ref=e2025]:
+                        - text: Claude Fable 5
+                        - superscript [ref=e2026]:
+                          - link "[2]" [ref=e2027] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-fable-5"
+                      - cell [ref=e2028]:
+                        - img "Not included" [ref=e2029]
+                      - cell [ref=e2031]:
+                        - img "Included" [ref=e2032]
+                      - cell [ref=e2034]:
+                        - img "Included" [ref=e2035]
+                      - cell [ref=e2037]:
+                        - img "Included" [ref=e2038]
+                      - cell [ref=e2040]:
+                        - img "Included" [ref=e2041]
+                    - row [ref=e2043]:
+                      - rowheader [ref=e2044]:
+                        - text: Claude Fable 5.1
+                        - superscript [ref=e2045]:
+                          - link "[2]" [ref=e2046] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-fable-5"
+                      - cell [ref=e2047]:
+                        - img "Not included" [ref=e2048]
+                      - cell [ref=e2050]:
+                        - img "Included" [ref=e2051]
+                      - cell [ref=e2053]:
+                        - img "Included" [ref=e2054]
+                      - cell [ref=e2056]:
+                        - img "Included" [ref=e2057]
+                      - cell [ref=e2059]:
+                        - img "Included" [ref=e2060]
+                    - row [ref=e2062]:
+                      - rowheader [ref=e2063]:
+                        - text: Claude Sonnet 4.6
+                        - superscript [ref=e2064]:
+                          - link "[4]" [ref=e2065] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-sonnet-46-plans"
+                      - cell [ref=e2066]:
+                        - img "Included" [ref=e2067]
+                      - cell [ref=e2069]:
+                        - img "Included" [ref=e2070]
+                      - cell [ref=e2072]:
+                        - img "Not included" [ref=e2073]
+                      - cell [ref=e2075]:
+                        - img "Not included" [ref=e2076]
+                      - cell [ref=e2078]:
+                        - img "Not included" [ref=e2079]
+                    - row [ref=e2081]:
+                      - rowheader "Claude Sonnet 5" [ref=e2082]
+                      - cell [ref=e2083]:
+                        - img "Included" [ref=e2084]
+                      - cell [ref=e2086]:
+                        - img "Included" [ref=e2087]
+                      - cell [ref=e2089]:
+                        - img "Included" [ref=e2090]
+                      - cell [ref=e2092]:
+                        - img "Included" [ref=e2093]
+                      - cell [ref=e2095]:
+                        - img "Included" [ref=e2096]
+                    - row [ref=e2098]:
+                      - rowheader "Gemini 3.5 Flash" [ref=e2099]
+                      - cell [ref=e2100]:
+                        - img "Included" [ref=e2101]
+                      - cell [ref=e2103]:
+                        - img "Included" [ref=e2104]
+                      - cell [ref=e2106]:
+                        - img "Included" [ref=e2107]
+                      - cell [ref=e2109]:
+                        - img "Included" [ref=e2110]
+                      - cell [ref=e2112]:
+                        - img "Included" [ref=e2113]
+                    - row [ref=e2115]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e2116]
+                      - cell [ref=e2117]:
+                        - img "Included" [ref=e2118]
+                      - cell [ref=e2120]:
+                        - img "Included" [ref=e2121]
+                      - cell [ref=e2123]:
+                        - img "Included" [ref=e2124]
+                      - cell [ref=e2126]:
+                        - img "Included" [ref=e2127]
+                      - cell [ref=e2129]:
+                        - img "Included" [ref=e2130]
+                    - row [ref=e2132]:
+                      - rowheader "Gemini 3.7 Flash" [ref=e2133]
+                      - cell [ref=e2134]:
+                        - img "Included" [ref=e2135]
+                      - cell [ref=e2137]:
+                        - img "Included" [ref=e2138]
+                      - cell [ref=e2140]:
+                        - img "Included" [ref=e2141]
+                      - cell [ref=e2143]:
+                        - img "Included" [ref=e2144]
+                      - cell [ref=e2146]:
+                        - img "Included" [ref=e2147]
+                    - row [ref=e2149]:
+                      - rowheader "Gemini 3.8 Flash" [ref=e2150]
+                      - cell [ref=e2151]:
+                        - img "Included" [ref=e2152]
+                      - cell [ref=e2154]:
+                        - img "Included" [ref=e2155]
+                      - cell [ref=e2157]:
+                        - img "Included" [ref=e2158]
+                      - cell [ref=e2160]:
+                        - img "Included" [ref=e2161]
+                      - cell [ref=e2163]:
+                        - img "Included" [ref=e2164]
+                    - row [ref=e2166]:
+                      - rowheader "GPT-5 mini" [ref=e2167]
+                      - cell [ref=e2168]:
+                        - img "Included" [ref=e2169]
+                      - cell [ref=e2171]:
+                        - img "Included" [ref=e2172]
+                      - cell [ref=e2174]:
+                        - img "Included" [ref=e2175]
+                      - cell [ref=e2177]:
+                        - img "Included" [ref=e2178]
+                      - cell [ref=e2180]:
+                        - img "Included" [ref=e2181]
+                    - row [ref=e2183]:
+                      - rowheader "GPT-5.3-Codex" [ref=e2184]
+                      - cell [ref=e2185]:
+                        - img "Included" [ref=e2186]
+                      - cell [ref=e2188]:
+                        - img "Included" [ref=e2189]
+                      - cell [ref=e2191]:
+                        - img "Included" [ref=e2192]
+                      - cell [ref=e2194]:
+                        - img "Included" [ref=e2195]
+                      - cell [ref=e2197]:
+                        - img "Included" [ref=e2198]
+                    - row [ref=e2200]:
+                      - rowheader "GPT-5.4" [ref=e2201]
+                      - cell [ref=e2202]:
+                        - img "Included" [ref=e2203]
+                      - cell [ref=e2205]:
+                        - img "Included" [ref=e2206]
+                      - cell [ref=e2208]:
+                        - img "Included" [ref=e2209]
+                      - cell [ref=e2211]:
+                        - img "Included" [ref=e2212]
+                      - cell [ref=e2214]:
+                        - img "Included" [ref=e2215]
+                    - row [ref=e2217]:
+                      - rowheader "GPT-5.4 mini" [ref=e2218]
+                      - cell [ref=e2219]:
+                        - img "Included" [ref=e2220]
+                      - cell [ref=e2222]:
+                        - img "Included" [ref=e2223]
+                      - cell [ref=e2225]:
+                        - img "Included" [ref=e2226]
+                      - cell [ref=e2228]:
+                        - img "Included" [ref=e2229]
+                      - cell [ref=e2231]:
+                        - img "Included" [ref=e2232]
+                    - row [ref=e2234]:
+                      - rowheader [ref=e2235]:
+                        - text: GPT-5.4 nano
+                        - superscript [ref=e2236]:
+                          - link "[1]" [ref=e2237] [cursor=pointer]:
+                            - /url: "#user-content-fn-gpt54nano"
+                      - cell [ref=e2238]:
+                        - img "Not included" [ref=e2239]
+                      - cell [ref=e2241]:
+                        - img "Included" [ref=e2242]
+                      - cell [ref=e2244]:
+                        - img "Included" [ref=e2245]
+                      - cell [ref=e2247]:
+                        - img "Not included" [ref=e2248]
+                      - cell [ref=e2250]:
+                        - img "Not included" [ref=e2251]
+                    - row [ref=e2253]:
+                      - rowheader "GPT-5.5" [ref=e2254]
+                      - cell [ref=e2255]:
+                        - img "Not included" [ref=e2256]
+                      - cell [ref=e2258]:
+                        - img "Included" [ref=e2259]
+                      - cell [ref=e2261]:
+                        - img "Included" [ref=e2262]
+                      - cell [ref=e2264]:
+                        - img "Included" [ref=e2265]
+                      - cell [ref=e2267]:
+                        - img "Included" [ref=e2268]
+                    - row [ref=e2270]:
+                      - rowheader "GPT-5.6 Luna" [ref=e2271]
+                      - cell [ref=e2272]:
+                        - img "Included" [ref=e2273]
+                      - cell [ref=e2275]:
+                        - img "Included" [ref=e2276]
+                      - cell [ref=e2278]:
+                        - img "Included" [ref=e2279]
+                      - cell [ref=e2281]:
+                        - img "Included" [ref=e2282]
+                      - cell [ref=e2284]:
+                        - img "Included" [ref=e2285]
+                    - row [ref=e2287]:
+                      - rowheader "GPT-5.6 Sol" [ref=e2288]
+                      - cell [ref=e2289]:
+                        - img "Not included" [ref=e2290]
+                      - cell [ref=e2292]:
+                        - img "Included" [ref=e2293]
+                      - cell [ref=e2295]:
+                        - img "Included" [ref=e2296]
+                      - cell [ref=e2298]:
+                        - img "Included" [ref=e2299]
+                      - cell [ref=e2301]:
+                        - img "Included" [ref=e2302]
+                    - row [ref=e2304]:
+                      - rowheader "GPT-5.6 Terra" [ref=e2305]
+                      - cell [ref=e2306]:
+                        - img "Included" [ref=e2307]
+                      - cell [ref=e2309]:
+                        - img "Included" [ref=e2310]
+                      - cell [ref=e2312]:
+                        - img "Included" [ref=e2313]
+                      - cell [ref=e2315]:
+                        - img "Included" [ref=e2316]
+                      - cell [ref=e2318]:
+                        - img "Included" [ref=e2319]
+                    - row [ref=e2321]:
+                      - rowheader "GPT-6 Astra" [ref=e2322]
+                      - cell [ref=e2323]:
+                        - img "Not included" [ref=e2324]
+                      - cell [ref=e2326]:
+                        - img "Included" [ref=e2327]
+                      - cell [ref=e2329]:
+                        - img "Included" [ref=e2330]
+                      - cell [ref=e2332]:
+                        - img "Included" [ref=e2333]
+                      - cell [ref=e2335]:
+                        - img "Included" [ref=e2336]
+                    - row [ref=e2338]:
+                      - rowheader "GPT-6 Luna" [ref=e2339]
+                      - cell [ref=e2340]:
+                        - img "Included" [ref=e2341]
+                      - cell [ref=e2343]:
+                        - img "Included" [ref=e2344]
+                      - cell [ref=e2346]:
+                        - img "Included" [ref=e2347]
+                      - cell [ref=e2349]:
+                        - img "Included" [ref=e2350]
+                      - cell [ref=e2352]:
+                        - img "Included" [ref=e2353]
+                    - row [ref=e2355]:
+                      - rowheader "GPT-6 Sol" [ref=e2356]
+                      - cell [ref=e2357]:
+                        - img "Not included" [ref=e2358]
+                      - cell [ref=e2360]:
+                        - img "Included" [ref=e2361]
+                      - cell [ref=e2363]:
+                        - img "Included" [ref=e2364]
+                      - cell [ref=e2366]:
+                        - img "Included" [ref=e2367]
+                      - cell [ref=e2369]:
+                        - img "Included" [ref=e2370]
+                    - row [ref=e2372]:
+                      - rowheader "Grok 4.5" [ref=e2373]
+                      - cell [ref=e2374]:
+                        - img "Included" [ref=e2375]
+                      - cell [ref=e2377]:
+                        - img "Included" [ref=e2378]
+                      - cell [ref=e2380]:
+                        - img "Included" [ref=e2381]
+                      - cell [ref=e2383]:
+                        - img "Included" [ref=e2384]
+                      - cell [ref=e2386]:
+                        - img "Included" [ref=e2387]
+                    - row [ref=e2389]:
+                      - rowheader "Grok 4.6" [ref=e2390]
+                      - cell [ref=e2391]:
+                        - img "Included" [ref=e2392]
+                      - cell [ref=e2394]:
+                        - img "Included" [ref=e2395]
+                      - cell [ref=e2397]:
+                        - img "Included" [ref=e2398]
+                      - cell [ref=e2400]:
+                        - img "Included" [ref=e2401]
+                      - cell [ref=e2403]:
+                        - img "Included" [ref=e2404]
+                    - row [ref=e2406]:
+                      - rowheader "Grok 4.7" [ref=e2407]
+                      - cell [ref=e2408]:
+                        - img "Included" [ref=e2409]
+                      - cell [ref=e2411]:
+                        - img "Included" [ref=e2412]
+                      - cell [ref=e2414]:
+                        - img "Included" [ref=e2415]
+                      - cell [ref=e2417]:
+                        - img "Included" [ref=e2418]
+                      - cell [ref=e2420]:
+                        - img "Included" [ref=e2421]
+                    - row [ref=e2423]:
+                      - rowheader "Kimi K2.7 Code" [ref=e2424]
+                      - cell [ref=e2425]:
+                        - img "Included" [ref=e2426]
+                      - cell [ref=e2428]:
+                        - img "Included" [ref=e2429]
+                      - cell [ref=e2431]:
+                        - img "Included" [ref=e2432]
+                      - cell [ref=e2434]:
+                        - img "Included" [ref=e2435]
+                      - cell [ref=e2437]:
+                        - img "Included" [ref=e2438]
+                    - row [ref=e2440]:
+                      - rowheader "Kimi K3" [ref=e2441]
+                      - cell [ref=e2442]:
+                        - img "Included" [ref=e2443]
+                      - cell [ref=e2445]:
+                        - img "Included" [ref=e2446]
+                      - cell [ref=e2448]:
+                        - img "Included" [ref=e2449]
+                      - cell [ref=e2451]:
+                        - img "Included" [ref=e2452]
+                      - cell [ref=e2454]:
+                        - img "Included" [ref=e2455]
+                    - row [ref=e2457]:
+                      - rowheader "MAI-Code-1.1-Flash" [ref=e2458]
+                      - cell [ref=e2459]:
+                        - img "Included" [ref=e2460]
+                      - cell [ref=e2462]:
+                        - img "Included" [ref=e2463]
+                      - cell [ref=e2465]:
+                        - img "Included" [ref=e2466]
+                      - cell [ref=e2468]:
+                        - img "Included" [ref=e2469]
+                      - cell [ref=e2471]:
+                        - img "Included" [ref=e2472]
+                - generic [ref=e2474]:
+                  - paragraph [ref=e2475]: Note
+                  - paragraph
+                  - list [ref=e2478]:
+                    - listitem [ref=e2479]:
+                      - text: If you're an organization or enterprise owner, you can enable or restrict access to specific models for your members. See
+                      - link "Configuring access to AI models in GitHub Copilot" [ref=e2480] [cursor=pointer]:
+                        - /url: /en/copilot/how-tos/copilot-on-github/set-up-copilot/configure-access-to-ai-models#setup-for-organization-and-enterprise-plans
+                      - text: .
+                - heading [level=2] [ref=e2481]:
+                  - link "Fallback and long-term support (LTS) models" [ref=e2482] [cursor=pointer]:
+                    - /url: "#fallback-and-long-term-support-lts-models"
+                - paragraph [ref=e2484]:
+                  - text: For more information about fallback and LTS models, see
+                  - link "Base and long-term support (LTS) models" [ref=e2485] [cursor=pointer]:
+                    - /url: /en/copilot/concepts/models/fallback-and-lts-models
+                  - text: .
+                - heading [level=2] [ref=e2486]:
+                  - link "Evaluation models" [ref=e2487] [cursor=pointer]:
+                    - /url: "#evaluation-models"
+                - paragraph [ref=e2489]: GitHub Copilot offers access to evaluation models.
+                - generic [ref=e2490]:
+                  - paragraph [ref=e2491]: Important
+                  - paragraph
+                  - list [ref=e2494]:
+                    - listitem [ref=e2495]: Testing revealed evaluation models may perform worse than other models on security-related, or other categories of prompts.
+                    - listitem [ref=e2496]: Users should always carefully review and validate code, including code security, using a range of models and with a thorough human review before incorporating suggestions into production.
+                - paragraph [ref=e2497]: "Evaluation models may appear in the product with codenames rather than official model or provider names. These models come from or are fine-tuned by one or more of the following providers: Microsoft, OpenAI, Anthropic, and Google. Data handling for each provider is limited to GitHub's existing agreement with that provider, and evaluation models undergo GitHub and Microsoft testing and verification before release."
+                - paragraph [ref=e2498]: Evaluation models may be added, updated, or removed without notice. Availability and rate limits may differ from generally available models.
+                - paragraph [ref=e2499]: "Access to evaluation models in auto model selection for users Copilot plans for individuals is governed by a policy. To disable evaluation models:"
+                - list [ref=e2500]:
+                  - listitem [ref=e2501]:
+                    - text: In the upper-right corner of any page on GitHub, click your profile picture, then click
+                    - strong [ref=e2502]:
+                      - img "gear" [ref=e2503]
+                      - text: Settings
+                    - text: .
+                  - listitem [ref=e2505]:
+                    - text: At the top of the page, click
+                    - strong [ref=e2506]:
+                      - img "copilot" [ref=e2507]
+                      - text: AI controls
+                    - text: .
+                  - listitem [ref=e2510]:
+                    - text: For the
+                    - strong [ref=e2511]: Evaluation models in Copilot auto model selection
+                    - text: setting, select
+                    - strong [ref=e2512]: Disabled
+                    - text: from the dropdown.
+                - heading [level=2] [ref=e2513]:
+                  - link "Utility models" [ref=e2514] [cursor=pointer]:
+                    - /url: "#utility-models"
+                - paragraph [ref=e2516]:
+                  - text: Utility models power background features across surfaces, and cannot be disabled or selected in the model picker. See
+                  - link "Utility models" [ref=e2517] [cursor=pointer]:
+                    - /url: /en/copilot/concepts/models/utility-models
+                  - text: .
+                - paragraph [ref=e2518]: "The following models are currently used as utility models:"
+                - list [ref=e2519]:
+                  - listitem [ref=e2520]: GPT-4o mini
+                  - listitem [ref=e2521]: GPT-4o
+                  - listitem [ref=e2522]: GPT-4.1
+                  - listitem [ref=e2523]: GPT-5.4 nano
+                - heading [level=2] [ref=e2524]:
+                  - link "Models eligible for default enablement" [ref=e2525] [cursor=pointer]:
+                    - /url: "#models-eligible-for-default-enablement"
+                - paragraph [ref=e2527]:
+                  - text: For enterprises on a Copilot Business or Copilot Enterprise plan, a policy controls whether unconfigured generally available (GA) models are enabled or disabled by default. See
+                  - link "About default availability of Copilot features and models" [ref=e2528] [cursor=pointer]:
+                    - /url: /en/copilot/concepts/enterprise/default-model-availability
+                  - text: .
+                - paragraph [ref=e2529]:
+                  - text: The default policy applies to models that you have not explicitly configured. These models are indicated in your enterprise or organization's model settings with the
+                  - strong [ref=e2530]: Delegate to Default Policy
+                  - text: label. When a new model is released, it inherits the default until you explicitly configure it.
+                - paragraph [ref=e2531]:
+                  - text: The following models are
+                  - strong [ref=e2532]: not
+                  - text: in scope. They are disabled by default, regardless of your "Default availability" policy setting.
+                - list [ref=e2533]:
+                  - listitem [ref=e2534]: Pre-GA models
+                  - listitem [ref=e2535]: Open weight models (DeepSeek, Kimi K2.7 Code, Kimi K3)
+                  - listitem [ref=e2536]: Models that are not covered by GitHub's data retention agreement (Claude Fable 5, Claude Fable 5.1)
+                  - listitem [ref=e2537]: For enterprises that have restricted models to data-resident or FedRAMP-compliant models, any models that do not respect these policies
+                - heading [level=2] [ref=e2538]:
+                  - link "Model support" [ref=e2539] [cursor=pointer]:
+                    - /url: "#model-support"
+                - paragraph [ref=e2541]:
+                  - text: If a particular model seems unavailable, refer to the model vendor's support page for the latest information about its availability. If more than one model from different vendors is unavailable, contact
+                  - link "GitHub Support" [ref=e2542] [cursor=pointer]:
+                    - /url: https://support.github.com
+                  - text: or refer to the
+                  - link "GitHub status page" [ref=e2543] [cursor=pointer]:
+                    - /url: https://www.githubstatus.com/
+                  - text: for additional information.
+                - heading [level=2] [ref=e2544]:
+                  - link "Model retirement history" [ref=e2545] [cursor=pointer]:
+                    - /url: "#model-retirement-history"
+                - paragraph [ref=e2547]: The following table lists AI models that are retired or scheduled for retirement from Copilot, along with their retirement dates and suggested alternatives.
+                - table [ref=e2549]:
+                  - rowgroup [ref=e2550]:
+                    - row [ref=e2551]:
+                      - columnheader "Model name" [ref=e2552]
+                      - columnheader "Retirement date" [ref=e2553]
+                      - columnheader "Suggested alternative" [ref=e2554]
+                  - rowgroup [ref=e2555]:
+                    - row [ref=e2556]:
+                      - rowheader "Claude Opus 4.7" [ref=e2557]
+                      - cell "2026-10-02" [ref=e2558]
+                      - cell "Claude Opus 5" [ref=e2559]
+                    - row [ref=e2560]:
+                      - rowheader "Gemini 3.5 Flash" [ref=e2561]
+                      - cell "2026-10-02" [ref=e2562]
+                      - cell "Gemini 3.8 Flash" [ref=e2563]
+                    - row [ref=e2564]:
+                      - rowheader "Gemini 3.6 Flash" [ref=e2565]
+                      - cell "2026-10-02" [ref=e2566]
+                      - cell "Gemini 3.8 Flash" [ref=e2567]
+                    - row [ref=e2568]:
+                      - rowheader "Kimi K2.7 Code" [ref=e2569]
+                      - cell "2026-10-02" [ref=e2570]
+                      - cell "Kimi K3" [ref=e2571]
+                    - row [ref=e2572]:
+                      - rowheader "MAI-Code-1-Flash" [ref=e2573]
+                      - cell "2026-09-10" [ref=e2574]
+                      - cell "MAI-Code-1.1-Flash" [ref=e2575]
+                    - row [ref=e2576]:
+                      - rowheader "Claude Opus 4.5" [ref=e2577]
+                      - cell "2026-09-01" [ref=e2578]
+                      - cell "Claude Opus 5" [ref=e2579]
+                    - row [ref=e2580]:
+                      - rowheader "Claude Opus 4.6" [ref=e2581]
+                      - cell "2026-09-01" [ref=e2582]
+                      - cell "Claude Opus 5" [ref=e2583]
+                    - row [ref=e2584]:
+                      - rowheader "Claude Sonnet 4.5" [ref=e2585]
+                      - cell "2026-09-01" [ref=e2586]
+                      - cell "Claude Sonnet 5" [ref=e2587]
+                    - row [ref=e2588]:
+                      - rowheader [ref=e2589]:
+                        - text: Claude Sonnet 4.6
+                        - superscript [ref=e2590]:
+                          - link "[5]" [ref=e2591] [cursor=pointer]:
+                            - /url: "#user-content-fn-claude-sonnet-46-annual"
+                      - cell "2026-09-01" [ref=e2592]
+                      - cell "Claude Sonnet 5" [ref=e2593]
+                    - row [ref=e2594]:
+                      - rowheader "Gemini 3.1 Pro" [ref=e2595]
+                      - cell "2026-09-01" [ref=e2596]
+                      - cell "Gemini 3.6 Flash" [ref=e2597]
+                    - row [ref=e2598]:
+                      - rowheader "Raptor mini" [ref=e2599]
+                      - cell "2026-09-01" [ref=e2600]
+                      - cell "MAI-Code-1.1-Flash" [ref=e2601]
+                    - row [ref=e2602]:
+                      - rowheader "Gemini 2.5 Pro" [ref=e2603]
+                      - cell "2026-07-31" [ref=e2604]
+                      - cell "Gemini 3.8 Flash" [ref=e2605]
+                    - row [ref=e2606]:
+                      - rowheader "Gemini 3 Flash" [ref=e2607]
+                      - cell "2026-07-31" [ref=e2608]
+                      - cell "Gemini 3.6 Flash" [ref=e2609]
+                    - row [ref=e2610]:
+                      - rowheader "Claude Opus 4.6 (fast mode) (preview)" [ref=e2611]
+                      - cell "2026-06-29" [ref=e2612]
+                      - cell "Claude Opus 4.8 (fast mode) (preview)" [ref=e2613]
+                    - row [ref=e2614]:
+                      - rowheader "GPT-5.2" [ref=e2615]
+                      - cell "2026-06-05" [ref=e2616]
+                      - cell "GPT-5.5" [ref=e2617]
+                    - row [ref=e2618]:
+                      - rowheader "GPT-5.2-Codex" [ref=e2619]
+                      - cell "2026-06-05" [ref=e2620]
+                      - cell "GPT-5.3-Codex" [ref=e2621]
+                    - row [ref=e2622]:
+                      - rowheader "GPT-4.1" [ref=e2623]
+                      - cell "2026-06-01" [ref=e2624]
+                      - cell "GPT-5.5" [ref=e2625]
+                    - row [ref=e2626]:
+                      - rowheader "Grok Code Fast 1" [ref=e2627]
+                      - cell "2026-05-15" [ref=e2628]
+                      - cell "GPT-5 mini" [ref=e2629]
+                    - row [ref=e2630]:
+                      - rowheader "Claude Sonnet 4" [ref=e2631]
+                      - cell "2026-05-01" [ref=e2632]
+                      - cell "Claude Sonnet 4.6" [ref=e2633]
+                    - row [ref=e2634]:
+                      - rowheader "GPT-5.1" [ref=e2635]
+                      - cell "2026-04-15" [ref=e2636]
+                      - cell "GPT-5.3-Codex" [ref=e2637]
+                    - row [ref=e2638]:
+                      - rowheader "GPT-5.1-Codex" [ref=e2639]
+                      - cell "2026-04-01" [ref=e2640]
+                      - cell "GPT-5.3-Codex" [ref=e2641]
+                    - row [ref=e2642]:
+                      - rowheader "GPT-5.1-Codex-Max" [ref=e2643]
+                      - cell "2026-04-01" [ref=e2644]
+                      - cell "GPT-5.3-Codex" [ref=e2645]
+                    - row [ref=e2646]:
+                      - rowheader "GPT-5.1-Codex-Mini" [ref=e2647]
+                      - cell "2026-04-01" [ref=e2648]
+                      - cell "GPT-5.3-Codex" [ref=e2649]
+                    - row [ref=e2650]:
+                      - rowheader "Gemini 3 Pro" [ref=e2651]
+                      - cell "2026-03-26" [ref=e2652]
+                      - cell "Gemini 3.8 Flash" [ref=e2653]
+                    - row [ref=e2654]:
+                      - rowheader "Claude Opus 4.1" [ref=e2655]
+                      - cell "2026-02-17" [ref=e2656]
+                      - cell "Claude Opus 5" [ref=e2657]
+                    - row [ref=e2658]:
+                      - rowheader "GPT-5" [ref=e2659]
+                      - cell "2026-02-17" [ref=e2660]
+                      - cell "GPT-5.5" [ref=e2661]
+                    - row [ref=e2662]:
+                      - rowheader "GPT-5-Codex" [ref=e2663]
+                      - cell "2026-02-17" [ref=e2664]
+                      - cell "GPT-5.3-Codex" [ref=e2665]
+                    - row [ref=e2666]:
+                      - rowheader "Claude Sonnet 3.5" [ref=e2667]
+                      - cell "2025-11-06" [ref=e2668]
+                      - cell "Claude Haiku 4.5" [ref=e2669]
+                    - row [ref=e2670]:
+                      - rowheader "Claude Opus 4" [ref=e2671]
+                      - cell "2025-10-23" [ref=e2672]
+                      - cell "Claude Opus 5" [ref=e2673]
+                    - row [ref=e2674]:
+                      - rowheader "Claude Sonnet 3.7" [ref=e2675]
+                      - cell "2025-10-23" [ref=e2676]
+                      - cell "Claude Sonnet 4.6" [ref=e2677]
+                    - row [ref=e2678]:
+                      - rowheader "Claude Sonnet 3.7 Thinking" [ref=e2679]
+                      - cell "2025-10-23" [ref=e2680]
+                      - cell "Claude Sonnet 4.6" [ref=e2681]
+                    - row [ref=e2682]:
+                      - rowheader "Gemini 2.0 Flash" [ref=e2683]
+                      - cell "2025-10-23" [ref=e2684]
+                      - cell "Gemini 3.8 Flash" [ref=e2685]
+                    - row [ref=e2686]:
+                      - rowheader "o1-mini" [ref=e2687]
+                      - cell "2025-10-23" [ref=e2688]
+                      - cell "GPT-5 mini" [ref=e2689]
+                    - row [ref=e2690]:
+                      - rowheader "o3" [ref=e2691]
+                      - cell "2025-10-23" [ref=e2692]
+                      - cell "GPT-5.5" [ref=e2693]
+                    - row [ref=e2694]:
+                      - rowheader "o3-mini" [ref=e2695]
+                      - cell "2025-10-23" [ref=e2696]
+                      - cell "GPT-5 mini" [ref=e2697]
+                    - row [ref=e2698]:
+                      - rowheader "o4-mini" [ref=e2699]
+                      - cell "2025-10-23" [ref=e2700]
+                      - cell "GPT-5 mini" [ref=e2701]
+                - heading [level=2] [ref=e2702]:
+                  - link "Next steps" [ref=e2703] [cursor=pointer]:
+                    - /url: "#next-steps"
+                - list [ref=e2705]:
+                  - listitem [ref=e2706]:
+                    - text: To get up and running with Copilot, see
+                    - link "Quickstart for using GitHub Copilot on GitHub.com" [ref=e2707] [cursor=pointer]:
+                      - /url: /en/copilot/get-started/quickstart-for-using-github-copilot-on-github-com
+                    - text: and
+                    - link "Quickstart for using GitHub Copilot in your IDE" [ref=e2708] [cursor=pointer]:
+                      - /url: /en/copilot/get-started/quickstart-for-using-github-copilot-in-your-ide
+                    - text: .
+                  - listitem [ref=e2709]:
+                    - text: To configure which models are available to you, see
+                    - link "Configuring access to AI models in GitHub Copilot" [ref=e2710] [cursor=pointer]:
+                      - /url: /en/copilot/how-tos/copilot-on-github/set-up-copilot/configure-access-to-ai-models
+                    - text: .
+                  - listitem [ref=e2711]:
+                    - text: To learn more about Responsible Use and Responsible AI, see
+                    - link "Copilot Trust Center" [ref=e2712] [cursor=pointer]:
+                      - /url: https://copilot.github.trust.page/
+                    - text: and
+                    - link "Responsible use of GitHub Copilot features" [ref=e2713] [cursor=pointer]:
+                      - /url: /en/copilot/responsible-use
+                    - text: .
+                - generic [ref=e2714]:
+                  - heading [level=2] [ref=e2715]:
+                    - link "Footnotes" [ref=e2716] [cursor=pointer]:
+                      - /url: "#footnote-label"
+                  - list [ref=e2718]:
+                    - listitem [ref=e2719]:
+                      - paragraph [ref=e2720]:
+                        - text: GPT-5.4 nano is currently only available in the Codex Visual Studio Code extension (Copilot Pro+ only) and is not available in Copilot Chat.
+                        - link "Back to reference 1" [ref=e2721] [cursor=pointer]:
+                          - /url: "#user-content-fnref-gpt54nano"
+                          - text: ↩
+                        - link "Back to reference 1-2" [ref=e2722] [cursor=pointer]:
+                          - /url: "#user-content-fnref-gpt54nano-2"
+                          - text: ↩
+                          - superscript [ref=e2723]: "2"
+                        - link "Back to reference 1-3" [ref=e2724] [cursor=pointer]:
+                          - /url: "#user-content-fnref-gpt54nano-3"
+                          - text: ↩
+                          - superscript [ref=e2725]: "3"
+                    - listitem [ref=e2726]:
+                      - paragraph [ref=e2727]:
+                        - text: When Claude Fable 5 or Claude Fable 5.1 is used, Anthropic retains data, including prompts and outputs, by default to operate safety classifiers that detect harmful use. Customers can request to use Claude Fable 5 or Claude Fable 5.1 with zero data retention (ZDR) through the end of 2026 under a time-bound exemption while Anthropic rolls out Enterprise Frontier Safeguards (EFS). After that point, continued use of these models would require EFS, which will enable eligible customers to keep their data under their own control while also enabling automated safety monitoring. For an enterprise that has been approved and configured for this type of access, Claude Fable 5 and Claude Fable 5.1 requests will use the ZDR endpoint through the end of 2026 when the models are enabled. To learn whether your enterprise is eligible and request access, contact your GitHub account team. Approval for access does not automatically enable Claude Fable 5 or Claude Fable 5.1. An enterprise or organization administrator must still enable each model before users can access it. Other Claude models, except for Claude Fable 5 and Claude Fable 5.1, continue to operate under ZDR. Customers who enable a Fable model with ZDR agree to use this model only for internal operations, including to develop and evaluate products for their own customers. They may not make the model endpoints or outputs available externally. To enable these models, see
+                        - link "Configuring access to AI models in GitHub Copilot" [ref=e2728] [cursor=pointer]:
+                          - /url: /en/copilot/how-tos/copilot-on-github/set-up-copilot/configure-access-to-ai-models
+                        - text: .
+                        - link "Back to reference 2" [ref=e2729] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-fable-5"
+                          - text: ↩
+                        - link "Back to reference 2-2" [ref=e2730] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-fable-5-2"
+                          - text: ↩
+                          - superscript [ref=e2731]: "2"
+                        - link "Back to reference 2-3" [ref=e2732] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-fable-5-3"
+                          - text: ↩
+                          - superscript [ref=e2733]: "3"
+                        - link "Back to reference 2-4" [ref=e2734] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-fable-5-4"
+                          - text: ↩
+                          - superscript [ref=e2735]: "4"
+                    - listitem [ref=e2736]:
+                      - paragraph [ref=e2737]:
+                        - text: MAI models are continuously improving models. Performance and behavior may evolve over time as new checkpoints are released.
+                        - link "Back to reference 3" [ref=e2738] [cursor=pointer]:
+                          - /url: "#user-content-fnref-mai-models"
+                          - text: ↩
+                    - listitem [ref=e2739]:
+                      - paragraph [ref=e2740]:
+                        - text: Claude Sonnet 4.6 was retired on September 1, 2026, but remains available to individual Copilot subscribers on annual Copilot Pro and Copilot Pro+ plans. It is not available to subscribers on monthly plans.
+                        - link "Back to reference 4" [ref=e2741] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-sonnet-46-plans"
+                          - text: ↩
+                    - listitem [ref=e2742]:
+                      - paragraph [ref=e2743]:
+                        - text: Claude Sonnet 4.6 remains available to individual Copilot subscribers on annual plans. The retirement of Claude Sonnet 4.6 does not apply to these subscribers.
+                        - link "Back to reference 5" [ref=e2744] [cursor=pointer]:
+                          - /url: "#user-content-fnref-claude-sonnet-46-annual"
+                          - text: ↩
+          - contentinfo [ref=e2746]:
+            - generic [ref=e2750]:
+              - link "GitHub" [ref=e2751] [cursor=pointer]:
+                - /url: https://github.com
+              - button "Back to top" [ref=e2755] [cursor=pointer]
+            - generic [ref=e2763]:
+              - heading "Help and support" [level=2] [ref=e2764]
+              - generic [ref=e2765]:
+                - generic [ref=e2767]:
+                  - heading "Was this Doc helpful?" [level=3] [ref=e2768]
+                  - radiogroup "Was this Doc helpful?" [ref=e2769]:
+                    - radio "Yes" [ref=e2770]
+                    - generic [ref=e2771] [cursor=pointer]: "Yes"
+                    - radio "No" [ref=e2772]
+                    - generic [ref=e2773] [cursor=pointer]: "No"
+                - generic [ref=e2775]:
+                  - heading "Help us make GitHub Docs great!" [level=3] [ref=e2776]
+                  - paragraph [ref=e2777]: All Docs are open source. See something that's wrong or unclear? Submit a pull request.
+                  - link "Make a contribution" [ref=e2778] [cursor=pointer]:
+                    - /url: https://github.com/github/docs/blob/main/content/copilot/reference/ai-models/supported-models.md
+                - generic [ref=e2780]:
+                  - heading "Still need help?" [level=3] [ref=e2781]
+                  - generic [ref=e2782]:
+                    - link "Ask the GitHub community" [ref=e2783] [cursor=pointer]:
+                      - /url: https://github.com/orgs/community/discussions
+                    - link "Contact support" [ref=e2784] [cursor=pointer]:
+                      - /url: https://support.github.com
+                    - link "Expert services" [ref=e2785] [cursor=pointer]:
+                      - /url: https://services.github.com
+                    - link "Blog" [ref=e2786] [cursor=pointer]:
+                      - /url: https://github.blog
+            - paragraph [ref=e2791]:
+              - generic [ref=e2792]:
+                - generic [ref=e2793]: GitHub Inc. © 2026
+                - generic [ref=e2794]:
+                  - link "Terms" [ref=e2795] [cursor=pointer]:
+                    - /url: /en/site-policy/github-terms/github-terms-of-service
+                  - link "Privacy" [ref=e2796] [cursor=pointer]:
+                    - /url: /en/site-policy/privacy-policies/github-privacy-statement
+                  - link "Status" [ref=e2797] [cursor=pointer]:
+                    - /url: https://www.githubstatus.com/
+                  - link "Pricing" [ref=e2798] [cursor=pointer]:
+                    - /url: https://github.com/pricing
+  - alert [ref=e2799]
