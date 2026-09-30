@@ -1,5 +1,6 @@
 // Wizard-wide state made explicit as a single object
 import { TYPE_IDS, allHookValues } from "./core/types.js";
+import { defaultContextFields } from "./core/options.js";
 
 // --type whitelist: the display order of the type registry (core/types.js).
 export const VALID_TYPES = TYPE_IDS;
@@ -24,8 +25,9 @@ export function createContext(overrides = {}) {
     branch: "",
     branches: null,          // { main, develop, mode: "pr-flow"|"trunk-based" } - result of resolveBranchConfig
     paths: new Map(),        // type -> path
-    includeSemverAuto: null, // null = unset (resolved to true downstream), true/false = explicit
-    includeCopilotAi: null,  // null = unset (resolved to false downstream), true/false = explicit; Copilot AI summary opt-in
+    // Release option fields (includeSemverAuto, includeCopilotAi, ...): null = unset (resolved downstream), true/false = explicit.
+    // Fields and defaults come from the option registry (core/options.js).
+    ...defaultContextFields(),
     // Type-specific option fields; all ignored in projects without that type. Fields and defaults come from the type hook (contextDefaults).
     ...allHookValues("contextDefaults"),
     language: "en",          // message language (--lang / env / version.yml), default en

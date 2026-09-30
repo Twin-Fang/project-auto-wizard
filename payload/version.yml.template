@@ -9,6 +9,9 @@
 # - copilot_ai: opt-in (default false) — true lets the release/PR summary
 #   workflows call GitHub Copilot CLI, which consumes GitHub Copilot AI Credits.
 #   Falls back to rule-based summaries whenever Copilot is off or unavailable.
+# - release_automerge: default true — false stops the release PR (develop -> main)
+#   from being merged automatically. Merge it yourself with a merge commit
+#   (not squash or rebase); the workflow renames the PR so the release still publishes.
 # ===
 # Supported project types: spring, flutter, react, react-native,
 #                          react-native-expo, node, python, basic, go
@@ -53,6 +56,7 @@ metadata:
     options:
       semver_auto: {{OPT_SEMVER_AUTO}}
       copilot_ai: {{OPT_COPILOT_AI}}
+      release_automerge: {{OPT_RELEASE_AUTOMERGE}}
       deploy_style: "{{OPT_DEPLOY_STYLE}}" # simple | nginx | traefik | none (server deploy workflows)
 {{TYPE_OPTIONS}}
 {{DEPLOY}}

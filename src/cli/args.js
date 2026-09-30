@@ -4,6 +4,7 @@ import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-st
 import { isValidBranchName } from "../core/branches.js";
 import { TYPES, canonicalTypeId } from "../core/types.js";
 import { CliError } from "../core/errors.js";
+import { OPTIONS, defaultContextFields } from "../core/options.js";
 import { normalizePath, isRepoRelativePath } from "../core/paths.js";
 import { t, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, isSupportedLanguage, normalizeLanguage } from "../i18n/index.js";
 
@@ -11,6 +12,11 @@ import { t, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, isSupportedLanguage, normaliz
 export { CliError, normalizePath, isRepoRelativePath };
 
 // Type-specific CLI flags (type hook cliFlags): flag name -> { field, initial, parse }. Hooks are collected in type-table order.
+// --<flag> / --no-<flag> for every registry option - a new option needs no change here.
+const OPTION_CLI_FLAGS = new Map(OPTIONS.flatMap((option) => [
+  [`--${option.flag}`, { option, value: true }],
+  [`--no-${option.flag}`, { option, value: false }],
+]));
 export const TYPE_CLI_FLAGS = TYPES.flatMap((t) => t.hooks?.cliFlags ?? []);
 const TYPE_CLI_FLAG_BY_NAME = new Map(TYPE_CLI_FLAGS.map((f) => [f.flag, f]));
 
@@ -22,7 +28,7 @@ const VALUE_FLAGS = new Set([
 const SWITCH_FLAGS = new Set([
   "--version", "--help", "--force", "--dry-run", "--purge-readme", "--purge-gitignore", "--purge-version", "--yes", "--allow-dirty",
   "--delete-develop-branch", "--keep-version-yml", "--keep-readme", "--keep-changelog", "--keep-workflows", "--keep-scripts",
-  "--semver-auto", "--no-semver-auto", "--copilot", "--no-copilot",
+  ...OPTIONS.flatMap((o) => [`--${o.flag}`, `--no-${o.flag}`]),
 ]);
 
 // `--name=value` -> `--name`, `value`, so the parser below only sees the space-separated form.
@@ -54,8 +60,7 @@ export function parseArgs(argv) {
     version: "",             // initial version of the target project (--project-version)
     types: [],
     primaryType: "",
-    includeSemverAuto: null,  // --semver-auto / --no-semver-auto (default true; resolved downstream when unset)
-    includeCopilotAi: null,   // --copilot / --no-copilot (default false; opt-in because it consumes AI Credits)
+    ...defaultContextFields(), // --<flag> / --no-<flag> per registry option (null = unset, resolved downstream)
     pathsCsv: "",            // raw "flutter=app,react=client" (normalized in the resolve step)
     mainBranch: "",          // release branch (--main-branch). empty = detected default branch
     developBranch: "",       // development branch (--develop-branch). empty = develop
@@ -86,6 +91,13 @@ export function parseArgs(argv) {
     const a = args.shift();
     const typeFlag = TYPE_CLI_FLAG_BY_NAME.get(a);
     if (typeFlag) { result[typeFlag.field] = typeFlag.parse(args.shift()); continue; }
+    const optionFlag = OPTION_CLI_FLAGS.get(a);
+    if (optionFlag) {
+      const { option, value } = optionFlag;
+      // --<flag> and --no-<flag> together are contradictory, so reject instead of letting the last one win
+      if (seenFlags.has(`--${value ? "no-" : ""}${option.flag}`)) throw new CliError(t(option.conflictKey));
+      seenFlags.add(a); result[option.ctxField] = value; continue;
+    }
     switch (a) {
       case "-m": case "--mode":
         result.mode = args.shift() ?? ""; break;
@@ -156,18 +168,6 @@ export function parseArgs(argv) {
         }
         result.deployStyle = v; break;
       }
-      case "--semver-auto":
-        if (seenFlags.has("--no-semver-auto")) throw new CliError(t("cli.args.semverConflict"));
-        seenFlags.add("--semver-auto"); result.includeSemverAuto = true; break;
-      case "--no-semver-auto":
-        if (seenFlags.has("--semver-auto")) throw new CliError(t("cli.args.semverConflict"));
-        seenFlags.add("--no-semver-auto"); result.includeSemverAuto = false; break;
-      case "--copilot":
-        if (seenFlags.has("--no-copilot")) throw new CliError(t("cli.args.copilotConflict"));
-        seenFlags.add("--copilot"); result.includeCopilotAi = true; break;
-      case "--no-copilot":
-        if (seenFlags.has("--copilot")) throw new CliError(t("cli.args.copilotConflict"));
-        seenFlags.add("--no-copilot"); result.includeCopilotAi = false; break;
       case "--paths": {
         // Silently falling back to auto-detection would install to paths other than the ones the user thinks they set.
         const v = (args.shift() ?? "").trim();

@@ -8,6 +8,7 @@ import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "../core/detect-fs.js";
 import { parseExisting, droppedPathLines } from "../core/version-yml.js";
 import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
+import { OPTIONS, askableOptions, explicitFromContext } from "../core/options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
 import {
@@ -32,9 +33,6 @@ import { t, getLanguage } from "../i18n/index.js";
 
 const CANCEL = prompts.CANCEL;
 
-// Resolved lazily so the text follows the language chosen at run time.
-const semverAutoQuestion = () => t("interactive.question.semverAuto");
-const copilotAiQuestion = () => t("interactive.question.copilotAi");
 const isCancel = (v) => v === CANCEL || typeof v === "symbol";
 
 // io defaults to the real prompts. Tests inject a stub io.
@@ -100,8 +98,8 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const repoName = detectRepoName(cwd);
   // Initial values of optional workflows: CLI flags (--copilot etc.) -> options saved in version.yml
   // Values set by a flag skip the question - same priority as non-interactive mode.
-  let { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } = pickReleaseOptions(
-    { semverAuto: baseCtx?.includeSemverAuto, copilotAi: baseCtx?.includeCopilotAi }, existing);
+  // optionState: option name -> boolean|null (null = undecided; settled by resolveReleaseOptions below). Driven by the option registry.
+  const optionState = pickReleaseOptions(explicitFromContext(baseCtx ?? {}), existing);
   // Server deploy style - not asked again when a saved value (version.yml) exists (same convention as semver_auto).
   let deployStyle = savedDeployStyle(existing);
   const showOptional = mode === "full";
@@ -157,23 +155,22 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // Flutter options - env mode -> store deploy targets -> per-platform deploy mode.
     await askFlutterOptions();
 
-    // Auto semver bump question (default ON). Skipped when a saved value exists.
-    // In workflows mode version.yml is not written and the answer is meaningless, so it is asked only in full.
-    if (mode === "full" && includeSemverAuto === null) {
-      const y2 = await io.askYesNo(semverAutoQuestion(), true);
-      includeSemverAuto = y2 === true;
-    }
-
-    // Copilot AI summary - consumes AI Credits, so opt-in (default No). Skipped when a saved value exists.
-    if (mode === "full" && includeCopilotAi === null) {
-      const y3 = await io.askYesNo(copilotAiQuestion(), false);
-      includeCopilotAi = y3 === true;
+    // Optional-workflow questions (auto semver bump default ON, Copilot AI summary default No - it consumes AI Credits).
+    // Each is skipped when a flag or a saved value exists. In workflows mode version.yml is not written and the answer
+    // is meaningless, so they are asked only in full. Options without `ask` in the registry are never asked.
+    for (const o of askableOptions()) {
+      if (mode === "full" && optionState[o.name] === null) {
+        const answer = await io.askYesNo(t(o.ask.questionKey), o.ask.initial);
+        optionState[o.name] = answer === true;
+      }
     }
   }
   // When a question was actually asked (the full-mode questions above) its answer is respected, and only options that were not asked
   // are filled with defaults - same function as the CLI path (index.js), hence the same rule.
-  ({ includeSemverAuto, includeCopilotAi } = resolveReleaseOptions(
-    { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi }, existing));
+  // Fill undecided options with defaults; keep the whole result (also the options that are never asked) so a saved
+  // value such as release_automerge: false survives an interactive reinstall.
+  const settledOptions = resolveReleaseOptions(optionState, existing);
+  for (const o of OPTIONS) optionState[o.name] = settledOptions[o.ctxField];
   const showOptionToggles = mode === "full";
 
   // Confirm/edit loop - ESC means 'stay' (only an explicit 'No' exits)
@@ -184,12 +181,12 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     if (io.analysisCard) {
       io.analysisCard({
         mode, modeLabel: modeLabel(mode), types, version, branch, showOptional, paths, flutter, envModeDefault: flutterAsk.envModeDefault,
-        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+        options: showOptionToggles ? { ...optionState } : null,
       });
     } else {
       io.note?.(summarize({
         mode, types, version, branch, showOptional, flutter, envModeDefault: flutterAsk.envModeDefault,
-        options: showOptionToggles ? { semverAuto: includeSemverAuto, copilotAi: includeCopilotAi } : null,
+        options: showOptionToggles ? { ...optionState } : null,
       }), t("interactive.summary.title"));
     }
     const choice = await io.confirmProjectMenu();
@@ -218,13 +215,11 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
         }
       } else if (what === "branch") {
         branch = await askBranchName(io, t("interactive.edit.branchPrompt"), branch, isCancel);
-      } else if (what === "semverAuto") {
+      } else if (askableOptions().some((o) => o.name === what)) {
         // A saved value skips the first question, so this is the only place to change a value once decided.
-        const y = await io.askYesNo(semverAutoQuestion(), includeSemverAuto);
-        if (typeof y === "boolean") includeSemverAuto = y;
-      } else if (what === "copilotAi") {
-        const y = await io.askYesNo(copilotAiQuestion(), includeCopilotAi);
-        if (typeof y === "boolean") includeCopilotAi = y;
+        const o = askableOptions().find((x) => x.name === what);
+        const y = await io.askYesNo(t(o.ask.questionKey), optionState[o.name]);
+        if (typeof y === "boolean") optionState[o.name] = y;
       } else if (FLUTTER_EDIT_ITEMS.has(what)) {
         flutter = await editFlutterOption(io, what, flutter, flutterAsk.envModeDefault);
       }
@@ -323,7 +318,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     // Even if the saved value is zero-downtime, a single-server deploy is installed when the chosen types lack that style - record the style actually installed.
     deployStyle: resolveDeployStyle({ payload, types, explicit: deployStyle, existing }),
     typeOptions: flutterOptions,
-    releaseOptions: { includeSemverAuto, includeCopilotAi },
+    releaseOptions: Object.fromEntries(OPTIONS.map((o) => [o.ctxField, optionState[o.name]])),
     mode, force: true, version, versionCode, branch, branches, paths,
     repoName, resolvers, envValues, envUseDefaults, now, today,
     language: baseCtx.language ?? existing?.language ?? getLanguage(),
@@ -449,8 +444,9 @@ function summarize({ mode, types, version, branch, showOptional, flutter, envMod
     }
   }
   if (options) {
-    lines.push(t("interactive.summary.semverAuto", { value: options.semverAuto ? t("interactive.summary.on") : t("interactive.summary.off") }));
-    lines.push(t("interactive.summary.copilotAi", { value: options.copilotAi ? t("interactive.summary.on") : t("interactive.summary.off") }));
+    for (const o of askableOptions()) {
+      lines.push(t(o.ask.summaryKey, { value: options[o.name] ? t("interactive.summary.on") : t("interactive.summary.off") }));
+    }
   }
   return lines.join("\n");
 }

@@ -2,7 +2,7 @@
 
 Thanks for contributing! This document covers local setup and pull request rules.
 
-For the code structure and install flow, see [ARCHITECTURE.md](ARCHITECTURE.md). For the steps to add a new project type, see [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md).
+For the code structure and install flow, see [ARCHITECTURE.md](ARCHITECTURE.md). For the steps to add a new project type, see [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md). For an on/off release option, see [ADDING-AN-OPTION.md](ADDING-AN-OPTION.md).
 
 ## Development setup
 

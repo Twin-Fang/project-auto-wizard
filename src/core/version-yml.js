@@ -1,4 +1,5 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
+import { OPTIONS, optionVar, renderValues } from "./options.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
 import { normalizePath } from "./paths.js";
@@ -41,15 +42,17 @@ export function parseExtraTopLevel(content) {
 
 // Type-specific option key -> returned field (type hook savedOptionKeys). The value is returned as the raw string; validity is up to the type hook's resolveOptions.
 const TYPE_OPTION_KEYS = allHookValues("savedOptionKeys");
+const OPTION_BY_KEY = new Map(OPTIONS.map((o) => [o.key, o]));
+const OPTION_LINE = new RegExp(`^\\s+(${OPTIONS.map((o) => o.key).join("|")}):\\s*(.+)`);
 const TYPE_OPTION_LINE = new RegExp(`^\\s+(${Object.keys(TYPE_OPTION_KEYS).join("|")}):\\s*(.+)`);
 
 // State-machine parse of metadata.template.options.
-// Returns: { semverAuto: bool|null, copilotAi: bool|null, deployStyle: string|null,
+// Returns: { <one bool|null per registry option, e.g. semverAuto/copilotAi>, deployStyle: string|null,
 //         type-specific option fields (e.g. envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } - null = not written.
 // Other keys such as the old synology/coderabbit ones hit no branch and are naturally ignored (no parse error).
 export function parseTemplateOptions(content) {
   const out = {
-    semverAuto: null, copilotAi: null, deployStyle: null,
+    ...Object.fromEntries(OPTIONS.map((o) => [o.name, null])), deployStyle: null,
     ...Object.fromEntries(Object.values(TYPE_OPTION_KEYS).map((field) => [field, null])),
   };
   // Value normalization: strip quotes + trim
@@ -66,18 +69,12 @@ export function parseTemplateOptions(content) {
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(TYPE_OPTION_LINE);
       if (m) { const v = strip(m[2]); if (v) out[TYPE_OPTION_KEYS[m[1]]] = v; continue; }
-      m = line.match(/^\s+semver_auto:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.semverAuto = true;
-        if (v === "false") out.semverAuto = false;
-        continue;
-      }
-      m = line.match(/^\s+copilot_ai:\s*(.+)/);
-      if (m) {
-        const v = strip(m[1]);
-        if (v === "true") out.copilotAi = true;
-        if (v === "false") out.copilotAi = false;
+      // Boolean options come from the registry; a value other than true/false is left null (= not written).
+      const optionLine = line.match(OPTION_LINE);
+      if (optionLine) {
+        const v = strip(optionLine[2]);
+        if (v === "true") out[OPTION_BY_KEY.get(optionLine[1]).name] = true;
+        if (v === "false") out[OPTION_BY_KEY.get(optionLine[1]).name] = false;
         continue;
       }
       // another key indented 0-4 spaces -> end of the options section
@@ -256,8 +253,9 @@ export function buildVersionYml({
   const b = branches || { main: branch || "main", develop: "develop", mode: "pr-flow" };
   const {
     templateVersion = "unknown",
-    includeSemverAuto = true, includeCopilotAi = false, deployStyle = "", optionsDate = today,
+    deployStyle = "", optionsDate = today,
   } = templateOptions || {};
+  const optionValues = renderValues(templateOptions || {});
 
   // project_paths block (full-line token {{PROJECT_PATHS}} - line removed when absent)
   let pathsBlock = "";
@@ -295,8 +293,7 @@ export function buildVersionYml({
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
-    OPT_SEMVER_AUTO: String(includeSemverAuto),
-    OPT_COPILOT_AI: String(includeCopilotAi),
+    ...Object.fromEntries(OPTIONS.map((o) => [optionVar(o), String(optionValues[o.ctxField])])),
     OPT_DEPLOY_STYLE: String(deployStyle || ""),
   };
 
@@ -335,15 +332,14 @@ export function sameIgnoringTimestamps(a, b) {
 export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null, language,
-    includeSemverAuto, includeCopilotAi, deployStyle } = context;
+    deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
     deployValues, extraTopLevel, language,
     typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,
-      includeSemverAuto: includeSemverAuto !== false,
-      includeCopilotAi: includeCopilotAi === true,
+      ...renderValues(context),
       // null = a type with no server deploy workflow, so the deploy style is meaningless (record omitted)
       deployStyle: deployStyle === null ? null : (deployStyle || DEFAULT_DEPLOY_STYLE),
       optionsDate: today,

@@ -20,6 +20,7 @@ export default {
   "ui.status-cards.card.on": "켜짐",
   "ui.status-cards.card.off": "꺼짐",
   "ui.status-cards.card.autoBump": "자동승격",
+  "ui.status-cards.card.copilot": "Copilot",
   "ui.status-cards.card.paths": "경로",
   "ui.status-cards.kind.update": "{title} — 템플릿 {from} → {to}",
   "ui.status-cards.kind.updateTitle": "업데이트",

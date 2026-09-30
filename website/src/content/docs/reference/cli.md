@@ -26,6 +26,7 @@ Without `--mode`, the wizard runs interactively.
 | `--ios-deploy-mode MODE` | `store_only` \| `store_prepare` \| `store_submit` | `store_only` | iOS deploy mode |
 | `--semver-auto` / `--no-semver-auto` | — | on | Bump major/minor/patch from commit types |
 | `--copilot` / `--no-copilot` | — | off | Generate summaries with Copilot (consumes GitHub Copilot AI Credits) |
+| `--release-automerge` / `--no-release-automerge` | — | on | Merge the release PR automatically; off means you merge it yourself |
 | `--lang LANG` | `en` \| `ko` | `PROJECT_AUTO_WIZARD_LANG`, then the saved `language` in `version.yml`, then `en` | Message language. The choice is saved to `version.yml` and kept on update. |
 | `--force` | — | — | Required for `full`; makes `uninstall` non-interactive. Skips all confirmations and uses defaults. |
 | `--dry-run` | — | — | Show what would change without changing files (`full` and `uninstall`) |
@@ -88,6 +89,7 @@ Options:
       --ios-deploy-mode MODE         iOS deploy mode: store_only | store_prepare | store_submit (default: store_only)
       --semver-auto / --no-semver-auto  Auto major/minor/patch bump from commit types (default: enabled)
       --copilot / --no-copilot  Generate the AI summary with Copilot (default: off; consumes GitHub Copilot AI Credits)
+      --release-automerge / --no-release-automerge  Merge the release PR automatically (default: enabled; off = you merge it yourself)
       --lang LANG          Message language: en | ko (default: en)
       --force              Required for full; non-interactive removal for uninstall (skips all confirmations, uses defaults)
       --dry-run            Preview what would change without touching any file (supported by full/uninstall)
