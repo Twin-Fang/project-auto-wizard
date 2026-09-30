@@ -50,8 +50,6 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
 
-  if (existing?.droppedPaths?.length) io.note?.(droppedPathLines(existing.droppedPaths).join("\n"), t("core.versionYml.pathMergedTitle"));
-
   // New install vs update detection
   io.installKind?.({ currentTemplateVersion: existing?.templateVersion || "", templateVersion });
 
@@ -295,6 +293,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   } else {
     for (const ty of types) if (ty !== "basic" && !paths.has(ty)) paths.set(ty, existing?.paths.get(ty) || ".");
   }
+
+  // Announce merged folders only now: the message must follow the folders actually chosen, not the saved ones.
+  if (existing?.droppedPaths?.length) io.note?.(droppedPathLines(existing.droppedPaths, paths).join("\n"), t("core.versionYml.pathMergedTitle"));
 
   // In a monorepo the version/build-number files live inside the type folder - detect there now that paths are settled.
   if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
