@@ -9,6 +9,7 @@ description: Fields of version.yml, the single source of the version and the wiz
 version: "1.4.2"
 version_code: 57 # app build number
 project_types: ["spring", "react"] # first entry is primary
+language: "en" # message language: en | ko
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   spring: "server" # server/build.gradle
   react: "client" # client/package.json
@@ -43,6 +44,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 | `version` | Current version, `x.y.z`. Updated by the release workflows. |
 | `version_code` | Monotonically increasing build number, bumped with every version (used by app builds). |
 | `project_types` | All project types. The first entry is the primary type; its version file is compared with `version.yml` during releases. |
+| `language` | Message language, `en` (default) or `ko`. Set with `--lang` or `PROJECT_AUTO_WIZARD_LANG`; kept on update. |
 | `project_paths` | Per-type folder relative to the repository root. Omitted types live at the root. |
 | `deploy` | Non-secret values the wizard asked for per type (for example deploy ports), reused on the next run. Written only for types that have such values. |
 
