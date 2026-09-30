@@ -29,8 +29,7 @@ The wizard looks for marker files and proposes the types it found. You can accep
 | `go` | `go.mod` |
 | `react-native-expo` | `package.json` with an `expo` dependency |
 | `react-native` | `package.json` with a `react-native` dependency |
-| `next` | `package.json` with a `next` dependency |
-| `react` | `package.json` with a `react` dependency |
+| `react` | `package.json` with a `react` or `next` dependency (Next.js projects are React projects) |
 | `node` | `package.json` without the dependencies above, and no other type found |
 | `basic` | nothing above matched |
 

@@ -78,7 +78,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 |---|---|
 | `spring` | `build.gradle` / `build.gradle.kts` |
 | `flutter` | `pubspec.yaml` |
-| `next`, `react`, `node` | `package.json` |
+| `react`, `node` | `package.json` |
 | `react-native` | `Info.plist`, `build.gradle` |
 | `react-native-expo` | `app.json` |
 | `python` | `pyproject.toml` |

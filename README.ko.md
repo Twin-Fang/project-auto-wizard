@@ -127,7 +127,7 @@ feature PRs ──▶ develop ──▶ release PR (develop → main)
 |---|---|---|
 | `spring` | `build.gradle`, `build.gradle.kts`, `pom.xml` | CI, 서버 배포 (단일 서버 / Nginx·Traefik 무중단), PR 프리뷰 |
 | `flutter` | `pubspec.yaml` | CI, Android (Firebase, Play Store, self-hosted, 테스트 APK), iOS TestFlight |
-| `react`, `next` | `package.json` dependencies | CI, CI + CD |
+| `react` (React / Next.js) | `package.json`의 `react` 또는 `next` dependency | CI, CI + CD |
 | `python` | `pyproject.toml`, `setup.py`, `requirements.txt` | CI, PR 프리뷰, 서버 배포 |
 | `go` | `go.mod` | CI, PR 프리뷰, 서버 배포 |
 | `node`, `react-native`, `react-native-expo`, `basic` | `package.json` / fallback | 릴리스 자동화만 |
