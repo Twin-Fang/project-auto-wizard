@@ -1,0 +1,13 @@
+def notes = '''
+version = '9.9.9'
+'''
+
+allprojects {
+    def banner = """multi {
+line } // x
+"""
+    def script = '''
+        } }
+    '''
+    version = '1.0.5'
+}
