@@ -198,18 +198,25 @@ jobs:
         id: comment
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ANALYZE_ONLY: ${{ steps.config.outputs.analyze_only }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_ANDROID: ${{ steps.config.outputs.enable_android }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_IOS: ${{ steps.config.outputs.enable_ios }}
+          PAW_IN_STEPS_INFO_OUTPUTS_BRANCH_NAME: ${{ steps.info.outputs.branch_name }}
+          PAW_IN_STEPS_INFO_OUTPUTS_COMMIT_HASH: ${{ steps.info.outputs.commit_hash }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const prNumber = context.payload.pull_request.number;
-            const branchName = '${{ steps.info.outputs.branch_name }}';
-            const commitHash = '${{ steps.info.outputs.commit_hash }}';
-            const analyzeOnly = '${{ steps.config.outputs.analyze_only }}' === 'true';
-            const enableAndroid = '${{ steps.config.outputs.enable_android }}' === 'true';
-            const enableIos = '${{ steps.config.outputs.enable_ios }}' === 'true';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_STEPS_INFO_OUTPUTS_BRANCH_NAME;
+            const commitHash = process.env.PAW_IN_STEPS_INFO_OUTPUTS_COMMIT_HASH;
+            const analyzeOnly = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ANALYZE_ONLY === 'true';
+            const enableAndroid = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_ANDROID === 'true';
+            const enableIos = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_IOS === 'true';
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
             const startTime = Date.now();
 
@@ -372,22 +379,27 @@ jobs:
         id: result
         if: always()
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
+          PAW_IN_STEPS_ANALYZE_START_OUTPUTS_TIME: ${{ steps.analyze_start.outputs.time }}
+          PAW_IN_STEPS_TEST_OUTCOME: ${{ steps.test.outcome }}
+          PAW_IN_STEPS_TEST_OUTPUTS_RAN: ${{ steps.test.outputs.ran }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const analyzeStart = parseInt('${{ steps.analyze_start.outputs.time }}');
+            const analyzeStart = parseInt(process.env.PAW_IN_STEPS_ANALYZE_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - analyzeStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.analyze.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_ANALYZE_OUTCOME === 'success' ? 'success' : 'failure';
             // none: no test files, skipped: not run because the dependency install failed
-            const testOutcome = '${{ steps.test.outcome }}';
+            const testOutcome = process.env.PAW_IN_STEPS_TEST_OUTCOME;
             const testStatus = testOutcome === 'success'
-              ? ('${{ steps.test.outputs.ran }}' === 'true' ? 'success' : 'none')
+              ? (process.env.PAW_IN_STEPS_TEST_OUTPUTS_RAN === 'true' ? 'success' : 'none')
               : (testOutcome === 'failure' ? 'failure' : 'skipped');
 
             core.setOutput('status', status);
@@ -519,18 +531,21 @@ jobs:
         id: result
         if: always()
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
+            const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_BUILD_OUTCOME === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
@@ -667,18 +682,21 @@ jobs:
         id: result
         if: always()
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
+            const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_BUILD_OUTCOME === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
@@ -705,29 +723,45 @@ jobs:
 
       - name: Update final result comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_DURATION: ${{ needs.analyze.outputs.duration }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_STATUS: ${{ needs.analyze.outputs.status }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_STATUS: ${{ needs.analyze.outputs.test_status }}
+          PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_DURATION: ${{ needs.build-android.outputs.duration }}
+          PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_STATUS: ${{ needs.build-android.outputs.status }}
+          PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_DURATION: ${{ needs.build-ios.outputs.duration }}
+          PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_STATUS: ${{ needs.build-ios.outputs.status }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ANALYZE_ONLY: ${{ needs.prepare.outputs.analyze_only }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_BRANCH_NAME: ${{ needs.prepare.outputs.branch_name }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMENT_ID: ${{ needs.prepare.outputs.comment_id }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMIT_HASH: ${{ needs.prepare.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_ANDROID: ${{ needs.prepare.outputs.enable_android }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_IOS: ${{ needs.prepare.outputs.enable_ios }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_START_TIME: ${{ needs.prepare.outputs.start_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const commentId = parseInt('${{ needs.prepare.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.prepare.outputs.start_time }}');
-            const branchName = '${{ needs.prepare.outputs.branch_name }}';
-            const commitHash = '${{ needs.prepare.outputs.commit_hash }}';
-            const analyzeOnly = '${{ needs.prepare.outputs.analyze_only }}' === 'true';
-            const enableAndroid = '${{ needs.prepare.outputs.enable_android }}' === 'true';
-            const enableIos = '${{ needs.prepare.outputs.enable_ios }}' === 'true';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_START_TIME);
+            const branchName = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_BRANCH_NAME;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMIT_HASH;
+            const analyzeOnly = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ANALYZE_ONLY === 'true';
+            const enableAndroid = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_ANDROID === 'true';
+            const enableIos = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_IOS === 'true';
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             // Collect the results
-            const analyzeStatus = '${{ needs.analyze.outputs.status }}';
-            const analyzeDuration = '${{ needs.analyze.outputs.duration }}' || '-';
-            const testStatus = '${{ needs.analyze.outputs.test_status }}';
-            const androidStatus = '${{ needs.build-android.outputs.status }}';
-            const androidDuration = '${{ needs.build-android.outputs.duration }}' || '-';
-            const iosStatus = '${{ needs.build-ios.outputs.status }}';
-            const iosDuration = '${{ needs.build-ios.outputs.duration }}' || '-';
+            const analyzeStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_STATUS;
+            const analyzeDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_DURATION || '-';
+            const testStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_STATUS;
+            const androidStatus = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_STATUS;
+            const androidDuration = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_DURATION || '-';
+            const iosStatus = process.env.PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_STATUS;
+            const iosDuration = process.env.PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_DURATION || '-';
 
             // Compute the total duration
             const now = Date.now();

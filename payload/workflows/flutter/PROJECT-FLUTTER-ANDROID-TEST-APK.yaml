@@ -113,14 +113,18 @@ jobs:
         id: verify_branch
         if: github.event_name == 'repository_dispatch'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const prNumber = '${{ github.event.client_payload.pr_number }}';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const prNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             console.log(msg('apk_test.branch_check_log', { branch: branchName }));
@@ -184,17 +188,21 @@ jobs:
         id: progress_comment
         if: github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_STEPS_FIREBASE_CHECK_OUTPUTS_AVAILABLE: ${{ steps.firebase_check.outputs.available }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
-            const prNumber = parseInt('${{ github.event.client_payload.pr_number }}');
-            const runId = '${{ github.run_id }}';
+            const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
             const startTime = Date.now();
-            const firebaseAvailable = '${{ steps.firebase_check.outputs.available }}' === 'true';
+            const firebaseAvailable = process.env.PAW_IN_STEPS_FIREBASE_CHECK_OUTPUTS_AVAILABLE === 'true';
 
             const rows = [
               row('prepare', 'running'),
@@ -510,15 +518,20 @@ jobs:
         id: progress_step1
         if: github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE: ${{ needs.prepare-test-build.outputs.firebase_available }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID: ${{ needs.prepare-test-build.outputs.progress_comment_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME: ${{ needs.prepare-test-build.outputs.progress_start_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.prepare-test-build.outputs.progress_comment_id }}');
-            const startTime = parseInt('${{ needs.prepare-test-build.outputs.progress_start_time }}');
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME);
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -526,7 +539,7 @@ jobs:
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
             const elapsedStr = minutes > 0 ? msg('apk_test.elapsed_min_sec', { m: minutes, s: seconds }) : msg('apk_test.elapsed_sec', { s: seconds });
-            const firebaseAvailable = '${{ needs.prepare-test-build.outputs.firebase_available }}' === 'true';
+            const firebaseAvailable = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE === 'true';
 
             const rows = [
               row('prepare', 'done', elapsedStr),
@@ -649,16 +662,22 @@ jobs:
         id: progress_step2
         if: github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE: ${{ needs.prepare-test-build.outputs.firebase_available }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID: ${{ needs.prepare-test-build.outputs.progress_comment_id }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED: ${{ steps.progress_step1.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME: ${{ steps.progress_step1.outputs.end_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.prepare-test-build.outputs.progress_comment_id }}');
-            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}');
-            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
+            const step1EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME);
+            const step1Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -666,7 +685,7 @@ jobs:
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
             const elapsedStr = minutes > 0 ? msg('apk_test.elapsed_min_sec', { m: minutes, s: seconds }) : msg('apk_test.elapsed_sec', { s: seconds });
-            const firebaseAvailable = '${{ needs.prepare-test-build.outputs.firebase_available }}' === 'true';
+            const firebaseAvailable = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE === 'true';
 
             const rows = [
               row('prepare', 'done', step1Elapsed || '-'),
@@ -773,11 +792,13 @@ jobs:
         id: artifact_time
         if: github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_END_TIME: ${{ steps.progress_step2.outputs.end_time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const step2EndTime = parseInt('${{ steps.progress_step2.outputs.end_time }}');
+            const step2EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_END_TIME);
             const now = Date.now();
             const elapsed = Math.round((now - step2EndTime) / 1000);
             const minutes = Math.floor(elapsed / 60);
@@ -850,11 +871,13 @@ jobs:
         id: firebase_time
         if: needs.prepare-test-build.outputs.firebase_available == 'true' && github.event_name == 'repository_dispatch' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_END_TIME: ${{ steps.artifact_time.outputs.end_time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const artifactEndTime = parseInt('${{ steps.artifact_time.outputs.end_time }}');
+            const artifactEndTime = parseInt(process.env.PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_END_TIME);
             const now = Date.now();
             const elapsed = Math.round((now - artifactEndTime) / 1000);
             const minutes = Math.floor(elapsed / 60);
@@ -865,27 +888,44 @@ jobs:
       - name: Final progress update - success
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BRANCH_NAME: ${{ needs.prepare-test-build.outputs.branch_name }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BUILD_NUMBER: ${{ needs.prepare-test-build.outputs.build_number }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH: ${{ needs.prepare-test-build.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE: ${{ needs.prepare-test-build.outputs.firebase_available }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_ISSUE_NUMBER: ${{ needs.prepare-test-build.outputs.issue_number }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID: ${{ needs.prepare-test-build.outputs.progress_comment_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME: ${{ needs.prepare-test-build.outputs.progress_start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
+          PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_ELAPSED: ${{ steps.artifact_time.outputs.elapsed }}
+          PAW_IN_STEPS_FIREBASE_RESULT_OUTPUTS_STATUS: ${{ steps.firebase_result.outputs.status }}
+          PAW_IN_STEPS_FIREBASE_TIME_OUTPUTS_ELAPSED: ${{ steps.firebase_time.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED: ${{ steps.progress_step1.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_ELAPSED: ${{ steps.progress_step2.outputs.elapsed }}
+          PAW_IN_STEPS_UPLOAD_ARTIFACT_OUTPUTS_ARTIFACT_URL: ${{ steps.upload_artifact.outputs.artifact-url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.prepare-test-build.outputs.progress_comment_id }}');
-            const startTime = parseInt('${{ needs.prepare-test-build.outputs.progress_start_time }}');
-            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
-            const step2Elapsed = '${{ steps.progress_step2.outputs.elapsed }}';
-            const step3Elapsed = '${{ steps.artifact_time.outputs.elapsed }}';
-            const step4Elapsed = '${{ steps.firebase_time.outputs.elapsed }}';
-            const prNumber = parseInt('${{ github.event.client_payload.pr_number }}');
-            const buildNumber = '${{ needs.prepare-test-build.outputs.build_number }}';
-            const branchName = '${{ needs.prepare-test-build.outputs.branch_name }}';
-            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
-            const issueNumber = '${{ needs.prepare-test-build.outputs.issue_number }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME);
+            const step1Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED;
+            const step2Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_ELAPSED;
+            const step3Elapsed = process.env.PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_ELAPSED;
+            const step4Elapsed = process.env.PAW_IN_STEPS_FIREBASE_TIME_OUTPUTS_ELAPSED;
+            const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
+            const buildNumber = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BUILD_NUMBER;
+            const branchName = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BRANCH_NAME;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH;
+            const issueNumber = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_ISSUE_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
-            const artifactUrl = '${{ steps.upload_artifact.outputs.artifact-url }}' || `${runUrl}#artifacts`;
+            const artifactUrl = process.env.PAW_IN_STEPS_UPLOAD_ARTIFACT_OUTPUTS_ARTIFACT_URL || `${runUrl}#artifacts`;
 
             const now = Date.now();
             const totalElapsed_s = Math.round((now - startTime) / 1000);
@@ -893,8 +933,8 @@ jobs:
             const totalSec = totalElapsed_s % 60;
             const totalElapsed = totalMin > 0 ? msg('apk_test.elapsed_min_sec', { m: totalMin, s: totalSec }) : msg('apk_test.elapsed_sec', { s: totalSec });
 
-            const firebaseAvailable = '${{ needs.prepare-test-build.outputs.firebase_available }}' === 'true';
-            const firebaseSuccess = '${{ steps.firebase_result.outputs.status }}' === 'success';
+            const firebaseAvailable = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE === 'true';
+            const firebaseSuccess = process.env.PAW_IN_STEPS_FIREBASE_RESULT_OUTPUTS_STATUS === 'success';
 
             const lines = [
               msg('apk_test.title_done'),
@@ -914,7 +954,7 @@ jobs:
               }
             }
 
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
 
             lines.push(
               '',
@@ -980,22 +1020,34 @@ jobs:
       - name: Final progress update - failure
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.prepare-test-build.outputs.progress_comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BRANCH_NAME: ${{ needs.prepare-test-build.outputs.branch_name }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BUILD_NUMBER: ${{ needs.prepare-test-build.outputs.build_number }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE: ${{ needs.prepare-test-build.outputs.firebase_available }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_ISSUE_NUMBER: ${{ needs.prepare-test-build.outputs.issue_number }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID: ${{ needs.prepare-test-build.outputs.progress_comment_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME: ${{ needs.prepare-test-build.outputs.progress_start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED: ${{ steps.progress_step1.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME: ${{ steps.progress_step1.outputs.end_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.prepare-test-build.outputs.progress_comment_id }}');
-            const startTime = parseInt('${{ needs.prepare-test-build.outputs.progress_start_time }}');
-            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}') || 0;
-            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
-            const prNumber = parseInt('${{ github.event.client_payload.pr_number }}');
-            const buildNumber = '${{ needs.prepare-test-build.outputs.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const branchName = '${{ needs.prepare-test-build.outputs.branch_name }}';
-            const issueNumber = '${{ needs.prepare-test-build.outputs.issue_number }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_START_TIME);
+            const step1EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME) || 0;
+            const step1Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED;
+            const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
+            const buildNumber = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const branchName = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_BRANCH_NAME;
+            const issueNumber = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_ISSUE_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -1013,7 +1065,7 @@ jobs:
             const tSec = total_s % 60;
             const totalElapsed = tMin > 0 ? msg('apk_test.elapsed_min_sec', { m: tMin, s: tSec }) : msg('apk_test.elapsed_sec', { s: tSec });
 
-            const firebaseAvailable = '${{ needs.prepare-test-build.outputs.firebase_available }}' === 'true';
+            const firebaseAvailable = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_FIREBASE_AVAILABLE === 'true';
 
             const rows = [
               row('prepare', 'done', step1Elapsed || '-'),

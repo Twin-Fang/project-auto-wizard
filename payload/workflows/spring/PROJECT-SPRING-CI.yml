@@ -193,6 +193,11 @@ jobs:
     - name: Comment on PR (Success)
       if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'true'
       uses: actions/github-script@v9
+      env:
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -217,11 +222,11 @@ jobs:
             '',
             m('table_header'),
             '|------|------|',
-            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
-            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
-            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            m('row_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }),
+            m('row_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }),
+            m('row_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }),
             '',
-            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            m('overall', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS }),
             '',
             '---',
             m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
@@ -246,6 +251,15 @@ jobs:
     - name: Comment on PR (Failure)
       if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'false'
       uses: actions/github-script@v9
+      # Pass multi-line error logs via env; inlining them into a JS string literal breaks the script
+      env:
+        PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS: ${{ steps.errors.outputs.build_errors }}
+        PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS: ${{ steps.errors.outputs.compile_errors }}
+        PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS: ${{ steps.errors.outputs.test_errors }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -266,18 +280,18 @@ jobs:
           let errorDetails = '';
           
           // Append compile errors
-          if ('${{ steps.errors.outputs.compile_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.compile_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS + '\n\n';
           }
           
           // Append test errors
-          if ('${{ steps.errors.outputs.test_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.test_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS + '\n\n';
           }
           
           // Append build errors
-          if ('${{ steps.errors.outputs.build_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.build_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS + '\n\n';
           }
           
           const failureMessage = [
@@ -287,11 +301,11 @@ jobs:
             '',
             m('table_header'),
             '|------|------|',
-            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
-            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
-            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            m('row_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }),
+            m('row_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }),
+            m('row_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }),
             '',
-            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            m('overall', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS }),
             '',
             m('details_header'),
             '',
@@ -325,12 +339,17 @@ jobs:
     - name: Create Check Run
       if: always()
       uses: actions/github-script@v9
+      env:
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_OK: ${{ steps.report.outputs.overall_ok }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const M = JSON.parse(process.env.PAW_MSG);
           const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-          const conclusion = '${{ steps.report.outputs.overall_ok }}' === 'true' ? 'success' : 'failure';
+          const conclusion = process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_OK === 'true' ? 'success' : 'failure';
           const summary = m(conclusion === 'success' ? 'check_summary_success' : 'check_summary_failure');
           
           await github.rest.checks.create({
@@ -343,9 +362,9 @@ jobs:
             output: {
               title: '🔧 CI Build Check',
               summary: summary,
-              text: '\n    ' + m('check_compile', { status: '${{ steps.report.outputs.compile_status }}' }) +
-                '\n    ' + m('check_test', { status: '${{ steps.report.outputs.test_status }}' }) + '  ' +
-                '\n    ' + m('check_build', { status: '${{ steps.report.outputs.build_status }}' }) +
+              text: '\n    ' + m('check_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }) +
+                '\n    ' + m('check_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }) + '  ' +
+                '\n    ' + m('check_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }) +
                 '\n    '
             }
           });
