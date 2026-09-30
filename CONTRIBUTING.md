@@ -50,7 +50,7 @@ product content:
 - the `ko` message catalogs (`src/i18n/catalog/ko/`, the `ko` catalog in `payload/scripts/messages.py`)
   and the `_ko` fields in `payload/config/` (`wizard-prompts.yml`, `breaking-changes.json`)
 - translated documents (`README.ko.md`, the `ko` locale of the docs site under `website/src/content/docs/ko/`)
-- past entries of `CHANGELOG.md` / `CHANGELOG.json` and the historical notes in `.issue/`
+- past entries of `CHANGELOG.md` / `CHANGELOG.json`
 - test literals that check `ko` output or Korean input data
 
 `tests/node/no-stray-hangul.test.js` scans every tracked file and fails on Hangul outside this

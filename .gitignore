@@ -16,3 +16,6 @@ website/.astro/
 # ====================================================================
 # Local design and planning docs
 /docs
+
+# Local copies of issue drafts
+.issue/
