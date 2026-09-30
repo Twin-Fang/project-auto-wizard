@@ -260,6 +260,7 @@ def run_cli(event_payload, env_extra=None):
         event_path.write_text(json.dumps(event_payload), encoding="utf-8")
         env = {
             **os.environ,
+            "PYTHONIOENCODING": "utf-8",
             "GITHUB_EVENT_PATH": str(event_path),
             "GITHUB_REPOSITORY": "o/r",
         }
@@ -267,7 +268,7 @@ def run_cli(event_payload, env_extra=None):
             env.update(env_extra)
         return subprocess.run(
             [sys.executable, str(SCRIPT), "run"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
 
 
@@ -275,7 +276,7 @@ class TestRunGuards(unittest.TestCase):
     def test_missing_event_path_exits_1(self):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_EVENT_PATH"}
         env["GITHUB_REPOSITORY"] = "o/r"
-        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, env=env)
+        r = subprocess.run([sys.executable, str(SCRIPT), "run"], capture_output=True, text=True, encoding="utf-8", env=env)
         self.assertEqual(r.returncode, 1)
 
     def test_irrelevant_action_exits_0_without_token(self):
@@ -312,7 +313,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_prints_issue_number(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "20260824_#102_feat_추가"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "102")
@@ -320,7 +321,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_matches_worktree_issue_branch_name(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "worktree-issue-93-branch-strategy"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "93")
@@ -328,7 +329,7 @@ class TestExtractBranchIssueCli(unittest.TestCase):
     def test_no_match_prints_nothing(self):
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "extract-branch-issue", "cleanup-docs-typo"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "")
@@ -339,23 +340,23 @@ class TestLinkPrIssuesCliGuards(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 1)
 
     def test_missing_token_exits_1(self):
-        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": ""}
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": ""}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", "1"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 1)
 
     def test_empty_issue_numbers_exits_0_without_api_call(self):
-        env = {**os.environ, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"}
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "x"}
         r = subprocess.run(
             [sys.executable, str(SCRIPT), "link-pr-issues", "--pr", "1", "--issue-numbers", ""],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", env=env,
         )
         self.assertEqual(r.returncode, 0)
 

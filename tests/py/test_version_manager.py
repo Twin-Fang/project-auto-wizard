@@ -19,7 +19,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def run(args, cwd):
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8")
 
 class TestCore(unittest.TestCase):
     def setUp(self):

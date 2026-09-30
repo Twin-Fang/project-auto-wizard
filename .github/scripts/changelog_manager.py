@@ -35,7 +35,7 @@ import urllib.error
 import urllib.request
 
 import issue_helper
-from messages import t
+from messages import t, use_utf8_output
 
 
 # ----------------------------- Common utilities -----------------------------
@@ -961,6 +961,7 @@ def cmd_ai_summary(commits_file: str, version: str, output_path: str, pr_title: 
 # ------------------------------- CLI -------------------------------
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_output()
     parser = argparse.ArgumentParser(
         prog='changelog_manager',
         description=t('changelog.cli_description'),

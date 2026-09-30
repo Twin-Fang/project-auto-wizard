@@ -10,9 +10,9 @@ SCRIPT = Path(__file__).resolve().parents[2] / "payload" / "scripts" / "truncate
 
 
 def run(args, env=None):
-    full_env = {**os.environ, **(env or {})}
+    full_env = {**os.environ, "PYTHONIOENCODING": "utf-8", **(env or {})}
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                           capture_output=True, text=True, env=full_env)
+                           capture_output=True, text=True, encoding="utf-8", env=full_env)
 
 
 class TestTruncateReleaseNotes(unittest.TestCase):

@@ -78,9 +78,15 @@ def dump(prefix, lang=None):
     return {k: template(k, lang) for k in keys}
 
 
+def use_utf8_output():
+    """Print UTF-8 regardless of the console code page (Windows defaults to cp1252) and never crash on it."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv):
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+    use_utf8_output()
     if len(argv) >= 2 and argv[0] == "get":
         params = dict(a.split("=", 1) for a in argv[2:] if "=" in a)
         print(t(argv[1], **params))

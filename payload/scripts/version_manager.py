@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 from typing import Callable, NamedTuple
 
-from messages import t
+from messages import t, use_utf8_output
 
 VERSION_YML = "version.yml"
 
@@ -1001,6 +1001,7 @@ def build_parser():
 
 
 def main(argv=None):
+    use_utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
 

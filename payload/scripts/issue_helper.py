@@ -42,7 +42,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from messages import t
+from messages import t, use_utf8_output
 
 KST = timezone(timedelta(hours=9))
 COMMENT_MARKER_DEFAULT = "<!-- project-auto-wizard issue helper -->"
@@ -452,6 +452,7 @@ def build_parser():
 
 
 def main(argv=None):
+    use_utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

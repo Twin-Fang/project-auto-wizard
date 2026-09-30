@@ -31,7 +31,7 @@ Contract:
 import argparse
 import sys
 
-from messages import t
+from messages import t, use_utf8_output
 
 
 def log(message):
@@ -74,8 +74,7 @@ def build_parser():
 
 
 def main(argv=None):
-    sys.stdout.reconfigure(errors="replace")
-    sys.stderr.reconfigure(errors="replace")
+    use_utf8_output()
 
     parser = build_parser()
     args = parser.parse_args(argv)
