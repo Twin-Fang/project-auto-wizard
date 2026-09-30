@@ -9,6 +9,9 @@ const PR_PREVIEW = "pr-preview.base.yaml";
 // React/Next 배포가 공유하는 조각. 컨테이너 실행 옵션·안내 주석 등 다른 곳만 vars에 둔다.
 const CICD_FRONTEND = "cicd-frontend.base.yaml";
 
+// Go/Python 단일 서버 배포(SSH + Docker)가 공유하는 조각. 타입별로 다른 곳만 vars에 둔다.
+const SIMPLE_CICD = "simple-cicd.base.yaml";
+
 export const TARGETS = [
   {
     out: "payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml",
@@ -228,6 +231,83 @@ export const TARGETS = [
         "#   output: 'standalone',",
         "# }",
       ],
+    },
+  },
+  {
+    out: "payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml",
+    template: SIMPLE_CICD,
+    vars: {
+      TYPE_UPPER: "GO",
+      SUFFIX: "go",
+      DEPLOY_PORT_DEFAULT: "8080",
+      HEADER_TITLE: ["# Go CI/CD 배포 (SSH + Docker)"],
+      HEADER_SECRETS: [
+        "# DOCKERHUB_USERNAME / DOCKERHUB_TOKEN: DockerHub 사용자명 / 액세스 토큰",
+        "# SERVER_HOST / SERVER_USER: 배포 서버 주소 / SSH 사용자명",
+      ],
+      HEADER_ENV: [
+        "# 환경변수 (env 섹션에서 설정)",
+        "# CONTAINER_INTERNAL_PORT: Go 앱 내부 포트 (기본: 8080) / DEPLOY_PORT: 배포 포트",
+        "# CONTAINER_NAME: 컨테이너 이름 (기본: PROJECT_NAME)",
+        "# ENABLE_VOLUME_MOUNT (true/false), VOLUME_HOST_PATH, VOLUME_CONTAINER_PATH: 볼륨 마운트",
+        "# SSH_PORT (기본: 2022), SSH_COMMAND_TIMEOUT (기본: 600s), SSH_CONNECTION_TIMEOUT (기본: 60s)",
+        "# HEALTHCHECK_WAIT_SECONDS: 초기화 대기 시간 (기본: 10초)",
+        "# HEALTHCHECK_PATH: HTTP 엔드포인트 경로 (비어있으면 로그만 사용, 예: \"/health\", \"/api/v1/health\")",
+        "# HEALTHCHECK_MAX_RETRIES: HTTP 재시도 횟수 (기본: 5회) / HEALTHCHECK_RETRY_INTERVAL: 재시도 간격 (기본: 3초)",
+        "# HEALTHCHECK_LOG_PATTERN: Fallback 로그 검색 패턴",
+      ],
+      PORT_COMMENT: [],
+      SSH_COMMENT: [],
+      CONTAINER_PORT_BLOCK: ["CONTAINER_INTERNAL_PORT: \"8080\"  # Go 앱 내부 포트"],
+      HEALTH_PATH: "/health",
+      HEALTH_LOG_LINE: [
+        "HEALTHCHECK_LOG_PATTERN: \"listening on\"  # Fallback 로그 검색 패턴 (프로젝트 로그 문구에 맞게 조정)",
+      ],
+      BUILD_JOB_NAME: "Go 애플리케이션 빌드",
+      PULL_SUFFIX: "",
+      RUN_DOC: [
+        "# - 포트 매핑: ${PORT}:${{ env.CONTAINER_INTERNAL_PORT }} (외부:내부)",
+        "# - 시간대: Asia/Seoul",
+        "# - 볼륨 마운트: 로컬 시간 동기화 및 프로젝트 데이터",
+      ],
+      VOLUME_COMMENT: ["# 볼륨 마운트 옵션 구성"],
+      DONE_COMMENT: ["# 배포 완료 확인"],
+      URL_SUFFIX: "",
+    },
+  },
+  {
+    out: "payload/workflows/python/PROJECT-PYTHON-SIMPLE-CICD.yaml",
+    template: SIMPLE_CICD,
+    vars: {
+      TYPE_UPPER: "PYTHON",
+      SUFFIX: "python",
+      DEPLOY_PORT_DEFAULT: "8000",
+      HEADER_TITLE: ["# Python FastAPI CI/CD 배포 (SSH + Docker)"],
+      HEADER_SECRETS: [
+        "# DOCKERHUB_USERNAME: DockerHub 사용자명",
+        "# DOCKERHUB_TOKEN: DockerHub 액세스 토큰",
+        "# SERVER_HOST: 배포 서버 주소",
+        "# SERVER_USER: SSH 사용자명",
+      ],
+      HEADER_ENV: [
+        "# 환경변수는 아래 env 섹션에서 설정하며, 항목별 설명과 기본값은 각 줄에 적혀 있습니다.",
+        "# HEALTHCHECK_PATH 예시: FastAPI \"/docs\", 커스텀 \"/api/v1/health\"",
+      ],
+      PORT_COMMENT: ["# 포트 설정"],
+      SSH_COMMENT: ["# SSH 연결 설정"],
+      CONTAINER_PORT_BLOCK: [
+        "# 컨테이너 포트 설정",
+        "CONTAINER_INTERNAL_PORT: \"8000\"  # FastAPI 내부 포트",
+      ],
+      HEALTH_PATH: "/docs",
+      HEALTH_LOG_LINE: ["HEALTHCHECK_LOG_PATTERN: \"Uvicorn running on\"  # Fallback 로그 검색 패턴"],
+      BUILD_JOB_NAME: "Python FastAPI 애플리케이션 빌드",
+      PULL_SUFFIX: " (Pull)",
+      // Python 쪽에는 없는 안내 주석이라 빈 배열로 줄 자체를 없앤다
+      RUN_DOC: [],
+      VOLUME_COMMENT: [],
+      DONE_COMMENT: [],
+      URL_SUFFIX: "/docs",
     },
   },
 ];
