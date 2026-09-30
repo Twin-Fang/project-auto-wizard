@@ -8,7 +8,7 @@
 //
 // 조각 문법: `%%NAME%%`
 //   - 한 줄에 자리표시자만 있으면 그 줄 전체를 대체한다. 값은 줄 배열이고 자리표시자의 들여쓰기를
-//     각 줄 앞에 붙인다. 빈 배열이면 줄이 사라진다 (타입에 따라 있거나 없는 주석용).
+//     각 줄 앞에 붙인다(빈 줄 제외). 빈 배열이면 줄이 사라진다 (타입에 따라 있거나 없는 주석용).
 //   - 줄 중간에 있으면 문자열 값으로 그 자리만 치환한다.
 //   - 값이 없는 자리표시자, 쓰이지 않는 값은 조용히 넘어가지 않고 실패시킨다.
 // 설치기와 마찬가지로 외부 의존성 없이 node:* 내장 모듈만 쓴다.
@@ -36,7 +36,8 @@ export function render(template, vars, label = "template") {
     if (whole) {
       const value = take(whole[2]);
       if (!Array.isArray(value)) throw new Error(`${label}: %%${whole[2]}%%는 줄 전체 자리표시자라 배열 값이 필요하다`);
-      for (const v of value) out.push(whole[1] + v);
+      // 빈 줄에는 들여쓰기를 붙이지 않는다 (줄 끝 공백 방지)
+      for (const v of value) out.push(v === "" ? v : whole[1] + v);
       continue;
     }
     out.push(

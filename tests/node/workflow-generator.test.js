@@ -33,10 +33,16 @@ test("생성 대상마다 결과가 커밋된 파일과 바이트 단위로 일�
   }
 });
 
-test("Go/Python 프리뷰가 모두 생성 대상에 들어 있다", () => {
+test("Go/Python 프리뷰와 React/Next 배포가 모두 생성 대상에 들어 있다", () => {
   const outs = TARGETS.map((t) => t.out);
-  assert.ok(outs.includes("payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml"));
-  assert.ok(outs.includes("payload/workflows/python/PROJECT-PYTHON-PR-PREVIEW.yaml"));
+  for (const f of [
+    "payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml",
+    "payload/workflows/python/PROJECT-PYTHON-PR-PREVIEW.yaml",
+    "payload/workflows/react/PROJECT-REACT-CICD.yaml",
+    "payload/workflows/next/PROJECT-NEXT-CICD.yaml",
+  ]) {
+    assert.ok(outs.includes(f), `${f} 이(가) 생성 대상에 없다`);
+  }
 });
 
 test("생성된 payload 파일을 손으로 고치면 어긋남으로 잡힌다", () => {
@@ -52,6 +58,10 @@ test("render: 줄 전체 자리표시자는 들여쓰기를 유지하고, 빈 �
   const tpl = "a:\n  %%BLOCK%%\n  %%NONE%%\nb: %%INLINE%%-x";
   const out = render(tpl, { BLOCK: ["# 1", "k: v"], NONE: [], INLINE: "go" });
   assert.strictEqual(out, "a:\n  # 1\n  k: v\nb: go-x");
+});
+
+test("render: 배열 값의 빈 줄에는 들여쓰기를 붙이지 않는다", () => {
+  assert.strictEqual(render("a:\n  %%BLOCK%%", { BLOCK: ["x", "", "y"] }), "a:\n  x\n\n  y");
 });
 
 test("render: 값이 없거나 쓰이지 않거나 형태가 맞지 않으면 실패한다", () => {
