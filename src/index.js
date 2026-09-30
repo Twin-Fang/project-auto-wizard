@@ -71,7 +71,10 @@ async function defaultPromptRepoName(repoName) {
 function presetLanguage(argv) {
   setLanguage(DEFAULT_LANGUAGE);
   setLanguage(normalizeLanguage(process.env[LANG_ENV_VAR]));
-  argv.forEach((a, i) => { if (a === "--lang") setLanguage(normalizeLanguage(argv[i + 1])); });
+  argv.forEach((a, i) => {
+    if (a === "--lang") setLanguage(normalizeLanguage(argv[i + 1]));
+    else if (a.startsWith("--lang=")) setLanguage(normalizeLanguage(a.slice("--lang=".length)));
+  });
 }
 
 // run(argv, opts) -> exitCode. opts: { cwd, payloadRoot?, clock?, exec?, promptRepoName? }

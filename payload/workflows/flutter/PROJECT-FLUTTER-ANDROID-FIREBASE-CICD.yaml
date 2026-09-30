@@ -20,7 +20,7 @@
 #
 # Environment settings (optional):
 # ENV_FILE or ENV: contents of the .env file (either one; ENV_FILE takes precedence)
-# GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
+# GOOGLE_SERVICES_JSON (optional): Firebase google-services.json
 #
 # Note: register the Secrets above under the repository Settings → Secrets and variables → Actions.
 #    Edit FIREBASE_APP_ID and FIREBASE_TESTER_GROUP directly in the env section below.

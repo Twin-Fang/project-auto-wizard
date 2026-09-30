@@ -1,3 +1,5 @@
+import { getLanguage } from "../i18n/index.js";
+
 // Version comparison: strips the v prefix, compares 3 numeric parts, missing part = 0
 export function compareVersions(a, b) {
   const parse = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -8,6 +10,11 @@ export function compareVersions(a, b) {
     if (x < y) return -1;
   }
   return 0;
+}
+
+// Text of an entry in the given language: `title_ko` / `message_ko` when present, otherwise the plain (English) field.
+export function localizedField(entry, field, lang = getLanguage()) {
+  return entry?.[`${field}_${lang}`] || entry?.[field] || "";
 }
 
 // Collect entries from breaking-changes.json with current < ver <= target.

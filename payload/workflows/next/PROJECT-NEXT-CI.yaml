@@ -3,7 +3,7 @@
 # On push/PR to the {{DEVELOP_BRANCH}} branch, verifies with npm ci, npm test (when a test script exists) and npm run build. Caches node_modules and .next/cache.
 #
 # GitHub Secrets
-#   ENV_FILE (선택): contents of the .env file. CI only verifies the build, so no deploy-related Secrets are needed
+#   ENV_FILE (optional): contents of the .env file. CI only verifies the build, so no deploy-related Secrets are needed
 #
 # Project settings (env section)
 #   PROJECT_NAME : project name

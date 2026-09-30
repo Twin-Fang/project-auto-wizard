@@ -149,7 +149,7 @@ export const TARGETS = [
         "#",
         "# Required Secrets:",
         "# - REACT_ENV_FILE, DOCKERHUB_*, SERVER_* (required)",
-        "# - PROJECT_DEPLOY_PORT (선택, default: 3000)",
+        "# - PROJECT_DEPLOY_PORT (optional, default: 3000)",
         "#",
         "",
       ],

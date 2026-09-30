@@ -311,3 +311,75 @@ function captureDryRun(plan) {
   }
   return output;
 }
+
+// ── Baseline buckets (auto-updated / kept / deleted) ─────────
+test("dry-run lists the files an update would auto-replace, the ones it keeps and the ones the user deleted", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  const payload = mkdtempSync(join(tmpdir(), "paw-dry-payload-"));
+  try {
+    cpSync(resolvePayloadRoot(), payload, { recursive: true });
+    runFull(baseContext(), payload, target);
+
+    // Upstream changes two files; the user edits one of them plus an unrelated third and deletes a fourth.
+    const wfDir = join(target, ".github/workflows");
+    const upstream = (f) => { const p = join(payload, "workflows/common", f); writeFileSync(p, readFileSync(p, "utf8") + "\n# newer upstream text\n"); };
+    upstream("PROJECT-COMMON-VERSION-CONTROL.yaml");
+    upstream("PROJECT-COMMON-ISSUE-HELPER.yaml");
+    const edited = join(wfDir, "PROJECT-COMMON-ISSUE-HELPER.yaml");
+    writeFileSync(edited, readFileSync(edited, "utf8") + "\n# my edit\n");
+    const localFile = join(wfDir, "PROJECT-COMMON-AI-PR-SUMMARY.yaml");
+    writeFileSync(localFile, readFileSync(localFile, "utf8") + "\n# my edit\n");
+    rmSync(join(wfDir, "PROJECT-COMMON-README-VERSION-UPDATE.yaml"));
+
+    const plan = planDryRun("full", baseContext(), payload, target);
+    const names = (bucket) => plan.workflows[bucket].map((f) => f.filename);
+    assert.deepStrictEqual(names("upstreamOnly"), ["PROJECT-COMMON-VERSION-CONTROL.yaml"]);
+    assert.deepStrictEqual(names("localOnly"), ["PROJECT-COMMON-AI-PR-SUMMARY.yaml"]);
+    assert.deepStrictEqual(names("removed"), ["PROJECT-COMMON-README-VERSION-UPDATE.yaml"]);
+
+    const out = captureLog(() => printDryRun(plan));
+    assert.match(out, /자동 갱신될 파일 \(1개[^\n]*\n  ~ PROJECT-COMMON-VERSION-CONTROL\.yaml \[common\]/);
+    assert.match(out, /그대로 유지할 파일 \(1개[^\n]*\n  = PROJECT-COMMON-AI-PR-SUMMARY\.yaml \[common\]/);
+    assert.match(out, /복원하지 않는 파일 \(1개[^\n]*\n  - PROJECT-COMMON-README-VERSION-UPDATE\.yaml \[common\]/);
+
+    // The real run replaces exactly the files the preview named as auto-updated.
+    const real = runFull(baseContext(), payload, target);
+    assert.deepStrictEqual(real.workflows.autoUpdated, ["PROJECT-COMMON-VERSION-CONTROL.yaml"]);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+    rmSync(payload, { recursive: true, force: true });
+  }
+});
+
+test("dry-run prints no baseline bucket headings when nothing falls into them", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    runFull(baseContext(), resolvePayloadRoot(), target);
+    const out = captureLog(() => printDryRun(planDryRun("full", baseContext(), resolvePayloadRoot(), target)));
+    assert.doesNotMatch(out, /자동 갱신될 파일|그대로 유지할 파일|복원하지 않는 파일/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("dry-run in English names the auto-updated files", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  const payload = mkdtempSync(join(tmpdir(), "paw-dry-payload-"));
+  return import("../../src/i18n/index.js").then(({ setLanguage, getLanguage }) => {
+    const before = getLanguage();
+    try {
+      cpSync(resolvePayloadRoot(), payload, { recursive: true });
+      runFull(baseContext(), payload, target);
+      const p = join(payload, "workflows/common/PROJECT-COMMON-VERSION-CONTROL.yaml");
+      writeFileSync(p, readFileSync(p, "utf8") + "\n# newer upstream text\n");
+      setLanguage("en");
+      const out = captureLog(() => printDryRun(planDryRun("full", baseContext(), payload, target)));
+      assert.match(out, /Auto-updated files \(1;[^\n]*\n  ~ PROJECT-COMMON-VERSION-CONTROL\.yaml \[common\]/);
+      assert.doesNotMatch(out, /[가-힣]/);
+    } finally {
+      setLanguage(before);
+      rmSync(target, { recursive: true, force: true });
+      rmSync(payload, { recursive: true, force: true });
+    }
+  });
+});

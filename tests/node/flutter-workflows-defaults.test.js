@@ -98,7 +98,7 @@ test("빈 서명·자격증명 Secret을 성공처럼 넘기지 않는다", () =
   }
   const selfhosted = read("PROJECT-FLUTTER-ANDROID-SELFHOSTED-CICD.yaml");
   assert.ok(selfhosted.includes('if [ -z "$DEBUG_KEYSTORE" ]; then'), "SELFHOSTED: DEBUG_KEYSTORE 검사 누락");
-  assert.ok(selfhosted.includes("# DEBUG_KEYSTORE (선택):"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
+  assert.ok(selfhosted.includes("# DEBUG_KEYSTORE (optional):"), "SELFHOSTED: 실제로 쓰는 DEBUG_KEYSTORE가 상단 안내에 없습니다");
 });
 
 test("테스트·내부 배포 빌드는 서명 Secret이 없으면 경고 후 기본 debug 서명으로 진행한다", () => {

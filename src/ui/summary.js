@@ -27,7 +27,7 @@ export function printSummary(ctx) {
   err("");
   err(SEPARATOR);
   err("");
-  err("✨ project-auto-wizard Setup Complete!");
+  err(t("ui.summary.title"));
   err("");
   err(SEPARATOR);
   err("");
@@ -209,8 +209,8 @@ export function printSummary(ctx) {
   }
 
   err(`  ${num()} ${t("ui.summary.todo.pat")}`);
-  err("     → Repository Settings > Secrets > Actions");
-  err("     → Secret Name: WORKFLOW_PAT (Scopes: repo, workflow)");
+  err(t("ui.summary.todo.patPath"));
+  err(t("ui.summary.todo.patName"));
   err(t("ui.summary.todo.patAccount"));
   err(t("ui.summary.todo.patOptional"));
   err("");

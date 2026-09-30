@@ -10,7 +10,7 @@
 #   SERVER_USER: SSH username
 #   SERVER_PASSWORD: SSH password (when SSH_AUTH_METHOD=password)
 #   SSH_KEY: contents of the SSH private key .pem (when SSH_AUTH_METHOD=key, e.g. AWS EC2)
-#   PROJECT_DEPLOY_PORT (선택): deploy port (default: 3000)
+#   PROJECT_DEPLOY_PORT (optional): deploy port (default: 3000)
 #
 # Environment variables (set in the env section)
 #   SSH_AUTH_METHOD: SSH auth method password | key (default: password)

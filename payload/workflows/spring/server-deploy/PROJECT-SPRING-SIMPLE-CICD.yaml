@@ -5,7 +5,7 @@
 # deploys it automatically to any server reachable over SSH (Synology, AWS EC2, VPS, ...).
 #
 # Required GitHub Secrets
-# APPLICATION_PROD_YML (선택): contents of application-prod.yml
+# APPLICATION_PROD_YML (optional): contents of application-prod.yml
 # DOCKERHUB_USERNAME: DockerHub username
 # DOCKERHUB_TOKEN: DockerHub access token
 # SERVER_HOST: deployment server address

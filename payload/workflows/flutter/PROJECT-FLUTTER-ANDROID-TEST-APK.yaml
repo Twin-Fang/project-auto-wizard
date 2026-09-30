@@ -23,17 +23,17 @@
 # GitHub Secrets (all optional — the test APK builds even with none of them)
 #
 # Release Keystore (same as the Play Store deploy; if missing, a warning is shown and the debug key is used):
-# RELEASE_KEYSTORE_BASE64 (선택): release keystore file (base64)
-# RELEASE_KEYSTORE_PASSWORD (선택): keystore password
-# RELEASE_KEY_ALIAS (선택): key alias
-# RELEASE_KEY_PASSWORD (선택): key password
+# RELEASE_KEYSTORE_BASE64 (optional): release keystore file (base64)
+# RELEASE_KEYSTORE_PASSWORD (optional): keystore password
+# RELEASE_KEY_ALIAS (optional): key alias
+# RELEASE_KEY_PASSWORD (optional): key password
 #
 # Environment settings (optional):
-# ENV_FILE (선택): contents of the .env file
-# GOOGLE_SERVICES_JSON (선택): contents of google-services.json (when using Firebase)
+# ENV_FILE (optional): contents of the .env file
+# GOOGLE_SERVICES_JSON (optional): contents of google-services.json (when using Firebase)
 #
 # Firebase App Distribution (optional):
-# FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 (선택): Firebase service account JSON (base64)
+# FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 (optional): Firebase service account JSON (base64)
 #
 # Note: register the Secrets above under the repository Settings → Secrets and variables → Actions.
 #    To use the Firebase upload, also edit FIREBASE_APP_ID and FIREBASE_TESTER_GROUP in the env below.

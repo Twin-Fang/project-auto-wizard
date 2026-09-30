@@ -14,6 +14,39 @@ export { CliError, normalizePath, isRepoRelativePath };
 export const TYPE_CLI_FLAGS = TYPES.flatMap((t) => t.hooks?.cliFlags ?? []);
 const TYPE_CLI_FLAG_BY_NAME = new Map(TYPE_CLI_FLAGS.map((f) => [f.flag, f]));
 
+// Options that consume a value, and options that are plain switches. Needed to expand `--name=value`.
+const VALUE_FLAGS = new Set([
+  "--mode", "--project-version", "--type", "--lang", "--deploy-style", "--paths", "--main-branch", "--develop-branch",
+  ...TYPE_CLI_FLAGS.map((f) => f.flag),
+]);
+const SWITCH_FLAGS = new Set([
+  "--version", "--help", "--force", "--dry-run", "--purge-readme", "--purge-gitignore", "--purge-version", "--yes", "--allow-dirty",
+  "--delete-develop-branch", "--keep-version-yml", "--keep-readme", "--keep-changelog", "--keep-workflows", "--keep-scripts",
+  "--semver-auto", "--no-semver-auto", "--copilot", "--no-copilot",
+]);
+
+// `--name=value` -> `--name`, `value`, so the parser below only sees the space-separated form.
+// Only the first "=" splits, so `--paths=flutter=app` keeps its value intact. A switch given a value is an error
+// (silently ignoring it would hide a typo); an unknown name is left as-is and reported by the parser.
+// The token after a value option is that option's value and is never expanded.
+function expandInlineValues(argv) {
+  const out = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const eq = a.startsWith("--") ? a.indexOf("=") : -1;
+    if (eq < 0) {
+      out.push(a);
+      if (VALUE_FLAGS.has(a) && i + 1 < argv.length) out.push(argv[++i]);
+      continue;
+    }
+    const name = a.slice(0, eq);
+    if (VALUE_FLAGS.has(name)) out.push(name, a.slice(eq + 1));
+    else if (SWITCH_FLAGS.has(name)) throw new CliError(t("cli.args.flagNoValue", { flag: name, value: a.slice(eq + 1) }));
+    else out.push(a);
+  }
+  return out;
+}
+
 // argv (process.argv.slice(2)) -> parse result. Throws on error (the caller exits with 1).
 export function parseArgs(argv) {
   const result = {
@@ -47,7 +80,7 @@ export function parseArgs(argv) {
     keepWorkflows: false,
     keepScripts: false,
   };
-  const args = [...argv];
+  const args = expandInlineValues(argv);
   const seenFlags = new Set(); // for validating mutually exclusive flags such as --semver-auto/--copilot
   while (args.length > 0) {
     const a = args.shift();

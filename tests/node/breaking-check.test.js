@@ -253,3 +253,40 @@ test("loadBreakingJson: returns null when the bundle is missing or corrupt", () 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ── Language ───────────────────────────────────────────────────
+test("bundled breaking-changes.json: plain title/message are English and every entry has a Korean variant", () => {
+  const HANGUL = /[ㄱ-ㆎ가-힣]/;
+  for (const entries of Object.values(BUNDLED)) {
+    for (const e of entries) {
+      assert.ok(!HANGUL.test(e.title) && !HANGUL.test(e.message), `English text expected: ${e.title}`);
+      assert.ok(HANGUL.test(e.title_ko) && HANGUL.test(e.message_ko), `Korean variant missing: ${e.title}`);
+    }
+  }
+});
+
+test("runBreakingCheck: the box is English by default and Korean under --lang ko", async () => {
+  const { setLanguage, getLanguage } = await import("../../src/i18n/index.js");
+  const before = getLanguage();
+  const render = async (lang) => {
+    setLanguage(lang);
+    const dir = makeRepo("0.11.0");
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    let stderr = "";
+    process.stderr.write = (chunk) => { stderr += chunk; return true; };
+    try {
+      await runBreakingCheck({ cwd: dir, payloadRoot: "unused", templateVersion: "0.12.2", loader: async () => BUNDLED });
+    } finally {
+      process.stderr.write = originalWrite;
+      rmSync(dir, { recursive: true, force: true });
+    }
+    return stderr;
+  };
+  try {
+    const en = await render("en");
+    assert.doesNotMatch(en, /[가-힣]/);
+    assert.match(en, /AI summary is now a GitHub Copilot opt-in/);
+    const ko = await render("ko");
+    assert.match(ko, /AI 요약이 GitHub Copilot opt-in으로 바뀌어 기본으로 꺼짐/);
+  } finally { setLanguage(before); }
+});

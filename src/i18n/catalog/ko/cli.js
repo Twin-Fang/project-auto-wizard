@@ -16,6 +16,7 @@ export default {
   "cli.args.pathsEmpty": "--paths 인자가 비어 있습니다 (예: --paths flutter=app,react=client)",
   "cli.args.branchEmpty": "{flag}에 빈 값을 지정할 수 없습니다",
   "cli.args.branchInvalid": "{flag} 값이 브랜치 이름으로 올바르지 않습니다: '{value}'",
+  "cli.args.flagNoValue": "{flag} 옵션은 값을 받지 않습니다 ({flag}={value} 형태로 지정됨)",
   "cli.args.unknownOption": "알 수 없는 옵션: {option}",
   "cli.args.modeUnsupported": "지원하지 않는 모드: '{mode}'\n지원 모드: interactive full uninstall status doctor",
   "cli.args.pathsTypeUnsupported": "--paths에 지원하지 않는 타입: '{type}'",

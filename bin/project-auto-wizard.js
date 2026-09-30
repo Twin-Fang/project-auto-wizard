@@ -16,6 +16,8 @@ if (nodeMajor < 20 || (nodeMajor === 20 && nodeMinor < 12)) {
     const { t, setLanguage } = await import(pathToFileURL(join(here, "..", "src", "i18n", "index.js")).href);
     setLanguage(norm(process.env.PROJECT_AUTO_WIZARD_LANG)); // invalid values are ignored by setLanguage
     if (at >= 0) setLanguage(norm(argv[at + 1]));
+    const inline = argv.findLast((a) => a.startsWith("--lang="));
+    if (inline) setLanguage(norm(inline.slice("--lang=".length)));
     message = t("cli.bin.nodeVersion", { current: process.versions.node });
   } catch { /* keep the English fallback */ }
   console.error(message);

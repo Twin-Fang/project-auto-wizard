@@ -16,6 +16,7 @@ export default {
   "cli.args.pathsEmpty": "The --paths argument is empty (e.g. --paths flutter=app,react=client)",
   "cli.args.branchEmpty": "{flag} cannot be empty",
   "cli.args.branchInvalid": "{flag} value is not a valid branch name: '{value}'",
+  "cli.args.flagNoValue": "{flag} does not take a value (got {flag}={value})",
   "cli.args.unknownOption": "Unknown option: {option}",
   "cli.args.modeUnsupported": "Unsupported mode: '{mode}'\nSupported modes: interactive full uninstall status doctor",
   "cli.args.pathsTypeUnsupported": "Unsupported type in --paths: '{type}'",

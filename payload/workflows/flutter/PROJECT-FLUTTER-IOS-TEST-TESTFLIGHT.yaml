@@ -34,8 +34,8 @@
 # APP_STORE_CONNECT_API_KEY_BASE64: AuthKey_XXXXXX.p8 file (base64 encoded)
 #
 # Environment settings (optional):
-# ENV_FILE (선택): contents of the .env file
-# SECRETS_XCCONFIG (선택): contents of ios/Flutter/Secrets.xcconfig
+# ENV_FILE (optional): contents of the .env file
+# SECRETS_XCCONFIG (optional): contents of ios/Flutter/Secrets.xcconfig
 
 name: PROJECT-Flutter-iOS-Test-TestFlight
 

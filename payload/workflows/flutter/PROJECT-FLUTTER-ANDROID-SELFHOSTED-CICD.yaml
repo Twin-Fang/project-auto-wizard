@@ -6,8 +6,8 @@
 #
 # Required GitHub Secrets
 # ENV_FILE or ENV: contents of the .env file (either one; ENV_FILE takes precedence)
-# DEBUG_KEYSTORE (선택): signing keystore (base64, password android, alias androiddebugkey) - if missing, each build is signed with a fresh debug key
-# GOOGLE_SERVICES_JSON (선택): Firebase google-services.json
+# DEBUG_KEYSTORE (optional): signing keystore (base64, password android, alias androiddebugkey) - if missing, each build is signed with a fresh debug key
+# GOOGLE_SERVICES_JSON (optional): Firebase google-services.json
 # SERVER_HOST: server host (SMB address)
 # SERVER_USER: SMB user name
 # SERVER_PASSWORD: SMB password
