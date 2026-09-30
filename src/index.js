@@ -100,11 +100,15 @@ async function runInner(argv, {
   // Language: --lang -> env var -> saved version.yml value -> en. Resolved after --help/--version
   // so an invalid env var cannot block the help output.
   let language;
+  // Language written to version.yml: the environment variable only decides this run's output, so it must not
+  // overwrite a saved choice. Only --lang (or a first install / an unusable saved value) sets the stored language.
+  let storedLanguage;
   try {
     const savedVy = join(cwd, "version.yml");
     const savedParsed = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")) : null;
     const saved = savedParsed?.language ?? null;
     language = resolveLanguage({ flag: opts.lang, env: process.env[LANG_ENV_VAR], saved });
+    storedLanguage = normalizeLanguage(opts.lang) ? language : (saved ?? language);
     // An existing install without a saved language now falls back to English: say so once, since
     // its workflow messages switch from Korean on the next update. A hand-edited unknown value also
     // falls back to English, but it was never the old default, so it gets its own wording.
@@ -155,7 +159,7 @@ async function runInner(argv, {
     // The log file is created on the first write, so viewing only status/doctor from the menu leaves nothing behind.
     startLog("install");
     return await runInteractive(
-      { ...optionContextFields(opts), language },
+      { ...optionContextFields(opts), language: storedLanguage },
       { cwd, payloadRoot: payload, clock },
     );
   }
@@ -381,7 +385,7 @@ async function runInner(argv, {
     repoName,
     // resolvers that compute @wizard ask/auto token values
     resolvers: makeResolvers(cwd, repoName, paths, typeOptions),
-    now, today, language,
+    now, today, language: storedLanguage,
     // Extra context for the install log; does not change the install itself.
     markers: detectMarkers(cwd, types), detectWarnings,
   });

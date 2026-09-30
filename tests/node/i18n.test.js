@@ -195,6 +195,27 @@ test("an unsupported saved language gets its own notice, not the 'now default to
   }
 });
 
+test("the environment variable does not overwrite a saved language; --lang does; a first install saves it", async () => {
+  const dir = makeRepo();
+  try {
+    const p = join(dir, "version.yml");
+    const saved = () => /^language:\s*"?(\w+)/m.exec(readFileSync(p, "utf8").replace(/\r\n/g, "\n"))?.[1];
+    // first install: nothing saved yet, so the env value is what gets stored
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    assert.strictEqual(saved(), "ko");
+    // a one-off run with another language leaves the saved choice alone
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "en" });
+    assert.strictEqual(saved(), "ko");
+    await capturedInstall(dir);
+    assert.strictEqual(saved(), "ko");
+    // an explicit --lang changes it, even with the env set
+    await capturedInstall(dir, ["--lang", "en"], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    assert.strictEqual(saved(), "en");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("no notice when --lang or the environment variable decides the language", async () => {
   const dir = makeRepo();
   try {
