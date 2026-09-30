@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "test": "npm run test:node && npm run test:py",
-    "test:node": "node --test --test-concurrency=1",
+    "test:node": "node --test --test-concurrency=1 --import ./tests/setup-lang.mjs",
     "test:py": "node scripts/run-py-tests.mjs",
     "generate:workflows": "node scripts/generate-workflows.mjs",
     "generate:workflows:check": "node scripts/generate-workflows.mjs --check",
