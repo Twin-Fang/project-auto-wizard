@@ -404,6 +404,29 @@ class TestSyncMonorepo(SyncTestCase):
         pkg_data = json.loads((Path(tmp) / "client" / "package.json").read_text(encoding="utf-8"))
         self.assertEqual(pkg_data["version"], "1.2.3")
 
+    def test_in_sync_check_prints_one_line_without_updated(self):
+        tmp = self.make_tmp("monorepo")
+        run(["set", "1.2.3"], tmp)
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("updated:", r.stderr)
+        self.assertNotIn("Multi-type", r.stderr)
+        self.assertNotIn("Version sync check", r.stderr)
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+        self.assertIn("already in sync", r.stderr)
+
+    def test_lagging_secondary_type_is_reported_as_reconciled_not_in_sync(self):
+        tmp = self.make_tmp("monorepo")
+        run(["set", "1.2.3"], tmp)
+        pkg = Path(tmp) / "client" / "package.json"
+        data = json.loads(pkg.read_text(encoding="utf-8"))
+        data["version"] = "0.0.1"
+        pkg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        r = run(["get"], tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(pkg.read_text(encoding="utf-8"))["version"], "1.2.3")
+        self.assertIn("updated:", r.stderr)
+        self.assertNotIn("already in sync", r.stderr)
 
     def test_sync_reads_project_paths_with_inline_comments(self):
         # The wizard renders comments after the key and each value line.

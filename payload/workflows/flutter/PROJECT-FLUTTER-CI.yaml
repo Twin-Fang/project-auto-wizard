@@ -149,12 +149,15 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Pass the settings on as outputs
       - name: Pass settings
         id: config
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Check the workflow_dispatch inputs
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
@@ -171,19 +174,25 @@ jobs:
           echo "enable_android=$ENABLE_ANDROID" >> $GITHUB_OUTPUT
           echo "enable_ios=$ENABLE_IOS" >> $GITHUB_OUTPUT
           m flutter_a.ci_config_header
-          echo "  Analyze Only: $ANALYZE_ONLY"
+          m wf_flutter.ci_analyze_only value="$ANALYZE_ONLY"
           echo "  Android: $ENABLE_ANDROID"
           echo "  iOS: $ENABLE_IOS"
           m flutter_a.ci_config_trigger event_name="${{ github.event_name }}"
 
       - name: Collect build info
         id: info
+        env:
+          # Branch names are passed through env so shell metacharacters in them are never parsed as commands
+          PAW_EVENT_NAME: ${{ github.event_name }}
+          PAW_HEAD_REF: ${{ github.head_ref }}
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="${{ github.head_ref }}"
+          if [ "$PAW_EVENT_NAME" == "pull_request" ]; then
+            BRANCH_NAME="$PAW_HEAD_REF"
           else
-            BRANCH_NAME="${{ github.ref_name }}"
+            BRANCH_NAME="$PAW_REF_NAME"
           fi
           COMMIT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
 
@@ -198,18 +207,25 @@ jobs:
         id: comment
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ANALYZE_ONLY: ${{ steps.config.outputs.analyze_only }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_ANDROID: ${{ steps.config.outputs.enable_android }}
+          PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_IOS: ${{ steps.config.outputs.enable_ios }}
+          PAW_IN_STEPS_INFO_OUTPUTS_BRANCH_NAME: ${{ steps.info.outputs.branch_name }}
+          PAW_IN_STEPS_INFO_OUTPUTS_COMMIT_HASH: ${{ steps.info.outputs.commit_hash }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const prNumber = context.payload.pull_request.number;
-            const branchName = '${{ steps.info.outputs.branch_name }}';
-            const commitHash = '${{ steps.info.outputs.commit_hash }}';
-            const analyzeOnly = '${{ steps.config.outputs.analyze_only }}' === 'true';
-            const enableAndroid = '${{ steps.config.outputs.enable_android }}' === 'true';
-            const enableIos = '${{ steps.config.outputs.enable_ios }}' === 'true';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_STEPS_INFO_OUTPUTS_BRANCH_NAME;
+            const commitHash = process.env.PAW_IN_STEPS_INFO_OUTPUTS_COMMIT_HASH;
+            const analyzeOnly = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ANALYZE_ONLY === 'true';
+            const enableAndroid = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_ANDROID === 'true';
+            const enableIos = process.env.PAW_IN_STEPS_CONFIG_OUTPUTS_ENABLE_IOS === 'true';
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
             const startTime = Date.now();
 
@@ -281,6 +297,7 @@ jobs:
     outputs:
       status: ${{ steps.result.outputs.status }}
       test_status: ${{ steps.result.outputs.test_status }}
+      test_duration: ${{ steps.result.outputs.test_duration }}
       duration: ${{ steps.result.outputs.duration }}
 
     steps:
@@ -295,21 +312,26 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        id: load_messages
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
-            echo "✅ $ENV_FILE_PATH file created"
+            m wf_flutter.env_file_created file="$ENV_FILE_PATH"
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Set up Flutter
@@ -321,7 +343,9 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          echo "✅ Flutter setup completed"
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.flutter_setup_done_ok
           flutter --version
 
       - name: Cache Flutter dependencies
@@ -334,15 +358,18 @@ jobs:
       - name: Install dependencies
         id: deps
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
-          echo "✅ Dependencies installed"
+          m wf_flutter.deps_installed_ok
 
       - name: Run Flutter Analyze
         id: analyze
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_analyze_start
           flutter analyze --no-fatal-infos
@@ -353,11 +380,14 @@ jobs:
         id: test
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # flutter test itself fails when test/ has no *_test.dart, so skip it
           if [ -d test ] && [ -n "$(find test -name '*_test.dart' -print -quit)" ]; then
             m flutter_a.ci_test_start
+            TEST_STARTED=$(date +%s)
             flutter test ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
+            echo "seconds=$(( $(date +%s) - TEST_STARTED ))" >> "$GITHUB_OUTPUT"
             echo "ran=true" >> "$GITHUB_OUTPUT"
             m flutter_a.ci_test_passed
           else
@@ -367,28 +397,41 @@ jobs:
 
       - name: Record analysis result
         id: result
-        if: always()
+        if: always() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
+          PAW_IN_STEPS_ANALYZE_START_OUTPUTS_TIME: ${{ steps.analyze_start.outputs.time }}
+          PAW_IN_STEPS_TEST_OUTCOME: ${{ steps.test.outcome }}
+          PAW_IN_STEPS_TEST_OUTPUTS_RAN: ${{ steps.test.outputs.ran }}
+          PAW_IN_STEPS_TEST_OUTPUTS_SECONDS: ${{ steps.test.outputs.seconds }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const analyzeStart = parseInt('${{ steps.analyze_start.outputs.time }}');
+            const analyzeStart = parseInt(process.env.PAW_IN_STEPS_ANALYZE_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - analyzeStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.analyze.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_ANALYZE_OUTCOME === 'success' ? 'success' : 'failure';
             // none: no test files, skipped: not run because the dependency install failed
-            const testOutcome = '${{ steps.test.outcome }}';
+            const testOutcome = process.env.PAW_IN_STEPS_TEST_OUTCOME;
             const testStatus = testOutcome === 'success'
-              ? ('${{ steps.test.outputs.ran }}' === 'true' ? 'success' : 'none')
+              ? (process.env.PAW_IN_STEPS_TEST_OUTPUTS_RAN === 'true' ? 'success' : 'none')
               : (testOutcome === 'failure' ? 'failure' : 'skipped');
 
             core.setOutput('status', status);
+            // Only a run that finished has a measured time; otherwise leave it empty (shown as -)
+            const testSeconds = parseInt(process.env.PAW_IN_STEPS_TEST_OUTPUTS_SECONDS, 10);
+            const testDuration = Number.isNaN(testSeconds) ? '' : (testSeconds >= 60
+              ? m('flutter_a.ci_dur_min_sec', { minutes: Math.floor(testSeconds / 60), seconds: testSeconds % 60 })
+              : m('flutter_a.ci_dur_sec', { seconds: testSeconds }));
+
             core.setOutput('test_status', testStatus);
+            core.setOutput('test_duration', testDuration);
             core.setOutput('duration', duration);
             console.log(m('flutter_a.ci_log_analyze_result', { status, test: testStatus, duration }));
 
@@ -421,21 +464,26 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        id: load_messages
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
-            echo "✅ $ENV_FILE_PATH file created"
+            m wf_flutter.env_file_created file="$ENV_FILE_PATH"
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Set up Flutter
@@ -447,7 +495,9 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          echo "✅ Flutter setup completed"
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.flutter_setup_done_ok
           flutter --version
 
       - name: Cache Flutter dependencies
@@ -469,11 +519,13 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
-          echo "✅ Dependencies installed"
+          m wf_flutter.deps_installed_ok
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -483,17 +535,20 @@ jobs:
 
       - name: Verify Java version
         run: |
-          echo "✅ Java setup completed"
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.java_setup_done_ok
           java -version
 
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # The default flutter create .gitignore does not commit gradlew - flutter build creates it when missing
           if [ -f gradlew ]; then
             chmod +x gradlew
-            echo "✅ Gradle wrapper permissions set"
+            m wf_flutter.gradle_perm_ok
           else
             m flutter_a.gradlew_missing
           fi
@@ -502,6 +557,7 @@ jobs:
       - name: Build APK
         id: build
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_apk_start
           flutter build apk --debug ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
@@ -510,20 +566,23 @@ jobs:
 
       - name: Record build result
         id: result
-        if: always()
+        if: always() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
+            const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_BUILD_OUTCOME === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
@@ -558,7 +617,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        id: load_messages
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -568,16 +630,22 @@ jobs:
           # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
-          echo "=== iPhoneOS.platform check ==="
-          ls "$DEVELOPER_DIR/Platforms/iPhoneOS.platform/" 2>/dev/null && echo "iPhoneOS.platform EXISTS" || echo "iPhoneOS.platform NOT FOUND"
-          echo "=== Installing MobileDevice packages ==="
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.xcode_platform_check
+          if ls "$DEVELOPER_DIR/Platforms/iPhoneOS.platform/" 2>/dev/null; then
+            m wf_flutter.xcode_platform_exists
+          else
+            m wf_flutter.xcode_platform_missing
+          fi
+          m wf_flutter.xcode_install_pkgs
           sudo installer -pkg /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Resources/Packages/MobileDevice.pkg -target /
           sudo installer -pkg /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Resources/Packages/MobileDeviceDevelopment.pkg -target /
-          echo "=== Accepting Xcode license ==="
+          m wf_flutter.xcode_license
           sudo xcodebuild -license accept
-          echo "=== Initializing Xcode components ==="
+          m wf_flutter.xcode_init
           xcrun simctl list >/dev/null 2>&1 || true
-          echo "=== Downloading iOS platform ==="
+          m wf_flutter.xcode_download
           xcodebuild -downloadPlatform iOS
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
@@ -585,14 +653,16 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
-            echo "✅ $ENV_FILE_PATH file created"
+            m wf_flutter.env_file_created file="$ENV_FILE_PATH"
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Set up Flutter
@@ -604,7 +674,9 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          echo "✅ Flutter setup completed"
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m wf_flutter.flutter_setup_done_ok
           flutter --version
 
       - name: Cache Flutter dependencies
@@ -616,11 +688,13 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
             dart run build_runner build --delete-conflicting-outputs
           fi
-          echo "✅ Dependencies installed"
+          m wf_flutter.deps_installed_ok
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -630,6 +704,7 @@ jobs:
 
       - name: Install CocoaPods
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # A default project without plugins has no Podfile - once plugins are added, flutter build creates it
           if [ -f ios/Podfile ]; then
@@ -643,6 +718,7 @@ jobs:
       - name: Build iOS
         id: build
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_ios_start
           flutter build ios --release --no-codesign ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
@@ -650,20 +726,23 @@ jobs:
 
       - name: Record build result
         id: result
-        if: always()
+        if: always() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const buildStart = parseInt('${{ steps.build_start.outputs.time }}');
+            const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
             const elapsed = now - buildStart;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
             const duration = minutes > 0 ? m('flutter_a.ci_dur_min_sec', { minutes, seconds }) : m('flutter_a.ci_dur_sec', { seconds });
 
-            const status = '${{ steps.build.outcome }}' === 'success' ? 'success' : 'failure';
+            const status = process.env.PAW_IN_STEPS_BUILD_OUTCOME === 'success' ? 'success' : 'failure';
 
             core.setOutput('status', status);
             core.setOutput('duration', duration);
@@ -686,33 +765,53 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       - name: Update final result comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_DURATION: ${{ needs.analyze.outputs.duration }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_STATUS: ${{ needs.analyze.outputs.status }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_STATUS: ${{ needs.analyze.outputs.test_status }}
+          PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION: ${{ needs.analyze.outputs.test_duration }}
+          PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_DURATION: ${{ needs.build-android.outputs.duration }}
+          PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_STATUS: ${{ needs.build-android.outputs.status }}
+          PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_DURATION: ${{ needs.build-ios.outputs.duration }}
+          PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_STATUS: ${{ needs.build-ios.outputs.status }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ANALYZE_ONLY: ${{ needs.prepare.outputs.analyze_only }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_BRANCH_NAME: ${{ needs.prepare.outputs.branch_name }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMENT_ID: ${{ needs.prepare.outputs.comment_id }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMIT_HASH: ${{ needs.prepare.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_ANDROID: ${{ needs.prepare.outputs.enable_android }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_IOS: ${{ needs.prepare.outputs.enable_ios }}
+          PAW_IN_NEEDS_PREPARE_OUTPUTS_START_TIME: ${{ needs.prepare.outputs.start_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const commentId = parseInt('${{ needs.prepare.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.prepare.outputs.start_time }}');
-            const branchName = '${{ needs.prepare.outputs.branch_name }}';
-            const commitHash = '${{ needs.prepare.outputs.commit_hash }}';
-            const analyzeOnly = '${{ needs.prepare.outputs.analyze_only }}' === 'true';
-            const enableAndroid = '${{ needs.prepare.outputs.enable_android }}' === 'true';
-            const enableIos = '${{ needs.prepare.outputs.enable_ios }}' === 'true';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_START_TIME);
+            const branchName = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_BRANCH_NAME;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMIT_HASH;
+            const analyzeOnly = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ANALYZE_ONLY === 'true';
+            const enableAndroid = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_ANDROID === 'true';
+            const enableIos = process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_ENABLE_IOS === 'true';
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             // Collect the results
-            const analyzeStatus = '${{ needs.analyze.outputs.status }}';
-            const analyzeDuration = '${{ needs.analyze.outputs.duration }}' || '-';
-            const testStatus = '${{ needs.analyze.outputs.test_status }}';
-            const androidStatus = '${{ needs.build-android.outputs.status }}';
-            const androidDuration = '${{ needs.build-android.outputs.duration }}' || '-';
-            const iosStatus = '${{ needs.build-ios.outputs.status }}';
-            const iosDuration = '${{ needs.build-ios.outputs.duration }}' || '-';
+            const analyzeStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_STATUS;
+            const analyzeDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_DURATION || '-';
+            const testStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_STATUS;
+            const testDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION || '-';
+            const androidStatus = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_STATUS;
+            const androidDuration = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_DURATION || '-';
+            const iosStatus = process.env.PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_STATUS;
+            const iosDuration = process.env.PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_DURATION || '-';
 
             // Compute the total duration
             const now = Date.now();
@@ -787,7 +886,7 @@ jobs:
               m('flutter_a.ci_table_head'),
               '|----------|------|----------|',
               `| 🔍 Analyze | ${analyzeDisplay} | ${analyzeDuration} |`,
-              `| 🧪 Test | ${testDisplay} | - |`,
+              `| 🧪 Test | ${testDisplay} | ${testDuration} |`,
               m('flutter_a.ci_row_android_result', { status: androidDisplay, duration: analyzeOnly || !enableAndroid ? '-' : androidDuration }),
               m('flutter_a.ci_row_ios_result', { status: iosDisplay, duration: analyzeOnly || !enableIos ? '-' : iosDuration }),
               '',
@@ -877,6 +976,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

@@ -62,13 +62,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # A module without dependencies has no go.sum; caching against a missing file only makes setup-go warn
+      - name: Check for go.sum
+        id: gosum
+        run: echo "exists=$([ -f go.sum ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       # Automatically use the go directive version from go.mod
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.PROJECT_PATH }}/go.mod
           cache-dependency-path: ${{ env.PROJECT_PATH }}/go.sum
-          cache: true
+          cache: ${{ steps.gosum.outputs.exists == 'true' }}
 
       - name: Verify go build
         run: go build ./...
@@ -79,24 +84,27 @@ jobs:
       - name: Run go test
         run: go test ./...
 
-      # golangci-lint-action v8 requires golangci-lint v2; if .golangci.yml is in the v1 format
+      # golangci-lint-action v7+ requires golangci-lint v2; if .golangci.yml is in the v1 format
       # the project has to adjust it. version: latest picks up the newest v2 patch automatically
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           working-directory: ${{ env.PROJECT_PATH }}
 
       - name: Build verification complete
+        env:
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.go_done
           echo ""
           m cibuild.info_title
           m cibuild.info_project project="${{ env.PROJECT_NAME }}"
-          m cibuild.info_branch branch="${{ github.ref_name }}"
+          m cibuild.info_branch branch="$PAW_REF_NAME"
           m cibuild.info_commit sha="${{ github.sha }}"
-          m cibuild.info_time time="$(date '+%Y-%m-%d %H:%M:%S')"
+          m cibuild.info_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
   # Job: CI Gate (the single job to register as a required check)
   ci-gate:
@@ -118,6 +126,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

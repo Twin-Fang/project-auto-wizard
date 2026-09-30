@@ -1,5 +1,5 @@
 // tests/node/type-workflows-project-path.test.js
-// In a monorepo (--paths), pins that the Spring, React, Next, Python and Go workflows build in the per-type subfolder
+// In a monorepo (--paths), pins that the Spring, React, Python and Go workflows build in the per-type subfolder
 // rather than the repo root. PROJECT_PATH is substituted via the auto:project-path marker at install, and the build commands and Docker context
 // must follow that value.
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const WORKFLOWS_DIR = join(REPO_ROOT, "payload", "workflows");
-const TYPES = ["spring", "react", "next", "python", "go"];
+const TYPES = ["spring", "react", "python", "go"];
 const WD = "working-directory: ${{ env.PROJECT_PATH }}";
 
 const FILES = TYPES.flatMap((type) =>
@@ -42,7 +42,7 @@ function stepBlocks(text, name) {
 }
 
 test("the target workflow list is not empty", () => {
-  assert.ok(FILES.length >= 15, `got ${FILES.length}`);
+  assert.ok(FILES.length >= 13, `got ${FILES.length}`);
 });
 
 for (const file of FILES) {
@@ -61,13 +61,13 @@ for (const file of FILES) {
 }
 
 test("the CI build job uses PROJECT_PATH as its working directory", () => {
-  for (const file of ["go/PROJECT-GO-CI.yaml", "next/PROJECT-NEXT-CI.yaml", "python/PROJECT-PYTHON-CI.yaml", "react/PROJECT-REACT-CI.yaml", "spring/PROJECT-SPRING-CI.yml"]) {
+  for (const file of ["go/PROJECT-GO-CI.yaml", "python/PROJECT-PYTHON-CI.yaml", "react/PROJECT-REACT-CI.yaml", "spring/PROJECT-SPRING-CI.yml"]) {
     assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults missing`);
   }
 });
 
-test("the React/Next CICD build job uses PROJECT_PATH as its working directory", () => {
-  for (const file of ["react/PROJECT-REACT-CICD.yaml", "next/PROJECT-NEXT-CICD.yaml"]) {
+test("the React CICD build job uses PROJECT_PATH as its working directory", () => {
+  for (const file of ["react/PROJECT-REACT-CICD.yaml"]) {
     assert.ok(read(file).includes(`    defaults:\n      run:\n        ${WD}\n`), `${file}: job defaults missing`);
   }
 });

@@ -83,6 +83,7 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
           ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64; do
@@ -103,14 +104,16 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
-            echo ".env file created"
+            m wf_flutter.dotenv_created
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Set up Flutter
@@ -138,6 +141,7 @@ jobs:
         id: current_version
         working-directory: ${{ github.workspace }}   # version_manager.py must read the repo-root version.yml
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Get VERSION (x.y.z format)
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
@@ -159,13 +163,14 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
           echo "TODAY=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
-          echo "TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+          echo "TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
           echo "PROJECT_TYPE=${{ env.PROJECT_TYPE }}" >> $GITHUB_ENV
 
       - name: Generate release notes
         id: release_notes
         working-directory: ${{ github.workspace }}   # CHANGELOG.json, changelog_manager.py and final_release_notes.txt (paired with the upload) are relative to the repo root
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION="${{ steps.current_version.outputs.version }}"
 
@@ -245,14 +250,16 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > .env
-            echo ".env file created"
+            m wf_flutter.dotenv_created
           elif [ -n "$ENV_CONTENT" ]; then
             DART_DEFINE_FILE="$RUNNER_TEMP/dart-define.env"
             printf '%s\n' "$ENV_CONTENT" > "$DART_DEFINE_FILE"
             echo "DART_DEFINE_FILE=$DART_DEFINE_FILE" >> "$GITHUB_ENV"
-            echo "dart-define file prepared"
+            m wf_flutter.dart_define_prepared
           fi
 
       - name: Setup Release Keystore
@@ -262,6 +269,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # An empty keystore built from an empty Secret leaves it unclear which key signed the build, or ends in a misleading error in a later step
           MISSING=""
@@ -283,6 +291,7 @@ jobs:
 
       - name: Create key.properties
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > android/key.properties << EOF
           storeFile=app/keystore/key.jks
@@ -297,12 +306,14 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             mkdir -p android/app
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "✅ google-services.json created"
+            m wf_flutter.google_services_created
           else
-            echo "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping"
+            m wf_flutter.google_services_skipped
           fi
 
       - name: Set up Flutter
@@ -344,6 +355,7 @@ jobs:
 
       - name: Configure Android build for release
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Add the release signing config to build.gradle.kts if it is missing
           if ! grep -q "signingConfigs" android/app/build.gradle.kts; then
@@ -357,6 +369,7 @@ jobs:
 
       - name: Build Android App Bundle (AAB)
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           VERSION_NAME="${{ needs.prepare-build.outputs.version }}"
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"
@@ -419,7 +432,7 @@ jobs:
           # pubspec.yaml stays in x.y.z format; VERSION_CODE is managed automatically in version.yml
           m flutter_a.running_flutter_build
           m flutter_a.command_flutter_build_appbundle_release version_name="$VERSION_NAME" version_code="$VERSION_CODE"
-          m flutter_a.build_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
+          m flutter_a.build_start_time cmd1="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           flutter build appbundle \
             --release \
@@ -598,6 +611,7 @@ jobs:
         env:
           SERVICE_ACCOUNT_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -z "$SERVICE_ACCOUNT_BASE64" ]; then
             echo "::error::$(m flutter_a.google_play_service_account_json)"
@@ -627,6 +641,7 @@ jobs:
       - name: Install Fastlane
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # If the repository Gemfile has fastlane, use it as is (committing Gemfile.lock is recommended). Otherwise create one.
           if [ -f Gemfile ] && grep -Eq "['\"]fastlane['\"]" Gemfile; then
@@ -643,6 +658,7 @@ jobs:
       # Use android/fastlane/Fastfile.playstore to stay consistent
       - name: Copy Fastfile for Play Store
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           mkdir -p android/fastlane
           cp android/fastlane/Fastfile.playstore android/fastlane/Fastfile
@@ -655,12 +671,13 @@ jobs:
           DEPLOY_MODE: ${{ env.DEPLOY_MODE }}
           PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME || vars.ANDROID_PACKAGE_NAME }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo "=========================================="
           m flutter_a.starting_play_store_deployment
           echo "=========================================="
-          m flutter_a.deploy_start_time cmd1="$(date '+%Y-%m-%d %H:%M:%S')"
-          echo "🔍 GitHub Run Number: ${{ github.run_number }}"
+          m flutter_a.deploy_start_time cmd1="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          m wf_flutter.run_number number="${{ github.run_number }}"
           echo "🔍 GitHub SHA: ${{ github.sha }}"
           
           # Initialize and validate environment variables
@@ -768,6 +785,7 @@ jobs:
       - name: Notify Play Store Upload Success
         if: success()
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.play_store_internal_testing_deployment
           m flutter_a.version version="${{ needs.prepare-build.outputs.version }}" version_code="${{ needs.prepare-build.outputs.version_code }}"
@@ -781,6 +799,7 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.play_store_deployment_failed
           m flutter_a.please_check_logs

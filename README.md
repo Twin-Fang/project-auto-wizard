@@ -21,7 +21,7 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 </div>
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v0.15.0 (2026-09-30)
+## Latest Version : v0.15.1 (2026-09-30)
 
 [Full release history](CHANGELOG.md)
 
@@ -128,7 +128,7 @@ Skip it if:
 |---|---|---|
 | `spring` | `build.gradle`, `build.gradle.kts`, `pom.xml` | CI, server deploy (single server / zero-downtime Nginx or Traefik), PR preview |
 | `flutter` | `pubspec.yaml` | CI, Android (Firebase, Play Store, self-hosted, test APK), iOS TestFlight |
-| `react`, `next` | `package.json` dependencies | CI, CI + CD |
+| `react` (React / Next.js) | `package.json` with a `react` or `next` dependency | CI, CI + CD |
 | `python` | `pyproject.toml`, `setup.py`, `requirements.txt` | CI, PR preview, server deploy |
 | `go` | `go.mod` | CI, PR preview, server deploy |
 | `node`, `react-native`, `react-native-expo`, `basic` | `package.json` / fallback | Release automation only |

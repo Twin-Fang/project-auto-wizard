@@ -1,5 +1,5 @@
 # project-auto-wizard:managed-workflow
-# React CI (build verification)
+# React / Next.js CI (build verification)
 # On push/PR to the {{DEVELOP_BRANCH}} branch, verifies with npm ci, npm test (when a test script exists) and npm run build. Caches node_modules and the build output.
 #
 # GitHub Secrets
@@ -73,6 +73,7 @@ jobs:
 
       - name: Create environment file (${{ env.ENV_FILE }})
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo -e "${{ secrets.ENV_FILE || secrets.ENV }}" > ${{ env.ENV_FILE }}
           m cicd.env_file_created file="${{ env.ENV_FILE }}"
@@ -106,6 +107,7 @@ jobs:
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.node_deps_installing
           npm ci
@@ -125,6 +127,7 @@ jobs:
       # Runs only when package.json has a test script (the npm init default "no test specified" counts as none)
       - name: Run tests
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           TEST_SCRIPT=$(node -p "(require('./package.json').scripts || {}).test || ''")
           if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
@@ -139,6 +142,7 @@ jobs:
       - name: Build project
         id: build
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.node_build_start
           m cibuild.node_build_project project="${{ env.PROJECT_NAME }}"
@@ -159,10 +163,19 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
           m cibuild.node_build_ok
 
+          # Only Next.js builds create .next; other React builds skip this block
+          if [ -d ".next" ]; then
+            echo ""
+            m cibuild.node_build_output
+            m cibuild.node_build_next_dir
+            du -sh .next/ || true
+          fi
+
       # Runs only when the build failed
       - name: Print build error log
         if: steps.build.outputs.build_failed == 'true'
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           m cibuild.node_errlog_title
@@ -182,9 +195,9 @@ jobs:
           # End the workflow because the build failed
           exit 1
 
-      # Save the log regardless of build success or failure
+      # Save the log regardless of build success or failure (nothing to upload when the build step did not run, e.g. tests failed)
       - name: Upload build log
-        if: always()
+        if: ${{ always() && steps.build.outcome != 'skipped' }}
         uses: actions/upload-artifact@v7
         with:
           name: build-log
@@ -194,11 +207,17 @@ jobs:
       # Summarize the workflow result for readability
       - name: Build result summary
         if: always()
+        # Values go through env (not inlined into the script). On a PR, github.head_ref is the PR branch (ref_name would be '<n>/merge')
+        env:
+          BUILD_STATUS: ${{ steps.build.outputs.status }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          if [ "${{ steps.build.outputs.status }}" = "success" ]; then
+          if [ "$BUILD_STATUS" = "success" ]; then
             m cibuild.node_result_ok
           else
             m cibuild.node_result_fail
@@ -208,16 +227,25 @@ jobs:
           m cibuild.node_result_title
           m cibuild.node_result_project project="${{ env.PROJECT_NAME }}"
           m cibuild.node_result_node node="${{ env.NODE_VERSION }}"
-          m cibuild.node_result_status status="${{ steps.build.outputs.status }}"
-          m cibuild.node_result_branch branch="${{ github.ref_name }}"
-          m cibuild.node_result_commit sha="${{ github.sha }}"
-          m cibuild.node_result_time time="$(date '+%Y-%m-%d %H:%M:%S UTC')"
+          # An empty status means the build step never ran (an earlier step such as the tests failed)
+          if [ -z "$BUILD_STATUS" ]; then
+            m cibuild.node_result_status_not_run
+          else
+            m cibuild.node_result_status status="$BUILD_STATUS"
+          fi
+          m cibuild.node_result_branch branch="$BRANCH_NAME"
+          m cibuild.node_result_commit sha="$COMMIT_SHA"
+          m cibuild.node_result_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
-          if [ "${{ steps.build.outputs.status }}" = "success" ]; then
+          if [ "$BUILD_STATUS" = "success" ]; then
             m cibuild.node_all_ok
+          elif [ -z "$BUILD_STATUS" ]; then
+            # The build log artifact does not exist in this case, so do not point to it
+            m cibuild.node_build_not_run
+            m cibuild.node_build_not_run_hint
           else
             m cibuild.node_error_occurred
             m cibuild.node_log_hint
@@ -243,6 +271,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

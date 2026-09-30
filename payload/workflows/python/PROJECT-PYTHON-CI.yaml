@@ -69,6 +69,7 @@ jobs:
 
       - name: Create .env file
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
@@ -82,6 +83,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
@@ -97,6 +99,7 @@ jobs:
       # Projects without tests are skipped rather than failed
       - name: Run tests (pytest)
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -d tests ] || [ -d test ] || [ -n "$(find . \( -path ./.venv -o -path ./venv -o -path ./node_modules -o -path ./.git \) -prune -o \( -name 'test_*.py' -o -name '*_test.py' \) -type f -print -quit)" ]; then
             python -m pytest --version > /dev/null 2>&1 || pip install pytest
@@ -117,6 +120,7 @@ jobs:
       - name: Check for Dockerfile
         id: dockerfile
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -f Dockerfile ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -127,11 +131,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.dockerfile.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Verify Docker image build
         if: steps.dockerfile.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
@@ -141,15 +145,18 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build verification complete
+        env:
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.python_done
           echo ""
           m cibuild.info_title
           m cibuild.info_project project="${{ env.PROJECT_NAME }}"
-          m cibuild.info_branch branch="${{ github.ref_name }}"
+          m cibuild.info_branch branch="$PAW_REF_NAME"
           m cibuild.info_commit sha="${{ github.sha }}"
-          m cibuild.info_time time="$(date '+%Y-%m-%d %H:%M:%S')"
+          m cibuild.info_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
   # CI Gate: the single job to register as a required check
   ci-gate:
@@ -171,6 +178,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

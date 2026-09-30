@@ -51,7 +51,8 @@ const MATRIX = [
   { name: "spring", args: ["--type", "spring"], expect: ["PROJECT-SPRING-SIMPLE-CICD.yaml", "PROJECT-SPRING-CI.yml"], absent: ["PROJECT-SPRING-NEXUS-PUBLISH.yml"] },
   { name: "flutter", args: ["--type", "flutter"], expect: ["PROJECT-FLUTTER-CI.yaml", "PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"] },
   { name: "react", args: ["--type", "react"], expect: ["PROJECT-REACT-CI.yaml", "PROJECT-REACT-CICD.yaml"] },
-  { name: "next", args: ["--type", "next"], expect: ["PROJECT-NEXT-CI.yaml", "PROJECT-NEXT-CICD.yaml"] },
+  // --type next is an alias of react: same workflows, and no PROJECT-NEXT-* files are created
+  { name: "next", args: ["--type", "next"], expect: ["PROJECT-REACT-CI.yaml", "PROJECT-REACT-CICD.yaml"], absent: ["PROJECT-NEXT-CI.yaml", "PROJECT-NEXT-CICD.yaml"] },
   { name: "node", args: ["--type", "node"], expect: [] },
   { name: "python", args: ["--type", "python"], expect: ["PROJECT-PYTHON-CI.yaml", "PROJECT-PYTHON-SIMPLE-CICD.yaml"] },
   { name: "go", args: ["--type", "go"], expect: ["PROJECT-GO-CI.yaml", "PROJECT-GO-SIMPLE-CICD.yaml"] },

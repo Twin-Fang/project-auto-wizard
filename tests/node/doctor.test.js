@@ -6,7 +6,9 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { setLanguage } from "../../src/i18n/index.js";
+import { setLanguage, t } from "../../src/i18n/index.js";
+import { copyScripts } from "../../src/core/copy/simple.js";
+import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { runDoctor, printDoctorReport, doctorExitCode, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -467,8 +469,41 @@ test("doctorExitCode: 0 without problems (INFO does not count), 1 for any WARN o
   assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "INFO" }]), 0);
   assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "WARN" }]), 1);
   assert.strictEqual(doctorExitCode([{ status: "FAIL" }, { status: "WARN" }]), 1);
-  // The all-healthy fixture (remote checks included) is a clean run.
+  // The all-healthy fixture (remote checks included) is a clean run, this repo's own root included
+  // (it deliberately omits scripts only some workflow types use).
   assert.strictEqual(doctorExitCode(runDoctor(REPO_ROOT, { exec: fakeExec(ALL_OK_EXEC) })), 0);
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    writeFileSync(join(dir, "version.yml"), 'version: "1.0.0"\n');
+    copyScripts(resolvePayloadRoot(), dir);
+    assert.strictEqual(doctorExitCode(runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) })), 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runDoctor: an installed script that is missing is a WARN with the restore command; all present is not", () => {
+  const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
+  try {
+    mkdirSync(join(dir, ".github", "workflows"), { recursive: true });
+    writeFileSync(join(dir, "version.yml"), 'version: "1.0.0"\n');
+    writeFileSync(join(dir, ".github", "workflows", "PROJECT-X.yaml"), "run: python3 .github/scripts/version_manager.py\n");
+    copyScripts(resolvePayloadRoot(), dir);
+    const find = () => runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }).find((r) => r.name === t("cmd.doctor.scripts.name"));
+    assert.strictEqual(find(), undefined);
+    rmSync(join(dir, ".github", "scripts", "messages.py"));
+    const item = find();
+    assert.strictEqual(item.status, "WARN");
+    assert.match(item.value, /messages\.py/);
+    assert.match(item.actions[0], /--mode full --force/);
+    // A script no installed workflow calls (Flutter-only truncate_release_notes.py) is not required.
+    rmSync(join(dir, ".github", "scripts", "messages.py"), { force: true });
+    copyScripts(resolvePayloadRoot(), dir);
+    rmSync(join(dir, ".github", "scripts", "truncate_release_notes.py"));
+    assert.strictEqual(find(), undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("--mode doctor exits 1 when a problem is found (gh missing from PATH -> WARN)", () => {

@@ -29,8 +29,7 @@ npx project-auto-wizard
 | `go` | `go.mod` |
 | `react-native-expo` | `expo` 의존성이 있는 `package.json` |
 | `react-native` | `react-native` 의존성이 있는 `package.json` |
-| `next` | `next` 의존성이 있는 `package.json` |
-| `react` | `react` 의존성이 있는 `package.json` |
+| `react` | `react` 또는 `next` 의존성이 있는 `package.json` (Next.js 프로젝트도 React 타입) |
 | `node` | 위 의존성이 없는 `package.json`, 다른 타입이 없을 때 |
 | `basic` | 위에 해당하는 것이 없을 때 |
 

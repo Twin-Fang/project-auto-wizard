@@ -5,7 +5,7 @@
 import * as engine from "./readline-engine.js";
 import { t } from "../i18n/index.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
-import { TYPE_IDS } from "../core/types.js";
+import { TYPE_IDS, typeInfo } from "../core/types.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE, deployModeWarning } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
@@ -71,7 +71,7 @@ export const ALL_TYPES = TYPE_IDS;
 export async function selectTypes(current = []) {
   return engine.multiselect({
     message: t("ui.prompts.types.select"),
-    options: ALL_TYPES.map((type) => ({ value: type, label: type })),
+    options: ALL_TYPES.map((type) => ({ value: type, label: type, hint: typeInfo(type).displayName })),
     initialValues: current.length ? current : ["basic"],
     required: true,
   });
@@ -91,7 +91,11 @@ export async function confirmTypes({ types = [], markers = null } = {}) {
     options: ALL_TYPES.map((type) => {
       const marker = markers?.get?.(type);
       // Only detected types get evidence - the rest are just listed as candidates.
-      return { value: type, label: detected.has(type) && marker ? t("ui.prompts.types.withMarker", { type, marker }) : type };
+      return {
+        value: type,
+        label: detected.has(type) && marker ? t("ui.prompts.types.withMarker", { type, marker }) : type,
+        hint: typeInfo(type).displayName,
+      };
     }),
     initialValues: types.length ? types : ["basic"],
     required: true,

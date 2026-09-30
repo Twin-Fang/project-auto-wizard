@@ -24,6 +24,37 @@ export function planScripts(payloadRoot, targetRoot = ".") {
   return out;
 }
 
+// Script -> bundled scripts it imports (`import x` / `from x import ...`), read from the payload so the
+// dependency table cannot drift from the code. Only names in SCRIPT_NAMES count; stdlib imports are ignored.
+function scriptImports(payloadRoot, name) {
+  let src = "";
+  try { src = readFileSync(join(payloadRoot, PAYLOAD.scriptsDir, name), "utf8"); } catch { return []; }
+  const mods = new Set();
+  for (const m of src.matchAll(/^[ \t]*(?:from[ \t]+(\w+)[ \t]+import\b|import[ \t]+([\w, \t]+))/gm)) {
+    if (m[1]) mods.add(m[1]);
+    else for (const x of m[2].split(",")) mods.add(x.trim().split(/\s+/)[0]);
+  }
+  return SCRIPT_NAMES.filter((n) => n !== name && mods.has(n.replace(/\.py$/, "")));
+}
+
+// Bundled scripts the installed workflows call but the repo no longer has (deleted by hand, never copied).
+// Only scripts an installed workflow actually references count: some (truncate_release_notes.py) belong to
+// workflows of one type only. Scripts those import (messages.py, issue_helper.py, ...) are required too,
+// transitively, since the called script fails at import time without them.
+export function findMissingScripts(payloadRoot, targetRoot = ".") {
+  const wfDir = join(targetRoot, PATHS.workflowsDir);
+  let text = "";
+  try {
+    for (const f of readdirSync(wfDir)) if (/\.ya?ml$/.test(f)) text += `${readFileSync(join(wfDir, f), "utf8")}\n`;
+  } catch { return []; }
+  const required = new Set(SCRIPT_NAMES.filter((n) => text.includes(n)));
+  const queue = [...required];
+  while (queue.length) {
+    for (const dep of scriptImports(payloadRoot, queue.pop())) if (!required.has(dep)) { required.add(dep); queue.push(dep); }
+  }
+  return SCRIPT_NAMES.filter((n) => required.has(n) && exists(join(payloadRoot, PAYLOAD.scriptsDir, n)) && !exists(join(targetRoot, PATHS.scriptsDir, n)));
+}
+
 // Scripts are always overwritten with the payload version (+chmod, meaningless but harmless on Windows).
 // User-edited scripts are overwritten too, so per-file results are returned for the caller to log.
 export function copyScripts(payloadRoot, targetRoot = ".") {

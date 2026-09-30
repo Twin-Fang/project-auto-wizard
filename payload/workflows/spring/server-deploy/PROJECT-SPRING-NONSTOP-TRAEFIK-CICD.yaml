@@ -134,6 +134,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
@@ -172,6 +173,7 @@ jobs:
 
       - name: Generate application-prod.yml
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           mkdir -p ${{ env.APPLICATION_YML_DIR }}
           cat << 'EOF' > ./${{ env.APPLICATION_YML_DIR }}/application-prod.yml
@@ -184,10 +186,10 @@ jobs:
         run: ./gradlew clean build -x test ${{ env.GRADLE_OPTS }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -201,7 +203,7 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -234,6 +236,7 @@ jobs:
 
       - name: Load messages
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           MSGS="$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_deploy. \
             | python3 -c 'import json, shlex, sys; d = json.load(sys.stdin); print("\n".join("M_%s=%s" % (k.replace(".", "_"), shlex.quote(v)) for k, v in d.items()))' \
             | base64 | tr -d '\n')"
@@ -333,7 +336,7 @@ jobs:
             NEW_NAME="${PROJECT_NAME}-${NEW_COLOR}"
             OLD_NAME="${PROJECT_NAME}-${OLD_COLOR}"
 
-            echo "🎨 active=${ACTIVE:-none} → new=${NEW_NAME}, old=${OLD_NAME}"
+            m traefik_active active="${ACTIVE:-none}" new="${NEW_NAME}" old="${OLD_NAME}"
 
             # 3. Clean up a leftover container in the same (idle) slot
             m idle_slot_cleanup name="${NEW_NAME}"

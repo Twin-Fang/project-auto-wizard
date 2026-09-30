@@ -78,7 +78,7 @@ The other `metadata` fields (`last_updated`, `integration_date`, `template.versi
 |---|---|
 | `spring` | `build.gradle` / `build.gradle.kts` |
 | `flutter` | `pubspec.yaml` |
-| `next`, `react`, `node` | `package.json` |
+| `react`, `node` | `package.json` |
 | `react-native` | `Info.plist` and `build.gradle` |
 | `react-native-expo` | `app.json` |
 | `python` | `pyproject.toml` |

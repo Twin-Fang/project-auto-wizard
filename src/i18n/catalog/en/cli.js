@@ -20,6 +20,7 @@ export default {
   "cli.args.unknownOption": "Unknown option: {option}",
   "cli.args.modeUnsupported": "Unsupported mode: '{mode}'\nSupported modes: interactive full uninstall status doctor",
   "cli.args.pathsTypeUnsupported": "Unsupported type in --paths: '{type}'",
+  "cli.args.pathsDuplicateType": "--paths lists '{type}' twice with different folders (next is the old name of react); keep one entry",
   "cli.args.pathsRelativeOnly": "--paths accepts only paths relative to the repo: '{pair}'",
   "cli.index.purgePrompt": "To run purge, type this repo name exactly: {repoName}\n> ",
   "cli.index.dryRunNeedsMode": "Use --dry-run together with --mode <full|uninstall> (it is not supported in interactive mode).",

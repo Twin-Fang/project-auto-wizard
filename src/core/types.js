@@ -11,6 +11,8 @@ import { flutterHooks } from "./flutter-hooks.js";
 //                      "package": detected by a package.json dependency key (packageDep)
 //                      "package-fallback": package.json exists but none of the above matched
 //                      absent: not auto-detected (basic is the result when nothing was detected).
+//   extraPackageDeps   Other dependency keys that also classify a project as this type (e.g. next -> react).
+//   displayName        Human-readable name shown next to the id in interactive choices (optional).
 //   detectOrder        Evaluation order within the same detectBy. The earlier rule wins (an expo app also has a react-native dependency).
 //   versionSources     File keys to read the version from at install (sources in detect.js); read first in this order for the primary type.
 //   buildNumberSource  File key to read the mobile build number from (detectBuildNumberFromFiles in detect.js).
@@ -51,16 +53,11 @@ export const TYPES = [
     hooks: flutterHooks,
   },
   {
-    id: "next",
-    markers: ["package.json"],
-    detectBy: "package", packageDep: "next", detectOrder: 3,
-    versionSources: ["packageJson"],
-    singleServerCd: "PROJECT-NEXT-CICD.yaml",
-  },
-  {
+    // Next.js projects are React projects: same package.json version handling and the same CI/CD workflows.
     id: "react",
+    displayName: "React / Next.js",
     markers: ["package.json"],
-    detectBy: "package", packageDep: "react", detectOrder: 4,
+    detectBy: "package", packageDep: "react", extraPackageDeps: ["next"], detectOrder: 3,
     versionSources: ["packageJson"],
     singleServerCd: "PROJECT-REACT-CICD.yaml",
   },
@@ -108,6 +105,16 @@ export const TYPES = [
 
 // Type used when nothing was detected
 export const FALLBACK_TYPE = "basic";
+
+// Names that were once separate types and are now accepted as an alias of another one.
+// Every input that can carry a type name (--type, --paths, version.yml) goes through canonicalTypeId(),
+// so the rest of the code only ever sees registry ids and version.yml is rewritten with the canonical name.
+export const TYPE_ALIASES = Object.freeze({ next: "react" });
+
+export const canonicalTypeId = (name) => TYPE_ALIASES[name] ?? name;
+
+// Canonical ids of a type list with duplicates removed (react,next -> react), keeping the first occurrence's position.
+export const canonicalTypeIds = (names) => [...new Set(names.map(canonicalTypeId))];
 
 const BY_ID = new Map(TYPES.map((t) => [t.id, t]));
 

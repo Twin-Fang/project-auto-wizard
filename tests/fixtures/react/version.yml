@@ -3,7 +3,7 @@
 # - patch: auto-incremented on each main push (unless release PR)
 # - version_code: monotonically increasing build number, auto-incremented parallel to version
 # ===
-# Supported project types: spring, flutter, next, react, react-native, react-native-expo, node, python, basic
+# Supported project types: spring, flutter, react, react-native, react-native-expo, node, python, basic
 # Multi-type projects: use project_types array (e.g., ["spring", "react"])
 # Monorepo paths: use project_paths map to specify subdir per type (e.g., {"spring": "api", "react": "web"})
 # ===

@@ -59,7 +59,7 @@ export function collectAsks(payloadRoot, types = [], opts = {}) {
     const [typeDir, serverDeployDir] = typeWorkflowDirs(payloadRoot, type);
     if (!exists(typeDir)) continue;
     // Same folder layout as the copy engine: type root + server-deploy (only when deploy is not "none").
-    // Types such as go/python and react/next keep server deploy workflows directly in the type root; they go
+    // Types such as go, python and react keep server deploy workflows directly in the type root; they go
     // through the same deploy-style filter - with "no deploy", CD/PR-preview ask keys (DEPLOY_PORT, SSH_AUTH_METHOD, ...) are not asked.
     // Flutter also filters out deselected store workflows (PLAYSTORE, TESTFLIGHT) so the question scope equals the install scope.
     units.push([type, typeDir, buildTypeRootFilter(type, deployStyle, flutterStore, available)]);

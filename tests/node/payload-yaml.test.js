@@ -189,7 +189,7 @@ test("AUTO-CHANGELOG-CONTROL also cleans up the issue-collection temp files befo
   const body = readFileSync(changelogPath, "utf8");
   const idx = body.indexOf("Commit release docs to the PR head branch");
   assert.ok(idx > -1, "Commit release docs step not found");
-  const stepBlock = body.slice(idx, idx + 800);
+  const stepBlock = body.slice(idx, idx + 1100);
   assert.ok(stepBlock.includes("commit_shas.txt"), "commit_shas.txt is missing from the cleanup list");
   assert.ok(stepBlock.includes("merged_prs.json"), "merged_prs.json is missing from the cleanup list");
 });
@@ -586,7 +586,7 @@ test("the dogfooding copy of AUTO-CHANGELOG-CONTROL also cleans up the issue-col
   const body = readFileSync(join(".github", "workflows", "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
   const idx = body.indexOf("Commit release docs to the PR head branch");
   assert.ok(idx > -1);
-  const stepBlock = body.slice(idx, idx + 800);
+  const stepBlock = body.slice(idx, idx + 1100);
   assert.ok(stepBlock.includes("commit_shas.txt"));
   assert.ok(stepBlock.includes("merged_prs.json"));
 });

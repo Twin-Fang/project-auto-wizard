@@ -3,14 +3,18 @@ title: React and Next.js
 description: CI and CI/CD workflows for React and Next.js projects.
 ---
 
-Detected from `package.json`: a `next` dependency means `next`, otherwise a `react` dependency means `react`. Installed on top of [release automation](../common/).
+Detected from `package.json`: a `react` or `next` dependency means `react`. Next.js projects are React projects here and get the same workflows. Installed on top of [release automation](../common/).
+
+`next` is still accepted as an alias of `react` in `--type`, `--paths` and `version.yml`; the wizard records it as `react`.
 
 ## Installed workflows
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `PROJECT-REACT-CI` / `PROJECT-NEXT-CI` | PR and push to the development branch, `workflow_dispatch` | `npm ci`, `npm test` (if a `test` script exists), `npm run build`. Caches `node_modules` and build output (`.next/cache` for Next.js). Ends with a `ci-gate` job. |
-| `PROJECT-REACT-CICD` / `PROJECT-NEXT-CICD` | Push to the release branch, `workflow_dispatch` | Build a Docker image and deploy it over SSH. Next.js runs as a Node.js runtime container for SSR. |
+| `PROJECT-REACT-CI` | PR and push to the development branch, `workflow_dispatch` | `npm ci`, `npm test` (if a `test` script exists), `npm run build`. Caches `node_modules` and the Next.js build (`.next/cache`), and prints the size of `.next` when the build creates it. Ends with a `ci-gate` job. |
+| `PROJECT-REACT-CICD` | Push to the release branch, `workflow_dispatch` | Build a Docker image and deploy it over SSH. The container runs with `NODE_ENV=production` and `--restart unless-stopped`, and is named `<project>-front-deploy`. |
+
+Earlier versions installed `PROJECT-NEXT-CI` and `PROJECT-NEXT-CICD` for Next.js projects. Updating replaces them with the React workflows: untouched files are removed, edited ones are kept as `.bak`. The deployed container name changes from `<project>-nextjs-deploy` to `<project>-front-deploy`, and the image prefix from `nextjs-container` to `front-container`, so the first deploy after the update pulls a new image. The workflow removes the old `nextjs` container automatically before starting the new one; the old image stays on the server until you delete it.
 
 ### Deploy style
 

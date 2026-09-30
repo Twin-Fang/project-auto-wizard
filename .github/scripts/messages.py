@@ -75,8 +75,8 @@ def _version_yml_candidates(version_yml):
     return candidates
 
 
-def get_language(version_yml="version.yml"):
-    """Resolve the message language: env -> version.yml -> default.
+def _resolve_language(version_yml="version.yml"):
+    """(language, ignored): the resolved language and the unsupported value that was skipped on the way ('' if none).
 
     Same rules as the CLI (src/i18n): values are normalized and only supported ones count.
     Unlike the CLI, an unsupported env value is ignored instead of aborting, because a
@@ -84,7 +84,8 @@ def get_language(version_yml="version.yml"):
     non-UTF-8 version.yml is skipped; the first file that has a `language:` line decides."""
     env = normalize_language(os.environ.get(LANG_ENV))
     if env in SUPPORTED:
-        return env
+        return env, ""
+    ignored = env
     saved = ""
     for path in _version_yml_candidates(version_yml):
         try:
@@ -96,7 +97,14 @@ def get_language(version_yml="version.yml"):
         # A file without a language line says nothing; keep looking (monorepo subfolder copies etc.)
         if saved:
             break
-    return saved if saved in SUPPORTED else DEFAULT
+    if saved in SUPPORTED:
+        return saved, ignored
+    return DEFAULT, ignored or saved
+
+
+def get_language(version_yml="version.yml"):
+    """Resolve the message language: env -> version.yml -> default."""
+    return _resolve_language(version_yml)[0]
 
 
 def template(key, lang=None):
@@ -147,7 +155,11 @@ def main(argv):
         print(json.dumps(dump(argv[1]), ensure_ascii=False))
         return 0
     if argv == ["lang"]:
-        print(get_language())
+        lang, ignored = _resolve_language()
+        if ignored:
+            # stdout stays the bare language code (callers capture it); the notice goes to stderr
+            print(t("lang.fallback", lang, value=ignored, lang_code=lang, supported=", ".join(SUPPORTED)), file=sys.stderr)
+        print(lang)
         return 0
     print("usage: messages.py get KEY [name=value ...] | dump PREFIX | lang", file=sys.stderr)
     return 2
@@ -412,7 +424,6 @@ EN = {
     "cibuild.node_deps_done": "✅ Dependencies installed",
     "cibuild.node_no_test_script": "::notice::No test script in package.json, skipping tests",
     "cibuild.node_test_run": "🧪 Running npm test: {script}",
-    "cibuild.node_build_start_next": "🔨 Starting Next.js build...",
     "cibuild.node_build_start": "🔨 Starting build...",
     "cibuild.node_build_project": "Project: {project}",
     "cibuild.node_build_node": "Node.js: {node}",
@@ -422,8 +433,6 @@ EN = {
     "cibuild.node_build_next_dir": "  - .next/ folder created",
     "cibuild.node_errlog_title": "❌ Build failed - error log",
     "cibuild.node_errlog_missing": "Error log file not found.",
-    "cibuild.node_result_next_ok": "🎉 Next.js build complete!",
-    "cibuild.node_result_next_fail": "❌ Next.js build failed",
     "cibuild.node_result_ok": "🎉 Build workflow complete!",
     "cibuild.node_result_fail": "❌ Build workflow failed",
     "cibuild.node_result_title": "📊 Build result:",
@@ -432,15 +441,18 @@ EN = {
     "cibuild.node_result_status": "  🆙 Build status: {status}",
     "cibuild.node_result_branch": "  🌿 Branch: {branch}",
     "cibuild.node_result_commit": "  📝 Commit: {sha}",
-    "cibuild.node_result_time": "  🕐 Time: {time}",
+    "cibuild.node_result_time": "  ⏰ Verified at: {time}",
     "cibuild.node_all_ok": "✅ All steps completed successfully.",
     "cibuild.node_error_occurred": "❌ An error occurred during the build.",
     "cibuild.node_log_hint": "💡 Download the 'build-log' artifact from the Actions tab to see the full log.",
+    "cibuild.node_result_status_not_run": "  🆙 Build status: not run (an earlier step failed)",
+    "cibuild.node_build_not_run": "❌ The build did not run because an earlier step failed (for example, the tests).",
+    "cibuild.node_build_not_run_hint": "💡 Check the log of the failed step above. There is no 'build-log' artifact for this run.",
     "cibuild.gate_results": "needs results: {results}",
     "cibuild.gate_failed": "Some jobs failed or were cancelled.",
     # --- cicd ---
     "cicd.precheck_secret_title": "Missing required Secret",
-    "cicd.precheck_secret_body": "GitHub Secrets not registered:{missing} — add them under Settings → Secrets and variables → Actions",
+    "cicd.precheck_secret_body": "Required GitHub Secrets are empty:{missing} — add them under Settings → Secrets and variables → Actions",
     "cicd.precheck_dockerfile_title": "Dockerfile not found",
     "cicd.precheck_dockerfile_body": "{path} does not exist. This workflow deploys a Docker image, so a Dockerfile is required (delete this workflow file if you do not deploy to a server)",
     "cicd.precheck_ok": "✅ Pre-check passed: all required Secrets and the Dockerfile are present",
@@ -467,7 +479,6 @@ EN = {
     "cicd.config_port": "  - Port: {port}",
     "cicd.config_image": "  - Docker image: {image}",
     "cicd.pull_image": "⬇️ Pulling Docker image: {image}",
-    "cicd.pull_image_short": "⬇️ Pulling Docker image...",
     "cicd.container_check": "🧹 Checking whether container {container} exists...",
     "cicd.container_exists": "⚠️ Container {container} exists. Stopping and removing it...",
     "cicd.container_removed": "✅ Container {container} removed.",
@@ -516,7 +527,7 @@ EN = {
     "fastlane.play_deploy": "Play deploy: DEPLOY_MODE={deploy_mode} -> track={track}, release_status={release_status}",
     # --- flutter_a ---
     "flutter_a.precheck_missing_title": "Missing required Secret",
-    "flutter_a.precheck_missing_body": "GitHub Secrets not registered:{missing} - register them under Settings → Secrets and variables → Actions",
+    "flutter_a.precheck_missing_body": "Required GitHub Secrets are empty:{missing} — register them under Settings → Secrets and variables → Actions",
     "flutter_a.precheck_passed": "✅ Pre-check passed: all required Secrets are present",
     "flutter_a.debug_keystore_empty": "The DEBUG_KEYSTORE Secret is empty, so the build is signed with the runner's default debug key (the signature differs per build)",
     "flutter_a.debug_keystore_created": "Debug Keystore created (signed with DEBUG_KEYSTORE)",
@@ -882,6 +893,9 @@ EN = {
     "wf_changelog.merge_confirmed": "PR #{pr} merge confirmed (elapsed {elapsed}s)",
     "wf_changelog.merge_timeout": "Could not confirm the merge of PR #{pr} within {max}s — skipping the automatic RELEASE-PUBLISH trigger. If WORKFLOW_PAT is registered the normal path proceeds; otherwise run RELEASE-PUBLISH manually via workflow_dispatch if needed.",
     "wf_changelog.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch trigger requested (works without WORKFLOW_PAT)",
+    # --- lang ---
+    "lang.fallback": "Unsupported language '{value}' - falling back to '{lang_code}' (supported: {supported})",
+
     # --- wf_preview ---
     "wf_preview.chk_deleted_3": "3. Check that the branch has not been deleted",
     "wf_preview.chk_helper_exists": "1. Check that the Issue Helper comment exists",
@@ -963,8 +977,10 @@ EN = {
     "wf_preview.precheck_dockerfile_body": "{path} does not exist. This workflow deploys a Docker image, so a Dockerfile is required (delete this workflow file if you do not deploy to a server)",
     "wf_preview.precheck_dockerfile_title": "Dockerfile not found",
     "wf_preview.precheck_ok": "✅ Pre-check passed: all required Secrets and the Dockerfile are present",
-    "wf_preview.precheck_secret_body": "GitHub secrets not registered:{missing} — add them under Settings → Secrets and variables → Actions",
+    "wf_preview.precheck_secret_body": "Required GitHub Secrets are empty:{missing} — add them under Settings → Secrets and variables → Actions",
     "wf_preview.precheck_secret_title": "Missing required secrets",
+    "wf_preview.precheck_skip_body": "Preview deploy secrets are not registered:{missing} — no preview could have been deployed, so there is nothing to remove",
+    "wf_preview.precheck_skip_title": "Preview cleanup skipped",
     "wf_preview.r_container_absent": "❌ Container not found",
     "wf_preview.r_container_confirmed": "✅ Container confirmed running",
     "wf_preview.r_container_exited": "❌ Container exited abnormally!",
@@ -1054,6 +1070,7 @@ EN = {
     "wf_preview.title_pr_deployed": "## ✅ PR Preview deployed!",
     "wf_preview.title_pr_failed": "## ❌ PR Preview deployment failed!",
     "wf_preview.title_running": "## ✅ Preview environment is running",
+    "wf_preview.r_preview_url": "🌐 Preview URL: {url}",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## Latest Version : v1.0.0 (2025-08-15)",
     "wf_readme.default_heading": "Latest Version",
@@ -1076,6 +1093,7 @@ EN = {
     # --- wf_spring_ci ---
     "wf_spring_ci.status_ok": "✅ Success",
     "wf_spring_ci.status_fail": "❌ Failed",
+    "wf_spring_ci.status_not_run": "⏸️ Not run (an earlier step failed)",
     "wf_spring_ci.err_compile_header": "## 🚨 Compile errors",
     "wf_spring_ci.err_compile_missing": "Could not find the error log.",
     "wf_spring_ci.err_test_header": "## 🧪 Test failures",
@@ -1096,7 +1114,6 @@ EN = {
     "wf_spring_ci.fix_error": "- Fix the code based on the error messages",
     "wf_spring_ci.fix_test": "- If tests failed, run `./gradlew test` to run them locally",
     "wf_spring_ci.footer": "*🤖 Generated automatically by GitHub Actions - {time}*",
-    "wf_spring_ci.date_locale": "en-US",
     "wf_spring_ci.check_summary_success": "The build verification succeeded.",
     "wf_spring_ci.check_summary_failure": "The build verification failed.",
     "wf_spring_ci.check_compile": "Compile: {status}",
@@ -1208,6 +1225,10 @@ EN = {
     "wf_spring_deploy.traefik_hc_timeout": "❌ Health check timed out ({sec}s)",
     "wf_spring_deploy.traefik_logs_header": "🔍 Last 200 log lines of {name}:",
     "wf_spring_deploy.traefik_done": "✅ Zero-downtime deploy complete. active={name}",
+    "wf_spring_deploy.traefik_active": "🎨 active={active} → new={new}, old={old}",
+    "wf_spring_deploy.nginx_colors": "🎨 Blue={blue} | Green={green}",
+    "wf_spring_deploy.nginx_conf_path": "🔧 Nginx config: {path}",
+    "wf_spring_deploy.nginx_reload": "🔄 nginx reload",
     # --- wf_version ---
     "wf_version.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch trigger requested (works without WORKFLOW_PAT, recovers version drift automatically)",
     "wf_version.backmerge_conflict": "Could not automatically merge {prod} into {dev} (conflict). Merge it manually before the next release PR: {manual}",
@@ -1239,7 +1260,7 @@ EN = {
     "version_manager.sync_project_version": "  project file: {version}",
     "version_manager.sync_mismatch": "Version mismatch detected, syncing to higher version: {version}",
     "version_manager.warn_format_invalid": "WARNING: version format invalid, cannot sync",
-    "version_manager.sync_multi": "Multi-type — reconciling all type files to version.yml version: {version}",
+    "version_manager.sync_reconciled": "Version files updated to match version.yml: {version}",
     "version_manager.sync_ok": "Version already in sync: {version}",
     "version_manager.err_invalid_version": "ERROR: invalid version format: {version}",
     "version_manager.err_invalid_version_xyz": "ERROR: invalid version format: {version} (must be x.y.z)",
@@ -1269,6 +1290,7 @@ EN = {
     "wf_common.rebase_ok": "rebase ok, retrying push...",
     "wf_common.rebase_failed": "rebase failed, manual conflict resolution required",
     "wf_common.push_gave_up": "push failed after {max_retries} attempts",
+    "wf_common.readme_conflict_resolved": "README.md conflicted with a concurrent update - kept the remote copy and reapplied the version line",
     # --- wf_aisum ---
     "wf_aisum.expected_version": "expected next version: {version} (current: {current_version}, mode: {mode}, bump: {bump})",
     "wf_aisum.comment_update_failed": "comment update failed — continuing (this workflow never blocks the PR)",
@@ -1319,6 +1341,9 @@ EN = {
     "wf_readme.line_updated": "version line updated: {version_text}",
     "wf_readme.no_changes": "no changes in README.md",
     "wf_readme.pushed": "README.md version update pushed",
+    "wf_readme.trunk_skip": "trunk-based push: RELEASE-PUBLISH updates the README and dispatches this workflow, skipping",
+    "wf_readme.conflict_skip_same": "remote README.md already shows v{version}, skipping",
+    "wf_readme.conflict_skip_stale": "remote is already at v{remote_version} (this run had v{version}), skipping the stale README update",
     "wf_readme.err_no_colon": "header extraction failed - no colon (:) found",
     "wf_readme.err_sed": "sed command failed - {error}",
     "wf_readme.err_sed_unknown": "unknown sed error",
@@ -1365,6 +1390,52 @@ EN = {
     "wf_version.sum_previous": "  previous version: {current_version}",
     "wf_version.sum_new": "  new version: {new_version}",
     "wf_version.sum_branch": "  branch: {ref_name}",
+    # --- wf_flutter ---
+    "wf_flutter.env_file_created": "✅ {file} file created",
+    "wf_flutter.dotenv_created": ".env file created",
+    "wf_flutter.dart_define_prepared": "dart-define file prepared",
+    "wf_flutter.google_services_created": "✅ google-services.json created",
+    "wf_flutter.google_services_skipped": "ℹ️ GOOGLE_SERVICES_JSON secret not provided, skipping",
+    "wf_flutter.flutter_setup_done_ok": "✅ Flutter setup completed",
+    "wf_flutter.flutter_setup_done": "Flutter setup completed",
+    "wf_flutter.deps_installed_ok": "✅ Dependencies installed",
+    "wf_flutter.deps_installed": "Dependencies installed",
+    "wf_flutter.gradle_perm_ok": "✅ Gradle wrapper permissions set",
+    "wf_flutter.gradle_perm": "Gradle wrapper permissions set",
+    "wf_flutter.java_setup_done_ok": "✅ Java setup completed",
+    "wf_flutter.java_setup_done": "Java setup completed",
+    "wf_flutter.apk_built_ok": "✅ APK built",
+    "wf_flutter.apk_built": "APK built",
+    "wf_flutter.apk_renamed_ok": "✅ APK renamed to {name}",
+    "wf_flutter.apk_renamed": "APK renamed to {name}",
+    "wf_flutter.repo_checked_out": "Repository checked out",
+    "wf_flutter.keystore_from_debug": "Keystore created from DEBUG_KEYSTORE",
+    "wf_flutter.key_properties_created": "key.properties created",
+    "wf_flutter.repo_checked_out_deploy": "Repository checked out for deploy",
+    "wf_flutter.smb_deps_installed": "SMB and jq dependencies installed",
+    "wf_flutter.download_listed": "Downloaded structure listed",
+    "wf_flutter.apk_file_found": "APK file found: {file}",
+    "wf_flutter.smb_uploading": "Uploading APK file {name} to SMB...",
+    "wf_flutter.smb_path": "SMB Path: {path}",
+    "wf_flutter.smb_uploaded": "APK uploaded to SMB",
+    "wf_flutter.history_loaded": "Downloaded or initialized {file}",
+    "wf_flutter.history_updated": "Updated {file} with new build info",
+    "wf_flutter.history_uploaded": "Updated {file} uploaded to SMB",
+    "wf_flutter.secrets_xcconfig_created_ok": "✅ Secrets.xcconfig created",
+    "wf_flutter.secrets_xcconfig_empty": "ℹ️ Empty Secrets.xcconfig created (no secrets provided)",
+    "wf_flutter.secrets_xcconfig_created": "Secrets.xcconfig created",
+    "wf_flutter.xcode_platform_check": "=== iPhoneOS.platform check ===",
+    "wf_flutter.xcode_platform_exists": "iPhoneOS.platform EXISTS",
+    "wf_flutter.xcode_platform_missing": "iPhoneOS.platform NOT FOUND",
+    "wf_flutter.xcode_install_pkgs": "=== Installing MobileDevice packages ===",
+    "wf_flutter.xcode_license": "=== Accepting Xcode license ===",
+    "wf_flutter.xcode_init": "=== Initializing Xcode components ===",
+    "wf_flutter.xcode_download": "=== Downloading iOS platform ===",
+    "wf_flutter.ipa_found": "📦 Found IPA at: {path}",
+    "wf_flutter.release_notes_heading": "📝 Release Notes:",
+    "wf_flutter.working_dir": "🔧 Working directory: {dir}",
+    "wf_flutter.run_number": "🔍 GitHub Run Number: {number}",
+    "wf_flutter.ci_analyze_only": "  Analyze Only: {value}",
 }
 
 KO = {
@@ -1623,7 +1694,6 @@ KO = {
     "cibuild.node_deps_done": "✅ 의존성 설치 완료",
     "cibuild.node_no_test_script": "::notice::package.json에 test 스크립트가 없어 테스트를 건너뜁니다",
     "cibuild.node_test_run": "🧪 npm test 실행: {script}",
-    "cibuild.node_build_start_next": "🔨 Next.js 빌드 시작...",
     "cibuild.node_build_start": "🔨 빌드 시작...",
     "cibuild.node_build_project": "프로젝트: {project}",
     "cibuild.node_build_node": "Node.js: {node}",
@@ -1633,8 +1703,6 @@ KO = {
     "cibuild.node_build_next_dir": "  - .next/ 폴더 생성됨",
     "cibuild.node_errlog_title": "❌ 빌드 실패 - 에러 로그",
     "cibuild.node_errlog_missing": "에러 로그 파일을 찾을 수 없습니다.",
-    "cibuild.node_result_next_ok": "🎉 Next.js 빌드 완료!",
-    "cibuild.node_result_next_fail": "❌ Next.js 빌드 실패",
     "cibuild.node_result_ok": "🎉 빌드 워크플로우 완료!",
     "cibuild.node_result_fail": "❌ 빌드 워크플로우 실패",
     "cibuild.node_result_title": "📊 빌드 결과:",
@@ -1643,15 +1711,18 @@ KO = {
     "cibuild.node_result_status": "  🆙 빌드 상태: {status}",
     "cibuild.node_result_branch": "  🌿 브랜치: {branch}",
     "cibuild.node_result_commit": "  📝 커밋: {sha}",
-    "cibuild.node_result_time": "  🕐 시간: {time}",
+    "cibuild.node_result_time": "  ⏰ 검증 시간: {time}",
     "cibuild.node_all_ok": "✅ 모든 단계가 성공적으로 완료되었습니다.",
     "cibuild.node_error_occurred": "❌ 빌드 중 오류가 발생했습니다.",
     "cibuild.node_log_hint": "💡 Actions 탭에서 'build-log' 아티팩트를 다운로드하여 전체 로그를 확인하세요.",
+    "cibuild.node_result_status_not_run": "  🆙 빌드 상태: 실행 안 됨 (이전 단계 실패)",
+    "cibuild.node_build_not_run": "❌ 이전 단계(예: 테스트)가 실패하여 빌드가 실행되지 않았습니다.",
+    "cibuild.node_build_not_run_hint": "💡 위에서 실패한 단계의 로그를 확인하세요. 이번 실행에는 'build-log' 아티팩트가 없습니다.",
     "cibuild.gate_results": "needs 결과: {results}",
     "cibuild.gate_failed": "실패하거나 취소된 job이 있습니다.",
     # --- cicd ---
     "cicd.precheck_secret_title": "필수 Secret 누락",
-    "cicd.precheck_secret_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "cicd.precheck_secret_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "cicd.precheck_dockerfile_title": "Dockerfile 없음",
     "cicd.precheck_dockerfile_body": "{path} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)",
     "cicd.precheck_ok": "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다",
@@ -1678,7 +1749,6 @@ KO = {
     "cicd.config_port": "  - 포트: {port}",
     "cicd.config_image": "  - Docker 이미지: {image}",
     "cicd.pull_image": "⬇️ Docker 이미지 풀: {image}",
-    "cicd.pull_image_short": "⬇️ Docker 이미지 풀...",
     "cicd.container_check": "🧹 컨테이너 {container} 존재 여부 확인 중...",
     "cicd.container_exists": "⚠️ 컨테이너 {container} 이(가) 존재합니다. 중지 및 삭제 중...",
     "cicd.container_removed": "✅ 컨테이너 {container} 이(가) 삭제되었습니다.",
@@ -1727,7 +1797,7 @@ KO = {
     "fastlane.play_deploy": "Play 배포: DEPLOY_MODE={deploy_mode} → track={track}, release_status={release_status}",
     # --- flutter_a ---
     "flutter_a.precheck_missing_title": "필수 Secret 누락",
-    "flutter_a.precheck_missing_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "flutter_a.precheck_missing_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "flutter_a.precheck_passed": "✅ 사전 점검 통과: 필수 Secret이 모두 있습니다",
     "flutter_a.debug_keystore_empty": "DEBUG_KEYSTORE Secret이 비어 있어 러너 기본 debug 키로 서명합니다 (빌드마다 서명이 달라집니다)",
     "flutter_a.debug_keystore_created": "Debug Keystore created (DEBUG_KEYSTORE로 서명)",
@@ -2093,6 +2163,9 @@ KO = {
     "wf_changelog.merge_confirmed": "PR #{pr} 병합 확인 (경과 {elapsed}s)",
     "wf_changelog.merge_timeout": "PR #{pr} 병합을 {max}s 내에 확인하지 못했습니다 — RELEASE-PUBLISH 자동 트리거를 건너뜁니다. WORKFLOW_PAT이 등록되어 있다면 기존 경로로 정상 진행되며, 없다면 필요 시 RELEASE-PUBLISH를 수동으로 workflow_dispatch 하세요.",
     "wf_changelog.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작)",
+    # --- lang ---
+    "lang.fallback": "지원하지 않는 language 값 '{value}' - '{lang_code}'(으)로 대체합니다 (지원: {supported})",
+
     # --- wf_preview ---
     "wf_preview.chk_deleted_3": "3. 브랜치가 삭제되지 않았는지 확인하세요",
     "wf_preview.chk_helper_exists": "1. Issue Helper 댓글이 존재하는지 확인하세요",
@@ -2174,8 +2247,10 @@ KO = {
     "wf_preview.precheck_dockerfile_body": "{path} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)",
     "wf_preview.precheck_dockerfile_title": "Dockerfile 없음",
     "wf_preview.precheck_ok": "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다",
-    "wf_preview.precheck_secret_body": "등록되지 않은 GitHub Secret:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
+    "wf_preview.precheck_secret_body": "필수 GitHub Secret이 비어 있습니다:{missing} — Settings → Secrets and variables → Actions에서 등록하세요",
     "wf_preview.precheck_secret_title": "필수 Secret 누락",
+    "wf_preview.precheck_skip_body": "미리보기 배포용 Secret이 등록되지 않았습니다:{missing} — 배포된 미리보기가 없으므로 삭제할 것이 없습니다",
+    "wf_preview.precheck_skip_title": "미리보기 정리 건너뜀",
     "wf_preview.r_container_absent": "❌ 컨테이너 없음",
     "wf_preview.r_container_confirmed": "✅ 컨테이너 실행 확인됨",
     "wf_preview.r_container_exited": "❌ 컨테이너 비정상 종료!",
@@ -2265,6 +2340,7 @@ KO = {
     "wf_preview.title_pr_deployed": "## ✅ PR Preview 배포 완료!",
     "wf_preview.title_pr_failed": "## ❌ PR Preview 배포 실패!",
     "wf_preview.title_running": "## ✅ Preview 환경 실행 중",
+    "wf_preview.r_preview_url": "🌐 미리보기 URL: {url}",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## 최신 버전 : v1.0.0 (2025-08-15)",
     "wf_readme.default_heading": "최신 버전",
@@ -2287,6 +2363,7 @@ KO = {
     # --- wf_spring_ci ---
     "wf_spring_ci.status_ok": "✅ 성공",
     "wf_spring_ci.status_fail": "❌ 실패",
+    "wf_spring_ci.status_not_run": "⏸️ 실행 안 됨 (이전 단계 실패)",
     "wf_spring_ci.err_compile_header": "## 🚨 컴파일 에러",
     "wf_spring_ci.err_compile_missing": "에러 로그를 찾을 수 없습니다.",
     "wf_spring_ci.err_test_header": "## 🧪 테스트 실패",
@@ -2307,7 +2384,6 @@ KO = {
     "wf_spring_ci.fix_error": "- 에러 메시지를 참고하여 코드를 수정해주세요",
     "wf_spring_ci.fix_test": "- 테스트가 실패한 경우 `./gradlew test` 명령어로 테스트를 실행해보세요",
     "wf_spring_ci.footer": "*🤖 GitHub Actions에 의해 자동 생성됨 - {time}*",
-    "wf_spring_ci.date_locale": "ko-KR",
     "wf_spring_ci.check_summary_success": "빌드 검증이 성공했습니다.",
     "wf_spring_ci.check_summary_failure": "빌드 검증이 실패했습니다.",
     "wf_spring_ci.check_compile": "컴파일: {status}",
@@ -2419,8 +2495,12 @@ KO = {
     "wf_spring_deploy.traefik_hc_timeout": "❌ 헬스체크 타임아웃 ({sec}초)",
     "wf_spring_deploy.traefik_logs_header": "🔍 {name} 최근 200줄 로그:",
     "wf_spring_deploy.traefik_done": "✅ 무중단 배포 완료. active={name}",
+    "wf_spring_deploy.traefik_active": "🎨 활성={active} → 신규={new}, 이전={old}",
+    "wf_spring_deploy.nginx_colors": "🎨 Blue={blue} | Green={green}",
+    "wf_spring_deploy.nginx_conf_path": "🔧 Nginx 설정 파일: {path}",
+    "wf_spring_deploy.nginx_reload": "🔄 nginx reload 실행",
     # --- wf_version ---
-    "wf_version.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 이슈 #61 드리프트 자동 복구)",
+    "wf_version.release_publish_triggered": "RELEASE-PUBLISH workflow_dispatch 트리거 요청 완료 (WORKFLOW_PAT 없이도 동작, 버전 드리프트 자동 복구)",
     "wf_version.backmerge_conflict": "{prod}을 {dev}에 자동 병합하지 못했습니다 (충돌). 다음 릴리스 PR 전에 직접 병합하세요: {manual}",
     "wf_version.backmerge_push_failed": "{dev}에 push하지 못했습니다 (브랜치 보호 등). 다음 릴리스 PR 전에 직접 병합하세요: {manual}",
     # --- version_manager ---
@@ -2450,7 +2530,7 @@ KO = {
     "version_manager.sync_project_version": "  프로젝트 파일: {version}",
     "version_manager.sync_mismatch": "버전 불일치를 감지해 더 높은 버전으로 맞춥니다: {version}",
     "version_manager.warn_format_invalid": "경고: 버전 형식이 올바르지 않아 동기화할 수 없습니다",
-    "version_manager.sync_multi": "멀티 타입 — 모든 타입 파일을 version.yml 버전({version})으로 맞춥니다",
+    "version_manager.sync_reconciled": "version.yml 버전({version})에 맞게 버전 파일을 수정했습니다",
     "version_manager.sync_ok": "이미 버전이 일치합니다: {version}",
     "version_manager.err_invalid_version": "오류: 올바르지 않은 버전 형식: {version}",
     "version_manager.err_invalid_version_xyz": "오류: 올바르지 않은 버전 형식: {version} (x.y.z 형식이어야 합니다)",
@@ -2480,6 +2560,7 @@ KO = {
     "wf_common.rebase_ok": "rebase 성공, push를 다시 시도합니다...",
     "wf_common.rebase_failed": "rebase 실패, 충돌을 직접 해결해야 합니다",
     "wf_common.push_gave_up": "push가 {max_retries}회 시도 후에도 실패했습니다",
+    "wf_common.readme_conflict_resolved": "동시에 수정된 README.md 충돌을 원격 내용을 유지하고 버전 줄을 다시 반영해 해결했습니다",
     # --- wf_aisum ---
     "wf_aisum.expected_version": "예상 다음 버전: {version} (현재: {current_version}, 모드: {mode}, 승격: {bump})",
     "wf_aisum.comment_update_failed": "댓글 수정 실패 — 계속 진행합니다 (이 워크플로우는 PR을 막지 않습니다)",
@@ -2530,6 +2611,9 @@ KO = {
     "wf_readme.line_updated": "버전 줄을 수정했습니다: {version_text}",
     "wf_readme.no_changes": "README.md에 변경 사항이 없습니다",
     "wf_readme.pushed": "README.md 버전 수정을 push했습니다",
+    "wf_readme.trunk_skip": "trunk-based push: RELEASE-PUBLISH가 README를 갱신하고 이 워크플로우를 호출하므로 건너뜁니다",
+    "wf_readme.conflict_skip_same": "원격 README.md가 이미 v{version}이라 건너뜁니다",
+    "wf_readme.conflict_skip_stale": "원격이 이미 v{remote_version}입니다 (이 실행은 v{version}), 오래된 README 갱신을 건너뜁니다",
     "wf_readme.err_no_colon": "머리말 추출 실패 - 콜론(:)을 찾을 수 없습니다",
     "wf_readme.err_sed": "sed 명령 실패 - {error}",
     "wf_readme.err_sed_unknown": "알 수 없는 sed 오류",
@@ -2576,6 +2660,52 @@ KO = {
     "wf_version.sum_previous": "  이전 버전: {current_version}",
     "wf_version.sum_new": "  새 버전: {new_version}",
     "wf_version.sum_branch": "  브랜치: {ref_name}",
+    # --- wf_flutter ---
+    "wf_flutter.env_file_created": "✅ {file} 파일 생성 완료",
+    "wf_flutter.dotenv_created": ".env 파일 생성 완료",
+    "wf_flutter.dart_define_prepared": "dart-define 파일 준비 완료",
+    "wf_flutter.google_services_created": "✅ google-services.json 생성 완료",
+    "wf_flutter.google_services_skipped": "ℹ️ GOOGLE_SERVICES_JSON 시크릿이 없어 건너뜁니다",
+    "wf_flutter.flutter_setup_done_ok": "✅ Flutter 설정 완료",
+    "wf_flutter.flutter_setup_done": "Flutter 설정 완료",
+    "wf_flutter.deps_installed_ok": "✅ 의존성 설치 완료",
+    "wf_flutter.deps_installed": "의존성 설치 완료",
+    "wf_flutter.gradle_perm_ok": "✅ Gradle wrapper 권한 설정 완료",
+    "wf_flutter.gradle_perm": "Gradle wrapper 권한 설정 완료",
+    "wf_flutter.java_setup_done_ok": "✅ Java 설정 완료",
+    "wf_flutter.java_setup_done": "Java 설정 완료",
+    "wf_flutter.apk_built_ok": "✅ APK 빌드 완료",
+    "wf_flutter.apk_built": "APK 빌드 완료",
+    "wf_flutter.apk_renamed_ok": "✅ APK 이름 변경 완료: {name}",
+    "wf_flutter.apk_renamed": "APK 이름 변경 완료: {name}",
+    "wf_flutter.repo_checked_out": "저장소 체크아웃 완료",
+    "wf_flutter.keystore_from_debug": "DEBUG_KEYSTORE로 Keystore 생성 완료",
+    "wf_flutter.key_properties_created": "key.properties 생성 완료",
+    "wf_flutter.repo_checked_out_deploy": "배포용 저장소 체크아웃 완료",
+    "wf_flutter.smb_deps_installed": "SMB 및 jq 의존성 설치 완료",
+    "wf_flutter.download_listed": "다운로드한 구조 출력 완료",
+    "wf_flutter.apk_file_found": "APK 파일 확인: {file}",
+    "wf_flutter.smb_uploading": "APK 파일 {name}을(를) SMB로 업로드하는 중...",
+    "wf_flutter.smb_path": "SMB 경로: {path}",
+    "wf_flutter.smb_uploaded": "APK SMB 업로드 완료",
+    "wf_flutter.history_loaded": "{file}을(를) 내려받았거나 새로 초기화했습니다",
+    "wf_flutter.history_updated": "{file}에 새 빌드 정보를 반영했습니다",
+    "wf_flutter.history_uploaded": "갱신된 {file}을(를) SMB로 업로드했습니다",
+    "wf_flutter.secrets_xcconfig_created_ok": "✅ Secrets.xcconfig 생성 완료",
+    "wf_flutter.secrets_xcconfig_empty": "ℹ️ 제공된 시크릿이 없어 빈 Secrets.xcconfig를 생성했습니다",
+    "wf_flutter.secrets_xcconfig_created": "Secrets.xcconfig 생성 완료",
+    "wf_flutter.xcode_platform_check": "=== iPhoneOS.platform 확인 ===",
+    "wf_flutter.xcode_platform_exists": "iPhoneOS.platform 있음",
+    "wf_flutter.xcode_platform_missing": "iPhoneOS.platform 없음",
+    "wf_flutter.xcode_install_pkgs": "=== MobileDevice 패키지 설치 ===",
+    "wf_flutter.xcode_license": "=== Xcode 라이선스 동의 ===",
+    "wf_flutter.xcode_init": "=== Xcode 구성 요소 초기화 ===",
+    "wf_flutter.xcode_download": "=== iOS 플랫폼 다운로드 ===",
+    "wf_flutter.ipa_found": "📦 IPA 위치: {path}",
+    "wf_flutter.release_notes_heading": "📝 릴리스 노트:",
+    "wf_flutter.working_dir": "🔧 작업 디렉터리: {dir}",
+    "wf_flutter.run_number": "🔍 GitHub 실행 번호: {number}",
+    "wf_flutter.ci_analyze_only": "  분석 전용: {value}",
 }
 
 CATALOG = {"en": EN, "ko": KO}

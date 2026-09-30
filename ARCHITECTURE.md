@@ -161,7 +161,7 @@ The style is identified by filename suffix:
 
 - The filter is applied to both `payload/workflows/<type>/` and `<type>/server-deploy/`.
 - If a type has no workflow for the chosen style, its `-SIMPLE-CICD.yaml` is installed instead.
-- Types with a single CD and no variants (react, next) declare it as `singleServerCd` in the type registry.
+- Types with a single CD and no variants (react) declare it as `singleServerCd` in the type registry.
 - Non-simple templates ship with the push trigger commented out; the chosen one is activated at install time.
 - The deploy style question is only asked when a selected type has server deploy workflows.
 
@@ -185,7 +185,7 @@ fail when the copies drift.
 Workflows that differ only in a few values are generated instead of edited by hand. Currently the
 Go and Python PR previews (`payload/workflows/{go,python}/PROJECT-*-PR-PREVIEW.yaml`), the Go and
 Python single-server deploys (`payload/workflows/{go,python}/PROJECT-*-SIMPLE-CICD.yaml`) and the React
-and Next.js deploys (`payload/workflows/{react,next}/PROJECT-*-CICD.yaml`):
+and Next.js deploy (`payload/workflows/react/PROJECT-REACT-CICD.yaml`):
 
 - `templates/workflows/pr-preview.base.yaml`, `cicd-frontend.base.yaml`, `simple-cicd.base.yaml` — the shared bodies with `%%NAME%%` placeholders
 - `templates/workflows/targets.mjs` — which output file gets which values

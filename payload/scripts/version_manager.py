@@ -95,16 +95,33 @@ def read_file(path):
 
 def write_file(path, text):
     """Write text preserving the dominant line ending of the existing file
-    on disk (LF stays LF, CRLF stays CRLF — never platform-dependent)."""
+    on disk (LF stays LF, CRLF stays CRLF — never platform-dependent).
+    Returns False (and leaves the file untouched) when the content is already identical."""
     p = Path(path)
     eol = "\n"
+    previous = None
     if p.is_file():
         with open(p, "r", encoding="utf-8", newline="") as f:
-            eol = _detect_eol(f.read())
+            previous = f.read()
+        eol = _detect_eol(previous)
     if eol != "\n":
         text = text.replace("\n", eol)
+    if previous == text:
+        return False
     with open(p, "w", encoding="utf-8", newline="") as f:
         f.write(text)
+    return True
+
+
+# Files whose content actually changed in this process. Lets the sync check tell "reconciled" from "already in sync".
+_CHANGED_FILES = []
+
+
+def write_synced(path, text):
+    """write_file() for version files: logs `updated:` only when the content really changed."""
+    if write_file(path, text):
+        _CHANGED_FILES.append(str(path))
+        log(t("version_manager.updated", path=path))
 
 
 # ===================================================================
@@ -176,6 +193,21 @@ def get_current_version():
     return read_scalar_key("version", "0.0.0")
 
 
+# Names that used to be separate types. A version.yml written before the merge may still carry them,
+# and the release workflow can run before the wizard rewrites that file, so they are read as the new name.
+TYPE_ALIASES = {"next": "react"}
+
+
+def _canonical_types(types):
+    """Map aliased type names to their current name, dropping duplicates while keeping order."""
+    out = []
+    for t in types:
+        t = TYPE_ALIASES.get(t, t)
+        if t not in out:
+            out.append(t)
+    return out
+
+
 def get_project_types_csv():
     """Return project_types as a list. Supports both:
       project_types: ["a", "b"]
@@ -196,7 +228,7 @@ def get_project_types_csv():
         inner = m.group(1)
         items = re.findall(r'"([^"]*)"|\'([^\']*)\'', inner)
         types = [a or b for a, b in items]
-        return [t for t in types if t]
+        return _canonical_types([t for t in types if t])
 
     # Block list form:
     # project_types:
@@ -207,7 +239,7 @@ def get_project_types_csv():
         block = m.group(1)
         # trailing comments are allowed on list items too
         types = re.findall(r'-[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$', block, re.MULTILINE)
-        return [t.strip() for t in types if t.strip()]
+        return _canonical_types([t.strip() for t in types if t.strip()])
 
     return []
 
@@ -221,16 +253,19 @@ def get_type_path(project_type, project_types_list=None):
     if not m:
         return "."
     block = m.group(1)
-    km = re.search(
-        r'^[ \t]+["\']?' + re.escape(project_type)
-        + r'["\']?:[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$',
-        block,
-        re.MULTILINE,
-    )
-    if km:
-        val = km.group(1).strip()
-        if val and val != "null":
-            return val
+    # The current name first, then any older name that maps to it (e.g. next -> react).
+    names = [project_type] + [old for old, new in TYPE_ALIASES.items() if new == project_type]
+    for name in names:
+        km = re.search(
+            r'^[ \t]+["\']?' + re.escape(name)
+            + r'["\']?:[ \t]*["\']?([^"\'#\n]+?)["\']?[ \t]*(?:#.*)?$',
+            block,
+            re.MULTILINE,
+        )
+        if km:
+            val = km.group(1).strip()
+            if val and val != "null":
+                return val
     return "."
 
 
@@ -419,8 +454,7 @@ def sync_maven(path_dir, new_version):
         return True
     new_full = _keep_snapshot(old_version, new_version)
     new_text, _ = _pom_replace(text, ["version"], new_full)
-    write_file(root_pom, new_text)
-    log(t("version_manager.updated", path=root_pom))
+    write_synced(root_pom, new_text)
 
     root_artifact = _pom_text(text, ["artifactId"])
     for child in sorted(Path(path_dir).glob("*/pom.xml")):
@@ -432,8 +466,7 @@ def sync_maven(path_dir, new_version):
         ctext, _ = _pom_replace(ctext, ["parent", "version"], new_full)
         if _pom_text(ctext, ["version"]) == old_version:
             ctext, _ = _pom_replace(ctext, ["version"], new_full)
-        write_file(child, ctext)
-        log(t("version_manager.updated", path=child))
+        write_synced(child, ctext)
     return True
 
 
@@ -524,8 +557,7 @@ def sync_spring(path_dir, new_version):
         if not matches:
             log(t("version_manager.warn_spring_no_gradle_line", file=gradle_file))
             continue
-        write_file(gradle_file, new_text)
-        log(t("version_manager.updated", path=gradle_file))
+        write_synced(gradle_file, new_text)
 
 
 def _pubspec_build_number(path_dir):
@@ -566,8 +598,7 @@ def sync_flutter(path_dir, new_version, version_code):
         new_text = pattern.sub(r'\1 ' + full_version, text, count=1)
     else:
         new_text = text.rstrip("\n") + f"\nversion: {full_version}\n"
-    write_file(target, new_text)
-    log(t("version_manager.updated", path=target))
+    write_synced(target, new_text)
 
 
 def _json_indent(text):
@@ -594,8 +625,7 @@ def sync_json_version(target, new_version, key_path):
     for k in key_path[:-1]:
         node = node.setdefault(k, {})
     node[key_path[-1]] = new_version
-    write_file(target, json.dumps(data, indent=_json_indent(raw), ensure_ascii=False) + "\n")
-    log(t("version_manager.updated", path=target))
+    write_synced(target, json.dumps(data, indent=_json_indent(raw), ensure_ascii=False) + "\n")
 
 
 _TOML_HEADER_RE = re.compile(r'^[ \t]*\[+[ \t]*([^\]\n]+?)[ \t]*\]+[ \t]*(?:#.*)?$', re.MULTILINE)
@@ -645,8 +675,7 @@ def sync_python(path_dir, new_version):
         return
     for target, (start, end) in spans:
         text = read_file(target)
-        write_file(target, text[:start] + new_version + text[end:])
-        log(t("version_manager.updated", path=target))
+        write_synced(target, text[:start] + new_version + text[end:])
 
 
 _PLIST_VERSION_RE = re.compile(r'(<key>CFBundleShortVersionString</key>\s*<string>)([^<]*)(</string>)')
@@ -676,8 +705,7 @@ def sync_react_native(path_dir, new_version):
                 log(t("version_manager.skipped_plist", file=plist_file))
                 continue
             new_text = _PLIST_VERSION_RE.sub(lambda mm: mm.group(1) + new_version + mm.group(3), text)
-            write_file(plist_file, new_text)
-            log(t("version_manager.updated", path=plist_file))
+            write_synced(plist_file, new_text)
             found_plist = True
     else:
         log(t("version_manager.warn_rn_ios_missing", dir=ios_dir))
@@ -686,8 +714,7 @@ def sync_react_native(path_dir, new_version):
     if gradle_file.is_file():
         text = read_file(gradle_file)
         new_text = re.sub(r'versionName\s+"[^"]*"', f'versionName "{new_version}"', text)
-        write_file(gradle_file, new_text)
-        log(t("version_manager.updated", path=gradle_file))
+        write_synced(gradle_file, new_text)
     else:
         log(t("version_manager.warn_rn_gradle_missing", file=gradle_file))
 
@@ -859,7 +886,6 @@ TYPE_HANDLERS = {
     # Only types that need a build number compute version_code (this has a pubspec-adjusting side effect).
     "flutter": TypeHandler(read=_read_flutter, sync=lambda d, v, code: sync_flutter(d, v, code())),
     "react": _PACKAGE_JSON,
-    "next": _PACKAGE_JSON,
     "node": _PACKAGE_JSON,
     "python": TypeHandler(read=_read_python, sync=lambda d, v, _code: sync_python(d, v)),
     "react-native": TypeHandler(read=_read_react_native, sync=lambda d, v, _code: sync_react_native(d, v)),
@@ -896,11 +922,12 @@ def sync_versions():
     primary_type = types[0]
     project_version = get_project_file_version(primary_type)
 
-    log(t("version_manager.sync_check"))
-    log(t("version_manager.sync_yml_version", version=yml_version))
-    log(t("version_manager.sync_project_version", version=project_version))
-
     if yml_version != project_version:
+        # The detail lines are only useful when the two disagree; an in-sync check prints a single line
+        # (this check runs several times per job, so a multi-line block each time is just noise).
+        log(t("version_manager.sync_check"))
+        log(t("version_manager.sync_yml_version", version=yml_version))
+        log(t("version_manager.sync_project_version", version=project_version))
         if validate_version(yml_version) and validate_version(project_version):
             higher = get_higher_version(yml_version, project_version)
             log(t("version_manager.sync_mismatch", version=higher))
@@ -913,11 +940,13 @@ def sync_versions():
             log(t("version_manager.warn_format_invalid"))
             return yml_version
     else:
-        types = get_project_types_csv()
-        if types:
-            log(t("version_manager.sync_multi", version=yml_version))
-            sync_all_project_files(yml_version)
-        log(t("version_manager.sync_ok", version=yml_version))
+        # The primary type matches, but the other types' files may still lag behind; reconcile them quietly.
+        changed_before = len(_CHANGED_FILES)
+        sync_all_project_files(yml_version)
+        if len(_CHANGED_FILES) > changed_before:
+            log(t("version_manager.sync_reconciled", version=yml_version))
+        else:
+            log(t("version_manager.sync_ok", version=yml_version))
         return yml_version
 
 

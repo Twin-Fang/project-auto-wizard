@@ -127,7 +127,7 @@ feature PRs ──▶ develop ──▶ release PR (develop → main)
 |---|---|---|
 | `spring` | `build.gradle`、`build.gradle.kts`、`pom.xml` | CI、サーバーへのデプロイ（単一サーバー / Nginx または Traefik によるダウンタイムなし）、PR プレビュー |
 | `flutter` | `pubspec.yaml` | CI、Android（Firebase、Play Store、セルフホスト、テスト用 APK）、iOS TestFlight |
-| `react`、`next` | `package.json` の dependencies | CI、CI + CD |
+| `react`（React / Next.js） | `package.json` の `react` または `next` dependency | CI、CI + CD |
 | `python` | `pyproject.toml`、`setup.py`、`requirements.txt` | CI、PR プレビュー、サーバーへのデプロイ |
 | `go` | `go.mod` | CI、PR プレビュー、サーバーへのデプロイ |
 | `node`、`react-native`、`react-native-expo`、`basic` | `package.json` / フォールバック | リリース自動化のみ |

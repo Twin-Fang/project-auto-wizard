@@ -12,8 +12,8 @@ import { run } from "../../src/index.js";
 
 const payload = resolvePayloadRoot();
 
-test("hasServerDeployWorkflows: only spring, go, python, react and next have server deploy workflows", () => {
-  for (const t of ["spring", "go", "python", "react", "next"]) assert.strictEqual(hasServerDeployWorkflows(payload, [t]), true, t);
+test("hasServerDeployWorkflows: only spring, go, python and react have server deploy workflows", () => {
+  for (const t of ["spring", "go", "python", "react"]) assert.strictEqual(hasServerDeployWorkflows(payload, [t]), true, t);
   for (const t of ["node", "flutter", "basic", "react-native", "react-native-expo"]) {
     assert.strictEqual(hasServerDeployWorkflows(payload, [t]), false, t);
   }

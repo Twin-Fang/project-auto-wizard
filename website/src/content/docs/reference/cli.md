@@ -14,7 +14,7 @@ Without `--mode`, the wizard runs interactively.
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `-m`, `--mode MODE` | `full` \| `uninstall` \| `status` \| `doctor` | interactive | `full` installs or updates. `uninstall` removes (interactive checklist; with `--force`, opt in with `--purge-*`). `status` shows install state and drift (read-only). `doctor` checks the environment (read-only). |
-| `-t`, `--type CSV` | `spring` `flutter` `next` `react` `react-native` `react-native-expo` `node` `python` `basic` `go` | detected | Project types, comma-separated (for example `spring,react,python`) |
+| `-t`, `--type CSV` | `spring` `flutter` `react` `react-native` `react-native-expo` `node` `python` `basic` `go` | detected | Project types, comma-separated (for example `spring,react,python`). `next` is accepted as an alias of `react` |
 | `--project-version V` | `x.y.z` | detected | Initial version (for example `1.0.0`) |
 | `--paths "t=p,..."` | `type=path` pairs | repository root | Per-type project folders for monorepos, for example `flutter=app,react=client` |
 | `--main-branch B` | branch name | detected default branch | Release branch |
@@ -75,7 +75,7 @@ Options:
                            uninstall = full removal (interactive checklist; with --force, opt in via --purge-*)
                            status = check install state and drift (read-only). doctor = environment diagnosis (read-only)
   -t, --type CSV           Project types as csv (e.g. spring,react,python)
-                           Supported: spring flutter next react react-native
+                           Supported: spring flutter react react-native
                                  react-native-expo node python basic go
       --project-version V  Initial version of the target (e.g. 1.0.0). Auto-detected when omitted
       --paths "t=p,..."    Per-type project paths (monorepo). e.g. flutter=app,react=client

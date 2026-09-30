@@ -76,6 +76,17 @@ class TestLanguageResolution(unittest.TestCase):
         d = self._in_dir('language: "fr"\n')
         self.assertEqual(_run("lang", cwd=d).stdout.strip(), "en")
 
+    def test_unsupported_language_logs_a_fallback_notice_on_stderr_only(self):
+        d = self._in_dir('language: "fr"\n')
+        r = _run("lang", cwd=d)
+        self.assertEqual(r.stdout.strip(), "en")
+        self.assertIn("'fr'", r.stderr)
+        self.assertIn("falling back to 'en'", r.stderr)
+
+    def test_supported_language_logs_no_notice(self):
+        d = self._in_dir('language: "ko"\n')
+        self.assertEqual(_run("lang", cwd=d).stderr, "")
+
     def test_env_overrides_version_yml(self):
         d = self._in_dir('language: "en"\n')
         self.assertEqual(_run("lang", cwd=d, env={messages.LANG_ENV: "ko"}).stdout.strip(), "ko")
@@ -238,6 +249,16 @@ class TestCli(unittest.TestCase):
 
     def test_usage_error_exit_code(self):
         self.assertEqual(_run("bogus").returncode, 2)
+
+
+class TestTimestampLabels(unittest.TestCase):
+    def test_ci_result_blocks_label_their_timestamp_the_same_way(self):
+        # Go/Python CI and React CI print the same "checked at" line in every language
+        for lang in messages.SUPPORTED:
+            self.assertEqual(
+                messages.template("cibuild.info_time", lang),
+                messages.template("cibuild.node_result_time", lang),
+            )
 
 
 if __name__ == "__main__":

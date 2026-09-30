@@ -1,6 +1,7 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
-import { hooksFor, mergeHookResults, allHookValues } from "./types.js";
+import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
+import { normalizePath } from "./paths.js";
 import { DEFAULT_LANGUAGE, isSupportedLanguage, normalizeLanguage } from "../i18n/languages.js";
 // Aliased: `t` is used as a local variable name (type, trimmed line) throughout this file.
 import { t as tr } from "../i18n/index.js";
@@ -88,6 +89,21 @@ export function parseTemplateOptions(content) {
   return out;
 }
 
+// User-facing lines for entries parseExisting() folded away: what is kept, what drops out, and how to keep the other folder.
+// finalPaths (Map<type, folder>) is the folder set the run will actually write; without it the saved winner is assumed.
+// The message follows the real outcome, so an explicit --paths choice is never told the opposite.
+export function droppedPathLines(droppedPaths = [], finalPaths = null) {
+  return droppedPaths.flatMap((d) => {
+    const final = finalPaths?.get(d.type) ?? d.kept;
+    const same = (x) => normalizePath(x) === normalizePath(final);
+    const lost = same(d.kept) ? d.path : same(d.path) ? d.kept : `${d.kept}, ${d.path}`;
+    const lines = [tr("core.versionYml.pathMerged", { keptName: d.keptName, kept: d.kept, name: d.name, path: d.path, type: d.type, final, lost })];
+    // The re-run hint only makes sense when the saved winner is what stays.
+    if (same(d.kept)) lines.push(tr("core.versionYml.pathMergedHint", { type: d.type, path: d.path }));
+    return lines;
+  });
+}
+
 // Extract values from an existing version.yml (line-based, avoids false hits on comment lines).
 export function parseExisting(content) {
   const text = String(content || "");
@@ -107,19 +123,43 @@ export function parseExisting(content) {
   // project_types: ["a","b"]
   const typesRaw = line(/^project_types:\s*(\[[^\]]*\])/);
   let types = [];
-  if (typesRaw) types = [...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  // Old names (next) are read as their current type so every later step, including the rewrite, only sees canonical ids.
+  if (typesRaw) types = canonicalTypeIds([...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]));
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
   // project_paths block: `  type: "path"`
   const paths = new Map();
+  // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
+  // A type holds one folder, so these are lost on rewrite; callers surface them instead of dropping them silently.
+  const droppedPaths = [];
+  const pathNames = new Map(); // canonical id -> the name the kept folder was written under
   let inPaths = false;
   for (const l of text.split("\n")) {
     if (/^project_paths:/.test(l)) { inPaths = true; continue; }
     if (inPaths) {
       const m = l.match(/^\s+([a-z-]+):\s*"([^"]*)"/);
-      if (m) paths.set(m[1], m[2]);
+      // The first entry wins when an old name and its current name are both present.
+      if (m) {
+        const id = canonicalTypeId(m[1]);
+        if (!paths.has(id)) { paths.set(id, m[2]); pathNames.set(id, m[1]); }
+        else if (normalizePath(paths.get(id)) !== normalizePath(m[2])) droppedPaths.push({ type: id, keptName: pathNames.get(id), kept: paths.get(id), name: m[1], path: m[2] });
+      }
       else if (/^\S/.test(l)) inPaths = false; // end of indentation -> end of block
+    }
+  }
+  // A name listed in project_types without a project_paths entry lives at the repo root, so when it shares a
+  // canonical type with a name that has a folder, the root is the folder that drops out.
+  if (typesRaw) {
+    const names = [...new Set([...typesRaw.matchAll(/"([^"]+)"/g)].map((m) => m[1]))];
+    const written = new Set(text.split("\n").map((l) => l.match(/^\s+([a-z-]+):\s*"/)?.[1]).filter(Boolean));
+    for (const id of new Set(names.map(canonicalTypeId))) {
+      const group = names.filter((n) => canonicalTypeId(n) === id);
+      if (group.length < 2 || !paths.has(id)) continue;
+      for (const n of group) {
+        if (written.has(n) || normalizePath(paths.get(id)) === ".") continue;
+        droppedPaths.push({ type: id, keptName: pathNames.get(id), kept: paths.get(id), name: n, path: "." });
+      }
     }
   }
   // version inside the template: block
@@ -138,7 +178,7 @@ export function parseExisting(content) {
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, templateVersion, options, branches,
+    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }
@@ -157,9 +197,15 @@ export function parseDeployBlock(content) {
     if (!inDeploy) continue;
     if (/^\S/.test(l)) { inDeploy = false; continue; } // next top-level key -> end of block
     const t = l.match(/^ {2}([a-z][a-z-]*):\s*(?:#.*)?$/);
-    if (t) { current = new Map(); out.set(t[1], current); continue; }
+    if (t) {
+      // An old type name shares the block of its current name; keys already present there win.
+      const id = canonicalTypeId(t[1]);
+      current = out.get(id) ?? new Map();
+      out.set(id, current);
+      continue;
+    }
     const kv = l.match(/^ {4}([A-Za-z_][A-Za-z0-9_]*):\s*"((?:[^"\\]|\\.)*)"/);
-    if (kv && current) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
+    if (kv && current && !current.has(kv[1])) current.set(kv[1], kv[2].replace(/\\(["\\])/g, "$1"));
   }
   return out;
 }

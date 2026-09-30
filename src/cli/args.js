@@ -2,7 +2,7 @@
 import { VALID_TYPES, VALID_MODES } from "../context.js";
 import { DEPLOY_STYLES, isDeployStyle, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { isValidBranchName } from "../core/branches.js";
-import { TYPES } from "../core/types.js";
+import { TYPES, canonicalTypeId } from "../core/types.js";
 import { CliError } from "../core/errors.js";
 import { normalizePath, isRepoRelativePath } from "../core/paths.js";
 import { t, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, isSupportedLanguage, normalizeLanguage } from "../i18n/index.js";
@@ -108,12 +108,15 @@ export function parseArgs(argv) {
         for (let name of csv.split(",")) {
           name = name.replace(/\s/g, "");
           if (name === "") continue;
-          if (seen.has(name)) continue;      // dedup
-          if (!VALID_TYPES.includes(name)) {
+          // The alias is resolved here, before validation and dedup (--type react,next is just react).
+          // Only registry ids are valid, so an unsupported name is reported as typed.
+          const id = canonicalTypeId(name);
+          if (seen.has(id)) continue;      // dedup
+          if (!VALID_TYPES.includes(id)) {
             throw new CliError(t("cli.args.typeUnsupported", { type: name, valid: VALID_TYPES.join(" ") }));
           }
-          seen.add(name);
-          types.push(name);
+          seen.add(id);
+          types.push(id);
         }
         if (types.length === 0) throw new CliError(t("cli.args.typeEmpty"));
         result.types = types;
@@ -193,20 +196,27 @@ export function parseArgs(argv) {
 // "flutter=app,react=client" -> Map<type, normalizedPath>. Validates types (invalid -> throw).
 export function parsePathsCsv(csv) {
   const map = new Map();
+  const spelled = new Map(); // type -> name as typed, to tell an alias clash from a plain repeat
   if (!csv) return map;
   for (const pair of csv.split(",")) {
     if (pair.trim() === "") continue;
     const eq = pair.indexOf("=");
-    const type = (eq >= 0 ? pair.slice(0, eq) : pair).replace(/\s/g, "");
+    const typeRaw = (eq >= 0 ? pair.slice(0, eq) : pair).replace(/\s/g, "");
+    const type = canonicalTypeId(typeRaw);
     const rawPath = eq >= 0 ? pair.slice(eq + 1) : "";
     if (!VALID_TYPES.includes(type)) {
-      throw new CliError(t("cli.args.pathsTypeUnsupported", { type }));
+      throw new CliError(t("cli.args.pathsTypeUnsupported", { type: typeRaw }));
     }
     const path = normalizePath(rawPath);
     if (!isRepoRelativePath(path)) {
       throw new CliError(t("cli.args.pathsRelativeOnly", { pair: `${type}=${rawPath.trim()}` }));
     }
+    // An alias and its canonical name in one list (react=a,next=b) would silently drop a folder; refuse it instead.
+    if (map.has(type) && spelled.get(type) !== typeRaw && map.get(type) !== path) {
+      throw new CliError(t("cli.args.pathsDuplicateType", { type }));
+    }
     map.set(type, path);
+    spelled.set(type, typeRaw);
   }
   return map;
 }

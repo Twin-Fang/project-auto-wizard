@@ -127,7 +127,7 @@ feature PRs ──▶ develop ──▶ release PR (develop → main)
 |---|---|---|
 | `spring` | `build.gradle`、`build.gradle.kts`、`pom.xml` | CI、服务器部署（单台服务器 / Nginx 或 Traefik 零停机）、PR 预览 |
 | `flutter` | `pubspec.yaml` | CI、Android（Firebase、Play Store、自托管、测试 APK）、iOS TestFlight |
-| `react`、`next` | `package.json` 的 dependencies | CI、CI + CD |
+| `react`（React / Next.js） | `package.json` 中的 `react` 或 `next` dependency | CI、CI + CD |
 | `python` | `pyproject.toml`、`setup.py`、`requirements.txt` | CI、PR 预览、服务器部署 |
 | `go` | `go.mod` | CI、PR 预览、服务器部署 |
 | `node`、`react-native`、`react-native-expo`、`basic` | `package.json` / 兜底 | 仅发布自动化 |

@@ -60,7 +60,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
 
       - name: Add 👀 reaction to the comment
         uses: actions/github-script@v9
@@ -265,13 +267,15 @@ jobs:
       - name: Post an error comment when the branch info is not found
         if: steps.source_info.outputs.found != 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_ERRORMESSAGE: ${{ steps.source_info.outputs.errorMessage }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
-            const errorMessage = '${{ steps.source_info.outputs.errorMessage }}';
+            const errorMessage = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_ERRORMESSAGE;
 
             const body = msg('app_trigger.trigger_failed_body', { error: errorMessage });
 
@@ -288,13 +292,16 @@ jobs:
         id: check_branch
         if: steps.source_info.outputs.found == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME: ${{ steps.source_info.outputs.branchName }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const branchName = '${{ steps.source_info.outputs.branchName }}';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             console.log(msg('app_trigger.branch_check_log', { branch: branchName }));
@@ -322,14 +329,17 @@ jobs:
       - name: Post an error comment when the branch does not exist
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'false'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME: ${{ steps.source_info.outputs.branchName }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
-            const branchName = '${{ steps.source_info.outputs.branchName }}';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const body = [
@@ -361,14 +371,18 @@ jobs:
         id: build_number_calc
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_TYPE_OUTPUTS_BUILDTYPE: ${{ steps.build_type.outputs.buildType }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER: ${{ steps.source_info.outputs.sourceNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE: ${{ steps.source_info.outputs.sourceType }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const sourceNumber = parseInt('${{ steps.source_info.outputs.sourceNumber }}');
-            const sourceType = '${{ steps.source_info.outputs.sourceType }}';
-            const buildType = '${{ steps.build_type.outputs.buildType }}';
+            const sourceNumber = parseInt(process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER);
+            const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
+            const buildType = process.env.PAW_IN_STEPS_BUILD_TYPE_OUTPUTS_BUILDTYPE;
 
             console.log(msg('app_trigger.count_lookup', { type: sourceType, number: sourceNumber }));
             console.log(msg('app_trigger.count_build_type', { type: buildType }));
@@ -436,16 +450,22 @@ jobs:
           steps.check_branch.outputs.exists == 'true' &&
           steps.build_type.outputs.buildAndroid == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_NUMBER_CALC_OUTPUTS_BUILDNUMBER: ${{ steps.build_number_calc.outputs.buildNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME: ${{ steps.source_info.outputs.branchName }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_RELATEDISSUENUMBER: ${{ steps.source_info.outputs.relatedIssueNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER: ${{ steps.source_info.outputs.sourceNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE: ${{ steps.source_info.outputs.sourceType }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const sourceType = '${{ steps.source_info.outputs.sourceType }}';
-            const sourceNumber = '${{ steps.source_info.outputs.sourceNumber }}';
-            const branchName = '${{ steps.source_info.outputs.branchName }}';
-            const relatedIssueNumber = '${{ steps.source_info.outputs.relatedIssueNumber }}';
-            const buildNumber = '${{ steps.build_number_calc.outputs.buildNumber }}';
+            const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
+            const sourceNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER;
+            const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
+            const relatedIssueNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_RELATEDISSUENUMBER;
+            const buildNumber = process.env.PAW_IN_STEPS_BUILD_NUMBER_CALC_OUTPUTS_BUILDNUMBER;
 
             console.log(msg('app_trigger.dispatch_start', { platform: 'Android' }));
             console.log(msg('app_trigger.dispatch_source_number', { type: sourceType, number: sourceNumber }));
@@ -476,16 +496,22 @@ jobs:
           steps.check_branch.outputs.exists == 'true' &&
           steps.build_type.outputs.buildIos == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_NUMBER_CALC_OUTPUTS_BUILDNUMBER: ${{ steps.build_number_calc.outputs.buildNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME: ${{ steps.source_info.outputs.branchName }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_RELATEDISSUENUMBER: ${{ steps.source_info.outputs.relatedIssueNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER: ${{ steps.source_info.outputs.sourceNumber }}
+          PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE: ${{ steps.source_info.outputs.sourceType }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const sourceType = '${{ steps.source_info.outputs.sourceType }}';
-            const sourceNumber = '${{ steps.source_info.outputs.sourceNumber }}';
-            const branchName = '${{ steps.source_info.outputs.branchName }}';
-            const relatedIssueNumber = '${{ steps.source_info.outputs.relatedIssueNumber }}';
-            const buildNumber = '${{ steps.build_number_calc.outputs.buildNumber }}';
+            const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
+            const sourceNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER;
+            const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
+            const relatedIssueNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_RELATEDISSUENUMBER;
+            const buildNumber = process.env.PAW_IN_STEPS_BUILD_NUMBER_CALC_OUTPUTS_BUILDNUMBER;
 
             console.log(msg('app_trigger.dispatch_start', { platform: 'iOS' }));
             console.log(msg('app_trigger.dispatch_source_number', { type: sourceType, number: sourceNumber }));
@@ -513,9 +539,12 @@ jobs:
       # The trigger-complete comment was removed - the per-platform progress comments (Android/iOS) take over that role
       - name: Log trigger completion
         if: steps.source_info.outputs.found == 'true' && steps.check_branch.outputs.exists == 'true'
+        env:
+          PAW_BRANCH_NAME: ${{ steps.source_info.outputs.branchName }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           m app_trigger.done_log
           m app_trigger.done_build_number number="${{ steps.build_number_calc.outputs.buildNumber }}"
-          m app_trigger.done_branch branch="${{ steps.source_info.outputs.branchName }}"
+          m app_trigger.done_branch branch="$PAW_BRANCH_NAME"
           m app_trigger.done_progress_note

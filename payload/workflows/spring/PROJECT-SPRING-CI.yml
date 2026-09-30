@@ -65,7 +65,10 @@ jobs:
         fetch-depth: 0
 
     - name: Load messages
-      run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
+      id: load_messages
+      run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+        echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
 
     - name: Setup JDK
       uses: actions/setup-java@v5
@@ -74,11 +77,11 @@ jobs:
         distribution: 'temurin'
 
     - name: Validate Gradle Wrapper
-      uses: gradle/wrapper-validation-action@v2
+      uses: gradle/actions/wrapper-validation@v5
       continue-on-error: true
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+      uses: gradle/actions/setup-gradle@v5
       with:
         gradle-version: wrapper
 
@@ -117,27 +120,38 @@ jobs:
 
     - name: Generate Build Report
       id: report
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         STATUS_OK="$(m wf_spring_ci.status_ok)"
         STATUS_FAIL="$(m wf_spring_ci.status_fail)"
+        STATUS_NOT_RUN="$(m wf_spring_ci.status_not_run)"
         COMPILE_STATUS="$STATUS_OK"
         TEST_STATUS="$STATUS_OK"
         BUILD_STATUS="$STATUS_OK"
         
         COMPILE_EXIT_CODE="${{ steps.compile.outputs.compile_exit_code }}"
-        if [ "$COMPILE_EXIT_CODE" != "0" ] && [ "$COMPILE_EXIT_CODE" != "" ]; then
+        TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
+        BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
+
+        # An empty exit code means the step never ran; a failed compile means gradle never got to run the tests
+        # or package the jar, so their non-zero exit codes are not failures of those steps themselves
+        if [ -z "$COMPILE_EXIT_CODE" ]; then
+          COMPILE_STATUS="$STATUS_NOT_RUN"
+        elif [ "$COMPILE_EXIT_CODE" != "0" ]; then
           COMPILE_STATUS="$STATUS_FAIL"
         fi
-        
-        TEST_EXIT_CODE="${{ steps.test.outputs.test_exit_code }}"
-        if [ "$TEST_EXIT_CODE" != "0" ] && [ "$TEST_EXIT_CODE" != "" ]; then
+
+        if [ -z "$TEST_EXIT_CODE" ] || { [ -n "$COMPILE_EXIT_CODE" ] && [ "$COMPILE_EXIT_CODE" != "0" ]; }; then
+          TEST_STATUS="$STATUS_NOT_RUN"
+        elif [ "$TEST_EXIT_CODE" != "0" ]; then
           TEST_STATUS="$STATUS_FAIL"
         fi
-        
-        BUILD_EXIT_CODE="${{ steps.build.outputs.build_exit_code }}"
-        if [ "$BUILD_EXIT_CODE" != "0" ] && [ "$BUILD_EXIT_CODE" != "" ]; then
+
+        if [ -z "$BUILD_EXIT_CODE" ] || { [ -n "$COMPILE_EXIT_CODE" ] && [ "$COMPILE_EXIT_CODE" != "0" ]; }; then
+          BUILD_STATUS="$STATUS_NOT_RUN"
+        elif [ "$BUILD_EXIT_CODE" != "0" ]; then
           BUILD_STATUS="$STATUS_FAIL"
         fi
         
@@ -157,8 +171,9 @@ jobs:
 
     - name: Extract Error Details
       id: errors
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         if [ -f compile_output.txt ] && [ "${{ steps.compile.outputs.compile_exit_code }}" != "0" ]; then
           echo "compile_errors<<EOF" >> $GITHUB_OUTPUT
@@ -170,7 +185,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ]; then
+        if [ -f test_output.txt ] && [ "${{ steps.test.outputs.test_exit_code }}" != "0" ] && [ "${{ steps.compile.outputs.compile_exit_code }}" = "0" ]; then
           echo "test_errors<<EOF" >> $GITHUB_OUTPUT
           m wf_spring_ci.err_test_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -180,7 +195,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         fi
         
-        if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ]; then
+        if [ -f build_output.txt ] && [ "${{ steps.build.outputs.build_exit_code }}" != "0" ] && [ "${{ steps.compile.outputs.compile_exit_code }}" = "0" ]; then
           echo "build_errors<<EOF" >> $GITHUB_OUTPUT
           m wf_spring_ci.err_build_header >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -193,6 +208,11 @@ jobs:
     - name: Comment on PR (Success)
       if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'true'
       uses: actions/github-script@v9
+      env:
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -217,14 +237,14 @@ jobs:
             '',
             m('table_header'),
             '|------|------|',
-            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
-            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
-            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            m('row_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }),
+            m('row_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }),
+            m('row_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }),
             '',
-            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            m('overall', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS }),
             '',
             '---',
-            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+            m('footer', { time: new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC' }),
           ].join('\n');
           
           if (botComment) {
@@ -246,6 +266,15 @@ jobs:
     - name: Comment on PR (Failure)
       if: github.event_name == 'pull_request' && steps.report.outputs.overall_ok == 'false'
       uses: actions/github-script@v9
+      # Pass multi-line error logs via env; inlining them into a JS string literal breaks the script
+      env:
+        PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS: ${{ steps.errors.outputs.build_errors }}
+        PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS: ${{ steps.errors.outputs.compile_errors }}
+        PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS: ${{ steps.errors.outputs.test_errors }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -266,18 +295,18 @@ jobs:
           let errorDetails = '';
           
           // Append compile errors
-          if ('${{ steps.errors.outputs.compile_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.compile_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS + '\n\n';
           }
           
           // Append test errors
-          if ('${{ steps.errors.outputs.test_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.test_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS + '\n\n';
           }
           
           // Append build errors
-          if ('${{ steps.errors.outputs.build_errors }}') {
-            errorDetails += '${{ steps.errors.outputs.build_errors }}\n\n';
+          if (process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS) {
+            errorDetails += process.env.PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS + '\n\n';
           }
           
           const failureMessage = [
@@ -287,11 +316,11 @@ jobs:
             '',
             m('table_header'),
             '|------|------|',
-            m('row_compile', { status: '${{ steps.report.outputs.compile_status }}' }),
-            m('row_test', { status: '${{ steps.report.outputs.test_status }}' }),
-            m('row_build', { status: '${{ steps.report.outputs.build_status }}' }),
+            m('row_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }),
+            m('row_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }),
+            m('row_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }),
             '',
-            m('overall', { status: '${{ steps.report.outputs.overall_status }}' }),
+            m('overall', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_STATUS }),
             '',
             m('details_header'),
             '',
@@ -303,7 +332,7 @@ jobs:
             m('fix_test'),
             '',
             '---',
-            m('footer', { time: new Date().toLocaleString(m('date_locale'), { timeZone: 'Asia/Seoul' }) }),
+            m('footer', { time: new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC' }),
           ].join('\n');
           
           if (botComment) {
@@ -323,14 +352,19 @@ jobs:
           }
 
     - name: Create Check Run
-      if: always()
+      if: always() && steps.load_messages.outcome == 'success'
       uses: actions/github-script@v9
+      env:
+        PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS: ${{ steps.report.outputs.build_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS: ${{ steps.report.outputs.compile_status }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_OK: ${{ steps.report.outputs.overall_ok }}
+        PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS: ${{ steps.report.outputs.test_status }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const M = JSON.parse(process.env.PAW_MSG);
           const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-          const conclusion = '${{ steps.report.outputs.overall_ok }}' === 'true' ? 'success' : 'failure';
+          const conclusion = process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_OK === 'true' ? 'success' : 'failure';
           const summary = m(conclusion === 'success' ? 'check_summary_success' : 'check_summary_failure');
           
           await github.rest.checks.create({
@@ -343,9 +377,9 @@ jobs:
             output: {
               title: '🔧 CI Build Check',
               summary: summary,
-              text: '\n    ' + m('check_compile', { status: '${{ steps.report.outputs.compile_status }}' }) +
-                '\n    ' + m('check_test', { status: '${{ steps.report.outputs.test_status }}' }) + '  ' +
-                '\n    ' + m('check_build', { status: '${{ steps.report.outputs.build_status }}' }) +
+              text: '\n    ' + m('check_compile', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_COMPILE_STATUS }) +
+                '\n    ' + m('check_test', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_TEST_STATUS }) + '  ' +
+                '\n    ' + m('check_build', { status: process.env.PAW_IN_STEPS_REPORT_OUTPUTS_BUILD_STATUS }) +
                 '\n    '
             }
           });
@@ -353,6 +387,7 @@ jobs:
     - name: Fail Job on Build Failure
       if: steps.report.outputs.overall_ok == 'false'
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get wf_spring_ci.build_failed
         exit 1
 
@@ -376,6 +411,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           m wf_spring_ci.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

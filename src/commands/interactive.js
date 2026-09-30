@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "../core/detect-fs.js";
-import { parseExisting } from "../core/version-yml.js";
+import { parseExisting, droppedPathLines } from "../core/version-yml.js";
 import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
 import { resolveProjectPaths } from "../core/paths-resolve.js";
@@ -293,6 +293,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   } else {
     for (const ty of types) if (ty !== "basic" && !paths.has(ty)) paths.set(ty, existing?.paths.get(ty) || ".");
   }
+
+  // Announce merged folders only now: the message must follow the folders actually chosen, not the saved ones.
+  if (existing?.droppedPaths?.length) io.note?.(droppedPathLines(existing.droppedPaths, paths).join("\n"), t("core.versionYml.pathMergedTitle"));
 
   // In a monorepo the version/build-number files live inside the type folder - detect there now that paths are settled.
   if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {

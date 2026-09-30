@@ -67,6 +67,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: Dockerfile
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
@@ -101,6 +102,7 @@ jobs:
 
       - name: Create environment file (${{ env.ENV_FILE_NAME }})
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat << 'EOF' > ./${{ env.ENV_FILE_NAME }}
           ${{ secrets.ENV_FILE || secrets.ENV }}
@@ -141,10 +143,10 @@ jobs:
         run: npm run build
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -158,7 +160,7 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
@@ -190,6 +192,7 @@ jobs:
 
       - name: Load messages
         run: |
+          [ -f .github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           python3 .github/scripts/messages.py dump cicd. | PYTHONIOENCODING=utf-8 python3 -c 'import json,sys; [print("PAW_M_" + k.replace(".", "_") + "=" + v) for k, v in json.load(sys.stdin).items()]' >> "$GITHUB_ENV"
 
       - name: Deploy
@@ -255,17 +258,25 @@ jobs:
               m "${{ env.PAW_M_cicd_container_none }}" container="$CONTAINER_NAME"
             fi
 
+            # Next.js projects used to deploy as <project>-nextjs[-deploy]. Those containers keep the same host port
+            # (--restart unless-stopped), so remove them before starting the new one. No-op when they do not exist.
+            for LEGACY_NAME in "${PROJECT_NAME}-nextjs-deploy" "${PROJECT_NAME}-nextjs"; do
+              if [ "$LEGACY_NAME" != "$CONTAINER_NAME" ]; then
+                SUDO docker rm -f "$LEGACY_NAME" >/dev/null 2>&1 || true
+              fi
+            done
+
             # Start the new container
             m "${{ env.PAW_M_cicd_container_run }}" container="$CONTAINER_NAME"
 
-            %%RUN_COMMENT%%
+            # NODE_ENV=production: Next.js (SSR) and most React servers expect it at runtime
             SUDO docker run -d \
               -p ${PORT}:3000 \
               --name $CONTAINER_NAME \
               -e TZ=Asia/Seoul \
-              %%RUN_ENV%%
+              -e NODE_ENV=production \
               -v /etc/localtime:/etc/localtime:ro \
-              %%RUN_RESTART%%
+              --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}
 
             # Confirm the deployment
@@ -276,7 +287,7 @@ jobs:
             m "${{ env.PAW_M_cicd_summary_branch }}" branch="$BRANCH"
             m "${{ env.PAW_M_cicd_summary_container }}" container="$CONTAINER_NAME"
             m "${{ env.PAW_M_cicd_summary_port }}" port="$PORT"
-            m "${{ env.PAW_M_cicd_summary_time }}" time="$(date '+%Y-%m-%d %H:%M:%S')"
+            m "${{ env.PAW_M_cicd_summary_time }}" time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ""
             m "${{ env.PAW_M_cicd_summary_url }}" url="http://${{ secrets.SERVER_HOST }}:${PORT}"
 

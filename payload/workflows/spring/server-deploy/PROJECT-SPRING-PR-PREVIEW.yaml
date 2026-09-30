@@ -108,6 +108,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -115,11 +117,16 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
 
@@ -210,18 +217,26 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -399,13 +414,16 @@ jobs:
       - name: Progress - build done
         id: build_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_START_TIME: ${{ steps.progress.outputs.start_time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const startTime = ${{ steps.progress.outputs.start_time }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const startTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_START_TIME, 10) || Date.now();
             const now = Date.now();
             const elapsed = now - startTime;
             const minutes = Math.floor(elapsed / 60000);
@@ -439,16 +457,16 @@ jobs:
             core.setOutput('docker_start', now);
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -460,14 +478,18 @@ jobs:
       - name: Progress - Docker done
         id: docker_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.build_progress.outputs.docker_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerStart = ${{ steps.build_progress.outputs.docker_start }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerStart = parseInt(process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_DOCKER_START, 10) || Date.now();
             const now = Date.now();
             const dockerElapsed = now - dockerStart;
             const minutes = Math.floor(dockerElapsed / 60000);
@@ -645,29 +667,36 @@ jobs:
 
       - name: Deploy complete comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.docker_progress.outputs.build_duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PR_OUTPUTS_REF: ${{ steps.pr.outputs.ref }}
+          PAW_IN_STEPS_PR_OUTPUTS_SHA: ${{ steps.pr.outputs.sha }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const buildDuration = '${{ steps.docker_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
-            const deployStart = ${{ steps.docker_progress.outputs.deploy_start }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const buildDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
+            const deployStart = parseInt(process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START, 10) || Date.now();
             const now = Date.now();
             const deployElapsed = now - deployStart;
             const minutes = Math.floor(deployElapsed / 60000);
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? m('wf_preview.dur_min_sec', {minutes, seconds}) : m('wf_preview.dur_sec', {seconds});
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
-            const previewPort = '${{ env.PREVIEW_PORT }}';
-            const apiDocsPath = '${{ env.API_DOCS_PATH }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
+            const previewPort = process.env.PREVIEW_PORT;
+            const apiDocsPath = process.env.API_DOCS_PATH;
             const prNumber = context.issue.number;
             const domain = `${projectName}-pr-${prNumber}.${domainSuffix}`;
             const previewUrl = `http://${domain}:${previewPort}`;
-            const sha = '${{ steps.pr.outputs.sha }}';
+            const sha = process.env.PAW_IN_STEPS_PR_OUTPUTS_SHA;
 
             // Build the preview environment table (the API Docs row is added only when API_DOCS_PATH is set)
             const envRows = [
@@ -679,7 +708,7 @@ jobs:
             envRows.push(m('wf_preview.env_container_pr', {projectName, prNumber}));
             envRows.push(m('wf_preview.env_commit', {sha}));
 
-            const branchName = '${{ steps.pr.outputs.ref }}';
+            const branchName = process.env.PAW_IN_STEPS_PR_OUTPUTS_REF;
 
             const body = [
               m('wf_preview.title_pr_deployed'),
@@ -724,21 +753,25 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure()
+        if: failure() && steps.load_messages.outcome == 'success'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
             const prNumber = context.issue.number;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
             // Show where it failed based on progress
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
 
             // Work out where it failed - early-stage failures are distinguished too
             let buildStatus, dockerStatus, deployStatus;
@@ -832,6 +865,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -839,11 +874,16 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
 
@@ -856,7 +896,7 @@ jobs:
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = context.issue.number;
-            const marker = '${{ env.ISSUE_HELPER_MARKER }}';
+            const marker = process.env.ISSUE_HELPER_MARKER;
 
             console.log(m('wf_preview.log_search_branch', {issueNumber}));
             console.log(m('wf_preview.log_marker', {marker}));
@@ -901,7 +941,7 @@ jobs:
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = context.issue.number;
-            const marker = '${{ env.ISSUE_HELPER_MARKER }}';
+            const marker = process.env.ISSUE_HELPER_MARKER;
 
             const body = [
               m('wf_preview.title_branch_missing_warn'),
@@ -945,18 +985,26 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -986,13 +1034,16 @@ jobs:
       - name: Check branch exists
         id: check_branch
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
 
             console.log(m('wf_preview.log_check_exists', {branchName}));
 
@@ -1049,23 +1100,28 @@ jobs:
       - name: Set issue info
         if: steps.check_branch.outputs.exists == 'true'
         id: issue
+        env:
+          PAW_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
         run: |
-          echo "ref=${{ needs.get-branch-from-issue.outputs.branch_name }}" >> $GITHUB_OUTPUT
+          echo "ref=$PAW_BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "issue_number=${{ needs.get-branch-from-issue.outputs.issue_number }}" >> $GITHUB_OUTPUT
           # Get the latest commit SHA of the branch
-          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git refs/heads/${{ needs.get-branch-from-issue.outputs.branch_name }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git "refs/heads/$PAW_BRANCH_NAME" | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Create progress comment
         if: steps.check_branch.outputs.exists == 'true'
         id: progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const startTime = Date.now();
 
@@ -1173,14 +1229,18 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         id: build_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_START_TIME: ${{ steps.progress.outputs.start_time }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
-            const startTime = ${{ steps.progress.outputs.start_time }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
+            const startTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_START_TIME, 10) || Date.now();
             const now = Date.now();
             const elapsed = now - startTime;
             const minutes = Math.floor(elapsed / 60000);
@@ -1217,18 +1277,18 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -1241,15 +1301,20 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         id: docker_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.build_progress.outputs.docker_start }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerStart = ${{ steps.build_progress.outputs.docker_start }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerStart = parseInt(process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_DOCKER_START, 10) || Date.now();
             const now = Date.now();
             const dockerElapsed = now - dockerStart;
             const minutes = Math.floor(dockerElapsed / 60000);
@@ -1431,30 +1496,38 @@ jobs:
       - name: Deploy complete comment
         if: steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.docker_progress.outputs.build_duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_ISSUE_OUTPUTS_SHA: ${{ steps.issue.outputs.sha }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
-            const buildDuration = '${{ steps.docker_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
-            const deployStart = ${{ steps.docker_progress.outputs.deploy_start }};
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
+            const buildDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
+            const deployStart = parseInt(process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START, 10) || Date.now();
             const now = Date.now();
             const deployElapsed = now - deployStart;
             const minutes = Math.floor(deployElapsed / 60000);
             const seconds = Math.floor((deployElapsed % 60000) / 1000);
             const deployDuration = minutes > 0 ? m('wf_preview.dur_min_sec', {minutes, seconds}) : m('wf_preview.dur_sec', {seconds});
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
-            const previewPort = '${{ env.PREVIEW_PORT }}';
-            const apiDocsPath = '${{ env.API_DOCS_PATH }}';
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
+            const previewPort = process.env.PREVIEW_PORT;
+            const apiDocsPath = process.env.API_DOCS_PATH;
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
             const domain = `${projectName}-pr-${issueNumber}.${domainSuffix}`;
             const previewUrl = `http://${domain}:${previewPort}`;
-            const sha = '${{ steps.issue.outputs.sha }}';
+            const sha = process.env.PAW_IN_STEPS_ISSUE_OUTPUTS_SHA;
 
             // Build the preview environment table (the API Docs row is added only when API_DOCS_PATH is set)
             const envRows = [
@@ -1512,21 +1585,27 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.check_branch.outputs.exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const issueNumber = ${{ needs.get-branch-from-issue.outputs.issue_number }};
-            const branchName = '${{ needs.get-branch-from-issue.outputs.branch_name }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
+            const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
 
             let buildStatus, dockerStatus, deployStatus;
             let buildTime = '-', dockerTime = '-';
@@ -1612,6 +1691,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -1619,11 +1700,16 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -1650,6 +1736,41 @@ jobs:
           print("PAW_EOF")
           PY
 
+      # Without the deploy secrets no preview could have been deployed: on close events skip the cleanup quietly,
+      # and on an explicit command report what is missing instead of surfacing a raw SSH action error
+      - name: Deploy pre-check (Secrets)
+        id: precheck
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          m() { python3 "$RUNNER_TEMP/paw/messages.py" get "$@"; }
+
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_KEY is required when SSH_AUTH_METHOD=key, otherwise SERVER_PASSWORD
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          if [ -n "$MISSING" ]; then
+            if [ "$EVENT_NAME" = "issue_comment" ]; then
+              echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+              exit 1
+            fi
+            echo "::warning title=$(m wf_preview.precheck_skip_title)::$(m wf_preview.precheck_skip_body missing="$MISSING")"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Get PR/issue number
         id: pr_number
         run: |
@@ -1665,6 +1786,7 @@ jobs:
           fi
 
       - name: Remove container & image
+        if: steps.precheck.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -1710,17 +1832,20 @@ jobs:
 
       - name: Destroy complete comment
         if: |
-          github.event_name == 'issue_comment' ||
-          (github.event_name == 'pull_request' && github.event.action == 'closed') ||
-          (github.event_name == 'issues' && github.event.action == 'closed')
+          steps.precheck.outputs.ready == 'true' && (
+            github.event_name == 'issue_comment' ||
+            (github.event_name == 'pull_request' && github.event.action == 'closed') ||
+            (github.event_name == 'issues' && github.event.action == 'closed'))
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER: ${{ steps.pr_number.outputs.number }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const number = ${{ steps.pr_number.outputs.number }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
+            const number = parseInt(process.env.PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
 
             const body = [
               m('wf_preview.title_destroyed'),
@@ -1756,6 +1881,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -1763,11 +1890,16 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -1793,6 +1925,32 @@ jobs:
           print("\n".join(head) + "\n" + tail)
           print("PAW_EOF")
           PY
+
+      # Report the missing secrets by name instead of surfacing a raw SSH action error
+      - name: Deploy pre-check (Secrets)
+        id: precheck
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          m() { python3 "$RUNNER_TEMP/paw/messages.py" get "$@"; }
+
+          MISSING=""
+          for NAME in SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_KEY is required when SSH_AUTH_METHOD=key, otherwise SERVER_PASSWORD
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            exit 1
+          fi
 
       - name: Check container status
         id: status
@@ -1845,19 +2003,22 @@ jobs:
 
       - name: Post status comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_IS_PR: ${{ needs.check-command.outputs.is_pr }}
+          PAW_IN_STEPS_CHECK_RUNNING_OUTCOME: ${{ steps.check_running.outcome }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const number = context.issue.number;
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
-            const previewPort = '${{ env.PREVIEW_PORT }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
+            const previewPort = process.env.PREVIEW_PORT;
             const domain = `${projectName}-pr-${number}.${domainSuffix}`;
             const previewUrl = `http://${domain}:${previewPort}`;
-            const isRunning = '${{ steps.check_running.outcome }}' === 'success';
-            const isPr = '${{ needs.check-command.outputs.is_pr }}' === 'true';
+            const isRunning = process.env.PAW_IN_STEPS_CHECK_RUNNING_OUTCOME === 'success';
+            const isPr = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_IS_PR === 'true';
             const contextType = isPr ? 'PR' : 'Issue';
 
             let body;
@@ -1922,18 +2083,26 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
           sparse-checkout-cone-mode: false
 
       - name: Load messages
+        id: load_messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -1963,9 +2132,11 @@ jobs:
       - name: Extract issue number from branch name
         id: extract
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const branchName = '${{ needs.check-command.outputs.custom_branch }}';
+            const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const issueMatch = branchName.match(/#(\d+)/);
 
             if (issueMatch) {
@@ -1990,9 +2161,11 @@ jobs:
       - name: Check branch exists
         id: check_branch
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
         with:
           script: |
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
             try {
               await github.rest.repos.getBranch({
                 owner: context.repo.owner,
@@ -2011,12 +2184,14 @@ jobs:
       - name: Branch not found error comment
         if: steps.check_branch.outputs.exists == 'false'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
 
             const body = [
               m('wf_preview.title_branch_missing'),
@@ -2097,15 +2272,19 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         id: progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_COMMIT_OUTPUTS_SHA: ${{ steps.commit.outputs.sha }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX: ${{ steps.extract.outputs.container_suffix }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
-            const sha = '${{ steps.commit.outputs.sha }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const containerSuffix = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
+            const sha = process.env.PAW_IN_STEPS_COMMIT_OUTPUTS_SHA;
 
             const body = [
               m('wf_preview.title_custom_started'),
@@ -2166,16 +2345,21 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         id: build_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_OUTPUTS_DURATION: ${{ steps.build.outputs.duration }}
+          PAW_IN_STEPS_COMMIT_OUTPUTS_SHA: ${{ steps.commit.outputs.sha }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
-            const sha = '${{ steps.commit.outputs.sha }}';
-            const buildDuration = '${{ steps.build.outputs.duration }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
+            const sha = process.env.PAW_IN_STEPS_COMMIT_OUTPUTS_SHA;
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_OUTPUTS_DURATION;
 
             const body = [
               m('wf_preview.title_custom_started'),
@@ -2204,7 +2388,7 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -2228,17 +2412,23 @@ jobs:
         if: steps.check_branch.outputs.exists == 'true'
         id: docker_progress
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_COMMIT_OUTPUTS_SHA: ${{ steps.commit.outputs.sha }}
+          PAW_IN_STEPS_DOCKER_OUTPUTS_DURATION: ${{ steps.docker.outputs.duration }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
-            const sha = '${{ steps.commit.outputs.sha }}';
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker.outputs.duration }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
+            const sha = process.env.PAW_IN_STEPS_COMMIT_OUTPUTS_SHA;
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_OUTPUTS_DURATION;
 
             const body = [
               m('wf_preview.title_custom_started'),
@@ -2325,7 +2515,7 @@ jobs:
             fi
 
             m wf_preview.r_deploy_done
-            echo "🌐 Preview URL: http://${CONTAINER_NAME}.${DOMAIN_SUFFIX}:${PREVIEW_PORT}"
+            m wf_preview.r_preview_url url="http://${CONTAINER_NAME}.${DOMAIN_SUFFIX}:${PREVIEW_PORT}"
 
       - name: Record deploy completion
         if: steps.check_branch.outputs.exists == 'true'
@@ -2338,26 +2528,34 @@ jobs:
       - name: Deploy complete comment
         if: steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_COMMIT_OUTPUTS_SHA: ${{ steps.commit.outputs.sha }}
+          PAW_IN_STEPS_DEPLOY_TIME_OUTPUTS_DURATION: ${{ steps.deploy_time.outputs.duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX: ${{ steps.extract.outputs.container_suffix }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
-            const sha = '${{ steps.commit.outputs.sha }}';
-            const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
-            const previewPort = '${{ env.PREVIEW_PORT }}';
-            const apiDocsPath = '${{ env.API_DOCS_PATH }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const containerSuffix = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
+            const sha = process.env.PAW_IN_STEPS_COMMIT_OUTPUTS_SHA;
+            const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
+            const previewPort = process.env.PREVIEW_PORT;
+            const apiDocsPath = process.env.API_DOCS_PATH;
 
             const containerName = `${projectName}-${containerSuffix}`;
             const previewUrl = `http://${containerName}.${domainSuffix}:${previewPort}`;
 
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
-            const deployDuration = '${{ steps.deploy_time.outputs.duration }}';
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
+            const deployDuration = process.env.PAW_IN_STEPS_DEPLOY_TIME_OUTPUTS_DURATION;
 
             const envRows = [
               `| **Preview URL** | ${previewUrl} |`,
@@ -2404,20 +2602,25 @@ jobs:
             });
 
       - name: Build/deploy failure comment
-        if: failure() && steps.check_branch.outputs.exists == 'true'
+        if: failure() && steps.load_messages.outcome == 'success' && steps.check_branch.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION: ${{ steps.build_progress.outputs.build_duration }}
+          PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION: ${{ steps.docker_progress.outputs.docker_duration }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const commentId = ${{ steps.progress.outputs.comment_id || 0 }};
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
+            const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-            const buildDuration = '${{ steps.build_progress.outputs.build_duration }}';
-            const dockerDuration = '${{ steps.docker_progress.outputs.docker_duration }}';
+            const buildDuration = process.env.PAW_IN_STEPS_BUILD_PROGRESS_OUTPUTS_BUILD_DURATION;
+            const dockerDuration = process.env.PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DOCKER_DURATION;
 
             let buildStatus, dockerStatus, deployStatus;
             let buildTime = '-', dockerTime = '-';
@@ -2498,6 +2701,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -2505,11 +2710,16 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
@@ -2536,12 +2746,41 @@ jobs:
           print("PAW_EOF")
           PY
 
+      # Report the missing secrets by name instead of surfacing a raw SSH action error
+      - name: Deploy pre-check (Secrets)
+        id: precheck
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          m() { python3 "$RUNNER_TEMP/paw/messages.py" get "$@"; }
+
+          MISSING=""
+          for NAME in DOCKERHUB_USERNAME SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_KEY is required when SSH_AUTH_METHOD=key, otherwise SERVER_PASSWORD
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            exit 1
+          fi
+
       - name: Extract container suffix from branch name
         id: extract
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const branchName = '${{ needs.check-command.outputs.custom_branch }}';
+            const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const issueMatch = branchName.match(/#(\d+)/);
 
             if (issueMatch) {
@@ -2593,14 +2832,17 @@ jobs:
 
       - name: Destroy confirmation comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX: ${{ steps.extract.outputs.container_suffix }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const containerSuffix = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
             const containerName = `${projectName}-${containerSuffix}`;
 
             const body = [
@@ -2639,6 +2881,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          # Separate path: a sparse checkout at the workspace root would leave the later full checkout sparse too
+          path: .paw-msg
           sparse-checkout: |
             .github/scripts/messages.py
             version.yml
@@ -2646,20 +2890,53 @@ jobs:
 
       - name: Load messages
         run: |
-          # Keep a copy outside the workspace: checking out the PR branch later replaces its files
+          # Keep a copy outside the workspace and drop the sparse clone so the later checkout sees a clean tree
           mkdir -p "$RUNNER_TEMP/paw"
-          cp .github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw/messages.py"
+          LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw/messages.py" lang)
+          rm -rf .paw-msg
+          # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
+          export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
           {
-            echo "PROJECT_AUTO_WIZARD_LANG=$(python3 .github/scripts/messages.py lang)"
+            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
             echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
           } >> "$GITHUB_ENV"
+
+      # Report the missing secrets by name instead of surfacing a raw SSH action error
+      - name: Deploy pre-check (Secrets)
+        id: precheck
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          m() { python3 "$RUNNER_TEMP/paw/messages.py" get "$@"; }
+
+          MISSING=""
+          for NAME in SERVER_HOST SERVER_USER; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          # SSH_KEY is required when SSH_AUTH_METHOD=key, otherwise SERVER_PASSWORD
+          if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
+            [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
+          else
+            [ -n "$SERVER_PASSWORD" ] || MISSING="$MISSING SERVER_PASSWORD"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error title=$(m wf_preview.precheck_secret_title)::$(m wf_preview.precheck_secret_body missing="$MISSING")"
+            exit 1
+          fi
 
       - name: Extract container suffix from branch name
         id: extract
         uses: actions/github-script@v9
+        env:
+          PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const branchName = '${{ needs.check-command.outputs.custom_branch }}';
+            const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
             const issueMatch = branchName.match(/#(\d+)/);
 
             if (issueMatch) {
@@ -2698,20 +2975,24 @@ jobs:
 
       - name: Post status comment
         uses: actions/github-script@v9
+        env:
+          PAW_IN_STEPS_CHECK_RUNNING_OUTCOME: ${{ steps.check_running.outcome }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME: ${{ steps.extract.outputs.branch_name }}
+          PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX: ${{ steps.extract.outputs.container_suffix }}
         with:
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
-            const projectName = '${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}';
-            const containerSuffix = '${{ steps.extract.outputs.container_suffix }}';
-            const branchName = '${{ steps.extract.outputs.branch_name }}';
-            const domainSuffix = '${{ env.PREVIEW_DOMAIN_SUFFIX }}';
-            const previewPort = '${{ env.PREVIEW_PORT }}';
+            const projectName = process.env.PROJECT_PATH !== '.' ? process.env.PROJECT_NAME + '-spring' : process.env.PROJECT_NAME;
+            const containerSuffix = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_CONTAINER_SUFFIX;
+            const branchName = process.env.PAW_IN_STEPS_EXTRACT_OUTPUTS_BRANCH_NAME;
+            const domainSuffix = process.env.PREVIEW_DOMAIN_SUFFIX;
+            const previewPort = process.env.PREVIEW_PORT;
 
             const containerName = `${projectName}-${containerSuffix}`;
             const previewUrl = `http://${containerName}.${domainSuffix}:${previewPort}`;
-            const isRunning = '${{ steps.check_running.outcome }}' === 'success';
+            const isRunning = process.env.PAW_IN_STEPS_CHECK_RUNNING_OUTCOME === 'success';
 
             let body;
             if (isRunning) {

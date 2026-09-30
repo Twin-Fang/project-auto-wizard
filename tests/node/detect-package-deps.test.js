@@ -32,9 +32,14 @@ test("classifyPackageText: a React web app using react-native-web is react", () 
   })), "react");
 });
 
-test("classifyPackageText: next in keywords is not treated as next", () => {
+test("classifyPackageText: next in keywords does not make a react project", () => {
   assert.strictEqual(classifyPackageText(pkg({ name: "my-app", keywords: ["next"] })), "node");
-  assert.strictEqual(classifyPackageText(pkg({ devDependencies: { next: "14" }, dependencies: { react: "18" } })), "next");
+});
+
+test("classifyPackageText: a Next.js project is react", () => {
+  assert.strictEqual(classifyPackageText(pkg({ devDependencies: { next: "14" }, dependencies: { react: "18" } })), "react");
+  // The next dependency alone is enough evidence
+  assert.strictEqual(classifyPackageText(pkg({ dependencies: { next: "14" } })), "react");
 });
 
 test("classifyPackageText: a broken package.json is node", () => {

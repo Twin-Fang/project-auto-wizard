@@ -24,7 +24,6 @@ const MONOREPO_PATH = "services/api";
 // jobs: every existing job id — the targets ci-gate must list in needs. If jobs are added, this list must grow too or the test fails.
 const CI_TARGETS = [
   { file: "go/PROJECT-GO-CI.yaml", type: "go", jobs: ["build-check"] },
-  { file: "next/PROJECT-NEXT-CI.yaml", type: "next", jobs: ["build"] },
   { file: "python/PROJECT-PYTHON-CI.yaml", type: "python", jobs: ["build-check"] },
   { file: "react/PROJECT-REACT-CI.yaml", type: "react", jobs: ["build"] },
   { file: "spring/PROJECT-SPRING-CI.yml", type: "spring", jobs: ["build-check"] },
@@ -164,7 +163,7 @@ for (const { file, type, jobs } of CI_TARGETS) {
 // check a temporary copy that went through the same substitution as install (renderInstalled).
 //
 // Baseline (2026-09-21, actionlint 1.7.12): the original CI/publish workflows have 0 syntax, expression or action-input errors,
-// and only pre-existing shellcheck findings (SC2086 info, SC2129 style, SC2193 warning) (Next 4, React 4, Spring CI 35,
+// and only pre-existing shellcheck findings (SC2086 info, SC2129 style, SC2193 warning) (React 4, Spring CI 35,
 // Spring publish 2 kinds x 2 each). Those findings are out of scope here and tolerated; only new ones count as failures:
 //   1) findings other than shellcheck fail regardless of location (needs typos, expression errors, unknown action inputs, etc.)
 //   2) shellcheck findings fail only inside the newly added jobs (changes, ci-gate)

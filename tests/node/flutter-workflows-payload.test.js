@@ -553,7 +553,7 @@ test("IOS-TESTFLIGHT: Gemfile — uses the user's Gemfile if it has fastlane, ot
   assert.ok(text.includes(check));
   assert.ok(text.includes(generated));
   assert.ok(text.indexOf(check) < text.indexOf(generated));
-  assert.ok(text.indexOf(generated) < text.indexOf("bundle install\n          echo \"✅ Fastlane installed"));
+  assert.ok(text.indexOf(generated) < text.indexOf("bundle install\n          m flutter_a.fastlane_installed_bundler"));
 });
 
 test("IOS-TESTFLIGHT: project file artifacts are uploaded/downloaded under the Flutter root", () => {
@@ -698,4 +698,10 @@ test("language-aware Flutter workflows: English catalog has no Hangul and Korean
   assert.strictEqual(ko["app_trigger.hint_pushed"], "1. 브랜치가 원격 저장소에 push되었는지 확인하세요");
   assert.strictEqual(ko["ios_test_tf.log_ipa_failed"], "❌ 진행 상황 업데이트 완료: IPA 빌드 실패");
   assert.strictEqual(en["ios_test_tf.log_ipa_failed"], "❌ Progress update complete: IPA build failed");
+});
+
+test("FLUTTER-CI summary shows '-' (not a hardcoded English n/a) when the test duration is empty", () => {
+  const text = rawWorkflow("PROJECT-FLUTTER-CI.yaml");
+  assert.ok(!/n\/a/i.test(text), "a fixed English placeholder would also appear in Korean output");
+  assert.match(text, /PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION \|\| '-'/);
 });

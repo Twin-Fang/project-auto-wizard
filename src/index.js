@@ -14,7 +14,7 @@ import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
-import { parseExisting } from "./core/version-yml.js";
+import { parseExisting, droppedPathLines } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
@@ -315,6 +315,9 @@ async function runInner(argv, {
     if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   }
+
+  // Warn against the final folders (an explicit --paths may keep the other one). The dry-run preview prints its own notice.
+  if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths, paths)) console.error(`⚠️  ${line}`);
 
   // version: existing version.yml first (SSoT; prevents overwriting on re-run) -> CLI value -> file detection.
   // Non-interactive, so the fallback notice uses the CLI wording (--project-version) as is.

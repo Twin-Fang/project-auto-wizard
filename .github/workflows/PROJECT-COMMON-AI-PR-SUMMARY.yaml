@@ -53,6 +53,7 @@ jobs:
       - name: Read copilot_ai option from version.yml
         id: copilot_options
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
@@ -75,6 +76,7 @@ jobs:
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
 
@@ -154,6 +156,7 @@ jobs:
           # AUTO-CHANGELOG-CONTROL).
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           ISSUE_NUM=$(python3 .github/scripts/issue_helper.py extract-branch-issue "$HEAD_REF")
 

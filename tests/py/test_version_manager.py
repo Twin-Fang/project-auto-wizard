@@ -177,6 +177,17 @@ class TestProjectTypesParsing(unittest.TestCase):
         self._write('version: "1.0.0"\n')
         self.assertEqual(version_manager.get_project_types_csv(), [])
 
+    def test_old_next_type_is_read_as_react(self):
+        # A version.yml written before next was merged into react must keep syncing package.json
+        self._write('version: "1.0.0"\nproject_types: ["next", "react", "spring"]\n')
+        self.assertEqual(version_manager.get_project_types_csv(), ["react", "spring"])
+        self.assertIn("react", version_manager.TYPE_HANDLERS)
+        self.assertNotIn("next", version_manager.TYPE_HANDLERS)
+
+    def test_old_next_path_is_used_for_react(self):
+        self._write('version: "1.0.0"\nproject_types: ["next"]\nproject_paths:\n  next: "web"\n')
+        self.assertEqual(version_manager.get_type_path("react"), "web")
+
 
 class TestSetVersionCodeRegressionGuard(unittest.TestCase):
     def setUp(self):
