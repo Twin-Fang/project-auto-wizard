@@ -1,127 +1,127 @@
 # project-auto-wizard:managed-workflow
-# Spring Boot CI/CD 배포 (SSH + Docker)
+# Spring Boot CI/CD deploy (SSH + Docker)
 #
-# deploy 브랜치 푸시 시 Docker 이미지를 빌드하고
-# SSH로 접속 가능한 서버(Synology·AWS EC2·VPS 등)에 자동 배포합니다.
+# On a push to the deploy branch, builds a Docker image and
+# deploys it automatically to any server reachable over SSH (Synology, AWS EC2, VPS, ...).
 #
-# 필수 GitHub Secrets
-# APPLICATION_PROD_YML (선택): application-prod.yml 내용
-# DOCKERHUB_USERNAME: DockerHub 사용자명
-# DOCKERHUB_TOKEN: DockerHub 액세스 토큰
-# SERVER_HOST: 배포 서버 주소
-# SERVER_USER: SSH 사용자명
-# SERVER_PASSWORD: SSH 비밀번호 (SSH_AUTH_METHOD=password일 때)
-# SSH_KEY: SSH 개인키 .pem 내용 (SSH_AUTH_METHOD=key일 때, AWS EC2 등)
+# Required GitHub Secrets
+# APPLICATION_PROD_YML (선택): contents of application-prod.yml
+# DOCKERHUB_USERNAME: DockerHub username
+# DOCKERHUB_TOKEN: DockerHub access token
+# SERVER_HOST: deployment server address
+# SERVER_USER: SSH username
+# SERVER_PASSWORD: SSH password (when SSH_AUTH_METHOD=password)
+# SSH_KEY: contents of the SSH private key .pem (when SSH_AUTH_METHOD=key, e.g. AWS EC2)
 #
-# 환경변수 설정 (env 섹션에서 설정)
+# Environment variables (set in the env section)
 #
-# 포트 및 컨테이너:
-# CONTAINER_INTERNAL_PORT: Spring Boot 내부 포트 (기본: 8080)
-# DEPLOY_PORT: 배포 포트
-# CONTAINER_NAME: 컨테이너 이름 (기본: PROJECT_NAME)
+# Ports and container:
+# CONTAINER_INTERNAL_PORT: Spring Boot internal port (default: 8080)
+# DEPLOY_PORT: deploy port
+# CONTAINER_NAME: container name (default: PROJECT_NAME)
 #
-# 볼륨 마운트:
-# ENABLE_VOLUME_MOUNT: 볼륨 마운트 활성화 (true/false)
-# VOLUME_HOST_PATH: 호스트 볼륨 경로
-# VOLUME_CONTAINER_PATH: 컨테이너 내부 마운트 경로
+# Volume mount:
+# ENABLE_VOLUME_MOUNT: enable the volume mount (true/false)
+# VOLUME_HOST_PATH: host volume path
+# VOLUME_CONTAINER_PATH: mount path inside the container
 #
-# SSH 연결:
-# SSH_PORT: SSH 포트 (기본: 2022)
-# SSH_COMMAND_TIMEOUT: SSH 명령 타임아웃 (기본: 600s)
-# SSH_CONNECTION_TIMEOUT: SSH 연결 타임아웃 (기본: 60s)
+# SSH connection:
+# SSH_PORT: SSH port (default: 2022)
+# SSH_COMMAND_TIMEOUT: SSH command timeout (default: 600s)
+# SSH_CONNECTION_TIMEOUT: SSH connection timeout (default: 60s)
 #
-# 헬스체크:
-# HEALTHCHECK_WAIT_SECONDS: 초기화 대기 시간 (기본: 10초)
-# HEALTHCHECK_PATH: HTTP 엔드포인트 경로 (비어있으면 로그만 사용)
-# HEALTHCHECK_MAX_RETRIES: HTTP 재시도 횟수 (기본: 5회)
-# HEALTHCHECK_RETRY_INTERVAL: 재시도 간격 (기본: 3초)
-# HEALTHCHECK_LOG_PATTERN: Fallback 로그 검색 패턴
+# Health check:
+# HEALTHCHECK_WAIT_SECONDS: initialization wait time (default: 10s)
+# HEALTHCHECK_PATH: HTTP endpoint path (log pattern only if empty)
+# HEALTHCHECK_MAX_RETRIES: HTTP retry count (default: 5)
+# HEALTHCHECK_RETRY_INTERVAL: retry interval (default: 3s)
+# HEALTHCHECK_LOG_PATTERN: fallback log search pattern
 #
-# HEALTHCHECK_PATH 예시:
+# HEALTHCHECK_PATH examples:
 #   Spring Boot (Actuator): "/actuator/health"
-#   커스텀: "/api/v1/health"
+#   Custom: "/api/v1/health"
 #
-# HEALTHCHECK_LOG_PATTERN 예시:
+# HEALTHCHECK_LOG_PATTERN example:
 #   Spring Boot: "Tomcat started on port"
 #
-# 브랜치별 배포:
-# - deploy 브랜치: 자동 배포 (DEPLOY_PORT 사용)
-# - {{MAIN_BRANCH}} 브랜치: 수동 실행만 가능
+# Per-branch deploy:
+# - deploy branch: automatic deploy (uses DEPLOY_PORT)
+# - {{MAIN_BRANCH}} branch: manual runs only
 
 name: PROJECT-SPRING-SIMPLE-CICD
 
-# 트리거 설정
-# deploy 브랜치에 push할 때 자동으로 CI/CD가 실행됩니다.
-# {{MAIN_BRANCH}} 브랜치는 workflow_dispatch로 수동 실행만 가능합니다.
+# Trigger settings
+# CI/CD runs automatically on a push to the deploy branch.
+# The {{MAIN_BRANCH}} branch can only be run manually via workflow_dispatch.
 on:
   push:
     branches:
-      - "{{MAIN_BRANCH}}"  # 배포 환경 (DEPLOY_PORT 사용)
-    # @wizard paths-anchor (모노레포일 때 integrator가 paths 필터를 여기 주입)
-  workflow_dispatch:  # 수동 실행 허용
+      - "{{MAIN_BRANCH}}"  # deploy environment (uses DEPLOY_PORT)
+    # @wizard paths-anchor (in a monorepo the integrator injects the paths filter here)
+  workflow_dispatch:  # allow manual runs
 
 env:
-  # 프로젝트 설정 - 실제 프로젝트명으로 변경하세요
+  # Project settings - change to your actual project name
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
-  # 모노레포(--paths)에서 이 프로젝트가 있는 하위 경로. 빌드·Docker context의 기준 ('.'이면 레포 루트)
+  # Subdirectory of this project in a monorepo (--paths). Base for the build and Docker context ('.' = repo root)
   PROJECT_PATH: "."  # @wizard auto:project-path
-  # 모노레포(PROJECT_PATH가 '.'이 아님)에서는 이미지·컨테이너·도메인 이름에 '-spring'를 붙여
-  # 같은 레포의 다른 타입 서비스와 이름이 겹치지 않게 한다 (예: my-app-spring)
+  # In a monorepo (PROJECT_PATH is not '.') '-spring' is appended to image, container and domain names
+  # so they do not collide with services of other types in the same repo (e.g. my-app-spring)
 
-  # Spring Boot 설정
+  # Spring Boot settings
   SPRING_PROFILE: "prod"
   JAVA_VERSION: "__JAVA_VERSION__"  # @wizard ask:@jdk
   GRADLE_OPTS: "-Dspring.profiles.active=prod"
 
-  # 경로 설정
+  # Path settings
   APPLICATION_YML_DIR: "__APPLICATION_YML_DIR__"  # @wizard auto:spring-app-yml-dir
-  DOCKERFILE_PATH: "./Dockerfile"  # PROJECT_PATH 기준 상대 경로
+  DOCKERFILE_PATH: "./Dockerfile"  # relative to PROJECT_PATH
 
-  # 포트 설정
-  CONTAINER_INTERNAL_PORT: "8080"  # Spring Boot 내부 포트 (고정값)
+  # Port settings
+  CONTAINER_INTERNAL_PORT: "8080"  # Spring Boot internal port (fixed)
   DEPLOY_PORT: "__DEPLOY_PORT__"  # @wizard ask:8080
 
-  # 컨테이너 이름 설정
-  # 비워두면 PROJECT_NAME을 기본값으로 사용 (예: mapsy-back)
-  # 커스텀 이름을 원하면 직접 입력 (예: "my-custom-container")
+  # Container name
+  # If empty, PROJECT_NAME is used (e.g. mapsy-back)
+  # Enter a custom name to override (e.g. "my-custom-container")
   CONTAINER_NAME: ""
 
-  # 볼륨 마운트 설정
-  # true: 볼륨 마운트 활성화 (디렉토리 없으면 자동 생성)
-  # false: 볼륨 마운트 비활성화 (기본값)
+  # Volume mount settings
+  # true: enable the volume mount (the directory is created if missing)
+  # false: disable the volume mount (default)
   ENABLE_VOLUME_MOUNT: "false"  # @wizard ask:false
   VOLUME_HOST_PATH: "/volume1/projects/__PROJECT_NAME__"  # @wizard ask:/volume1/projects/__PROJECT_NAME__
   VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__"  # @wizard ask:/mnt/__PROJECT_NAME__
 
-  # SSH 인증 방식: "password"(Synology·일반 서버) | "key"(AWS EC2·.pem)
-  #   password → SERVER_PASSWORD secret 사용
-  #   key      → SSH_KEY secret 사용 (.pem 파일 전체 내용을 secret 값으로)
+  # SSH auth method: "password" (Synology / generic servers) | "key" (AWS EC2 / .pem)
+  #   password -> uses the SERVER_PASSWORD secret
+  #   key      -> uses the SSH_KEY secret (the full .pem contents as the secret value)
   SSH_AUTH_METHOD: "password"  # @wizard ask:password
 
-  # SSH 연결 설정
+  # SSH connection settings
   SSH_PORT: "__SSH_PORT__"  # @wizard ask:2022
-  SSH_COMMAND_TIMEOUT: "600s"  # SSH 명령 실행 타임아웃
-  SSH_CONNECTION_TIMEOUT: "60s"  # SSH 연결 타임아웃
+  SSH_COMMAND_TIMEOUT: "600s"  # SSH command execution timeout
+  SSH_CONNECTION_TIMEOUT: "60s"  # SSH connection timeout
 
-  # 헬스체크 설정
-  HEALTHCHECK_WAIT_SECONDS: "10"  # 컨테이너 초기화 대기 시간 (초)
-  HEALTHCHECK_PATH: "/actuator/health"  # HTTP 엔드포인트 경로 (비어있으면 로그 패턴만 사용)
-  HEALTHCHECK_MAX_RETRIES: "5"  # HTTP 재시도 횟수
-  HEALTHCHECK_RETRY_INTERVAL: "3"  # 재시도 간격 (초)
-  HEALTHCHECK_LOG_PATTERN: "Tomcat started on port"  # Fallback 로그 검색 패턴
+  # Health check settings
+  HEALTHCHECK_WAIT_SECONDS: "10"  # container initialization wait (seconds)
+  HEALTHCHECK_PATH: "/actuator/health"  # HTTP endpoint path (log pattern only if empty)
+  HEALTHCHECK_MAX_RETRIES: "5"  # HTTP retry count
+  HEALTHCHECK_RETRY_INTERVAL: "3"  # retry interval (seconds)
+  HEALTHCHECK_LOG_PATTERN: "Tomcat started on port"  # fallback log search pattern
 
 jobs:
-  # 빌드 작업
+  # Build job
   build:
-    name: Spring Boot 애플리케이션 빌드
+    name: Build Spring Boot application
     runs-on: ubuntu-latest
 
     steps:
-      - name: 코드 체크아웃
+      - name: Checkout code
         uses: actions/checkout@v7
 
-      # 필수 Secret·Dockerfile이 없으면 docker 로그인 같은 서드파티 오류 대신 빠진 항목을 알려 주고 멈춘다
-      - name: 배포 사전 점검 (Secret·Dockerfile)
+      # If a required Secret or the Dockerfile is missing, name it and stop instead of failing later in a third-party step such as docker login
+      - name: Deploy pre-check (Secrets and Dockerfile)
         working-directory: ${{ env.PROJECT_PATH }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -132,11 +132,12 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
             [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
           done
-          # SSH_AUTH_METHOD=key면 SSH_KEY, 아니면 SERVER_PASSWORD가 필요하다
+          # SSH_AUTH_METHOD=key needs SSH_KEY, anything else needs SERVER_PASSWORD
           if [ "${SSH_AUTH_METHOD:-password}" = "key" ]; then
             [ -n "$SSH_KEY" ] || MISSING="$MISSING SSH_KEY"
           else
@@ -144,50 +145,51 @@ jobs:
           fi
           FAILED=false
           if [ -n "$MISSING" ]; then
-            echo "::error title=필수 Secret 누락::등록되지 않은 GitHub Secret:$MISSING — Settings → Secrets and variables → Actions에서 등록하세요"
+            echo "::error title=$(m cicd.precheck_secret_title)::$(m cicd.precheck_secret_body missing="$MISSING")"
             FAILED=true
           fi
           if [ ! -f "$DOCKERFILE" ]; then
-            echo "::error title=Dockerfile 없음::${PROJECT_PATH}/${DOCKERFILE#./} 파일이 없습니다. 이 워크플로우는 Docker 이미지로 배포하므로 Dockerfile이 필요합니다 (서버 배포를 하지 않는다면 이 워크플로우 파일을 삭제하세요)"
+            echo "::error title=$(m cicd.precheck_dockerfile_title)::$(m cicd.precheck_dockerfile_body path="${PROJECT_PATH}/${DOCKERFILE#./}")"
             FAILED=true
           fi
           if [ "$FAILED" = "true" ]; then
             exit 1
           fi
-          echo "✅ 사전 점검 통과: 필수 Secret과 Dockerfile이 모두 있습니다"
+          m cicd.precheck_ok
 
-      - name: Java 설정
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Gradle Wrapper 실행권한 부여
+      - name: Make Gradle wrapper executable
         working-directory: ${{ env.PROJECT_PATH }}
         run: chmod +x gradlew
 
-      # GitHub Secrets에서 APPLICATION_PROD_YML 값을 읽어와서
-      # 리소스 디렉토리에 파일로 생성
-      - name: application-prod.yml 생성
+      # Read APPLICATION_PROD_YML from GitHub Secrets and
+      # write it to a file in the resources directory
+      - name: Generate application-prod.yml
         run: |
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           mkdir -p ${{ env.APPLICATION_YML_DIR }}
 
           cat << 'EOF' > ./${{ env.APPLICATION_YML_DIR }}/application-prod.yml
           ${{ secrets.APPLICATION_PROD_YML }}
           EOF
 
-          echo "✅ application-prod.yml 파일 생성 완료 (${{ env.APPLICATION_YML_DIR }})"
+          m wf_spring_deploy.prod_yml_created dir="${{ env.APPLICATION_YML_DIR }}"
 
-      # 테스트는 제외하고 운영 프로파일로 빌드
+      # Build with the production profile, skipping tests
       - name: Build with Gradle
         working-directory: ${{ env.PROJECT_PATH }}
         run: ./gradlew clean build -x test ${{ env.GRADLE_OPTS }}
 
-      - name: Docker 빌드환경 설정
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: DockerHub 로그인
+      - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -201,8 +203,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # 브랜치명을 태그로 사용하여 환경별로 이미지 관리
-      - name: Docker 이미지 빌드 및 푸시
+      # Use the branch name as the image tag to manage images per environment
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ${{ env.PROJECT_PATH }}
@@ -217,96 +219,125 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-  # 배포 작업
+  # Deploy job
   deploy:
-    name: 원격 서버 배포
+    name: Deploy to remote server
     needs: build
     runs-on: ubuntu-latest
 
     steps:
+      # The deploy script runs on the server, which has no messages.py:
+      # render the message catalog here and pass it along as a base64 env var
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Load messages
+        run: |
+          MSGS="$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_deploy. \
+            | python3 -c 'import json, shlex, sys; d = json.load(sys.stdin); print("\n".join("M_%s=%s" % (k.replace(".", "_"), shlex.quote(v)) for k, v in d.items()))' \
+            | base64 | tr -d '\n')"
+          echo "PAW_MSG_B64=$MSGS" >> "$GITHUB_ENV"
+
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
           SSH_AUTH_METHOD: ${{ env.SSH_AUTH_METHOD }}
+          PAW_MSG_B64: ${{ env.PAW_MSG_B64 }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ env.SSH_PORT }}
-          envs: SSH_AUTH_METHOD
+          envs: SSH_AUTH_METHOD,PAW_MSG_B64
           script: |
             set -e
 
-            # 배포 환경 변수 설정
-            echo "🔧 환경변수 설정.."
+            # Deployment environment
             export PATH=$PATH:/usr/local/bin
             export PW=${{ secrets.SERVER_PASSWORD }}
 
-            # SSH 인증 방식에 따른 sudo 추상화
-            #   password 모드: echo $PW | sudo -S  (Synology 등 sudo 비밀번호 필요 서버)
-            #   key 모드: sudo 직접  (AWS EC2 등 passwordless sudo 서버)
+            # Messages arrive as base64 shell assignments (the server has no messages.py)
+            eval "$(printf '%s' "$PAW_MSG_B64" | base64 -d)"
+            m() {
+              local _v="M_wf_spring_deploy_$1" _kv
+              local _s="${!_v}"
+              shift
+              for _kv in "$@"; do _s=${_s//\{${_kv%%=*}\}/${_kv#*=}}; done
+              printf '%s\n' "$_s"
+            }
+
+            m simple_env_setup
+
+            # Abstract sudo by SSH auth method
+            #   password mode: echo $PW | sudo -S  (servers that need a sudo password, e.g. Synology)
+            #   key mode: plain sudo  (passwordless sudo servers, e.g. AWS EC2)
             SSH_AUTH_METHOD="${SSH_AUTH_METHOD:-password}"
             if [ "${SSH_AUTH_METHOD}" = "key" ]; then
               SUDO() { sudo "$@"; }
             else
               SUDO() { echo "$PW" | sudo -S "$@"; }
             fi
-            echo "🔐 SSH 인증 방식: ${SSH_AUTH_METHOD}"
+            m ssh_auth_method method="${SSH_AUTH_METHOD}"
 
             BRANCH=${{ github.ref_name }}
 
             PROJECT_NAME="${{ env.PROJECT_PATH != '.' && format('{0}-spring', env.PROJECT_NAME) || env.PROJECT_NAME }}"
 
-            # 포트 및 컨테이너명 설정
+            # Port and container name
             PORT=${{ env.DEPLOY_PORT }}
 
-            # 컨테이너 이름 설정 (환경변수가 비어있으면 PROJECT_NAME을 기본값으로 사용)
+            # Container name (defaults to PROJECT_NAME when the env var is empty)
             if [ -z "${{ env.CONTAINER_NAME }}" ]; then
               CONTAINER_NAME="${PROJECT_NAME}"
-              echo "ℹ️ CONTAINER_NAME이 설정되지 않아 PROJECT_NAME을 사용합니다: $CONTAINER_NAME"
+              m simple_container_name_default name="$CONTAINER_NAME"
             else
               CONTAINER_NAME="${{ env.CONTAINER_NAME }}"
-              echo "ℹ️ 사용자 지정 CONTAINER_NAME 사용: $CONTAINER_NAME"
+              m simple_container_name_custom name="$CONTAINER_NAME"
             fi
 
-            echo "🚀 배포 환경으로 배포합니다 (브랜치: $BRANCH)"
+            m simple_deploy_start branch="$BRANCH"
 
-            echo "📋 배포 설정 정보:"
-            echo "  - 브랜치: $BRANCH"
-            echo "  - 프로젝트: $PROJECT_NAME"
-            echo "  - 컨테이너 이름: $CONTAINER_NAME"
-            echo "  - 포트: $PORT"
-            echo "  - Docker 이미지: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+            m simple_config_header
+            m simple_config_branch branch="$BRANCH"
+            m simple_config_project name="$PROJECT_NAME"
+            m simple_config_container name="$CONTAINER_NAME"
+            m simple_config_port port="$PORT"
+            m simple_config_image image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
 
-            # Docker 이미지 풀 (Pull)
-            echo "⬇️ Docker 이미지 풀: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+            # Pull the Docker image
+            m simple_image_pull image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
             SUDO docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}
 
-            # 기존 컨테이너 정리
-            echo "🧹 컨테이너 $CONTAINER_NAME 존재 여부 확인 중..."
+            # Clean up the existing container
+            m simple_container_check name="$CONTAINER_NAME"
 
             if SUDO docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
-              echo "⚠️ 컨테이너 $CONTAINER_NAME 이(가) 존재합니다. 중지 및 삭제 중..."
+              m simple_container_exists name="$CONTAINER_NAME"
               SUDO docker rm -f $CONTAINER_NAME
-              echo "✅ 컨테이너 $CONTAINER_NAME 이(가) 삭제되었습니다."
+              m simple_container_removed name="$CONTAINER_NAME"
             else
-              echo "ℹ️ 존재하는 컨테이너 $CONTAINER_NAME 이(가) 없습니다."
+              m simple_container_missing name="$CONTAINER_NAME"
             fi
 
-            # 새 컨테이너 실행
-            echo "🚀 새로운 컨테이너 $CONTAINER_NAME 실행 중..."
+            # Run the new container
+            m simple_container_starting name="$CONTAINER_NAME"
 
             VOLUME_MOUNT_OPTION=""
             if [ "${{ env.ENABLE_VOLUME_MOUNT }}" == "true" ]; then
               if [ ! -d "${{ env.VOLUME_HOST_PATH }}" ]; then
-                echo "📁 볼륨 마운트 디렉토리 생성: ${{ env.VOLUME_HOST_PATH }}"
+                m volume_mkdir path="${{ env.VOLUME_HOST_PATH }}"
                 SUDO mkdir -p "${{ env.VOLUME_HOST_PATH }}"
               fi
               VOLUME_MOUNT_OPTION="-v ${{ env.VOLUME_HOST_PATH }}:${{ env.VOLUME_CONTAINER_PATH }}"
-              echo "📦 볼륨 마운트 활성화: $VOLUME_MOUNT_OPTION"
+              m simple_volume_enabled option="$VOLUME_MOUNT_OPTION"
             else
-              echo "ℹ️ 볼륨 마운트 비활성화됨"
+              m volume_disabled
             fi
 
             SUDO docker run -d \
@@ -318,91 +349,91 @@ jobs:
               $VOLUME_MOUNT_OPTION \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}
 
-            # 컨테이너 헬스체크
-            echo "⏳ 컨테이너 초기화 대기 중... (${{ env.HEALTHCHECK_WAIT_SECONDS }}초)"
+            # Container health check
+            m simple_init_wait sec="${{ env.HEALTHCHECK_WAIT_SECONDS }}"
             sleep ${{ env.HEALTHCHECK_WAIT_SECONDS }}
 
-            # 1단계: 컨테이너 프로세스 확인
-            echo "🏥 컨테이너 헬스체크 중..."
+            # Step 1: check the container process
+            m simple_hc_check
             if ! SUDO docker ps --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
-              echo "❌ 컨테이너 $CONTAINER_NAME 프로세스가 실행되지 않았습니다"
+              m simple_hc_process_missing name="$CONTAINER_NAME"
               SUDO docker logs --tail 50 $CONTAINER_NAME || true
               exit 1
             fi
-            echo "✅ 컨테이너 프로세스 실행 확인 완료"
+            m simple_hc_process_ok
 
-            # 2단계: HTTP 엔드포인트 체크 (설정된 경우)
+            # Step 2: check the HTTP endpoint (if configured)
             HEALTHCHECK_SUCCESS=false
             if [ -n "${{ env.HEALTHCHECK_PATH }}" ]; then
-              echo "🌐 HTTP 헬스체크 시작: http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }}"
+              m simple_http_start url="http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }}"
 
               for i in $(seq 1 ${{ env.HEALTHCHECK_MAX_RETRIES }}); do
-                echo "  시도 $i/${{ env.HEALTHCHECK_MAX_RETRIES }}..."
+                m simple_http_attempt i="$i" max="${{ env.HEALTHCHECK_MAX_RETRIES }}"
 
                 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${PORT}${{ env.HEALTHCHECK_PATH }} || echo "000")
 
                 if [ "$HTTP_CODE" = "200" ]; then
-                  echo "✅ HTTP 헬스체크 성공 (응답 코드: $HTTP_CODE)"
+                  m simple_http_ok code="$HTTP_CODE"
                   HEALTHCHECK_SUCCESS=true
                   break
                 else
-                  echo "⚠️ HTTP 헬스체크 실패 (응답 코드: $HTTP_CODE)"
+                  m simple_http_fail code="$HTTP_CODE"
                   if [ $i -lt ${{ env.HEALTHCHECK_MAX_RETRIES }} ]; then
-                    echo "  ${{ env.HEALTHCHECK_RETRY_INTERVAL }}초 후 재시도..."
+                    m simple_http_retry sec="${{ env.HEALTHCHECK_RETRY_INTERVAL }}"
                     sleep ${{ env.HEALTHCHECK_RETRY_INTERVAL }}
                   fi
                 fi
               done
 
-              # HTTP 체크 실패 시 fallback으로 로그 패턴 매칭
+              # If the HTTP check fails, fall back to log pattern matching
               if [ "$HEALTHCHECK_SUCCESS" = "false" ]; then
-                echo "⚠️ HTTP 헬스체크 최종 실패, 로그 패턴 매칭으로 fallback..."
+                m simple_http_fallback
               fi
             else
-              echo "ℹ️ HEALTHCHECK_PATH가 설정되지 않아 로그 패턴 매칭만 사용합니다"
+              m simple_hc_path_unset
             fi
 
-            # 3단계: 로그 패턴 매칭 (HTTP 실패 시 또는 HTTP 체크 비활성화 시)
+            # Step 3: log pattern matching (when the HTTP check failed or is disabled)
             if [ "$HEALTHCHECK_SUCCESS" = "false" ]; then
-              echo "📋 로그 패턴 매칭 시작: '${{ env.HEALTHCHECK_LOG_PATTERN }}'"
+              m simple_log_match_start pattern="${{ env.HEALTHCHECK_LOG_PATTERN }}"
 
               if SUDO docker logs $CONTAINER_NAME 2>&1 | grep -q "${{ env.HEALTHCHECK_LOG_PATTERN }}"; then
-                echo "✅ 로그 패턴 매칭 성공: 애플리케이션이 정상적으로 시작되었습니다"
+                m simple_log_match_ok
                 HEALTHCHECK_SUCCESS=true
               else
-                echo "❌ 로그 패턴 매칭 실패: 애플리케이션 시작 로그를 찾을 수 없습니다"
+                m simple_log_match_fail
                 echo ""
-                echo "📋 디버깅 정보:"
-                echo "  - 검색 패턴: ${{ env.HEALTHCHECK_LOG_PATTERN }}"
-                echo "  - 컨테이너: $CONTAINER_NAME"
-                echo "  - 이미지: ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
-                echo "  - 포트: ${PORT}:${{ env.CONTAINER_INTERNAL_PORT }}"
-                echo "  - 볼륨: $VOLUME_MOUNT_OPTION"
-                echo "  - 프로파일: ${{ env.SPRING_PROFILE }}"
+                m simple_debug_header
+                m simple_debug_pattern pattern="${{ env.HEALTHCHECK_LOG_PATTERN }}"
+                m simple_debug_container name="$CONTAINER_NAME"
+                m simple_debug_image image="${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}"
+                m simple_debug_port port="${PORT}:${{ env.CONTAINER_INTERNAL_PORT }}"
+                m simple_debug_volume volume="$VOLUME_MOUNT_OPTION"
+                m simple_debug_profile profile="${{ env.SPRING_PROFILE }}"
                 echo ""
-                echo "📋 컨테이너 로그 (최근 50줄):"
+                m simple_logs_tail
                 SUDO docker logs --tail 50 $CONTAINER_NAME || true
                 exit 1
               fi
             fi
 
             if [ "$HEALTHCHECK_SUCCESS" = "true" ]; then
-              echo "✅ 헬스체크 완료: 컨테이너 $CONTAINER_NAME 이(가) 정상적으로 실행 중입니다"
+              m simple_hc_done name="$CONTAINER_NAME"
             fi
 
-            # 배포 완료 확인
-            echo "✅ 배포가 성공적으로 완료되었습니다!"
+            # Confirm the deploy finished
+            m simple_deploy_done
             echo ""
-            echo "📋 배포 결과 요약:"
-            echo "  🎯 프로젝트: $PROJECT_NAME"
-            echo "  🌿 브랜치: $BRANCH"
-            echo "  🐳 컨테이너: $CONTAINER_NAME"
-            echo "  🌐 포트: $PORT"
-            echo "  ⏰ 배포 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+            m simple_summary_header
+            m simple_summary_project name="$PROJECT_NAME"
+            m simple_summary_branch branch="$BRANCH"
+            m simple_summary_container name="$CONTAINER_NAME"
+            m simple_summary_port port="$PORT"
+            m simple_summary_time time="$(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
-            echo "🔗 접속 URL: http://${{ secrets.SERVER_HOST }}:${PORT}"
+            m simple_access_url url="http://${{ secrets.SERVER_HOST }}:${PORT}"
 
-# 사용 방법
-# 1. GitHub Secrets 설정 (DOCKERHUB_*, SERVER_*)
-# 2. env 섹션에서 PROJECT_NAME, DEPLOY_PORT 설정
-# 3. deploy 브랜치에 push → 자동 CI/CD 실행
+# Usage
+# 1. Set up GitHub Secrets (DOCKERHUB_*, SERVER_*)
+# 2. Set PROJECT_NAME and DEPLOY_PORT in the env section
+# 3. Push to the deploy branch -> CI/CD runs automatically

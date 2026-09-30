@@ -1,36 +1,36 @@
 # project-auto-wizard:managed-workflow
-# Python 빌드 검증 워크플로우 (CI Only)
-# - {{DEVELOP_BRANCH}} 브랜치 push/PR 시 의존성 설치 → pytest → (Dockerfile이 있으면) Docker 빌드로 검증
-# - 의존성: requirements.txt가 있으면 그것을, 없으면 pyproject.toml/setup.py로 `pip install .`
-# - 테스트: tests/·test/ 폴더나 test_*.py·*_test.py가 있을 때만 pytest 실행 (없으면 건너뜀)
-# - Dockerfile이 없어도 실패하지 않는다 (Docker 빌드 검증만 건너뜀)
-# - 배포는 수행하지 않음 ({{MAIN_BRANCH}} 브랜치에서만 배포)
+# Python build verification workflow (CI only)
+# - On push/PR to the {{DEVELOP_BRANCH}} branch: install dependencies -> pytest -> Docker build (if a Dockerfile exists)
+# - Dependencies: requirements.txt if present, otherwise `pip install .` from pyproject.toml/setup.py
+# - Tests: pytest runs only when a tests/ or test/ folder or test_*.py / *_test.py files exist (skipped otherwise)
+# - A missing Dockerfile does not fail the run (only the Docker build verification is skipped)
+# - Does not deploy (deployment happens only on the {{MAIN_BRANCH}} branch)
 #
 # GitHub Secrets
-# - ENV_FILE (선택): .env 파일 내용 — 없으면 빈 .env로 검증합니다
+# - ENV_FILE (선택): contents of the .env file — verified with an empty .env when missing
 
 name: PROJECT-PYTHON-CI
 
 on:
   push:
     branches:
-      - "{{DEVELOP_BRANCH}}"  # {{DEVELOP_BRANCH}} 브랜치 push 시 빌드 검증
+      - "{{DEVELOP_BRANCH}}"  # build verification on push to the {{DEVELOP_BRANCH}} branch
   pull_request:
     branches:
-      - "{{DEVELOP_BRANCH}}"  # {{DEVELOP_BRANCH}} 브랜치로의 PR 시 빌드 검증
-  workflow_dispatch:  # 수동 실행 허용
+      - "{{DEVELOP_BRANCH}}"  # build verification on PRs to the {{DEVELOP_BRANCH}} branch
+  workflow_dispatch:  # allow manual runs
 
 env:
-  # 프로젝트 고유 식별자 (컨테이너명, 이미지명, 도메인에 사용)
+  # Unique project identifier (used for container, image and domain names)
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
-  # 모노레포에서 이 프로젝트가 있는 하위 경로 ('.'이면 항상 검증)
+  # Subdirectory of this project in a monorepo ('.' means always verify)
   PROJECT_PATH: "."  # @wizard auto:project-path
-  # 테스트·의존성 설치에 쓸 Python 버전
+  # Python version used for tests and dependency install
   PYTHON_VERSION: "3.12"
 
 jobs:
   changes:
-    name: 변경 감지
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,124 +41,139 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: 프로젝트 경로 변경 여부 판별
+      - name: Check whether the project path changed
         id: filter
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: dorny/paths-filter@v4
         with:
-          # push는 이번 push 범위(직전 커밋 before 대비)만 본다. 비워 두면 기본 브랜치 대비 누적 diff가 된다.
-          # 새 브랜치 첫 push(before가 0)와 PR은 빈 값 → 기본 동작(기본 브랜치·PR base 대비)
+          # A push only looks at this push's range (against the previous commit, 'before'). Left empty it would be the cumulative diff against the default branch.
+          # The first push of a new branch (before is 0) and PRs get an empty value -> default behavior (against the default branch / PR base)
           base: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           filters: |
             project:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
 
   build-check:
-    name: Python 빌드 검증
+    name: Python build verification
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
-    # 모노레포(--paths)면 그 하위 폴더에서 빌드한다
+    # In a monorepo (--paths), build inside that subfolder
     defaults:
       run:
         working-directory: ${{ env.PROJECT_PATH }}
 
     steps:
-      - name: 코드 체크아웃
+      - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: .env 파일 생성
+      - name: Create .env file
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
           EOF
-          echo "✅ .env 파일이 생성되었습니다"
+          m cicd.dotenv_created
 
-      - name: Python 설정
+      - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 의존성 설치
+      - name: Install dependencies
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           elif [ -f pyproject.toml ] || [ -f setup.py ]; then
             pip install .
           else
-            echo "::notice::requirements.txt·pyproject.toml·setup.py가 없어 의존성 설치를 건너뜁니다"
+            m cibuild.py_no_deps
           fi
-          # 개발용 의존성은 있으면 함께 설치 (pytest 등)
+          # Also install dev dependencies when present (pytest, etc.)
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
-      # 테스트가 없는 프로젝트는 실패가 아니라 건너뜀으로 처리한다
-      - name: 테스트 실행 (pytest)
+      # Projects without tests are skipped rather than failed
+      - name: Run tests (pytest)
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -d tests ] || [ -d test ] || [ -n "$(find . \( -path ./.venv -o -path ./venv -o -path ./node_modules -o -path ./.git \) -prune -o \( -name 'test_*.py' -o -name '*_test.py' \) -type f -print -quit)" ]; then
             python -m pytest --version > /dev/null 2>&1 || pip install pytest
             set +e
             python -m pytest
             code=$?
             set -e
-            # 5 = 수집된 테스트 없음 → 실패로 보지 않는다
+            # 5 = no tests collected -> not treated as a failure
             if [ "$code" -eq 5 ]; then
-              echo "::notice::수집된 테스트가 없어 pytest를 건너뜁니다"
+              m cibuild.py_no_tests_collected
               exit 0
             fi
             exit "$code"
           else
-            echo "::notice::테스트 파일(tests/, test_*.py 등)이 없어 pytest를 건너뜁니다"
+            m cibuild.py_no_test_files
           fi
 
-      - name: Dockerfile 확인
+      - name: Check for Dockerfile
         id: dockerfile
         run: |
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -f Dockerfile ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ env.PROJECT_PATH }}/Dockerfile이 없어 Docker 빌드 검증을 건너뜁니다"
+            m cibuild.py_no_dockerfile path="${{ env.PROJECT_PATH }}"
           fi
 
-      - name: Docker 빌드환경 설정
+      - name: Set up Docker Buildx
         if: steps.dockerfile.outputs.exists == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Docker 이미지 빌드 검증
+      - name: Verify Docker image build
         if: steps.dockerfile.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/Dockerfile
-          push: false  # 푸시하지 않음 (빌드 검증만)
+          push: false  # do not push (build verification only)
           tags: ${{ env.PROJECT_NAME }}:build-check
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: 빌드 검증 완료
+      - name: Build verification complete
         run: |
-          echo "✅ Python 빌드 검증이 성공적으로 완료되었습니다!"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cibuild.python_done
           echo ""
-          echo "📋 빌드 정보:"
-          echo "  🎯 프로젝트: ${{ env.PROJECT_NAME }}"
-          echo "  🌿 브랜치: ${{ github.ref_name }}"
-          echo "  📝 커밋: ${{ github.sha }}"
-          echo "  ⏰ 검증 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+          m cibuild.info_title
+          m cibuild.info_project project="${{ env.PROJECT_NAME }}"
+          m cibuild.info_branch branch="${{ github.ref_name }}"
+          m cibuild.info_commit sha="${{ github.sha }}"
+          m cibuild.info_time time="$(date '+%Y-%m-%d %H:%M:%S')"
 
-  # CI Gate: required check로 등록할 단일 job
+  # CI Gate: the single job to register as a required check
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
     needs: [changes, build-check]
     runs-on: ubuntu-latest
     steps:
-      - name: 결과 집계
+      # Only the message catalog is needed here, so check out just that
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Aggregate results
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          echo "needs 결과: $RESULTS"
+          m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
+          m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
-            echo "실패하거나 취소된 job이 있습니다."
+            m cibuild.gate_failed
             exit 1
           fi

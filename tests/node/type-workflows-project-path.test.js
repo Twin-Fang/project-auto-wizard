@@ -74,10 +74,10 @@ test("React·Next CICD build job은 PROJECT_PATH를 작업 디렉터리로 쓴�
 
 test("Spring 배포 워크플로우의 Gradle 스텝은 PROJECT_PATH에서 실행된다", () => {
   const cases = [
-    ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", ["Gradle Wrapper 실행권한 부여", "Build with Gradle"]],
-    ["spring/server-deploy/PROJECT-SPRING-PR-PREVIEW.yaml", ["Gradle 권한 설정", "Gradle 빌드"]],
+    ["spring/server-deploy/PROJECT-SPRING-SIMPLE-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml", ["Make Gradle wrapper executable", "Build with Gradle"]],
+    ["spring/server-deploy/PROJECT-SPRING-PR-PREVIEW.yaml", ["Set Gradle permissions", "Gradle build"]],
   ];
   for (const [file, names] of cases) {
     const text = read(file);
@@ -91,10 +91,10 @@ test("Spring 배포 워크플로우의 Gradle 스텝은 PROJECT_PATH에서 실�
 
 test("Go·Python 배포/프리뷰의 .env는 PROJECT_PATH 안에 만든다 (Docker context에 포함돼야 한다)", () => {
   const cases = [
-    ["go/PROJECT-GO-SIMPLE-CICD.yaml", ".env 파일 생성"],
-    ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", ".env 파일 생성"],
-    ["go/PROJECT-GO-PR-PREVIEW.yaml", '"[필수] .env 파일 생성"'],
-    ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", '"[필수] .env 파일 생성"'],
+    ["go/PROJECT-GO-SIMPLE-CICD.yaml", "Create .env file"],
+    ["python/PROJECT-PYTHON-SIMPLE-CICD.yaml", "Create .env file"],
+    ["go/PROJECT-GO-PR-PREVIEW.yaml", '"[Required] Create .env file"'],
+    ["python/PROJECT-PYTHON-PR-PREVIEW.yaml", '"[Required] Create .env file"'],
   ];
   for (const [file, name] of cases) {
     const blocks = stepBlocks(read(file), name);

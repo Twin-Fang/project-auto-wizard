@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const WORKFLOWS_DIR = fileURLToPath(new URL("../../payload/workflows", import.meta.url));
-const STEP = "- name: 배포 사전 점검 (Secret·Dockerfile)";
+const STEP = "- name: Deploy pre-check (Secrets and Dockerfile)";
 
 // [파일, 빌드 job 수, SSH_AUTH_METHOD 지원 여부]
 const CASES = [
@@ -44,8 +44,10 @@ for (const [file, count, sshAware] of CASES) {
       assert.ok(block.includes(`${name}: \${{ secrets.${name} }}`), `${name} 점검 누락`);
     }
     if (sshAware) assert.ok(block.includes("SSH_KEY: ${{ secrets.SSH_KEY }}"), "SSH_KEY 점검 누락");
-    assert.match(block, /::error title=필수 Secret 누락::/);
-    assert.match(block, /::error title=Dockerfile 없음::/);
+    // The messages come from the catalog (cicd.precheck_*), so assert the annotations and the catalog keys
+    assert.strictEqual((block.match(/::error title=/g) || []).length, 2, "missing-Secret and missing-Dockerfile errors");
+    assert.match(block, /precheck_secret_title/);
+    assert.match(block, /precheck_dockerfile_title/);
     assert.match(block, /working-directory: \$\{\{ env\.PROJECT_PATH \}\}/);
     assert.match(block, /exit 1/);
   });
