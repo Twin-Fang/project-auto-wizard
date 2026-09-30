@@ -67,7 +67,7 @@ test("resolveProjectPaths: rejects with CliError when there are 0 path candidate
     // pubspec.yaml exists but lib/ does not, so it is filtered out of the flutter candidates → 0 candidates
     mkdirSync(join(root, "app"));
     writeFileSync(join(root, "app", "pubspec.yaml"), "name: demo\n");
-    // Check the "찾지 못했습니다" message, not just the type, to verify this branch is not
+    // Check the "not found" message, not just the type, to verify this branch is not
     // mixed up with the 2+ (ambiguous) branch (checking only the error type would pass even if both branch messages were swapped).
     await assert.rejects(
       () => resolveProjectPaths({
@@ -88,7 +88,7 @@ test("resolveProjectPaths: rejects with CliError when there are 2+ path candidat
     writeFileSync(join(root, "client", "package.json"), "{}\n");
     mkdirSync(join(root, "admin"));
     writeFileSync(join(root, "admin", "package.json"), "{}\n");
-    // Check that the "모호합니다" message and the candidate list (admin, client) are included, to verify
+    // Check that the "ambiguous" message and the candidate list (admin, client) are included, to verify
     // it is not mixed up with the 0-candidate (detection failed) branch.
     await assert.rejects(
       () => resolveProjectPaths({

@@ -38,7 +38,7 @@ class TestTruncateReleaseNotes(unittest.TestCase):
         self.assertEqual(self.path.read_text(encoding="utf-8"), "hello")
 
     def test_byte_mode_truncates_without_splitting_multibyte(self):
-        # "가" is 3 bytes in UTF-8 — even when cutting at limit=16 (not a multiple of 3)
+        # A Hangul syllable is 3 bytes in UTF-8 — even when cutting at limit=16 (not a multiple of 3)
         # the result must consist of whole characters only and be valid UTF-8.
         self.write("가" * 10)  # 30 bytes
         r = run([str(self.path), "16", "byte"])

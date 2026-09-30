@@ -102,6 +102,7 @@ function collectLines(name) {
 }
 
 for (const name of COLLECTORS) {
+  // Commit text is non-ASCII (escaped) on purpose: the collection step must keep UTF-8 subjects intact
   test(`${name}: collects commit subjects plus only the BREAKING CHANGE footer from bodies`, () => {
     const lines = collectLines(name);
     assert.ok(lines.some((l) => l.startsWith("git log --pretty=%s") && l.includes("> commits.txt")), "missing subject collection line");
@@ -142,13 +143,13 @@ test("feeding the collected output to classify-bump makes a body-footer commit m
     git("init", "-q");
     git("commit", "-q", "--allow-empty", "-m", "chore: init");
     git("branch", "base");
-    git("commit", "-q", "--allow-empty", "-m", "fix: resolve login error", "-m", "one line explaining the cause");
-    git("commit", "-q", "--allow-empty", "-m", "feat: replace auth API", "-m", "BREAKING CHANGE: token format changes");
+    git("commit", "-q", "--allow-empty", "-m", "fix: \ub85c\uadf8\uc778 \uc624\ub958 \uc218\uc815", "-m", "\uc6d0\uc778 \uc124\uba85 \ud55c \uc904");
+    git("commit", "-q", "--allow-empty", "-m", "feat: \uc778\uc99d API \uad50\uccb4", "-m", "BREAKING CHANGE: \ud1a0\ud070 \ud615\uc2dd\uc774 \ubc14\ub01d\ub2c8\ub2e4");
     const snippet = collectLines("AUTO-CHANGELOG-CONTROL").map((l) => l.replaceAll("origin/{{MAIN_BRANCH}}", "base")).join("\n");
     const r = spawnSync("bash", ["-e", "-c", snippet], { cwd: dir, encoding: "utf-8", env });
     assert.strictEqual(r.status, 0, r.stderr);
     const collected = readFileSync(join(dir, "commits.txt"), "utf-8").split("\n").filter(Boolean);
-    assert.deepStrictEqual(collected, ["feat: replace auth API", "fix: resolve login error", "BREAKING CHANGE: token format changes"]);
+    assert.deepStrictEqual(collected, ["feat: \uc778\uc99d API \uad50\uccb4", "fix: \ub85c\uadf8\uc778 \uc624\ub958 \uc218\uc815", "BREAKING CHANGE: \ud1a0\ud070 \ud615\uc2dd\uc774 \ubc14\ub01d\ub2c8\ub2e4"]);
 
     const bump = spawnSync(python, [scriptPath, "classify-bump", "--commits-file", "commits.txt"], {
       cwd: dir, encoding: "utf-8", env: { ...env, AI_API_KEY: "", COPILOT_AI: "false" },
