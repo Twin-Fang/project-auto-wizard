@@ -79,10 +79,10 @@ jobs:
       - name: Run go test
         run: go test ./...
 
-      # golangci-lint-action v8 requires golangci-lint v2; if .golangci.yml is in the v1 format
+      # golangci-lint-action v7+ requires golangci-lint v2; if .golangci.yml is in the v1 format
       # the project has to adjust it. version: latest picks up the newest v2 patch automatically
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           working-directory: ${{ env.PROJECT_PATH }}

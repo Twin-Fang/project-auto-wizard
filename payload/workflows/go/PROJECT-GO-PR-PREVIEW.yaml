@@ -357,16 +357,16 @@ jobs:
       # [End of section 2] Create the environment file
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -1082,18 +1082,18 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build & push Docker image
         if: steps.check_branch.outputs.exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
@@ -2092,14 +2092,14 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Resolve container name
         if: steps.branch_info.outputs.branch_exists == 'true'
@@ -2115,7 +2115,7 @@ jobs:
 
       - name: Build & push Docker image
         if: steps.branch_info.outputs.branch_exists == 'true'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ env.PROJECT_PATH }}
           file: ${{ env.PROJECT_PATH }}/${{ env.DOCKERFILE_PATH }}
