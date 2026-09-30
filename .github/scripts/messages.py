@@ -2734,7 +2734,7 @@ KO = {
     "wf_flutter.release_notes_heading": "📝 릴리스 노트:",
     "wf_flutter.working_dir": "🔧 작업 디렉터리: {dir}",
     "wf_flutter.run_number": "🔍 GitHub 실행 번호: {number}",
-    "wf_flutter.github_sha": "🔍 GitHub SHA: {sha}",
+    "wf_flutter.github_sha": "🔍 커밋 SHA: {sha}",
     "wf_flutter.ci_analyze_only": "  분석 전용: {value}",
 }
 
