@@ -74,7 +74,7 @@ function unlangDumps(script) {
 
 const all = [];
 for (const file of FILES) {
-  const text = readFileSync(file, "utf8");
+  const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   if (!text.includes(".paw-msg")) continue;
   const steps = pawMsgSteps(text);
   test(`${file.slice(ROOT.length)}: has .paw-msg Load messages steps`, () => {
@@ -100,7 +100,8 @@ function runStep(script, language) {
     writeFileSync(join(ws, ".paw-msg/version.yml"), `language: "${language}"\n`);
     const envFile = join(dir, "github_env");
     writeFileSync(envFile, "");
-    const env = { ...process.env, GITHUB_WORKSPACE: ws, RUNNER_TEMP: temp, GITHUB_ENV: envFile };
+    // Windows defaults python to a legacy code page; messages.py output and subprocess text are UTF-8
+    const env = { ...process.env, GITHUB_WORKSPACE: ws, RUNNER_TEMP: temp, GITHUB_ENV: envFile, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
     delete env.PROJECT_AUTO_WIZARD_LANG;
     const r = spawnSync("bash", ["-eo", "pipefail", "-c", script], { cwd: ws, env, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);

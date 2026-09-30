@@ -44,7 +44,7 @@ function jobs(text) {
 const COND = "steps.load_messages.outcome == 'success'";
 
 for (const file of FILES) {
-  const text = readFileSync(file, "utf8");
+  const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   if (!text.includes("Load messages")) continue;
   test(`${file.slice(ROOT.length)}: always()/failure() steps that read PAW_MSG are skipped when Load messages failed`, () => {
     const bad = [];
@@ -65,12 +65,12 @@ for (const file of FILES) {
 
 test("Load messages conditions are actually applied (at least the Spring CI, Flutter CI and preview steps)", () => {
   for (const f of ["payload/workflows/spring/PROJECT-SPRING-CI.yml", "payload/workflows/flutter/PROJECT-FLUTTER-CI.yaml", "payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml"]) {
-    assert.ok(readFileSync(join(ROOT, f), "utf8").includes(COND), f);
+    assert.ok(readFileSync(join(ROOT, f), "utf8").replace(/\r\n/g, "\n").includes(COND), f);
   }
 });
 
 // Spring CI report: run the step's shell with given gradle exit codes
-const spring = readFileSync(join(ROOT, "payload/workflows/spring/PROJECT-SPRING-CI.yml"), "utf8");
+const spring = readFileSync(join(ROOT, "payload/workflows/spring/PROJECT-SPRING-CI.yml"), "utf8").replace(/\r\n/g, "\n");
 function reportScript() {
   const s = jobs(spring).flatMap((j) => j.steps).find((st) => /- name: Generate Build Report/.test(st.text));
   const lines = s.text.split("\n");
@@ -92,7 +92,8 @@ function runReport(language, compile, test_, build) {
       .replace("${{ steps.compile.outputs.compile_exit_code }}", compile)
       .replace("${{ steps.test.outputs.test_exit_code }}", test_)
       .replace("${{ steps.build.outputs.build_exit_code }}", build);
-    const env = { ...process.env, GITHUB_WORKSPACE: dir, GITHUB_OUTPUT: out };
+    // Windows defaults python to a legacy code page; messages.py output is UTF-8
+    const env = { ...process.env, GITHUB_WORKSPACE: dir, GITHUB_OUTPUT: out, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
     delete env.PROJECT_AUTO_WIZARD_LANG;
     const r = spawnSync("bash", ["-e", "-c", script], { cwd: dir, env, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
@@ -131,13 +132,13 @@ test("Spring CI report: a step that never produced an exit code is not reported 
 });
 
 test("status_not_run exists in both languages", () => {
-  const m = readFileSync(join(ROOT, "payload/scripts/messages.py"), "utf8");
+  const m = readFileSync(join(ROOT, "payload/scripts/messages.py"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(m.split('"wf_spring_ci.status_not_run"').length - 1, 2);
 });
 
 test("doctor no longer claims that some steps pass without noticing a missing messages.py", () => {
   for (const lang of ["en", "ko"]) {
-    const src = readFileSync(join(ROOT, `src/i18n/catalog/${lang}/commands.js`), "utf8");
+    const src = readFileSync(join(ROOT, `src/i18n/catalog/${lang}/commands.js`), "utf8").replace(/\r\n/g, "\n");
     const line = src.split("\n").find((l) => l.includes('"cmd.doctor.scripts.impact"'));
     assert.ok(line, lang);
     assert.doesNotMatch(line, /without noticing|모른 채|raw python|원시 오류/);
@@ -145,7 +146,7 @@ test("doctor no longer claims that some steps pass without noticing a missing me
 });
 
 test("Go CI only enables the module cache when go.sum exists", () => {
-  const go = readFileSync(join(ROOT, "payload/workflows/go/PROJECT-GO-CI.yaml"), "utf8");
+  const go = readFileSync(join(ROOT, "payload/workflows/go/PROJECT-GO-CI.yaml"), "utf8").replace(/\r\n/g, "\n");
   assert.match(go, /id: gosum/);
   assert.match(go, /cache: \$\{\{ steps\.gosum\.outputs\.exists == 'true' \}\}/);
   assert.doesNotMatch(go, /^\s+cache: true$/m);
