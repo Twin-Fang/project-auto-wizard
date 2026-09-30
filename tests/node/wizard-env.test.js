@@ -72,9 +72,9 @@ test("substituteEnv: ask marker uses provided value when useDefaults=false", () 
 });
 
 test("substituteEnv: __PROJECT_NAME__/__APP_ARTIFACT_NAME__ global tokens replaced with repoName", () => {
-  // substituteEnv는 content에 "@wizard" 문자열이 전혀 없으면 조기 반환하므로(코드 54행),
-  // 전역 토큰만 단독으로 있는 파일에서는 절대 치환되지 않는다 — 최소 1개의 @wizard 마커가
-  // 함께 있는 실제 워크플로우 파일 형태로 테스트해야 한다.
+  // substituteEnv returns early when content has no "@wizard" string at all (code line 54),
+  // so a file with only a global token is never substituted — it must be tested in the shape of a real
+  // workflow file that also has at least one @wizard marker.
   const content = [
     `KEY: "v" # @wizard ask:x`,
     `label: __PROJECT_NAME__`,
@@ -85,7 +85,7 @@ test("substituteEnv: __PROJECT_NAME__/__APP_ARTIFACT_NAME__ global tokens replac
   assert.match(out, /artifact: my-app/);
 });
 
-test("substituteEnv: collectAsks Map stores the repoName-substituted value, not the raw __PROJECT_NAME__ literal (issue #114)", () => {
+test("substituteEnv: collectAsks Map stores the repoName-substituted value, not the raw __PROJECT_NAME__ literal", () => {
   const content = `VOLUME_CONTAINER_PATH: "/mnt/__PROJECT_NAME__" # @wizard ask:/mnt/__PROJECT_NAME__`;
   const collectAsks = new Map();
   substituteEnv(content, { repoName: "my-service", useDefaults: true, collectAsks });
@@ -133,7 +133,7 @@ test("setEnvLine: escapes backslashes so a literal backslash isn't consumed by t
   assert.strictEqual(out, `KEY: "back\\\\slash"`);
 });
 
-test("substituteEnv: an ask value containing double quotes produces valid quoted YAML (issue #20 L9)", () => {
+test("substituteEnv: an ask value containing double quotes produces valid quoted YAML", () => {
   const content = `NAME: "default" # @wizard ask:default`;
   const values = new Map([["NAME", 'a "quoted" value']]);
   const out = substituteEnv(content, { values, useDefaults: false });
@@ -141,54 +141,54 @@ test("substituteEnv: an ask value containing double quotes produces valid quoted
 });
 
 // ── @wizard fallback ─────────────────────────────────
-// 값이 `${{ 런타임값 || 'literal' }}` 표현식인 줄은 setEnvLine의 따옴표 값 치환으로는 다룰 수 없다.
-// 마지막 홑따옴표 리터럴(= 런타임 값이 모두 비었을 때의 기본값)만 바꾼다.
+// A line whose value is a `${{ runtimeValue || 'literal' }}` expression cannot be handled by setEnvLine's quoted-value substitution.
+// Only the last single-quoted literal (= the default when all runtime values are empty) is replaced.
 const FALLBACK_LINE = `  DEPLOY_MODE: \${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_only' }}  # @wizard fallback:android-deploy-mode`;
 
-test("parseWizardLine: fallback 마커를 파싱한다", () => {
+test("parseWizardLine: parses a fallback marker", () => {
   assert.deepStrictEqual(parseWizardLine(FALLBACK_LINE), {
     indent: "  ", key: "DEPLOY_MODE", action: "fallback", arg: "android-deploy-mode",
   });
 });
 
-test("setFallbackLine: 마지막 홑따옴표 리터럴만 교체하고 마커 주석을 제거한다", () => {
+test("setFallbackLine: replaces only the last single-quoted literal and removes the marker comment", () => {
   assert.strictEqual(
     setFallbackLine(FALLBACK_LINE, "store_submit"),
     `  DEPLOY_MODE: \${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_submit' }}`,
   );
 });
 
-test("setFallbackLine: 리터럴이 여러 개면 마지막 것만 바꾼다", () => {
+test("setFallbackLine: with several literals, changes only the last one", () => {
   const line = `  X: \${{ inputs.a == 'x' && 'y' || 'z' }}  # @wizard fallback:t`;
   assert.strictEqual(setFallbackLine(line, "w"), `  X: \${{ inputs.a == 'x' && 'y' || 'w' }}`);
 });
 
-test("setFallbackLine: 값이 빈 문자열이면 줄을 그대로 둔다 (setEnvLine과 같은 규약 — 템플릿 기본값 유지)", () => {
+test("setFallbackLine: an empty value leaves the line as is (same convention as setEnvLine — keeps the template default)", () => {
   assert.strictEqual(setFallbackLine(FALLBACK_LINE, ""), FALLBACK_LINE);
   assert.strictEqual(setFallbackLine(FALLBACK_LINE, undefined), FALLBACK_LINE);
 });
 
-test("setFallbackLine: 새 값이 기존 리터럴과 같아도 마커 주석은 제거한다", () => {
+test("setFallbackLine: removes the marker comment even when the new value equals the existing literal", () => {
   assert.ok(!setFallbackLine(FALLBACK_LINE, "store_only").includes("@wizard"));
 });
 
-test("setFallbackLine: 값 안의 홑따옴표는 표현식 규칙대로 두 개로 이스케이프한다", () => {
+test("setFallbackLine: escapes single quotes in the value as two, per expression rules", () => {
   assert.match(setFallbackLine(FALLBACK_LINE, "a'b"), /\|\| 'a''b' \}\}$/);
 });
 
-test("setFallbackLine: 표현식에 홑따옴표 리터럴이 없으면 줄을 그대로 둔다", () => {
+test("setFallbackLine: leaves the line as is when the expression has no single-quoted literal", () => {
   const line = `  X: \${{ vars.A }}  # @wizard fallback:t`;
   assert.strictEqual(setFallbackLine(line, "v"), line);
 });
 
-test("setFallbackLine: CRLF 줄 끝을 보존한다", () => {
+test("setFallbackLine: preserves CRLF line endings", () => {
   assert.strictEqual(
     setFallbackLine(`${FALLBACK_LINE}\r`, "store_prepare"),
     `  DEPLOY_MODE: \${{ github.event.inputs.deploy_mode || vars.ANDROID_DEPLOY_MODE || 'store_prepare' }}\r`,
   );
 });
 
-test("substituteEnv: fallback 줄은 resolver 값으로 교체되고 auto 줄과 함께 처리된다", () => {
+test("substituteEnv: fallback lines are replaced with the resolver value and handled together with auto lines", () => {
   const content = [
     `env:`,
     `  ENV_MODE: "dart-define"  # @wizard auto:flutter-env-mode`,
@@ -205,12 +205,12 @@ test("substituteEnv: fallback 줄은 resolver 값으로 교체되고 auto 줄과
   ].join("\n"));
 });
 
-test("substituteEnv: resolver가 빈 값을 주면 fallback 줄의 템플릿 기본값이 남는다", () => {
+test("substituteEnv: when the resolver returns an empty value, the fallback line keeps its template default", () => {
   const out = substituteEnv(FALLBACK_LINE, { type: "flutter", resolvers: { "android-deploy-mode": () => "" } });
   assert.strictEqual(out, FALLBACK_LINE);
 });
 
-test("substituteEnv: CRLF 파일의 fallback 줄도 처리하고 EOL을 유지한다", () => {
+test("substituteEnv: also handles fallback lines in CRLF files and keeps the EOL", () => {
   const content = ["env:", FALLBACK_LINE, ""].join("\r\n");
   const out = substituteEnv(content, { type: "flutter", resolvers: { "android-deploy-mode": () => "store_submit" } });
   assert.strictEqual(
@@ -219,7 +219,7 @@ test("substituteEnv: CRLF 파일의 fallback 줄도 처리하고 EOL을 유지�
   );
 });
 
-test("isUnchanged: 배포 모드가 바뀌면 같은 원본이라도 설치본과 달라진다 (다음 실행이 upstream 변경으로 갱신하도록)", () => {
+test("isUnchanged: when the deploy mode changes, the same source differs from the installed copy (so the next run updates it as an upstream change)", () => {
   const template = FALLBACK_LINE;
   const resolversFor = (mode) => ({ "android-deploy-mode": () => mode });
   const installed = substituteEnv(template, { type: "flutter", resolvers: resolversFor("store_only") });
@@ -227,22 +227,22 @@ test("isUnchanged: 배포 모드가 바뀌면 같은 원본이라도 설치본�
   assert.strictEqual(isUnchanged(template, installed, { type: "flutter", resolvers: resolversFor("store_submit") }), false);
 });
 
-// ── makeResolvers: 프로젝트 경로·Flutter 토큰 ────────────────────
-test("makeResolvers: project-path는 타입별 경로를 돌려주고 없으면 '.'이다", () => {
+// ── makeResolvers: project path and Flutter tokens ────────────────────
+test("makeResolvers: project-path returns the per-type path, or '.' when absent", () => {
   const r = makeResolvers("/nonexistent", "repo", new Map([["flutter", "app"]]));
   assert.strictEqual(resolveToken("project-path", "flutter", r), "app");
   assert.strictEqual(resolveToken("project-path", "react", r), ".");
   assert.strictEqual(resolveToken("project-path", "common", r), ".");
 });
 
-test("makeResolvers: flutterOptions가 없으면 Flutter 토큰은 빈 값이다 (템플릿 기본값이 남는다)", () => {
+test("makeResolvers: without flutterOptions the Flutter tokens are empty (template defaults remain)", () => {
   const r = makeResolvers("/nonexistent", "repo", new Map());
   assert.strictEqual(resolveToken("flutter-env-mode", "flutter", r), "");
   assert.strictEqual(resolveToken("android-deploy-mode", "flutter", r), "");
   assert.strictEqual(resolveToken("ios-deploy-mode", "flutter", r), "");
 });
 
-test("makeResolvers: flutterOptions가 있으면 환경변수 방식·플랫폼별 배포 모드를 돌려준다", () => {
+test("makeResolvers: with flutterOptions, returns the env-var mode and per-platform deploy modes", () => {
   const r = makeResolvers("/nonexistent", "repo", new Map(), {
     envMode: "dotenv", stores: ["android"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit",
   });
@@ -251,14 +251,14 @@ test("makeResolvers: flutterOptions가 있으면 환경변수 방식·플랫폼�
   assert.strictEqual(resolveToken("ios-deploy-mode", "flutter", r), "store_submit");
 });
 
-test("makeResolvers: 기존 resolver(repo, flutter-root)는 그대로 동작한다", () => {
+test("makeResolvers: the existing resolvers (repo, flutter-root) keep working", () => {
   const r = makeResolvers("/nonexistent", "my-repo", new Map([["flutter", "app"]]));
   assert.strictEqual(resolveToken("repo", "flutter", r), "my-repo");
   assert.strictEqual(resolveToken("flutter-root", "flutter", r), "app");
 });
 
-// workflow_dispatch 입력 기본값(`default:`)도 설치 시 선택값을 따라야 수동 실행이 설정과 어긋나지 않는다.
-test("substituteEnv: 소문자 키(dispatch 입력 default)의 auto 마커도 치환한다", () => {
+// workflow_dispatch input defaults (`default:`) must also follow the install-time choice so manual runs do not diverge from the settings.
+test("substituteEnv: also substitutes auto markers on lowercase keys (dispatch input default)", () => {
   const src = ['        default: "store_only"  # @wizard auto:android-deploy-mode', '        type: choice'].join("\n");
   assert.deepStrictEqual(parseWizardLine(src.split("\n")[0]), {
     indent: "        ", key: "default", action: "auto", arg: "android-deploy-mode",

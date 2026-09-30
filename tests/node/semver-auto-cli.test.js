@@ -25,7 +25,7 @@ test("parseArgs: omitted defaults to null (resolved to true downstream)", () => 
 
 test("run(): --no-semver-auto propagates to installed version.yml", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // root marker to avoid 0 path candidates
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node", "--no-semver-auto"],
@@ -40,7 +40,7 @@ test("run(): --no-semver-auto propagates to installed version.yml", async () => 
 
 test("run(): omitted flag defaults to semver_auto: true", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // root marker to avoid 0 path candidates
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node"],
@@ -54,11 +54,11 @@ test("run(): omitted flag defaults to semver_auto: true", async () => {
 });
 
 test("run(): re-installing over a version.yml predating semver_auto (no key) safely defaults to false, not true", async () => {
-  // 기존 설치(semver_auto 기능 이전에 만들어진 version.yml)를 CLI로 재통합하면,
-  // 애매한 커밋 하나로 조용히 major가 승격되지 않도록 false로 안전하게 폴백해야 한다
-  // (완전 신규 설치만 true — 아래 "omitted flag defaults to semver_auto: true"와 대비).
+  // Re-integrating an existing install (a version.yml created before the semver_auto feature) via the CLI
+  // must safely fall back to false so that one ambiguous commit does not silently promote major
+  // (only a completely fresh install gets true — contrast with "omitted flag defaults to semver_auto: true" below).
   const target = mkdtempSync(join(tmpdir(), "paw-semver-cli-"));
-  writeFileSync(join(target, "package.json"), "{}\n"); // 경로 후보 0개 방지용 루트 마커
+  writeFileSync(join(target, "package.json"), "{}\n"); // root marker to avoid 0 path candidates
   try {
     await run(
       ["--mode", "full", "--force", "--type", "node"],
@@ -72,8 +72,8 @@ test("run(): re-installing over a version.yml predating semver_auto (no key) saf
     writeFileSync(vyPath, stripped);
     assert.strictEqual(parseTemplateOptions(stripped).semverAuto, null, "fixture setup: key must be absent");
 
-    // 재실행 — --semver-auto/--no-semver-auto 둘 다 지정하지 않음(사용자가 명시적으로
-    // opt-in하지 않은 상태). existing이 있으므로 false로 폴백해야 한다.
+    // Rerun — neither --semver-auto nor --no-semver-auto is given (the user has not explicitly
+    // opted in). Since an existing install is present, it must fall back to false.
     const code = await run(
       ["--mode", "full", "--force", "--type", "node"],
       { cwd: target, clock: { now: "2026-07-28 00:00:00", today: "2026-07-28" } },

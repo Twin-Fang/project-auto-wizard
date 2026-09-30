@@ -1,7 +1,7 @@
 // tests/node/core-layering.test.js
-// core는 설치 로직의 바닥 계층이다 — cli·ui·commands를 참조하면 순환 의존이 생기고,
-// 다른 진입점(대화형·테스트)에서 core만 가져다 쓸 수 없게 된다.
-// cli/args.js가 CliError·경로 유틸을 다시 내보내는 호환 경로도 같은 객체를 가리켜야 한다.
+// core is the bottom layer of the install logic — referencing cli/ui/commands creates a circular dependency,
+// and other entry points (interactive, tests) could no longer use core alone.
+// The compat path where cli/args.js re-exports CliError and the path utils must also point to the same objects.
 import { test } from "node:test";
 import assert from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
@@ -13,7 +13,7 @@ import { normalizePath, isRepoRelativePath } from "../../src/core/paths.js";
 
 const coreDir = join(dirname(fileURLToPath(import.meta.url)), "../../src/core");
 
-test("src/core는 cli·ui·commands 모듈을 import하지 않는다", () => {
+test("src/core does not import cli, ui or commands modules", () => {
   const offenders = [];
   for (const rel of readdirSync(coreDir, { recursive: true })) {
     if (!rel.endsWith(".js")) continue;
@@ -25,7 +25,7 @@ test("src/core는 cli·ui·commands 모듈을 import하지 않는다", () => {
   assert.deepStrictEqual(offenders, []);
 });
 
-test("cli/args.js의 CliError·경로 유틸은 core 정의와 같은 객체다", () => {
+test("CliError and path utils in cli/args.js are the same objects as the core definitions", () => {
   assert.strictEqual(args.CliError, CliError);
   assert.strictEqual(args.normalizePath, normalizePath);
   assert.strictEqual(args.isRepoRelativePath, isRepoRelativePath);

@@ -67,11 +67,11 @@ test("printDryRun() warns that version.yml preview may be inaccurate for deploy-
   }
 });
 
-test("planDryRun('full', ...) 시각만 다른 재실행이면 version.yml 변경 없음으로 본다", () => {
+test("planDryRun('full', ...) treats a rerun that differs only in timestamp as no version.yml change", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     runFull(baseContext(), resolvePayloadRoot(), target);
-    // 다른 시각·날짜로 미리보기 — 실제 설치는 이 경우 파일을 다시 쓰지 않는다.
+    // Preview with a different time/date — a real install does not rewrite the file in this case.
     const later = baseContext({ now: "2026-08-15 12:34:56", today: "2026-08-15" });
     const plan = planDryRun("full", later, resolvePayloadRoot(), target);
     assert.strictEqual(plan.versionYml.changed, false);
@@ -80,7 +80,7 @@ test("planDryRun('full', ...) 시각만 다른 재실행이면 version.yml 변�
   }
 });
 
-test("planDryRun('full', ...) 시각 외 값이 달라지면 version.yml 변경으로 본다", () => {
+test("planDryRun('full', ...) treats a change in any value other than the timestamp as a version.yml change", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     runFull(baseContext(), resolvePayloadRoot(), target);
@@ -103,10 +103,10 @@ test("planDryRun('full', ...) with semver_auto:false preserved -> versionYml unc
   }
 });
 
-// ── Flutter 스토어 배포 파일 ──────────────────────────────
+// ── Flutter store deploy files ──────────────────────────────
 const FLUTTER_APP_TEMPLATES = ["android/fastlane/Fastfile.playstore", "ios/fastlane/Fastfile", "ios/ExportOptions.plist"];
 
-// payload/flutter-app은 다른 작업에서 채워지므로, 임시 payload 사본에 최소 템플릿을 심어 독립적으로 검증한다.
+// payload/flutter-app is populated elsewhere, so seed a minimal template into a temporary payload copy to verify independently.
 function payloadWithFlutterApp() {
   const root = mkdtempSync(join(tmpdir(), "paw-dry-payload-"));
   cpSync(resolvePayloadRoot(), root, { recursive: true });
@@ -135,7 +135,7 @@ function captureLog(fn) {
   return output;
 }
 
-test("planDryRun('full', ...) Flutter: 선택한 플랫폼의 스토어 배포 파일이 Flutter 루트(app) 기준 신규 목록에 들어가고 아무것도 쓰지 않는다", () => {
+test("planDryRun('full', ...) Flutter: store deploy files of the selected platforms go in the new list relative to the Flutter root (app) and nothing is written", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   const payload = payloadWithFlutterApp();
   try {
@@ -154,7 +154,7 @@ test("planDryRun('full', ...) Flutter: 선택한 플랫폼의 스토어 배포 �
   }
 });
 
-test("printDryRun: 이미 있는 스토어 배포 파일은 '기존 파일 유지'로 표시하고 신규 목록과 구분한다", () => {
+test("printDryRun: existing store deploy files are marked as kept and separated from the new list", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   const payload = payloadWithFlutterApp();
   try {
@@ -175,7 +175,7 @@ test("printDryRun: 이미 있는 스토어 배포 파일은 '기존 파일 유�
   }
 });
 
-test("printDryRun: Flutter가 아니면 스토어 배포 파일 블록을 출력하지 않는다", () => {
+test("printDryRun: does not print the store deploy files block for non-Flutter projects", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     const plan = planDryRun("full", baseContext(), resolvePayloadRoot(), target);
@@ -187,7 +187,7 @@ test("printDryRun: Flutter가 아니면 스토어 배포 파일 블록을 출력
 });
 
 
-test("planDryRun/printDryRun: 스크립트 덮어쓰기·README 변경·baseline도 미리보기에 나온다", () => {
+test("planDryRun/printDryRun: script overwrite, README change and baseline also show up in the preview", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     writeFileSync(join(target, "README.md"), "# my-app\n");
@@ -206,14 +206,14 @@ test("planDryRun/printDryRun: 스크립트 덮어쓰기·README 변경·baseline
     assert.match(output, /~ version_manager\.py \(기존 파일을 새 버전으로 덮어씀/);
     assert.match(output, /README\.md: 끝에 버전 섹션이 추가될 예정/);
     assert.match(output, /baseline\.json: 새로 생성될 예정/);
-    // 미리보기는 아무것도 바꾸지 않는다
+    // The preview changes nothing
     assert.strictEqual(readdirSync(join(target, ".github", "scripts")).length, 1);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-test("planDryRun: 실제 설치 뒤에는 스크립트가 변경 없음, README는 이미 섹션 있음으로 나온다", () => {
+test("planDryRun: after a real install, scripts show as unchanged and README as already having the section", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     writeFileSync(join(target, "README.md"), "# my-app\n");
@@ -228,8 +228,8 @@ test("planDryRun: 실제 설치 뒤에는 스크립트가 변경 없음, README�
   }
 });
 
-// 미리보기는 실제 실행과 같은 정리 판정을 보여줘야 한다 — 지워지거나 .bak으로 옮겨질 파일이 빠지면
-// 사용자는 미리보기만 믿고 실행했다가 워크플로우가 사라진 것을 뒤늦게 알게 된다.
+// The preview must show the same cleanup decisions as a real run — if files that will be deleted or moved to .bak are missing,
+// the user trusts the preview, runs it, and only later discovers the workflow is gone.
 function snapshot(dir) {
   const out = {};
   const walk = (d) => {
@@ -243,7 +243,7 @@ function snapshot(dir) {
   return out;
 }
 
-test("planDryRun: 배포 방식을 바꾸면 이전 CD 삭제가 미리보기에 나오고 실제 실행 결과와 같다", () => {
+test("planDryRun: changing the deploy method shows the previous CD deletion in the preview, matching the real run", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     const payload = resolvePayloadRoot();
@@ -251,9 +251,9 @@ test("planDryRun: 배포 방식을 바꾸면 이전 CD 삭제가 미리보기에
     const next = baseContext({ types: ["spring"], deployStyle: "traefik" });
     const before = snapshot(target);
     const plan = planDryRun("full", next, payload, target);
-    assert.deepStrictEqual(snapshot(target), before, "미리보기는 아무 파일도 바꾸지 않는다");
+    assert.deepStrictEqual(snapshot(target), before, "the preview changes no files");
     assert.deepStrictEqual(plan.cleanup.cleanup.removed, ["PROJECT-SPRING-SIMPLE-CICD.yaml"]);
-    assert.strictEqual(plan.gitignore, null, "삭제만 있으면 .gitignore는 건드리지 않는다");
+    assert.strictEqual(plan.gitignore, null, "with deletions only, .gitignore is left untouched");
 
     const real = runFull(next, payload, target);
     assert.deepStrictEqual(real.cleanup, plan.cleanup.cleanup);
@@ -262,7 +262,7 @@ test("planDryRun: 배포 방식을 바꾸면 이전 CD 삭제가 미리보기에
   }
 });
 
-test("planDryRun: 수정한 CD는 .bak 이동과 .gitignore 생성이 미리보기에 나온다", () => {
+test("planDryRun: a modified CD shows the .bak move and .gitignore creation in the preview", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     const payload = resolvePayloadRoot();
@@ -282,7 +282,7 @@ test("planDryRun: 수정한 CD는 .bak 이동과 .gitignore 생성이 미리보�
   }
 });
 
-test("planDryRun: 스토어 선택을 해제하면 해당 워크플로우 삭제가 미리보기에 나온다", () => {
+test("planDryRun: deselecting a store shows that workflow's deletion in the preview", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
   try {
     const payload = resolvePayloadRoot();

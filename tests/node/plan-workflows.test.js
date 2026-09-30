@@ -22,7 +22,7 @@ test("planWorkflows: fresh target -> everything is newFiles, nothing changed/unc
     assert.ok(plan.newFiles.length > 0);
     assert.deepStrictEqual(plan.changed, []);
     assert.deepStrictEqual(plan.unchanged, []);
-    // common 워크플로우도 newFiles에 포함되는지 확인
+    // Check that common workflows are also included in newFiles
     assert.ok(plan.newFiles.some((f) => f.type === "common"));
   } finally {
     rmSync(target, { recursive: true, force: true });
@@ -63,8 +63,8 @@ test("planWorkflows: editing an installed COMMON file surfaces it as changed", (
 test("planWorkflows: editing an installed type-specific file surfaces it as changed", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-plan-"));
   try {
-    // "node"/"basic" 타입은 payload/workflows/ 아래 전용 디렉토리가 없다(common만 설치됨) —
-    // 타입별 파일이 실제로 존재하는 "react"를 픽스처로 사용한다.
+    // The "node"/"basic" types have no dedicated directory under payload/workflows/ (only common is installed) —
+    // so use "react", which has real per-type files, as the fixture.
     const ctx = baseContext({ types: ["react"] });
     copyWorkflows(ctx, resolvePayloadRoot(), target);
     const plan = planWorkflows(ctx, resolvePayloadRoot(), target);

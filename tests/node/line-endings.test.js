@@ -1,9 +1,9 @@
-// 회귀 게이트 — 크로스플랫폼 재현성.
+// Regression gate: cross-platform reproducibility.
 //
-// 이 레포는 payload/를 바이트 그대로 사용자 레포에 복사한다. Windows에서
-// CRLF로 체크아웃되면 설치 산출물이 macOS와 달라지고(설치 재현성 원칙 위반),
-// 워크플로우 run 블록이 CR 섞인 셸 스크립트가 되어 런타임에만 조용히 터진다.
-// .gitattributes(eol=lf)가 이를 막는데, 그 보호가 벗겨지면 여기서 잡는다.
+// This repo copies payload/ byte-for-byte into the user's repo. If checked out
+// with CRLF on Windows, the install output differs from macOS (violating install reproducibility),
+// and workflow run blocks become shell scripts with stray CRs that fail silently only at runtime.
+// .gitattributes (eol=lf) prevents this; if that protection is removed, this test catches it.
 import { test } from "node:test";
 import assert from "node:assert";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -13,7 +13,7 @@ import { createContext } from "../../src/context.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
 import { runFull } from "../../src/commands/full.js";
 
-// 줄바꿈 정규화 대상이 아닌 확장자 (.gitattributes의 binary 목록과 대응)
+// Extensions excluded from line-ending normalization (matches the binary list in .gitattributes)
 const BINARY_EXT = /\.(png|jpe?g|gif|ico|pdf|zip|tgz|gz|jar|keystore|pyc)$/i;
 
 function walk(dir, out = []) {
@@ -33,22 +33,22 @@ function crCount(path) {
   return n;
 }
 
-test(".gitattributes가 존재하고 워킹트리를 LF로 고정한다", () => {
+test(".gitattributes exists and pins the working tree to LF", () => {
   const p = new URL("../../.gitattributes", import.meta.url);
-  assert.ok(existsSync(p), ".gitattributes가 없으면 Windows 체크아웃이 CRLF가 된다");
+  assert.ok(existsSync(p), "without .gitattributes, Windows checkouts become CRLF");
   const body = readFileSync(p, "utf8");
-  assert.match(body, /^\*\s+text=auto\s+eol=lf$/m, "`* text=auto eol=lf` 규칙이 있어야 한다");
+  assert.match(body, /^\*\s+text=auto\s+eol=lf$/m, "the `* text=auto eol=lf` rule must exist");
 });
 
-test("payload/ 텍스트 자산에 CR 바이트가 하나도 없다", () => {
+test("payload/ text assets contain no CR bytes", () => {
   const offenders = walk(resolvePayloadRoot())
     .filter((p) => crCount(p) > 0)
     .map((p) => `${p} (CR=${crCount(p)})`);
   assert.deepStrictEqual(offenders, [],
-    `payload에 CRLF 혼입 — Windows에서 설치하면 macOS와 다른 산출물이 나온다:\n${offenders.join("\n")}`);
+    `CRLF found in payload — installing on Windows would produce different output from macOS:\n${offenders.join("\n")}`);
 });
 
-test("full 설치 산출물(워크플로우·스크립트·version.yml)에 CR 바이트가 없다", () => {
+test("full install output (workflows, scripts, version.yml) contains no CR bytes", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-eol-"));
   try {
     runFull(createContext({
@@ -67,7 +67,7 @@ test("full 설치 산출물(워크플로우·스크립트·version.yml)에 CR �
       .filter((p) => crCount(p) > 0)
       .map((p) => `${p} (CR=${crCount(p)})`);
     assert.deepStrictEqual(offenders, [],
-      `설치 산출물에 CRLF 혼입:\n${offenders.join("\n")}`);
+      `CRLF found in install output:\n${offenders.join("\n")}`);
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

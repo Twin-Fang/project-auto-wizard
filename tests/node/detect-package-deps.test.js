@@ -1,6 +1,6 @@
 // tests/node/detect-package-deps.test.js
-// package.json 타입 분류는 의존성 키로만 판정한다 — 원문 부분문자열로 보면
-// 스크립트 이름·다른 패키지 이름에 섞인 글자로 타입이 바뀐다.
+// package.json type classification is decided only by dependency keys — judging by raw substrings
+// would change the type due to characters mixed into script names or other package names.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -13,11 +13,11 @@ import { run } from "../../src/index.js";
 const pkg = (obj) => JSON.stringify(obj);
 const CLOCK = { now: "2026-09-01 00:00:00", today: "2026-09-01" };
 
-test("classifyPackageText: expo 의존성이 있으면 react-native-expo", () => {
+test("classifyPackageText: with an expo dependency, react-native-expo", () => {
   assert.strictEqual(classifyPackageText(pkg({ dependencies: { expo: "~51.0.0", "react-native": "0.74.0" } })), "react-native-expo");
 });
 
-test("classifyPackageText: export 스크립트나 exponential-backoff 의존성은 expo로 보지 않는다", () => {
+test("classifyPackageText: an export script or an exponential-backoff dependency is not treated as expo", () => {
   assert.strictEqual(classifyPackageText(pkg({
     scripts: { export: "react-native bundle" }, dependencies: { "react-native": "0.73" },
   })), "react-native");
@@ -26,28 +26,28 @@ test("classifyPackageText: export 스크립트나 exponential-backoff 의존성�
   })), "react-native");
 });
 
-test("classifyPackageText: react-native-web을 쓰는 React 웹앱은 react", () => {
+test("classifyPackageText: a React web app using react-native-web is react", () => {
   assert.strictEqual(classifyPackageText(pkg({
     dependencies: { react: "18", "react-dom": "18", "react-native-web": "0.19" },
   })), "react");
 });
 
-test("classifyPackageText: keywords의 next는 next로 보지 않는다", () => {
+test("classifyPackageText: next in keywords is not treated as next", () => {
   assert.strictEqual(classifyPackageText(pkg({ name: "my-app", keywords: ["next"] })), "node");
   assert.strictEqual(classifyPackageText(pkg({ devDependencies: { next: "14" }, dependencies: { react: "18" } })), "next");
 });
 
-test("classifyPackageText: 깨진 package.json은 node", () => {
+test("classifyPackageText: a broken package.json is node", () => {
   assert.strictEqual(classifyPackageText("{ not json"), "node");
   assert.strictEqual(classifyPackageText(""), "node");
 });
 
-test("resolveMarker: app.json 없이 app.config.ts만 있는 Expo도 근거 파일을 찾는다", () => {
+test("resolveMarker: Expo with only app.config.ts and no app.json still finds the evidence file", () => {
   assert.strictEqual(resolveMarker("react-native-expo", (n) => n === "app.config.ts" || n === "package.json"), "app.config.ts");
   assert.strictEqual(resolveMarker("react-native-expo", (n) => n === "package.json"), "package.json");
 });
 
-test("findTypePathCandidates: 하위 폴더의 app.config.js Expo 앱을 후보로 찾는다", () => {
+test("findTypePathCandidates: finds an app.config.js Expo app in a subfolder as a candidate", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-expo-cand-"));
   try {
     mkdirSync(join(root, "mobile"));
@@ -63,7 +63,7 @@ async function installIn(files, args = []) {
   return { root, code };
 }
 
-test("run(): app.config.ts만 있는 최신 Expo 구성도 기본 실행으로 설치된다", async () => {
+test("run(): a modern Expo setup with only app.config.ts is installed by the default run", async () => {
   const { root, code } = await installIn({
     "package.json": pkg({ name: "my-app", version: "1.0.0", dependencies: { expo: "~51.0.0", "react-native": "0.74.0" } }),
     "app.config.ts": 'export default { expo: { name: "my-app" } };\n',
@@ -75,7 +75,7 @@ test("run(): app.config.ts만 있는 최신 Expo 구성도 기본 실행으로 �
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("run(): --type react-native-expo 지정도 app.config.ts 구성에서 성공한다", async () => {
+test("run(): specifying --type react-native-expo also succeeds with an app.config.ts setup", async () => {
   const { root, code } = await installIn({
     "package.json": pkg({ name: "my-app", version: "1.0.0", dependencies: { expo: "~51.0.0" } }),
     "app.config.ts": 'export default { expo: { name: "my-app" } };\n',
@@ -86,7 +86,7 @@ test("run(): --type react-native-expo 지정도 app.config.ts 구성에서 성�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("run(): react-native-web을 쓰는 React 웹앱은 react로 설치된다", async () => {
+test("run(): a React web app using react-native-web is installed as react", async () => {
   const { root, code } = await installIn({
     "package.json": pkg({ name: "my-app", version: "1.0.0", dependencies: { react: "18", "react-dom": "18", "react-native-web": "0.19" } }),
   });

@@ -1,5 +1,5 @@
 // tests/node/deploy-style.test.js
-// 배포 방식 선택 — CD 워크플로우는 서로 대체재라 하나만 설치하고 트리거를 켠다.
+// Deploy style selection — CD workflows are alternatives, so install only one and enable its trigger.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
@@ -21,39 +21,39 @@ const SIMPLE = "PROJECT-SPRING-SIMPLE-CICD.yaml";
 const NGINX = "PROJECT-SPRING-NONSTOP-NGINX-CICD.yaml";
 const TRAEFIK = "PROJECT-SPRING-NONSTOP-TRAEFIK-CICD.yaml";
 const PREVIEW = "PROJECT-SPRING-PR-PREVIEW.yaml";
-const SPRING_CI = "PROJECT-SPRING-CI.yml"; // 배포 방식과 무관하게 항상 설치된다
+const SPRING_CI = "PROJECT-SPRING-CI.yml"; // always installed regardless of deploy style
 
-test("deployFilter: 고른 방식의 CD만 통과시키고 PR 프리뷰는 항상 통과한다", () => {
+test("deployFilter: passes only the chosen CD and always passes the PR preview", () => {
   const keep = deployFilter("nginx");
   assert.ok(keep(NGINX));
   assert.ok(!keep(SIMPLE));
   assert.ok(!keep(TRAEFIK));
-  assert.ok(keep(PREVIEW), "PR 프리뷰는 배포 방식과 직교하는 축이다");
+  assert.ok(keep(PREVIEW), "the PR preview is orthogonal to the deploy style");
   assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("isDeployWorkflow: CD 본체만 선택 대상이다", () => {
+test("isDeployWorkflow: only the CD workflow itself is selectable", () => {
   assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
   assert.ok(!isDeployWorkflow(PREVIEW));
 });
 
-test("activateDeployTrigger: on 블록의 주석 처리된 push 트리거만 되살린다", () => {
+test("activateDeployTrigger: revives only the commented-out push trigger in the on block", () => {
   const before = `name: X\n\non:\n  # push:\n  #   branches:\n  #     - main\n  workflow_dispatch:\n\nenv:\n  # 설명 주석은 그대로\n  A: "1"\n`;
   const after = activateDeployTrigger(before);
   assert.match(after, /^on:\n  push:\n    branches:\n      - main\n  workflow_dispatch:$/m,
-    "안쪽 들여쓰기 계층이 보존돼야 한다");
-  assert.match(after, /  # 설명 주석은 그대로/, "on 블록 밖 주석은 건드리면 안 된다");
+    "inner indentation hierarchy must be preserved");
+  assert.match(after, /  # 설명 주석은 그대로/, "comments outside the on block must not be touched");
 });
 
-test("activateDeployTrigger: 이미 켜져 있으면 그대로 둔다 (멱등)", () => {
+test("activateDeployTrigger: leaves an already-enabled trigger as is (idempotent)", () => {
   const already = `on:\n  push:\n    branches:\n      - main\n`;
   assert.strictEqual(activateDeployTrigger(already), already);
 });
 
-test("--deploy-style: 값 검증", () => {
+test("--deploy-style: value validation", () => {
   assert.strictEqual(parseArgs(["--deploy-style", "nginx"]).deployStyle, "nginx");
   assert.strictEqual(parseArgs(["--deploy-style", "none"]).deployStyle, "none");
-  assert.strictEqual(parseArgs([]).deployStyle, "", "미지정은 빈값 → 저장값 또는 기본값(simple)");
+  assert.strictEqual(parseArgs([]).deployStyle, "", "unspecified is empty -> stored value or default (simple)");
   assert.throws(() => parseArgs(["--deploy-style", "k8s"]), /deploy-style/);
   assert.throws(() => parseArgs(["--deploy-style"]), /deploy-style/);
   assert.ok(isDeployStyle("traefik") && isDeployStyle("none") && !isDeployStyle("k8s") && !isDeployStyle("all"));
@@ -99,7 +99,7 @@ function install(target, deployStyle) {
   }), resolvePayloadRoot(), target);
 }
 
-test("runFull: nginx를 고르면 그 CD만 설치되고 push 트리거가 켜진 채로 깔린다", () => {
+test("runFull: choosing nginx installs only that CD with its push trigger enabled", () => {
   const target = springTarget();
   try {
     install(target, "nginx");
@@ -108,21 +108,21 @@ test("runFull: nginx를 고르면 그 CD만 설치되고 push 트리거가 켜�
 
     const wf = readFileSync(join(target, ".github/workflows", NGINX), "utf8");
     assert.match(wf, /^on:\n  push:\n    branches:\n      - main/m,
-      "고른 방식은 자동 실행돼야 한다 — 안 켜주면 설치해도 아무 일이 없다");
+      "the chosen style must run automatically — otherwise installing it does nothing");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 방식을 지정하지 않으면 기본값(단일 서버)만 설치된다", () => {
+test("runFull: without a style, only the default (single server) is installed", () => {
   const target = springTarget();
   try {
     install(target, "");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
     assert.deepStrictEqual(files.sort(), [PREVIEW, SIMPLE, SPRING_CI].sort(),
-      "CD는 하나만 — 넷을 다 깔면 안 쓸 워크플로우가 쌓이고 질문만 늘어난다");
+      "only one CD — installing all four piles up unused workflows and adds questions");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 방식을 바꾸면 손대지 않은 이전 CD는 삭제한다 — 남기면 배포가 두 번 돈다", () => {
+test("runFull: switching style deletes the untouched previous CD — leaving it would deploy twice", () => {
   const target = springTarget();
   try {
     install(target, "simple");
@@ -131,12 +131,12 @@ test("runFull: 방식을 바꾸면 손대지 않은 이전 CD는 삭제한다 �
     assert.deepStrictEqual(r.cleanup.removed, [SIMPLE]);
     assert.deepStrictEqual(r.cleanup.backedUp, []);
     const files = readdirSync(join(target, ".github/workflows"));
-    assert.ok(!files.includes(SIMPLE), "마법사가 깐 파일은 마법사가 정리한다");
+    assert.ok(!files.includes(SIMPLE), "files the wizard installed are cleaned up by the wizard");
     assert.ok(files.includes(NGINX));
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 사용자가 손댄 이전 CD는 지우지 않고 .bak으로 옮긴다", () => {
+test("runFull: a previous CD edited by the user is moved to .bak instead of deleted", () => {
   const target = springTarget();
   try {
     install(target, "simple");
@@ -146,12 +146,12 @@ test("runFull: 사용자가 손댄 이전 CD는 지우지 않고 .bak으로 옮�
     const r = install(target, "nginx");
     assert.deepStrictEqual(r.cleanup.backedUp, [SIMPLE]);
     assert.deepStrictEqual(r.cleanup.removed, []);
-    assert.match(readFileSync(`${p}.bak`, "utf8"), /내가 고친 부분/, "수정 내용은 보존해야 한다");
-    assert.ok(!readdirSync(join(target, ".github/workflows")).includes(SIMPLE), "트리거는 죽어야 한다");
+    assert.match(readFileSync(`${p}.bak`, "utf8"), /내가 고친 부분/, "the edits must be preserved");
+    assert.ok(!readdirSync(join(target, ".github/workflows")).includes(SIMPLE), "the trigger must be disabled");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 정리한 파일은 baseline에서도 빠져 다음 실행에서 '사용자가 지웠다'로 오인되지 않는다", () => {
+test("runFull: cleaned-up files are also dropped from the baseline so the next run does not mistake them for 'deleted by the user'", () => {
   const target = springTarget();
   try {
     install(target, "simple");
@@ -162,45 +162,45 @@ test("runFull: 정리한 파일은 baseline에서도 빠져 다음 실행에서 
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: 같은 방식으로 재설치하면 가짜 충돌 없이 조용히 끝난다", () => {
+test("runFull: reinstalling with the same style finishes quietly without false conflicts", () => {
   const target = springTarget();
   try {
     install(target, "nginx");
     const again = install(target, "nginx");
     assert.strictEqual(again.workflows.copiedFiles.length, 0,
-      "트리거 활성화본이 baseline과 같아야 재실행이 unchanged로 떨어진다");
+      "the trigger-enabled copy must equal the baseline so a rerun lands on unchanged");
     assert.deepStrictEqual(again.cleanup.removed, []);
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("deployFilter: 알 수 없는 값은 전부 통과가 아니라 기본값으로 수렴한다", () => {
-  // endsWith("")가 항상 참이라, 빈 접미사를 돌려주면 잘못된 값이 조용히 "CD 전부 설치"로 샌다.
+test("deployFilter: unknown values converge to the default instead of passing everything", () => {
+  // endsWith("") is always true, so returning an empty suffix would silently turn a bad value into "install every CD".
   const keep = deployFilter("잘못된값");
   assert.ok(keep(SIMPLE));
   assert.ok(!keep(NGINX));
   assert.ok(!keep(TRAEFIK));
 });
 
-test("version.yml의 deploy_style은 인라인 주석을 값으로 먹지 않는다", () => {
+test("deploy_style in version.yml does not swallow an inline comment as its value", () => {
   const vy = 'metadata:\n  template:\n    options:\n      deploy_style: "nginx" # simple | nginx | traefik\n';
   assert.strictEqual(parseTemplateOptions(vy).deployStyle, "nginx");
 });
 
-test("deployFilter('none'): CD 3종과 PR 프리뷰, react·next 단일 CD까지 제외하고 CI·common은 통과시킨다", () => {
+test("deployFilter('none'): excludes the 3 CDs, the PR preview and the react/next single CD, and passes CI and common", () => {
   const keep = deployFilter("none");
   assert.ok(!keep(SIMPLE));
   assert.ok(!keep(NGINX));
   assert.ok(!keep(TRAEFIK));
-  assert.ok(!keep(PREVIEW), "PR 프리뷰도 서버 배포라 함께 빠져야 한다");
+  assert.ok(!keep(PREVIEW), "the PR preview is also a server deploy, so it must be excluded too");
   assert.ok(!keep("PROJECT-PYTHON-PR-PREVIEW.yaml"));
   assert.ok(!keep("PROJECT-REACT-CICD.yaml"));
   assert.ok(!keep("PROJECT-NEXT-CICD.yaml"));
-  assert.ok(keep("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "스토어 배포는 서버 배포가 아니다");
+  assert.ok(keep("PROJECT-FLUTTER-ANDROID-PLAYSTORE-CICD.yaml"), "store deploys are not server deploys");
   assert.ok(keep("PROJECT-REACT-CI.yaml"));
   assert.ok(keep("PROJECT-COMMON-RELEASE-PUBLISH.yaml"));
 });
 
-test("'none' 추가가 기존 판별 로직을 건드리지 않는다 — isDeployWorkflow는 무변경, 알 수 없는 값은 여전히 simple로 수렴한다", () => {
+test("adding 'none' leaves the existing detection logic intact — isDeployWorkflow is unchanged and unknown values still converge to simple", () => {
   assert.ok(isDeployWorkflow(SIMPLE) && isDeployWorkflow(NGINX) && isDeployWorkflow(TRAEFIK));
   assert.ok(!isDeployWorkflow(PREVIEW));
   const keepUnknown = deployFilter("잘못된값");
@@ -209,7 +209,7 @@ test("'none' 추가가 기존 판별 로직을 건드리지 않는다 — isDepl
   assert.ok(!keepUnknown(TRAEFIK));
 });
 
-test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 이전 CD와 PR 프리뷰를 함께 정리한다", () => {
+test("cleanupOtherDeployWorkflows: switching to 'none' cleans up the untouched previous CD and the PR preview together", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-cleanup-"));
   try {
     const simpleContent = "name: simple\n";
@@ -225,20 +225,20 @@ test("cleanupOtherDeployWorkflows: 'none'으로 전환하면 손대지 않은 �
 
     assert.deepStrictEqual(result.removed, [SIMPLE, PREVIEW]);
     assert.deepStrictEqual(result.backedUp, []);
-    assert.deepStrictEqual(readdirSync(dir), [], "처음부터 none으로 설치한 결과와 같아야 한다");
+    assert.deepStrictEqual(readdirSync(dir), [], "must match a fresh install with none");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("runFull: 'none'을 고르면 CD는 물론 PR 프리뷰까지 설치되지 않는다", () => {
+test("runFull: choosing 'none' installs neither the CD nor the PR preview", () => {
   const target = springTarget();
   try {
     install(target, "none");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
-    assert.deepStrictEqual(files, [SPRING_CI], "server-deploy 폴더 전체(PR 프리뷰 포함)가 제외되고 CI만 남아야 한다");
+    assert.deepStrictEqual(files, [SPRING_CI], "the whole server-deploy folder (including the PR preview) is excluded, leaving only CI");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD와 PR 프리뷰가 함께 정리된다 (신규 none 설치와 같은 결과)", () => {
+test("runFull: switching from simple to 'none' cleans up the SIMPLE CD and PR preview together (same result as a fresh none install)", () => {
   const target = springTarget();
   try {
     install(target, "simple");
@@ -247,26 +247,26 @@ test("runFull: simple로 설치 후 'none'으로 전환하면 SIMPLE CD와 PR �
     assert.deepStrictEqual(r.cleanup.backedUp, []);
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("SPRING"));
     assert.deepStrictEqual(files, [SPRING_CI]);
-    assert.ok(!r.secrets.has("SERVER_HOST"), "서버 배포 Secret을 더 요구하지 않아야 한다");
+    assert.ok(!r.secrets.has("SERVER_HOST"), "must not require server-deploy secrets anymore");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: go 타입에서 'none'을 고르면 타입 루트의 CD 파일도 제외된다 (server-deploy 폴더가 없는 타입)", () => {
+test("runFull: choosing 'none' for the go type also excludes the CD file at the type root (a type without a server-deploy folder)", () => {
   const target = goTarget();
   try {
     installGo(target, "none");
     const files = readdirSync(join(target, ".github/workflows")).filter((f) => f.includes("GO"));
-    assert.deepStrictEqual(files, [GO_CI], "CD(SIMPLE-CICD)와 PR 프리뷰가 빠지고 CI만 설치돼야 한다");
+    assert.deepStrictEqual(files, [GO_CI], "the CD (SIMPLE-CICD) and PR preview are dropped, leaving only CI installed");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 
-test("runFull: go에서 simple로 설치 후 'none'으로 전환하면 CD가 .bak 없이 깔끔하게 삭제된다", () => {
+test("runFull: switching go from simple to 'none' deletes the CD cleanly without a .bak", () => {
   const target = goTarget();
   try {
     installGo(target, "simple");
     const r = installGo(target, "none");
     assert.deepStrictEqual(r.cleanup.removed.sort(), [GO_PREVIEW, GO_SIMPLE].sort(),
-      "타입 루트 CD도 재복사되지 않아야 baseline과 일치해 깔끔히 제거된다 — 재복사되면 매번 해시가 달라져 .bak으로 새는 회귀가 있었다");
+      "the type-root CD must not be re-copied so it matches the baseline and is removed cleanly — re-copying changes the hash each time and leaks into .bak");
     assert.deepStrictEqual(r.cleanup.backedUp, []);
     const files = readdirSync(join(target, ".github/workflows"));
     assert.ok(!files.includes(GO_SIMPLE) && !files.includes(`${GO_SIMPLE}.bak`));

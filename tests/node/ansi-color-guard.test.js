@@ -3,10 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { colorEnabled, paint, A } from "../../src/ui/ansi.js";
 
-// 색상 기대값이 실행 환경의 TERM(CI의 dumb 등)에 흔들리지 않게 한다. TERM=dumb 동작은 개별 테스트가 직접 지정한다.
+// Keep color expectations independent of the runtime TERM (e.g. dumb on CI). TERM=dumb behavior is set explicitly by individual tests.
 delete process.env.TERM;
 
-test("colorEnabled: NO_COLOR가 설정되면 TTY 여부와 무관하게 false", () => {
+test("colorEnabled: false when NO_COLOR is set, regardless of TTY", () => {
   const original = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
   try {
@@ -16,8 +16,8 @@ test("colorEnabled: NO_COLOR가 설정되면 TTY 여부와 무관하게 false", 
   }
 });
 
-// no-color.org 규격: NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — 빈 문자열도 설정된 것으로 취급해야 한다.
-test("colorEnabled: NO_COLOR가 빈 문자열이어도(존재는 함) false", () => {
+// no-color.org spec: NO_COLOR is checked for "presence regardless of value" — an empty string counts as set.
+test("colorEnabled: false even when NO_COLOR is an empty string (present)", () => {
   const original = process.env.NO_COLOR;
   process.env.NO_COLOR = "";
   try {
@@ -27,7 +27,7 @@ test("colorEnabled: NO_COLOR가 빈 문자열이어도(존재는 함) false", ()
   }
 });
 
-test("colorEnabled: NO_COLOR 없고 스트림이 TTY면 true", () => {
+test("colorEnabled: true when NO_COLOR is absent and the stream is a TTY", () => {
   const original = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -37,7 +37,7 @@ test("colorEnabled: NO_COLOR 없고 스트림이 TTY면 true", () => {
   }
 });
 
-test("colorEnabled: 비TTY 스트림이면 false", () => {
+test("colorEnabled: false for a non-TTY stream", () => {
   const original = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
@@ -48,18 +48,18 @@ test("colorEnabled: 비TTY 스트림이면 false", () => {
   }
 });
 
-test("paint: enabled=false면 ANSI 코드 없이 원문 그대로 반환", () => {
+test("paint: with enabled=false returns the text as is without ANSI codes", () => {
   assert.strictEqual(paint("hello", A.green, false), "hello");
 });
 
-test("paint: enabled=true면 색상 코드로 감싼다", () => {
+test("paint: with enabled=true wraps the text in color codes", () => {
   assert.strictEqual(paint("hello", A.green, true), `${A.green}hello${A.reset}`);
 });
 
-// 실제 재현 케이스(NO_COLOR=1 + `printBannerCompact` 출력에 ESC 바이트 혼입)를
-// 그대로 회귀 테스트로 고정한다. banner.js 자체는 이 계획에서 수정하지 않지만, ansi.js의 paint()가
-// 고쳐지면 banner.js도 무수정으로 함께 고쳐져야 한다.
-test("printBannerCompact: NO_COLOR=1이면 TTY여도 ESC 바이트가 출력에 섞이지 않는다", async () => {
+// Pins the real reproduction case (NO_COLOR=1 + ESC bytes leaking into `printBannerCompact` output)
+// as a regression test. banner.js itself is not modified here, but once paint() in ansi.js
+// is fixed, banner.js must be fixed with it without changes.
+test("printBannerCompact: with NO_COLOR=1 no ESC bytes leak into the output even on a TTY", async () => {
   const { printBannerCompact } = await import("../../src/ui/banner.js");
   const originalNoColor = process.env.NO_COLOR;
   process.env.NO_COLOR = "1";
@@ -73,7 +73,7 @@ test("printBannerCompact: NO_COLOR=1이면 TTY여도 ESC 바이트가 출력에 
   }
 });
 
-test("colorEnabled: TERM=dumb이면 TTY여도 false", () => {
+test("colorEnabled: false for TERM=dumb even on a TTY", () => {
   const original = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   process.env.TERM = "dumb";

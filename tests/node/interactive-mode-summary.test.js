@@ -23,45 +23,45 @@ function stubIo() {
   };
 }
 
-test("runInteractive: workflows 모드 완료 시 io.summary가 copiedFiles(새 시그니처)로 호출된다 — counters가 아니다", async () => {
+test("runInteractive: on completing workflows mode, io.summary is called with copiedFiles (new signature) — not counters", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-summary-"));
   try {
     const { io, summaryCalls } = stubIo();
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
-    assert.strictEqual(summaryCalls.length, 1, "io.summary가 정확히 한 번 호출되어야 합니다");
+    assert.strictEqual(summaryCalls.length, 1, "io.summary must be called exactly once");
     const ctx = summaryCalls[0];
-    assert.ok(Array.isArray(ctx.copiedFiles), "ctx.copiedFiles는 배열이어야 합니다(새 시그니처)");
-    assert.ok(ctx.copiedFiles.length > 0, "신규 설치이므로 최소 common 워크플로우가 복사되어야 합니다");
-    assert.strictEqual(ctx.counters, undefined, "옛 counters 필드가 남아있으면 안 됩니다");
+    assert.ok(Array.isArray(ctx.copiedFiles), "ctx.copiedFiles must be an array (new signature)");
+    assert.ok(ctx.copiedFiles.length > 0, "this is a fresh install, so at least the common workflows must be copied");
+    assert.strictEqual(ctx.counters, undefined, "the old counters field must not remain");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-// 회귀 방지 — 대화형 마법사 경로에서도 감지된 빌드 번호가 ctx.versionCode에 반영돼야 한다.
-test("runInteractive: pubspec.yaml의 빌드 번호가 편집 없이도 ctx.versionCode에 반영된다", async () => {
+// Regression guard — the detected build number must also reach ctx.versionCode on the interactive wizard path.
+test("runInteractive: the build number in pubspec.yaml reaches ctx.versionCode even without edits", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-buildnumber-"));
   try {
     writeFileSync(join(target, "pubspec.yaml"), "name: sample_app\nversion: 1.2.39+71\n");
     const { io, summaryCalls } = stubIo();
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
-    assert.strictEqual(summaryCalls.length, 1, "io.summary가 정확히 한 번 호출되어야 합니다");
+    assert.strictEqual(summaryCalls.length, 1, "io.summary must be called exactly once");
     const ctx = summaryCalls[0];
-    assert.strictEqual(ctx.versionCode, 71, "pubspec.yaml의 +71이 versionCode로 감지되어야 합니다");
+    assert.strictEqual(ctx.versionCode, 71, "the +71 in pubspec.yaml must be detected as versionCode");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
 });
 
-// 회귀 방지 — 마법사 편집 루프에서 프로젝트 타입을 뒤늦게
-// flutter로 바꾼 경우에도, 빌드 번호 감지가 (수정 전 stale이 아닌) 최종 확정된 types를 써야 한다.
-// 편집 루프 종료 전에 감지가 실행되면 여기서 versionCode가 42가 아닌 1로 떨어진다.
-test("runInteractive: 편집 루프에서 type을 flutter로 바꾸면 확정된 types로 빌드 번호를 감지한다", async () => {
+// Regression guard — even when the project type is changed late in the wizard edit loop
+// to flutter, build-number detection must use the finally confirmed types (not the stale pre-edit ones).
+// If detection ran before the edit loop ended, versionCode would fall to 1 instead of 42 here.
+test("runInteractive: changing type to flutter in the edit loop detects the build number with the confirmed types", async () => {
   const target = mkdtempSync(join(tmpdir(), "paw-interactive-buildnumber-edit-"));
   try {
-    // 초기 감지 시점에는 pubspec.yaml이 없어 detectTypes가 flutter를 놓친다 (package.json → "node").
+    // At initial detection pubspec.yaml is absent, so detectTypes misses flutter (package.json -> "node").
     writeFileSync(join(target, "package.json"), JSON.stringify({ name: "sample-app", version: "1.0.0" }));
 
     let confirmCalls = 0;
@@ -76,18 +76,18 @@ test("runInteractive: 편집 루프에서 type을 flutter로 바꾸면 확정된
       return editCalls === 1 ? "type" : "done";
     };
     io.selectTypes = async () => {
-      // 사용자가 편집 메뉴에서 flutter를 추가로 선택하는 시점에 pubspec.yaml이 준비된다
-      // (신규 통합 대상 프로젝트에 flutter가 뒤늦게 반영되는 상황을 재현).
+      // pubspec.yaml becomes available when the user additionally selects flutter in the edit menu
+      // (reproduces flutter being reflected late in a project newly being integrated).
       writeFileSync(join(target, "pubspec.yaml"), "name: sample_app\nversion: 1.0.0+42\n");
       return ["flutter"];
     };
 
     const code = await runInteractive({}, { cwd: target, io });
     assert.strictEqual(code, 0);
-    assert.strictEqual(summaryCalls.length, 1, "io.summary가 정확히 한 번 호출되어야 합니다");
+    assert.strictEqual(summaryCalls.length, 1, "io.summary must be called exactly once");
     const ctx = summaryCalls[0];
-    assert.deepStrictEqual(ctx.types, ["flutter"], "편집 루프에서 확정한 types가 최종 반영되어야 합니다");
-    assert.strictEqual(ctx.versionCode, 42, "편집 후 확정된 types로 pubspec.yaml의 +42가 감지되어야 합니다");
+    assert.deepStrictEqual(ctx.types, ["flutter"], "the types confirmed in the edit loop must be applied finally");
+    assert.strictEqual(ctx.versionCode, 42, "the +42 in pubspec.yaml must be detected using the types confirmed after editing");
   } finally {
     rmSync(target, { recursive: true, force: true });
   }

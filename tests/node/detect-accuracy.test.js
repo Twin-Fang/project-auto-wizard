@@ -1,6 +1,6 @@
 // tests/node/detect-accuracy.test.js
-// 감지 정확도 회귀.
-// 공통 실패 형태: "감지가 조용히 실패하고 설치는 성공으로 끝난다".
+// Detection accuracy regression.
+// Common failure shape: "detection fails silently and the install still ends as a success".
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
@@ -24,18 +24,18 @@ function fixture(files) {
   return root;
 }
 
-// ── 버전 감지 ──────────────────────────────────────────────────
-test("detectVersionFromFiles: build.gradle.kts만 있어도 버전을 읽는다 (Kotlin DSL)", () => {
+// ── Version detection ──────────────────────────────────────────────────
+test("detectVersionFromFiles: reads the version even with only build.gradle.kts (Kotlin DSL)", () => {
   const warned = [];
   const v = detectVersionFromFiles({
     read: readFrom({ "build.gradle.kts": 'version = "1.4.2"\n' }),
     readJson: () => null, gitTag: "", warn: (m) => warned.push(m),
   });
   assert.strictEqual(v, "1.4.2");
-  assert.strictEqual(warned.length, 0, "감지에 성공했으면 폴백 경고가 없어야 한다");
+  assert.strictEqual(warned.length, 0, "no fallback warning is expected when detection succeeds");
 });
 
-test("detectVersionFromFiles: build.gradle의 kotlin_version 변수를 앱 버전으로 읽지 않는다", () => {
+test("detectVersionFromFiles: does not read the kotlin_version variable in build.gradle as the app version", () => {
   const gradle = "buildscript {\n  ext.kotlin_version = '1.9.0'\n}\nversion = '1.2.3'\n";
   const v = detectVersionFromFiles({
     read: readFrom({ "build.gradle": gradle }), readJson: () => null, gitTag: "", warn: () => {},
@@ -43,13 +43,13 @@ test("detectVersionFromFiles: build.gradle의 kotlin_version 변수를 앱 버�
   assert.strictEqual(v, "1.2.3");
 });
 
-test("versionFromPyproject: [tool.*] 섹션의 version은 무시하고 [project] 버전을 읽는다", () => {
+test("versionFromPyproject: [tool.*] section version is ignored and the [project] version is read", () => {
   const toml = '[tool.other]\nversion = "9.9.9"\n\n[project]\nname = "my-app"\nversion = "0.4.0"\n';
   assert.strictEqual(versionFromPyproject(toml), "0.4.0");
   assert.strictEqual(versionFromPyproject('[project]\ndynamic = ["version"]\n[tool.other]\nversion = "9.9.9"\n'), null);
 });
 
-test("detectVersionFromFiles: 멀티타입이면 주 타입(첫 항목)의 버전 파일을 먼저 읽는다", () => {
+test("detectVersionFromFiles: for multi-type repos, reads the primary type's (first entry) version file first", () => {
   const files = { "build.gradle": "version = '1.0.0'\n" };
   const readJson = (rel) => (rel === "package.json" ? { version: "3.0.0" } : null);
   const opts = { read: readFrom(files), readJson, gitTag: "", warn: () => {} };
@@ -57,7 +57,7 @@ test("detectVersionFromFiles: 멀티타입이면 주 타입(첫 항목)의 버�
   assert.strictEqual(detectVersionFromFiles({ ...opts, types: ["react", "spring"] }), "3.0.0");
 });
 
-test("detectVersionFromFiles: setup.py의 version을 읽는다", () => {
+test("detectVersionFromFiles: reads the version from setup.py", () => {
   const v = detectVersionFromFiles({
     read: readFrom({ "setup.py": 'setup(\n  name="my-app",\n  python_version="3.11.0",\n  version="1.0.0",\n)\n' }),
     readJson: () => null, gitTag: "", warn: () => {}, types: ["python"],
@@ -65,7 +65,7 @@ test("detectVersionFromFiles: setup.py의 version을 읽는다", () => {
   assert.strictEqual(v, "1.0.0");
 });
 
-test("detectVersionFromFiles: prerelease 버전은 x.y.z 코어로 감지한다", () => {
+test("detectVersionFromFiles: a prerelease version is detected as its x.y.z core", () => {
   const warned = [];
   const v = detectVersionFromFiles({
     read: () => null, readJson: (rel) => (rel === "package.json" ? { version: "2.0.0-rc.1" } : null),
@@ -76,7 +76,7 @@ test("detectVersionFromFiles: prerelease 버전은 x.y.z 코어로 감지한다"
   assert.strictEqual(detectVersionFromFiles({ read: () => null, readJson: () => null, gitTag: "v1.2.3-beta.1" }), "1.2.3");
 });
 
-test("detectVersionFromFiles: react-native는 릴리스 때 쓰는 네이티브 파일 버전을 package.json보다 먼저 읽는다", () => {
+test("detectVersionFromFiles: react-native reads the native file version used at release before package.json", () => {
   const root = fixture({
     "package.json": JSON.stringify({ version: "1.0.0", dependencies: { "react-native": "0.74.0" } }),
     "ios/MyApp/Info.plist": "<dict><key>CFBundleShortVersionString</key>\n<string>$(MARKETING_VERSION)</string></dict>",
@@ -84,12 +84,12 @@ test("detectVersionFromFiles: react-native는 릴리스 때 쓰는 네이티브 
     "android/app/build.gradle": 'android { defaultConfig { versionName "1.0.3" } }',
   });
   try {
-    // $(MARKETING_VERSION)은 건너뛰고, 의존성(Pods) 깊은 곳의 plist는 보지 않는다.
+    // Skips $(MARKETING_VERSION) and ignores plists deep inside dependencies (Pods).
     assert.strictEqual(detectVersion(root, { types: ["react-native"], warn: () => {} }), "1.0.3");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("detectVersionFromFiles: react-native 네이티브 파일에 x.y.z가 없으면 package.json으로 폴백한다", () => {
+test("detectVersionFromFiles: falls back to package.json when react-native native files have no x.y.z", () => {
   const root = fixture({
     "package.json": JSON.stringify({ version: "0.4.0", dependencies: { "react-native": "0.74.0" } }),
     "ios/MyApp/Info.plist": "<dict><key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string></dict>",
@@ -100,7 +100,7 @@ test("detectVersionFromFiles: react-native 네이티브 파일에 x.y.z가 없�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("detectVersionFromFiles: Gradle -SNAPSHOT 버전은 x.y.z 코어로 감지한다", () => {
+test("detectVersionFromFiles: a Gradle -SNAPSHOT version is detected as its x.y.z core", () => {
   const v = detectVersionFromFiles({
     read: readFrom({ "build.gradle": "version = '1.2.0-SNAPSHOT'\n" }), readJson: () => null,
     gitTag: "", warn: () => {}, types: ["spring"],
@@ -108,7 +108,7 @@ test("detectVersionFromFiles: Gradle -SNAPSHOT 버전은 x.y.z 코어로 감지�
   assert.strictEqual(v, "1.2.0");
 });
 
-test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 버전은 쓰지 않는다", () => {
+test("detectVersionFromFiles: reads the project version in pom.xml but not the <parent> version", () => {
   const pom = `<project>
   <parent>
     <groupId>org.springframework.boot</groupId>
@@ -119,110 +119,110 @@ test("detectVersionFromFiles: pom.xml의 프로젝트 버전을 읽되 <parent> 
   const v = detectVersionFromFiles({
     read: readFrom({ "pom.xml": pom }), readJson: () => null, gitTag: "", warn: () => {},
   });
-  assert.strictEqual(v, "2.7.1", "부모 BOM 버전(3.4.0)이 아니라 프로젝트 버전이어야 한다");
+  assert.strictEqual(v, "2.7.1", "must be the project version, not the parent BOM version (3.4.0)");
 });
 
-test("versionFromPom: 프로젝트 버전이 <parent>보다 앞에 있어도 부모 버전을 고르지 않는다", () => {
+test("versionFromPom: does not pick the parent version even when the project version precedes <parent>", () => {
   const pom = `<project><version>9.9.9</version><parent><version>1.1.1</version></parent></project>`;
   assert.strictEqual(versionFromPom(pom), "9.9.9");
 });
 
-test("versionFromPom: 프로젝트 버전이 없으면 의존성 버전을 대신 고르지 않는다", () => {
+test("versionFromPom: does not pick a dependency version when there is no project version", () => {
   const pom = `<project><parent><version>3.4.0</version></parent>
   <dependencies><dependency><version>9.9.9</version></dependency></dependencies></project>`;
   assert.strictEqual(versionFromPom(pom), null);
 });
 
-test("detectVersionFromFiles: 폴백 경고 문구는 호출부가 준 hint를 쓴다 (대화형/CLI 분기)", () => {
+test("detectVersionFromFiles: the fallback warning uses the hint supplied by the caller (interactive/CLI branch)", () => {
   const warned = [];
   detectVersionFromFiles({
     read: () => null, readJson: () => null, gitTag: "",
     warn: (m) => warned.push(m), hint: "수정하기 > 버전에서 고칠 수 있습니다.",
   });
   assert.match(warned[0], /수정하기 > 버전/);
-  assert.doesNotMatch(warned[0], /--project-version/, "대화형에 CLI 플래그를 안내하면 안 된다");
+  assert.doesNotMatch(warned[0], /--project-version/, "the interactive flow must not point to a CLI flag");
 });
 
-// ── 마커 ───────────────────────────────────────────────────────
-test("resolveMarker: 실제로 존재하는 파일을 돌려준다 (build.gradle.kts)", () => {
+// ── Markers ───────────────────────────────────────────────────────
+test("resolveMarker: returns a file that actually exists (build.gradle.kts)", () => {
   const has = (n) => n === "build.gradle.kts";
   assert.strictEqual(resolveMarker("spring", has), "build.gradle.kts");
 });
 
-test("resolveMarker: 실재하는 후보가 없으면 대표 파일을 쓴다", () => {
+test("resolveMarker: uses the representative file when no candidate exists", () => {
   assert.strictEqual(resolveMarker("spring", () => false), "build.gradle");
 });
 
-test("resolveMarker: fallback:false면 실재하는 후보가 없을 때 빈 문자열", () => {
+test("resolveMarker: with fallback:false, returns an empty string when no candidate exists", () => {
   assert.strictEqual(resolveMarker("spring", () => false, { fallback: false }), "");
 });
 
-test("resolveMarkers: 파일이 없는(직접 고른) 타입은 근거 맵에 넣지 않는다", () => {
+test("resolveMarkers: types without a file (picked manually) are not put in the evidence map", () => {
   const m = resolveMarkers(["spring", "python"], (n) => n === "build.gradle");
   assert.strictEqual(m.get("spring"), "build.gradle");
-  assert.ok(!m.has("python"), "없는 pyproject.toml을 근거로 붙이면 감지된 것처럼 보인다");
+  assert.ok(!m.has("python"), "attaching a nonexistent pyproject.toml as evidence would make it look detected");
 });
 
-test("resolveMarkers: basic은 근거 파일이 없으므로 맵에서 제외된다", () => {
+test("resolveMarkers: basic has no evidence file, so it is excluded from the map", () => {
   const m = resolveMarkers(["spring", "basic"], (n) => n === "pom.xml");
   assert.strictEqual(m.get("spring"), "pom.xml");
   assert.ok(!m.has("basic"));
 });
 
-test("detectTypesFromMarkers: go.mod만 있으면 [\"go\"]를 반환한다", () => {
+test("detectTypesFromMarkers: with only go.mod, returns [\"go\"]", () => {
   const types = detectTypesFromMarkers({ has: (n) => n === "go.mod", read: () => null });
   assert.deepStrictEqual(types, ["go"]);
 });
 
-test("detectTypesFromMarkers: go.mod와 react package.json이 함께 있으면 두 타입 모두 감지한다", () => {
-  // classifyPackageText가 "node"를 반환하는 케이스는 다른 타입이 이미 감지됐으면 폴백으로
-  // 추가되지 않는다(22~33행 로직) — 그래서 "react" 마커로 검증한다. react는 cls !== "node"라
-  // types.length와 무관하게 항상 push된다.
+test("detectTypesFromMarkers: with both go.mod and a react package.json, both types are detected", () => {
+  // A case where classifyPackageText returns "node" is not added as a fallback
+  // when another type was already detected (logic at lines 22-33), so we verify with the "react" marker.
+  // react has cls !== "node", so it is always pushed regardless of types.length.
   const has = (n) => n === "go.mod" || n === "package.json";
   const read = (n) => (n === "package.json" ? '{"dependencies":{"react":"18.0.0"}}' : null);
   const types = detectTypesFromMarkers({ has, read });
   assert.deepStrictEqual(types, ["go", "react"]);
 });
 
-test("markerForType: go는 go.mod를 반환한다 (package.json 폴백 금지)", () => {
+test("markerForType: go returns go.mod (no package.json fallback)", () => {
   assert.strictEqual(markerForType("go"), "go.mod");
 });
 
-// ── 빌드 JDK ───────────────────────────────────────────────────
-test("detectJdkFromFiles: Kotlin DSL toolchain에서 JDK를 읽는다", () => {
+// ── Build JDK ───────────────────────────────────────────────────
+test("detectJdkFromFiles: reads the JDK from the Kotlin DSL toolchain", () => {
   const kts = "java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }";
   assert.strictEqual(detectJdkFromFiles({ read: readFrom({ "build.gradle.kts": kts }) }), "25");
 });
 
-test("detectJdkFromFiles: sourceCompatibility 문자열 표기도 인식한다", () => {
+test("detectJdkFromFiles: also recognizes the string form of sourceCompatibility", () => {
   const g = "sourceCompatibility = '17'";
   assert.strictEqual(detectJdkFromFiles({ read: readFrom({ "build.gradle": g }) }), "17");
 });
 
-test("detectJdkFromFiles: JavaVersion.VERSION_1_8은 8로 정규화한다", () => {
+test("detectJdkFromFiles: normalizes JavaVersion.VERSION_1_8 to 8", () => {
   const g = "sourceCompatibility = JavaVersion.VERSION_1_8";
   assert.strictEqual(detectJdkFromFiles({ read: readFrom({ "build.gradle": g }) }), "8");
 });
 
-test("detectJdkFromFiles: Maven의 <java.version>을 읽는다", () => {
+test("detectJdkFromFiles: reads Maven's <java.version>", () => {
   const pom = "<properties><java.version>21</java.version></properties>";
   assert.strictEqual(detectJdkFromFiles({ read: readFrom({ "pom.xml": pom }) }), "21");
 });
 
-test("detectJdkFromFiles: 근거가 없으면 null (호출부가 종전 기본값으로 폴백해야 한다)", () => {
+test("detectJdkFromFiles: null when there is no evidence (the caller must fall back to the previous default)", () => {
   assert.strictEqual(detectJdkFromFiles({ read: () => null }), null);
 });
 
-// ── application.yml/.yaml 탐색 ─────────────────────────────────
-test("findSpringAppYml: .yaml 확장자도 찾는다 (Spring 공식 지원)", () => {
+// ── application.yml/.yaml lookup ─────────────────────────────────
+test("findSpringAppYml: also finds the .yaml extension (officially supported by Spring)", () => {
   const root = fixture({ "app/src/main/resources/application.yaml": "" });
   try {
     assert.strictEqual(findSpringAppYml(root), "app/src/main/resources/application.yaml");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("findSpringAppYml: 프로파일 파일보다 기본 application 파일을 우선한다", () => {
-  // 파일명 정렬만 쓰면 'application-dev.yml'이 'application.yml'보다 앞선다(`-` < `.`).
+test("findSpringAppYml: prefers the default application file over profile files", () => {
+  // Sorting by filename alone puts 'application-dev.yml' before 'application.yml' (`-` < `.`).
   const root = fixture({
     "src/main/resources/application-dev.yml": "",
     "src/main/resources/application.yml": "",
@@ -232,15 +232,15 @@ test("findSpringAppYml: 프로파일 파일보다 기본 application 파일을 �
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("findSpringAppYml: src/main/resources 밖의 application.yml은 무시한다", () => {
+test("findSpringAppYml: ignores application.yml outside src/main/resources", () => {
   const root = fixture({ "config/application.yml": "" });
   try {
     assert.strictEqual(findSpringAppYml(root), "");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-// ── application.properties 프로젝트 (Spring Initializr 기본 산출물) ─────────
-test("spring-app-yml resolver: properties만 있으면 그 리소스 폴더와 application.yml 경로로 채운다", () => {
+// ── application.properties projects (Spring Initializr default output) ─────────
+test("spring-app-yml resolver: with only properties, fills in that resource folder and the application.yml path", () => {
   const root = fixture({ "src/main/resources/application.properties": "spring.application.name=my-service\n" });
   try {
     const r = makeResolvers(root, "my-service", new Map([["spring", "."]]));
@@ -249,7 +249,7 @@ test("spring-app-yml resolver: properties만 있으면 그 리소스 폴더와 a
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("spring-app-yml resolver: 설정 파일이 없어도 표준 리소스 폴더로 폴백한다 (모노레포 경로 포함)", () => {
+test("spring-app-yml resolver: falls back to the standard resource folder even without a config file (including monorepo paths)", () => {
   const root = fixture({ "server/build.gradle": "" });
   try {
     const r = makeResolvers(root, "my-service", new Map([["spring", "server"]]));
@@ -258,7 +258,7 @@ test("spring-app-yml resolver: 설정 파일이 없어도 표준 리소스 폴�
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("spring-app-yml resolver: yml이 있으면 종전대로 그 파일을 쓴다", () => {
+test("spring-app-yml resolver: when a yml exists, uses that file as before", () => {
   const root = fixture({
     "src/main/resources/application.properties": "",
     "src/main/resources/application.yml": "",

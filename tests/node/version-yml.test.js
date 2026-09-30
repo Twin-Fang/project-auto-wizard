@@ -1,5 +1,5 @@
 // tests/node/version-yml.test.js
-// version.yml 재생성 시 사용자가 추가한 알려지지 않은 최상위 필드가 보존되는지 검증.
+// Verifies that unknown top-level fields added by the user are preserved when version.yml is regenerated.
 import { test } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
@@ -22,19 +22,19 @@ test("parseExtraTopLevel: captures an unknown scalar top-level field", () => {
   assert.deepStrictEqual(parseExtraTopLevel(content), ["qa_custom_field: hello"]);
 });
 
-test("parseExtraTopLevel: captures an unknown top-level key containing a hyphen (issue #20 review — regex must allow hyphens)", () => {
+test("parseExtraTopLevel: captures an unknown top-level key containing a hyphen (regex must allow hyphens)", () => {
   const content = ['version: "1.0.0"', "deploy-notes: keep this"].join("\n");
   assert.deepStrictEqual(parseExtraTopLevel(content), ["deploy-notes: keep this"]);
 });
 
-// 레거시 단수 키는 렌더되지 않지만 KNOWN_TOP_LEVEL_KEYS에는 남아 있어야 한다.
-// 빼면 기존 파일의 단수 줄이 "사용자 필드"로 오인돼 재생성 때 되살아난다.
-test("parseExtraTopLevel: the legacy singular project_type is absorbed, not preserved (issue #62)", () => {
+// The legacy singular key is not rendered but must stay in KNOWN_TOP_LEVEL_KEYS.
+// Otherwise the singular line in an existing file is mistaken for a "user field" and revived on regeneration.
+test("parseExtraTopLevel: the legacy singular project_type is absorbed, not preserved", () => {
   const content = ['version: "1.0.0"', 'project_types: ["node"]', 'project_type: "node"'].join("\n");
   assert.deepStrictEqual(parseExtraTopLevel(content), []);
 });
 
-test("buildVersionYml: never renders the legacy singular project_type (issue #62)", () => {
+test("buildVersionYml: never renders the legacy singular project_type", () => {
   const out = buildVersionYml({
     templateText: readVersionYmlTemplate(PAYLOAD),
     version: "1.0.0", versionCode: 1, types: ["spring", "react"],
@@ -94,7 +94,7 @@ test("buildVersionYml: re-appends extraTopLevel blocks at the end, in original o
   assert.ok(secondIdx > firstIdx);
 });
 
-test("integration: qa_custom_field survives a --mode version re-run (issue #20 repro)", () => {
+test("integration: qa_custom_field survives a --mode version re-run", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-version-yml-preserve-"));
   try {
     const baseCtx = createContext({
@@ -117,7 +117,7 @@ test("integration: qa_custom_field survives a --mode version re-run (issue #20 r
   }
 });
 
-test("buildVersionYml: escapes double quotes in deploy block values (issue #20 L9, second sink)", () => {
+test("buildVersionYml: escapes double quotes in deploy block values (second sink)", () => {
   const deployValues = new Map([["node", new Map([["HOST", 'a "quoted" host']])]]);
   const text = buildVersionYml({
     templateText: readVersionYmlTemplate(PAYLOAD),
@@ -130,7 +130,7 @@ test("buildVersionYml: escapes double quotes in deploy block values (issue #20 L
   assert.ok(text.includes('HOST: "a \\"quoted\\" host"'));
 });
 
-// ── Flutter 옵션 4개 키 ──────────────────────────────
+// ── Flutter options: 4 keys ──────────────────────────────
 const FLUTTER_KEYS_RE = /env_mode|flutter_store|android_deploy_mode|ios_deploy_mode/;
 const BASE_BUILD = {
   version: "1.0.0", versionCode: 1, branch: "main",
@@ -140,7 +140,7 @@ const BASE_BUILD = {
 };
 const buildYml = (extra) => buildVersionYml({ templateText: readVersionYmlTemplate(PAYLOAD), ...BASE_BUILD, ...extra });
 
-test("buildVersionYml: Flutter 타입이면 options 아래 4개 키를 지정값으로 렌더한다", () => {
+test("buildVersionYml: for a Flutter type, renders the 4 keys under options with the given values", () => {
   const out = buildYml({
     types: ["flutter"],
     typeOptions: { envMode: "dotenv", stores: ["ios"], androidDeployMode: "store_prepare", iosDeployMode: "store_submit" },
@@ -152,7 +152,7 @@ test("buildVersionYml: Flutter 타입이면 options 아래 4개 키를 지정값
   assert.ok(!out.includes("{{"), `unresolved placeholder in:\n${out}`);
 });
 
-test("buildVersionYml: typeOptions를 생략한 Flutter는 템플릿 기본값과 같은 값으로 렌더한다", () => {
+test("buildVersionYml: Flutter without typeOptions renders the same values as the template defaults", () => {
   const out = buildYml({ types: ["flutter"] });
   assert.match(out, /^      env_mode: "dart-define"/m);
   assert.match(out, /^      flutter_store: "android,ios"/m);
@@ -160,29 +160,29 @@ test("buildVersionYml: typeOptions를 생략한 Flutter는 템플릿 기본값�
   assert.match(out, /^      ios_deploy_mode: "store_only"/m);
 });
 
-test("buildVersionYml: 스토어를 하나도 고르지 않으면(빈 배열) flutter_store는 \"none\"이다", () => {
+test("buildVersionYml: with no store chosen (empty array), flutter_store is \"none\"", () => {
   const out = buildYml({ types: ["flutter"], typeOptions: { stores: [] } });
   assert.match(out, /^      flutter_store: "none"/m);
 });
 
-test("buildVersionYml: Flutter 타입이 없으면 4개 키도 빈 줄도 남기지 않는다", () => {
+test("buildVersionYml: without a Flutter type, leaves neither the 4 keys nor a blank line", () => {
   const out = buildYml({ types: ["react"], typeOptions: { envMode: "dotenv", stores: ["ios"] } });
   assert.doesNotMatch(out, FLUTTER_KEYS_RE);
   const lastLine = out.trimEnd().split("\n").at(-1);
-  assert.match(lastLine, /^      deploy_style:/, `options의 마지막 줄이 deploy_style이어야 한다:\n${out}`);
+  assert.match(lastLine, /^      deploy_style:/, `the last line of options must be deploy_style:\n${out}`);
 });
 
-test("buildVersionYml: 멀티 타입(flutter+react)이면 렌더하고 deploy 블록 앞 빈 줄 구조를 유지한다", () => {
+test("buildVersionYml: for multi-type (flutter+react), renders and keeps the blank-line structure before the deploy block", () => {
   const out = buildYml({
     types: ["flutter", "react"],
     deployValues: new Map([["react", new Map([["HOST", "example"]])]]),
   });
   assert.match(out, /^      ios_deploy_mode:/m);
-  assert.ok(out.indexOf("ios_deploy_mode") < out.indexOf("\n\ndeploy:"), "deploy 블록은 옵션 뒤에 온다");
+  assert.ok(out.indexOf("ios_deploy_mode") < out.indexOf("\n\ndeploy:"), "the deploy block comes after the options");
   assert.strictEqual(parseExisting(out).options.iosDeployMode, "store_only");
 });
 
-test("parseTemplateOptions: 4개 키가 없으면 전부 null (기존 설치 판별용)", () => {
+test("parseTemplateOptions: all null when the 4 keys are absent (for detecting existing installs)", () => {
   const out = parseTemplateOptions(buildYml({ types: ["react"] }));
   assert.strictEqual(out.envMode, null);
   assert.strictEqual(out.flutterStore, null);
@@ -190,7 +190,7 @@ test("parseTemplateOptions: 4개 키가 없으면 전부 null (기존 설치 판
   assert.strictEqual(out.iosDeployMode, null);
 });
 
-test("parseTemplateOptions: 인라인 주석·홑따옴표·따옴표 없는 값을 모두 읽고 다른 옵션과 공존한다", () => {
+test("parseTemplateOptions: reads inline comments, single-quoted and unquoted values, and coexists with other options", () => {
   const text = [
     "metadata:",
     "  template:",
@@ -209,7 +209,7 @@ test("parseTemplateOptions: 인라인 주석·홑따옴표·따옴표 없는 값
   assert.strictEqual(out.semverAuto, true);
 });
 
-test("렌더 → 파싱 왕복: buildVersionYml 결과를 parseExisting이 그대로 복원한다", () => {
+test("render -> parse round trip: parseExisting restores the buildVersionYml result as is", () => {
   const cases = [
     { envMode: "dotenv", stores: ["android"], androidDeployMode: "store_submit", iosDeployMode: "store_only", flutterStore: "android" },
     { envMode: "dart-define", stores: ["android", "ios"], androidDeployMode: "store_only", iosDeployMode: "store_prepare", flutterStore: "android,ios" },
@@ -225,7 +225,7 @@ test("렌더 → 파싱 왕복: buildVersionYml 결과를 parseExisting이 그�
   }
 });
 
-test("renderVersionYml: context의 Flutter 옵션 필드를 렌더에 반영한다", () => {
+test("renderVersionYml: reflects the context's Flutter option fields in the render", () => {
   const ctx = createContext({
     mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1, branch: "main",
     branches: { main: "main", develop: "develop", mode: "pr-flow" },
@@ -240,7 +240,7 @@ test("renderVersionYml: context의 Flutter 옵션 필드를 렌더에 반영한�
   assert.strictEqual(options.iosDeployMode, "store_only");
 });
 
-test("renderVersionYml: 미결정 context(빈 envMode·null 스토어)도 유효한 기본값으로 렌더한다", () => {
+test("renderVersionYml: renders an undecided context (empty envMode, null stores) with valid defaults", () => {
   const ctx = createContext({
     mode: "full", force: true, types: ["flutter"], version: "1.0.0", versionCode: 1, branch: "main",
     branches: { main: "main", develop: "develop", mode: "pr-flow" },
@@ -252,7 +252,7 @@ test("renderVersionYml: 미결정 context(빈 envMode·null 스토어)도 유효
   assert.strictEqual(options.androidDeployMode, "store_only");
 });
 
-test("integration: runFull이 Flutter 옵션을 version.yml에 쓰고 재실행해도 보존한다", () => {
+test("integration: runFull writes Flutter options to version.yml and preserves them on rerun", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-version-yml-flutter-"));
   try {
     const ctx = createContext({
@@ -273,7 +273,7 @@ test("integration: runFull이 Flutter 옵션을 version.yml에 쓰고 재실행�
   }
 });
 
-test("parseTemplateOptions: 기존 version.yml에 남은 nexus 키는 무시하고, 다시 렌더하면 사라진다", () => {
+test("parseTemplateOptions: ignores a leftover nexus key in an existing version.yml, and it disappears on re-render", () => {
   const text = [
     "metadata:", "  template:", "    options:",
     "      nexus: true", "      semver_auto: true",
@@ -283,10 +283,10 @@ test("parseTemplateOptions: 기존 version.yml에 남은 nexus 키는 무시하�
   assert.strictEqual(parsed.semverAuto, true);
 });
 
-test("buildVersionYml: 새로 렌더한 version.yml에는 nexus 키가 없다", () => {
+test("buildVersionYml: a freshly rendered version.yml has no nexus key", () => {
   const rendered = buildVersionYml({
     templateText: readVersionYmlTemplate(PAYLOAD), version: "1.0.0", types: ["basic"],
     now: "2026-09-26 00:00:00", today: "2026-09-26", templateOptions: { templateVersion: "0.12.0" },
   });
-  assert.ok(!/^\s+nexus:/m.test(rendered), "재작성된 version.yml에는 nexus 키가 없어야 한다");
+  assert.ok(!/^\s+nexus:/m.test(rendered), "the rewritten version.yml must have no nexus key");
 });

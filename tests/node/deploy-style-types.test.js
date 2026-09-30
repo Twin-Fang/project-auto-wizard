@@ -1,8 +1,8 @@
 // tests/node/deploy-style-types.test.js
-// 배포 방식은 타입마다 같은 규칙으로 동작해야 한다.
-//  - none: 모든 타입에서 서버 배포 워크플로우(CD·react/next 단일 CD·PR 프리뷰)를 설치하지 않는다
-//  - nginx/traefik: 무중단 워크플로우가 없는 타입(python·go·react·next)은 단일 서버 배포로 설치하고 알린다
-//  - 첫 설치에서 방금 쓴 파일을 "사용자 수정본"으로 오인해 .bak으로 옮기지 않는다
+// Deploy style must follow the same rules for every type.
+//  - none: no type installs server-deploy workflows (CD, react/next single CD, PR preview)
+//  - nginx/traefik: types without a zero-downtime workflow (python, go, react, next) install the single-server deploy and say so
+//  - on a first install, a just-written file is not mistaken for a "user edit" and moved to .bak
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
@@ -49,7 +49,7 @@ for (const [type, files, ci] of [
   ["python", PYTHON, "PROJECT-PYTHON-CI.yaml"],
   ["go", GO, "PROJECT-GO-CI.yaml"],
 ]) {
-  test(`--deploy-style none: ${type}는 CI만 설치하고 서버 배포 설정을 기록하지 않는다`, async () => {
+  test(`--deploy-style none: ${type} installs only CI and records no server-deploy settings`, async () => {
     const dir = repo(files);
     try {
       const { code } = await install(dir, ["--type", type, "--deploy-style", "none"]);
@@ -58,12 +58,12 @@ for (const [type, files, ci] of [
       assert.deepStrictEqual(mine, [ci]);
       const vy = readFileSync(join(dir, "version.yml"), "utf8");
       assert.match(vy, /deploy_style: "none"/);
-      assert.doesNotMatch(vy, /SERVER_|SSH_AUTH_METHOD|DEPLOY_PORT/, "서버 배포 전용 값은 기록되지 않는다");
+      assert.doesNotMatch(vy, /SERVER_|SSH_AUTH_METHOD|DEPLOY_PORT/, "server-deploy-only values are not recorded");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 }
 
-test("simple로 설치한 react를 none으로 바꾸면 CICD가 정리된다", async () => {
+test("switching react installed with simple to none cleans up the CICD", async () => {
   const dir = repo(REACT);
   try {
     await install(dir, ["--type", "react"]);
@@ -78,19 +78,19 @@ for (const [type, files, simple] of [
   ["python", PYTHON, "PROJECT-PYTHON-SIMPLE-CICD.yaml"],
   ["go", GO, "PROJECT-GO-SIMPLE-CICD.yaml"],
 ]) {
-  test(`--deploy-style nginx 첫 설치: ${type}는 단일 서버 배포를 설치하고 .bak·.gitignore를 만들지 않는다`, async () => {
+  test(`--deploy-style nginx first install: ${type} installs the single-server deploy and creates no .bak or .gitignore`, async () => {
     const dir = repo(files);
     try {
       const { code, err } = await install(dir, ["--type", type, "--deploy-style", "nginx"]);
       assert.strictEqual(code, 0);
       const wf = workflows(dir);
-      assert.ok(wf.includes(simple), "무중단 워크플로우가 없는 타입은 단일 서버 배포로 설치된다");
-      assert.ok(!wf.some((f) => f.endsWith(".bak")), "첫 설치에서 .bak이 생기면 안 된다");
+      assert.ok(wf.includes(simple), "a type without a zero-downtime workflow is installed as a single-server deploy");
+      assert.ok(!wf.some((f) => f.endsWith(".bak")), "no .bak may be created on a first install");
       assert.ok(!existsSync(join(dir, ".gitignore")));
       assert.match(err, new RegExp(`${type}에는 nginx 무중단 배포 워크플로우가 없어 단일 서버 배포`));
-      // 기록은 실제로 설치된 방식이어야 status와 다음 실행 기본값이 설치 상태와 맞는다.
+      // The record must be the style actually installed so status and the next run's default match the installed state.
       assert.match(readFileSync(join(dir, "version.yml"), "utf8"), /deploy_style: "?simple"?/);
-      // 재실행해도 흔들리지 않는다
+      // stable across reruns
       await install(dir, ["--type", type, "--deploy-style", "nginx"]);
       assert.ok(workflows(dir).includes(simple));
       assert.ok(!workflows(dir).some((f) => f.endsWith(".bak")));
@@ -98,7 +98,7 @@ for (const [type, files, simple] of [
   });
 }
 
-test("spring,go에 traefik: spring은 TRAEFIK, go는 SIMPLE을 설치한다", async () => {
+test("traefik for spring,go: installs TRAEFIK for spring and SIMPLE for go", async () => {
   const dir = repo({ ...GO, "build.gradle": "version = '1.0.0'\n" });
   try {
     await install(dir, ["--type", "spring,go", "--deploy-style", "traefik"]);
@@ -110,7 +110,7 @@ test("spring,go에 traefik: spring은 TRAEFIK, go는 SIMPLE을 설치한다", as
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("effectiveDeployStyle: 고른 무중단 방식이 어느 타입에도 없을 때만 simple로 바꾼다", () => {
+test("effectiveDeployStyle: falls back to simple only when the chosen zero-downtime style exists for no type", () => {
   assert.strictEqual(effectiveDeployStyle(payload, ["python"], "nginx"), "simple");
   assert.strictEqual(effectiveDeployStyle(payload, ["go", "react"], "traefik"), "simple");
   assert.strictEqual(effectiveDeployStyle(payload, ["spring", "go"], "traefik"), "traefik");
@@ -118,13 +118,13 @@ test("effectiveDeployStyle: 고른 무중단 방식이 어느 타입에도 없�
   assert.strictEqual(effectiveDeployStyle(payload, ["python"], null), null);
 });
 
-test("fallbackStyleTypes: 무중단 워크플로우가 없는 서버 배포 타입만 돌려준다", () => {
+test("fallbackStyleTypes: returns only server-deploy types without a zero-downtime workflow", () => {
   assert.deepStrictEqual(fallbackStyleTypes(payload, ["spring", "go", "python", "react", "flutter"], "nginx"), ["go", "python", "react"]);
   assert.deepStrictEqual(fallbackStyleTypes(payload, ["go"], "simple"), []);
   assert.deepStrictEqual(fallbackStyleTypes(payload, ["go"], "none"), []);
 });
 
-test("cleanupOtherDeployWorkflows: 이번 실행에서 방금 쓴 파일은 baseline이 없어도 수정본으로 보지 않는다", () => {
+test("cleanupOtherDeployWorkflows: a file just written in this run is not treated as an edit even without a baseline", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-types-"));
   try {
     const f = "PROJECT-SPRING-SIMPLE-CICD.yaml";
@@ -135,7 +135,7 @@ test("cleanupOtherDeployWorkflows: 이번 실행에서 방금 쓴 파일은 base
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("cleanupOtherDeployWorkflows: payload에 없는 사용자 워크플로우는 이름이 비슷해도 건드리지 않는다", () => {
+test("cleanupOtherDeployWorkflows: leaves user workflows absent from the payload alone even if the names look similar", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-deploy-types-"));
   try {
     const mine = "MY-APP-PR-PREVIEW.yaml";
