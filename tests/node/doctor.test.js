@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { setLanguage } from "../../src/i18n/index.js";
 import { runDoctor, printDoctorReport, DOC, DOCS_SITE_URL } from "../../src/commands/doctor.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -179,15 +180,24 @@ test("runDoctor: problem items provide impact, actions, and a doc link together"
   }
 });
 
-// Doc site anchors linked from the output must exist in the real doc source (prevents link rot).
+// Doc site anchors linked from the output must exist in the real doc source (prevents link rot),
+// for both the English default (root paths) and the ko locale (/ko/ paths).
 test("anchors targeted by DOC links actually exist in the doc site source", () => {
-  for (const url of Object.values(DOC)) {
-    assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `not a doc site URL: ${url}`);
-    const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
-    const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
-    const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
-    assert.ok(file, `no doc file for ${page}`);
-    assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page} has no #${anchor} anchor`);
+  try {
+    for (const lang of ["en", "ko"]) {
+      setLanguage(lang);
+      for (const url of Object.values(DOC)) {
+        assert.ok(url.startsWith(`${DOCS_SITE_URL}/`), `not a doc site URL: ${url}`);
+        assert.strictEqual(url.startsWith(`${DOCS_SITE_URL}/ko/`), lang === "ko", `${lang} link has the wrong locale: ${url}`);
+        const [page, anchor] = url.slice(DOCS_SITE_URL.length + 1).split("#");
+        const base = join(REPO_ROOT, "website/src/content/docs", page.replace(/\/$/, ""));
+        const file = [".md", ".mdx"].map((ext) => base + ext).find((f) => existsSync(f));
+        assert.ok(file, `no doc file for ${page}`);
+        assert.ok(readFileSync(file, "utf8").includes(`<a id="${anchor}">`), `${page} has no #${anchor} anchor`);
+      }
+    }
+  } finally {
+    setLanguage("ko"); // the other tests in this file assert the ko output
   }
 });
 
