@@ -433,6 +433,9 @@ EN = {
     "cibuild.node_all_ok": "✅ All steps completed successfully.",
     "cibuild.node_error_occurred": "❌ An error occurred during the build.",
     "cibuild.node_log_hint": "💡 Download the 'build-log' artifact from the Actions tab to see the full log.",
+    "cibuild.node_result_status_not_run": "  🆙 Build status: not run (an earlier step failed)",
+    "cibuild.node_build_not_run": "❌ The build did not run because an earlier step failed (for example, the tests).",
+    "cibuild.node_build_not_run_hint": "💡 Check the log of the failed step above. There is no 'build-log' artifact for this run.",
     "cibuild.gate_results": "needs results: {results}",
     "cibuild.gate_failed": "Some jobs failed or were cancelled.",
     # --- cicd ---
@@ -1697,6 +1700,9 @@ KO = {
     "cibuild.node_all_ok": "✅ 모든 단계가 성공적으로 완료되었습니다.",
     "cibuild.node_error_occurred": "❌ 빌드 중 오류가 발생했습니다.",
     "cibuild.node_log_hint": "💡 Actions 탭에서 'build-log' 아티팩트를 다운로드하여 전체 로그를 확인하세요.",
+    "cibuild.node_result_status_not_run": "  🆙 빌드 상태: 실행 안 됨 (이전 단계 실패)",
+    "cibuild.node_build_not_run": "❌ 이전 단계(예: 테스트)가 실패하여 빌드가 실행되지 않았습니다.",
+    "cibuild.node_build_not_run_hint": "💡 위에서 실패한 단계의 로그를 확인하세요. 이번 실행에는 'build-log' 아티팩트가 없습니다.",
     "cibuild.gate_results": "needs 결과: {results}",
     "cibuild.gate_failed": "실패하거나 취소된 job이 있습니다.",
     # --- cicd ---

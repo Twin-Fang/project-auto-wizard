@@ -104,14 +104,18 @@ jobs:
       - name: Verify the branch exists up front
         id: verify_branch
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const prNumber = '${{ github.event.client_payload.pr_number }}';
-            const runId = '${{ github.run_id }}';
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const prNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             console.log(msg('ios_test_tf.branch_check_log', { branch: branchName }));
@@ -162,16 +166,21 @@ jobs:
         if: github.event.client_payload.pr_number != ''
         continue-on-error: true
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const prNumber = parseInt('${{ github.event.client_payload.pr_number }}');
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const runId = '${{ github.run_id }}';
+            const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
             const startTime = Date.now();
 
@@ -447,17 +456,23 @@ jobs:
       - name: Progress update - prepare failed
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -538,18 +553,25 @@ jobs:
         id: progress_step1
         if: github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -768,19 +790,27 @@ jobs:
         id: progress_step2
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED: ${{ steps.progress_step1.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME: ${{ steps.progress_step1.outputs.end_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}');
-            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const step1EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME);
+            const step1Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED;
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -825,21 +855,31 @@ jobs:
       - name: Update the progress comment on build failure
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH: ${{ needs.prepare-test-build.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED: ${{ steps.progress_step1.outputs.elapsed }}
+          PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME: ${{ steps.progress_step1.outputs.end_time }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
-            const step1EndTime = parseInt('${{ steps.progress_step1.outputs.end_time }}') || 0;
-            const step1Elapsed = '${{ steps.progress_step1.outputs.elapsed }}';
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            const step1EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_END_TIME) || 0;
+            const step1Elapsed = process.env.PAW_IN_STEPS_PROGRESS_STEP1_OUTPUTS_ELAPSED;
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -1030,22 +1070,33 @@ jobs:
       - name: Final progress update - success
         if: success() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP1_ELAPSED: ${{ needs.build-ios-test.outputs.step1_elapsed }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_ELAPSED: ${{ needs.build-ios-test.outputs.step2_elapsed }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_END_TIME: ${{ needs.build-ios-test.outputs.step2_end_time }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH: ${{ needs.prepare-test-build.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
-            const step2EndTime = parseInt('${{ needs.build-ios-test.outputs.step2_end_time }}');
-            const step1Elapsed = '${{ needs.build-ios-test.outputs.step1_elapsed }}';
-            const step2Elapsed = '${{ needs.build-ios-test.outputs.step2_elapsed }}';
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            const step2EndTime = parseInt(process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_END_TIME);
+            const step1Elapsed = process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP1_ELAPSED;
+            const step2Elapsed = process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_ELAPSED;
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
@@ -1095,22 +1146,33 @@ jobs:
       - name: Final progress update - failure
         if: failure() && github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number != '' && needs.notify-start.outputs.comment_id != ''
         uses: actions/github-script@v9
+        env:
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME: ${{ github.event.client_payload.branch_name }}
+          PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+          PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP1_ELAPSED: ${{ needs.build-ios-test.outputs.step1_elapsed }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_ELAPSED: ${{ needs.build-ios-test.outputs.step2_elapsed }}
+          PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_END_TIME: ${{ needs.build-ios-test.outputs.step2_end_time }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
+          PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH: ${{ needs.prepare-test-build.outputs.commit_hash }}
+          PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION: ${{ needs.prepare-test-build.outputs.version }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const M = JSON.parse(process.env.PAW_MSG);
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
-            const commentId = parseInt('${{ needs.notify-start.outputs.comment_id }}');
-            const startTime = parseInt('${{ needs.notify-start.outputs.start_time }}');
-            const step2EndTime = parseInt('${{ needs.build-ios-test.outputs.step2_end_time }}') || 0;
-            const step1Elapsed = '${{ needs.build-ios-test.outputs.step1_elapsed }}';
-            const step2Elapsed = '${{ needs.build-ios-test.outputs.step2_elapsed }}';
-            const branchName = '${{ github.event.client_payload.branch_name }}';
-            const buildNumber = '${{ github.event.client_payload.build_number }}';
-            const version = '${{ needs.prepare-test-build.outputs.version }}';
-            const commitHash = '${{ needs.prepare-test-build.outputs.commit_hash }}';
-            const runId = '${{ github.run_id }}';
+            const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
+            const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            const step2EndTime = parseInt(process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_END_TIME) || 0;
+            const step1Elapsed = process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP1_ELAPSED;
+            const step2Elapsed = process.env.PAW_IN_NEEDS_BUILD_IOS_TEST_OUTPUTS_STEP2_ELAPSED;
+            const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
+            const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
+            const version = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_VERSION;
+            const commitHash = process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_COMMIT_HASH;
+            const runId = process.env.PAW_IN_GITHUB_RUN_ID;
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
 
             const now = Date.now();
