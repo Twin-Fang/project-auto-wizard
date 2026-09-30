@@ -183,10 +183,11 @@ fail when the copies drift.
 ## Generated payload workflows
 
 Workflows that differ only in a few values are generated instead of edited by hand. Currently the
-Go and Python PR previews (`payload/workflows/{go,python}/PROJECT-*-PR-PREVIEW.yaml`) and the React
+Go and Python PR previews (`payload/workflows/{go,python}/PROJECT-*-PR-PREVIEW.yaml`), the Go and
+Python single-server deploys (`payload/workflows/{go,python}/PROJECT-*-SIMPLE-CICD.yaml`) and the React
 and Next.js deploys (`payload/workflows/{react,next}/PROJECT-*-CICD.yaml`):
 
-- `templates/workflows/pr-preview.base.yaml`, `cicd-frontend.base.yaml` — the shared bodies with `%%NAME%%` placeholders
+- `templates/workflows/pr-preview.base.yaml`, `cicd-frontend.base.yaml`, `simple-cicd.base.yaml` — the shared bodies with `%%NAME%%` placeholders
 - `templates/workflows/targets.mjs` — which output file gets which values
 - `scripts/generate-workflows.mjs` — fills the placeholders; a placeholder alone on a line is replaced
   by an array of lines (an empty array drops the line; empty strings stay unindented), one inside a line by a string

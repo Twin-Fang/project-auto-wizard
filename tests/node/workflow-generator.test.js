@@ -33,11 +33,13 @@ test("생성 대상마다 결과가 커밋된 파일과 바이트 단위로 일�
   }
 });
 
-test("Go/Python 프리뷰와 React/Next 배포가 모두 생성 대상에 들어 있다", () => {
+test("Go/Python 프리뷰·단일 서버 배포와 React/Next 배포가 모두 생성 대상에 들어 있다", () => {
   const outs = TARGETS.map((t) => t.out);
   for (const f of [
     "payload/workflows/go/PROJECT-GO-PR-PREVIEW.yaml",
     "payload/workflows/python/PROJECT-PYTHON-PR-PREVIEW.yaml",
+    "payload/workflows/go/PROJECT-GO-SIMPLE-CICD.yaml",
+    "payload/workflows/python/PROJECT-PYTHON-SIMPLE-CICD.yaml",
     "payload/workflows/react/PROJECT-REACT-CICD.yaml",
     "payload/workflows/next/PROJECT-NEXT-CICD.yaml",
   ]) {
