@@ -67,11 +67,11 @@ What each merge method does to the release:
 | Merge method | Release published? | Why |
 |---|---|---|
 | Create a merge commit | Yes | The merge commit message carries the renamed PR title (`chore(release): ...`) and no `[skip ci]`. |
-| Squash and merge | No, not by itself | The squash message lists the version-confirm commit, whose `[skip ci]` makes GitHub skip the push workflows. The next release notes can also list earlier changes again, because the original commits are not part of the release branch history. |
-| Rebase and merge | No, not by itself | The last commit on the release branch is the version-confirm commit (`[skip ci]`), so the push workflows are skipped. The next release notes do not repeat the rebased commits. |
+| Squash and merge | Not with the default squash message | With the default message (the commit list is included) the merge commit body contains the `[skip ci]` of the version-confirm commit, so GitHub skips the push workflows. If the repository's squash message default is set to the PR title only, the release is published. The next release notes can list earlier changes again, because the original commits are not part of the release branch history. |
+| Rebase and merge | No, not by itself | The last commit on the release branch is the version-confirm commit (`[skip ci]`), so the push workflows are skipped. The next release notes do not repeat the rebased commits, but only while develop has not merged the release branch back; after that merge they are listed again. |
 | Merged before the run finished | Extra patch release | The PR is not renamed and the version is not confirmed yet, so the safety-net workflow publishes a patch version of its own. |
 
-If a release PR was squash- or rebase-merged, publish it by running **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow). It is idempotent, so running it twice is safe.
+If a release PR was rebase-merged, or squash-merged with the default message, publish it by running **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow). It is idempotent, so running it twice is safe.
 
 Known limits:
 

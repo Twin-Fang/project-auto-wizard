@@ -164,18 +164,12 @@ jobs:
 
           # Commits pushed straight to {{MAIN_BRANCH}} since the last release tag (full history if there is no tag)
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          # --cherry-pick --right-only drops commits whose change is already in the last release under another hash
-          # (a rebase-merged release PR), so they are not listed as new again. A squash merge cannot be detected this way.
-          if [ -n "$LAST_TAG" ]; then
-            LOG_ARGS=(--cherry-pick --right-only "${LAST_TAG}...HEAD")
-          else
-            LOG_ARGS=(HEAD)
-          fi
-          git log --pretty=%s "${LOG_ARGS[@]}" > commits.txt
+          LOG_RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
+          git log --pretty=%s "$LOG_RANGE" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
-          git log --pretty=%b "${LOG_ARGS[@]}" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          git log --pretty=%b "$LOG_RANGE" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           echo "$(m wf_version.commits_since last_tag="${LAST_TAG:-the beginning}" n="$(wc -l < commits.txt)")"
 
           python3 .github/scripts/changelog_manager.py ai-summary \

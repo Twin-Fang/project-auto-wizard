@@ -57,6 +57,11 @@ function mergeInto(repo, method) {
     g("merge", "-q", "--squash", "develop");
     g("commit", "-q", "-m", `${PR_TITLE} (#5)`, "-m", `* feat: add a\n\n* fix: repair b\n\n* ${CONFIRM}`);
   } else if (method === "rebase") {
+    // A rebase merge replays the commits onto the current main; a main-only commit first keeps the replayed hashes different
+    // from the originals (identical parent, tree and timestamp would otherwise reproduce the very same commits).
+    writeFileSync(join(repo.work, "m.txt"), "m\n");
+    g("add", "m.txt");
+    g("commit", "-q", "-m", "chore: main-only");
     const commits = g("rev-list", "--reverse", "main..develop").trim().split("\n");
     for (const c of commits) g("cherry-pick", c);
   }
@@ -113,10 +118,12 @@ maybe("rebase merge: the head commit is the confirm commit, so it is skipped and
 });
 
 // ── the next release's commit list ──────────────────────────────────────────────────────────────
-function nextCommits(method) {
+function nextCommits(method, { backMerge = false } = {}) {
   const repo = makeRepo();
   try {
     mergeInto(repo, method);
+    // The install summary tells users to merge the release branch back into develop after a release.
+    if (backMerge) { repo.g("checkout", "-q", "develop"); repo.g("merge", "-q", "--no-edit", "main"); }
     repo.g("checkout", "-q", "develop");
     writeFileSync(join(repo.work, "c.txt"), "c\n");
     repo.g("add", "c.txt");
@@ -139,6 +146,13 @@ maybe("next release notes after a rebase merge do not list the rebased commits a
   assert.deepStrictEqual(nextCommits("rebase"), ["feat: add c"]);
 });
 
+// Known limit, kept visible: once develop merges main back, the rebased copies are on develop too and are listed again.
+maybe("next release notes after a rebase merge list the rebased commits again once develop has merged main back (documented limit)", () => {
+  const listed = nextCommits("rebase", { backMerge: true });
+  assert.ok(listed.includes("feat: add c"));
+  assert.ok(listed.includes("feat: add a") && listed.includes("fix: repair b"));
+});
+
 // Known limit, kept visible: a squash commit has no patch in common with the originals, so they are listed again.
 maybe("next release notes after a squash merge still list the squashed commits (documented limit)", () => {
   const listed = nextCommits("squash");
@@ -147,9 +161,10 @@ maybe("next release notes after a squash merge still list the squashed commits (
 });
 
 // Both workflows that feed release notes use the same collection rule.
-test("the safety-net and the release-PR collectors both drop patch-equivalent commits", () => {
+test("the release-PR collector drops patch-equivalent commits; the safety-net keeps its tag-based range", () => {
+  // git describe only returns a tag reachable from HEAD, so a cherry-pick comparison there would always have an empty left side.
   const safety = read("payload/workflows/common/PROJECT-COMMON-VERSION-CONTROL.yaml");
-  assert.match(safety, /LOG_ARGS=\(--cherry-pick --right-only "\$\{LAST_TAG\}\.\.\.HEAD"\)/);
-  assert.match(safety, /git log --pretty=%s "\$\{LOG_ARGS\[@\]\}" > commits\.txt/);
+  assert.match(safety, /LOG_RANGE="\$\{LAST_TAG:\+\$\{LAST_TAG\}\.\.\}HEAD"/);
+  assert.ok(!safety.includes("--cherry-pick"));
   assert.match(CHANGELOG, /git log --cherry-pick --right-only --pretty=%s "origin\/\{\{MAIN_BRANCH\}\}\.\.\.HEAD" > commits\.txt/);
 });

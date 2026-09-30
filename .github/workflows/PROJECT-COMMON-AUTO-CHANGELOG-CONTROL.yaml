@@ -192,8 +192,9 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin main
           # --cherry-pick --right-only drops commits whose change already exists on main under another hash
-          # (a release PR that was rebase-merged earlier), so they are not listed in the next release notes again.
-          # A squash merge leaves no such trace and cannot be told apart this way.
+          # (a rebase-merged release PR), but only while develop has not merged main back: after that merge the
+          # rebased copies are on develop too, nothing is left to compare with, and they are listed again.
+          # A squash merge leaves no matching patch at all and cannot be told apart this way.
           git log --cherry-pick --right-only --pretty=%s "origin/main...HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)

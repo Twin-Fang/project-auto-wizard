@@ -73,7 +73,7 @@ test("manual-merge step: renames the PR with the release-confirm subject, warns 
   assert.ok(!/gh pr merge/.test(body), "the manual-merge step must never merge");
 });
 
-test("the guidance and log messages exist in both languages and tell the user not to rebase", () => {
+test("the guidance and log messages exist in both languages and explain what squash and rebase merges do", () => {
   for (const key of ["wf_changelog.automerge_off", "wf_changelog.automerge_off_comment", "wf_changelog.automerge_rename_failed"]) {
     assert.strictEqual(MESSAGES.split(`"${key}"`).length - 1, 2, `${key} must be defined once per language`);
   }
