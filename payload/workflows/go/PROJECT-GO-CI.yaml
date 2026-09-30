@@ -95,6 +95,8 @@ jobs:
       - name: Build verification complete
         env:
           PAW_REF_NAME: ${{ github.ref_name }}
+          # On a PR, github.sha is the temporary merge commit; show the PR head commit instead
+          PAW_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
@@ -103,7 +105,7 @@ jobs:
           m cibuild.info_title
           m cibuild.info_project project="${{ env.PROJECT_NAME }}"
           m cibuild.info_branch branch="$PAW_REF_NAME"
-          m cibuild.info_commit sha="${{ github.sha }}"
+          m cibuild.info_commit sha="$(echo "$PAW_COMMIT_SHA" | cut -c1-7)"
           m cibuild.info_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
   # Job: CI Gate (the single job to register as a required check)
