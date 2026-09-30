@@ -1,4 +1,4 @@
-// 공용 ANSI 헬퍼 — banner/status-cards/summary가 공유 (readline-engine 내부 헬퍼와 독립, 의존성 0)
+// Shared ANSI helpers used by banner/status-cards/summary (independent of readline-engine's own helpers, zero dependencies)
 const E = "\x1b[";
 export const A = {
   reset: `${E}0m`,
@@ -12,10 +12,10 @@ export const A = {
   gray: `${E}90m`,
 };
 
-// NO_COLOR(https://no-color.org) 환경변수 또는 대상 스트림이 TTY가 아니면 색상을 끈다.
-// no-color.org 규격상 NO_COLOR는 "값과 무관하게 존재 여부"만 본다 — NO_COLOR=""(빈 문자열)도
-// "설정됨"으로 취급해야 하므로 truthy 체크(`!process.env.NO_COLOR`)가 아니라 존재 체크를 쓴다.
-// TERM=dumb(Emacs shell·일부 CI 의사 TTY 등)은 ANSI 시퀀스를 해석하지 못해 그대로 찍힌다 — 색상도 끈다.
+// Disable color when NO_COLOR (https://no-color.org) is set or the target stream is not a TTY.
+// Per the no-color.org spec only the presence of NO_COLOR matters, not its value: NO_COLOR="" (empty)
+// counts as set, so we check presence instead of truthiness (`!process.env.NO_COLOR`).
+// TERM=dumb (Emacs shell, some CI pseudo-TTYs) cannot interpret ANSI sequences and prints them raw, so color is off too.
 export const isDumbTerminal = () => process.env.TERM === "dumb";
 export function colorEnabled(stream = process.stdout) {
   return process.env.NO_COLOR === undefined && !!stream.isTTY && !isDumbTerminal();
@@ -23,13 +23,13 @@ export function colorEnabled(stream = process.stdout) {
 
 export const paint = (s, color, enabled = colorEnabled()) => (enabled ? `${color}${s}${A.reset}` : String(s));
 
-// 대략적 표시 폭 (CJK 2칸 · ANSI 시퀀스 0칸) — 박스 우변 정렬용
+// Approximate display width (CJK 2 columns, ANSI sequences 0) - used to align the right edge of boxes
 export function visualWidth(s) {
   const plain = String(s).replace(/\x1b\[[0-9;]*m/g, "");
   let w = 0;
   for (const ch of plain) {
     const cp = ch.codePointAt(0);
-    // 한글·CJK·이모지 대략 2칸 (터미널 관례)
+    // Hangul/CJK/emoji take roughly 2 columns (terminal convention)
     w += (cp >= 0x1100 && (cp <= 0x115f || (cp >= 0x2e80 && cp <= 0xa4cf) || (cp >= 0xac00 && cp <= 0xd7a3)
       || (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xff00 && cp <= 0xff60) || cp >= 0x1f300)) ? 2 : 1;
   }
