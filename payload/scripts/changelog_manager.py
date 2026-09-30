@@ -35,7 +35,7 @@ import urllib.error
 import urllib.request
 
 import issue_helper
-from messages import t, tn, use_utf8_output
+from messages import SUPPORTED, t, tn, template, use_utf8_output
 
 
 # ----------------------------- Common utilities -----------------------------
@@ -89,6 +89,60 @@ def _make_safe_key(title: str, idx: int) -> str:
     # \uac00-\ud7a3 is the Hangul syllable block; titles in either language keep their letters
     safe_key = re.sub(r'[^a-zA-Z0-9\uac00-\ud7a3]', '_', title.lower()).strip('_')
     return safe_key if safe_key else f"category_{idx}"
+
+
+# Category keys stored in CHANGELOG.json for the standard sections, so the same category
+# is one key whatever language the notes were written in.
+_STANDARD_CATEGORY_KEYS = ('breaking', 'feat', 'fix', 'perf', 'docs', 'refactor', 'test', 'deps', 'changes', 'wip')
+
+
+def _standard_key_by_title() -> dict:
+    """Safe-key form of every standard section title (all supported languages) -> fixed category key."""
+    lookup: dict[str, str] = {}
+    for lang in SUPPORTED:
+        for bucket in _STANDARD_CATEGORY_KEYS:
+            title = template(f"changelog.section_{bucket}", lang).lstrip('#').strip()
+            lookup[_make_safe_key(title, 0)] = bucket
+    return lookup
+
+
+def _category_key(title: str, idx: int) -> str:
+    """Storage key for a category: a fixed key for standard sections in any language, else the safe title key."""
+    safe_key = _make_safe_key(title, idx)
+    return _standard_key_by_title().get(safe_key, safe_key)
+
+
+def _category_display_title(key: str, stored_title: str) -> str:
+    """Heading to show: standard categories follow the current language, custom ones keep their own title."""
+    if key in _STANDARD_CATEGORY_KEYS:
+        return t(f"changelog.section_{key}").lstrip('#').strip()
+    return stored_title or key
+
+
+def _normalize_parsed_changes(parsed) -> dict:
+    """Read parsed_changes into {fixed key: {'title', 'items'}}.
+
+    Releases stored before keys became language-independent may hold the same category under
+    several keys (`breaking_changes`, a Korean title key, ...); those are merged here by title.
+    Entries may also be a bare item list (very old format), whose key doubles as the title."""
+    result: dict[str, dict] = {}
+    if not isinstance(parsed, dict):
+        return result
+    for raw_key, entry in parsed.items():
+        if isinstance(entry, dict):
+            title = _normalize_text(str(entry.get('title') or '')) or _normalize_text(str(raw_key))
+            items = entry.get('items') or []
+        elif isinstance(entry, list):
+            title = _normalize_text(str(raw_key))
+            items = entry
+        else:
+            continue
+        key = _category_key(title, len(result))
+        target = result.setdefault(key, {'title': title, 'items': []})
+        # Only items already collected from an earlier entry are skipped; repeats inside one entry stay as stored
+        seen = set(target['items'])
+        target['items'].extend(str(it) for it in items if it and str(it) not in seen)
+    return result
 
 
 # ----------------------- Markdown parser (unified) -----------------------
@@ -158,7 +212,7 @@ def _parse_markdown_sections(md_content: str) -> dict:
             if not title or _VERSION_HEADING_RE.match(title):
                 current_key = None
                 continue
-            key = _make_safe_key(title, len(order))
+            key = _category_key(title, len(order))
             if key not in detected:
                 detected[key] = {'title': title, 'items': []}
                 order.append(key)
@@ -211,11 +265,10 @@ def _parse_markdown_lenient(md_content: str) -> dict:
         if len(category_title) > 100:
             continue
 
-        safe_key = _make_safe_key(category_title, idx)
-        detected[safe_key] = {
-            'title': category_title,
-            'items': items,
-        }
+        safe_key = _category_key(category_title, idx)
+        # Same category twice (e.g. English and Korean titles) is merged, not overwritten
+        entry = detected.setdefault(safe_key, {'title': category_title, 'items': []})
+        entry['items'].extend(items)
 
     return detected
 
@@ -245,8 +298,8 @@ def _parse_markdown_heuristic(md_content: str) -> dict:
             title = re.sub(r'^[\*\-\+\d\.]+\s*', '', title).strip()
 
             if title and len(title) < 100:
-                current_key = _make_safe_key(title, len(detected))
-                detected[current_key] = {'title': title, 'items': []}
+                current_key = _category_key(title, len(detected))
+                detected.setdefault(current_key, {'title': title, 'items': []})
             continue
 
         # Indented line -> item
@@ -663,22 +716,13 @@ def cmd_generate_md() -> int:
                 if pr_number is not None:
                     f.write(f"**PR:** #{pr_number}  \n\n")
 
-                parsed = release.get('parsed_changes') or {}
+                parsed = _normalize_parsed_changes(release.get('parsed_changes'))
 
                 if parsed:
-                    # Print the structured data
-                    for _, items in parsed.items():
-                        if not items:
-                            continue
-                        if isinstance(items, dict) and 'items' in items:
-                            actual_items = items.get('items') or []
-                            title = items.get('title') or ''
-                        else:
-                            actual_items = items
-                            title = _normalize_text(_)
-
-                        f.write(f"**{title}**\n")
-                        for item in actual_items:
+                    # Print the structured data; headings follow the current language
+                    for key, entry in parsed.items():
+                        f.write(f"**{_category_display_title(key, entry['title'])}**\n")
+                        for item in entry['items']:
                             f.write(f"- {item}\n")
                         f.write("\n")
                 else:
@@ -717,14 +761,13 @@ def cmd_export_release_notes(version: str, output_path: str | None) -> int:
             matched = next((r for r in releases if str(r.get('version')) == str(version)), None)
             if matched:
                 header = t("changelog.export_header", version=matched.get('version')) + "\n\n"
-                parsed_changes = matched.get('parsed_changes') or {}
+                parsed_changes = _normalize_parsed_changes(matched.get('parsed_changes'))
                 if parsed_changes:
                     category_blocks: list[str] = []
-                    for _, value in parsed_changes.items():
-                        title = (value.get('title') or '').strip()
-                        items = [it for it in (value.get('items') or []) if it]
-                        if title and items:
-                            block = "**" + title + "**\n" + "\n".join("- " + it for it in items)
+                    for key, entry in parsed_changes.items():
+                        title = _category_display_title(key, entry['title']).strip()
+                        if title and entry['items']:
+                            block = "**" + title + "**\n" + "\n".join("- " + it for it in entry['items'])
                             category_blocks.append(block)
                     body = "\n\n".join(category_blocks) if category_blocks else _strip_version_headings((matched.get('raw_summary') or '').strip())
                 else:

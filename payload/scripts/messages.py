@@ -1056,6 +1056,7 @@ EN = {
     "wf_preview.title_running": "## ✅ Preview environment is running",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## Latest Version : v1.0.0 (2025-08-15)",
+    "wf_readme.default_heading": "Latest Version",
     # --- wf_release ---
     "wf_release.drift_heading": "### ⚠️ Missing release detected",
     "wf_release.drift_version_line": "- version.yml: `{version}`",
@@ -2113,6 +2114,7 @@ KO = {
     "wf_preview.title_running": "## ✅ Preview 환경 실행 중",
     # --- wf_readme ---
     "wf_readme.hint_first_example": "## 최신 버전 : v1.0.0 (2025-08-15)",
+    "wf_readme.default_heading": "최신 버전",
     # --- wf_release ---
     "wf_release.drift_heading": "### ⚠️ 릴리스 누락 감지",
     "wf_release.drift_version_line": "- version.yml: `{version}`",
