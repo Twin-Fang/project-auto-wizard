@@ -72,6 +72,8 @@ Unknown top-level fields you add are preserved when the wizard rewrites the file
 | `android_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter only. Play Store deploy mode. |
 | `ios_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter only. iOS deploy mode. |
 
+Boolean options (`semver_auto`, `copilot_ai`, `release_automerge`) are read the same way by the CLI and by the workflows: quotes (`'false'`, `"false"`), upper or lower case (`False`) and a trailing `# comment` are fine, and only `true` and `false` are recognized. Any other value (`no`, `off`, `0`, `maybe`, an empty value) is not guessed: it is read as `false`, the workflows print a warning, and the CLI warns and writes `false` back on the next run. A missing key is different: it uses the default shown above (for `release_automerge` that is on).
+
 The other `metadata` fields (`last_updated`, `integration_date`, `template.version`, …) are bookkeeping written by the wizard and the workflows.
 
 ## Version files synced per type

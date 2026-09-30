@@ -43,6 +43,22 @@ export const OPTIONS = Object.freeze([
 
 export const optionByKey = (key) => OPTIONS.find((o) => o.key === key);
 
+// The one rule for reading a boolean option value written in version.yml. The installed workflows read the same
+// value through version_manager.py (`option` command); tests/fixtures/option-value-cases.json runs both readers.
+//   - an inline comment (whitespace + #) is dropped, then one pair of matching quotes, then case is ignored
+//   - only true / false are recognized; anything else (yes, off, 0, maybe, empty, null) returns null
+// A key that is present with an unrecognized value is NOT the same as a missing key: callers treat it as false (the
+// conservative side - nothing is switched on or merged by itself) and report it, instead of guessing the intent.
+export function parseOptionValue(raw) {
+  let v = String(raw ?? "").replace(/(^|\s)#.*$/, "").trim();
+  const quoted = v.match(/^(["'])(.*)\1$/);
+  if (quoted) v = quoted[2].trim();
+  v = v.toLowerCase();
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return null;
+}
+
 // version.yml template variable name, e.g. semver_auto -> OPT_SEMVER_AUTO
 export const optionVar = (o) => `OPT_${o.key.toUpperCase()}`;
 

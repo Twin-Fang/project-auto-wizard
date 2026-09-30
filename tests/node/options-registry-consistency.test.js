@@ -50,17 +50,18 @@ test("docs list every option: version.yml reference and CLI reference, en and ko
   }
 });
 
-// A workflow reads an option with `... options:.*?<key>:\s*\"?(true|false) ... print(m.group(1) if m else "<default>")`.
-// The default printed when the key is missing must be the registry's legacyDefault: an existing install lacking the key
-// has to behave exactly as the CLI resolves it.
+// A workflow reads an option with `version_manager.py option <key> --default <value> || echo "<value>"`.
+// The default used when the key is missing (and when the script cannot run) must be the registry's legacyDefault: an existing
+// install lacking the key has to behave exactly as the CLI resolves it.
 test("workflow readers only read registry keys and fall back to the registry legacyDefault", () => {
   const readers = [];
   for (const f of walk(join(ROOT, "payload/workflows")).filter((p) => /\.ya?ml$/.test(p))) {
-    for (const m of readFileSync(f, "utf8").matchAll(/options:\.\*\?(?:\^\\s\+)?(\w+):[^\n]*?print\(m\.group\(1\) if m else "(true|false)"\)/g)) {
+    for (const m of readFileSync(f, "utf8").matchAll(/version_manager\.py"? option (\w+) --default (true|false) \|\| echo "(true|false)"/g)) {
+      assert.strictEqual(m[3], m[2], `${f}: the script default and the fallback echo for ${m[1]} must agree`);
       readers.push({ file: f, key: m[1], fallback: m[2] });
     }
   }
-  assert.ok(readers.length >= 2, "expected the copilot_ai and release_automerge readers to be found");
+  assert.ok(readers.length >= 7, "expected the semver_auto, copilot_ai and release_automerge readers to be found");
   for (const r of readers) {
     const o = OPTIONS.find((x) => x.key === r.key);
     assert.ok(o, `${r.file}: reads "${r.key}" which is not in the option registry`);

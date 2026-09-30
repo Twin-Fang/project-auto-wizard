@@ -57,7 +57,7 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
-          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          COPILOT_AI=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option copilot_ai --default false || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
@@ -102,7 +102,7 @@ jobs:
           # so rules alone are used, without any AI-assisted classification.
           CURRENT_VERSION=$(python3 .github/scripts/version_manager.py get 2>/dev/null | tail -n 1)
           MODE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?branches:.*?mode:\s*\"?([A-Za-z-]+)", t, re.S); print(m.group(1) if m else "pr-flow")' 2>/dev/null || echo "pr-flow")
-          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          SEMVER_AUTO=$(python3 .github/scripts/version_manager.py option semver_auto --default false || echo "false")
           BUMP="patch"
           if [ "$MODE" = "trunk-based" ] && [ "$SEMVER_AUTO" = "true" ]; then
             BUMP=$(AI_API_KEY="" COPILOT_AI="false" python3 .github/scripts/changelog_manager.py classify-bump --commits-file commits.txt 2>/dev/null | tail -n 1)

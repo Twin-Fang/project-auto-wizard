@@ -4,8 +4,9 @@
 // and leaving exactly one guidance comment. The default (key missing) must stay ON.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,12 +14,24 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WF = readFileSync(join(ROOT, "payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml"), "utf8");
 const MESSAGES = readFileSync(join(ROOT, "payload/scripts/messages.py"), "utf8");
 
-// Run the workflow's own python reader against a version.yml sample - if the reader changes, this test sees it.
+// The workflow reads the option through version_manager.py; the step must pass the same default the registry declares (true).
+// The full case table (quotes, case, comments, invalid values) runs in option-value-parity.test.js.
+test("the release_automerge reader step uses the shared reader with default true", () => {
+  assert.match(WF, /version_manager\.py" option release_automerge --default true \|\| echo "true"/);
+});
+
 function readerOutput(versionYml) {
-  const m = WF.match(/AUTOMERGE=\$\(python3 -c '([^']+)'/);
-  assert.ok(m, "the release_automerge reader step must exist");
-  const code = m[1].replace(/open\("version\.yml",encoding="utf-8"\)\.read\(\)/, "sys.stdin.read()").replace("import re;", "import re,sys;");
-  return execFileSync("python3", ["-c", code], { input: versionYml, encoding: "utf8" }).trim();
+  const dir = mkdtempSync(join(tmpdir(), "paw-reader-"));
+  try {
+    writeFileSync(join(dir, "version.yml"), versionYml);
+    const r = spawnSync("python3", [join(ROOT, "payload/scripts/version_manager.py"), "option", "release_automerge", "--default", "true"], {
+      cwd: dir, encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
+    });
+    assert.strictEqual(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 const yml = (body) => `metadata:\n  template:\n    version: "1"\n    options:\n${body}`;
 

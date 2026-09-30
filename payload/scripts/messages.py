@@ -882,6 +882,7 @@ EN = {
     "truncate.limit_positive": "ERROR: limit must be a positive integer: {limit}",
     # --- version ---
     "version.bump_help": "bump level (default patch — same as before when not given)",
+    "version.option_default_help": "value to print when the key is not in version.yml (default false)",
     # --- wf_aisum ---
     "wf_aisum.no_issue_in_branch": "No issue number found in the branch name — skipping: {ref}",
     # --- wf_changelog ---
@@ -1265,6 +1266,7 @@ EN = {
     "version_manager.err_invalid_version": "ERROR: invalid version format: {version}",
     "version_manager.err_invalid_version_xyz": "ERROR: invalid version format: {version} (must be x.y.z)",
     "version_manager.err_generic": "ERROR: {error}",
+    "version_manager.option_invalid": "::warning::version.yml option {option} has an unrecognized value \"{value}\"; using false. Use true or false.",
     "version_manager.err_no_types_sync": "ERROR: version.yml has no readable project_types — cannot sync project files",
     "version_manager.err_no_types_check": "ERROR: version.yml has no readable project_types — cannot sync versions",
     "version_manager.err_write_failed": "failed to write version {version} to version.yml",
@@ -2157,6 +2159,7 @@ KO = {
     "truncate.limit_positive": "ERROR: limit은 양수여야 함: {limit}",
     # --- version ---
     "version.bump_help": "승격 폭 (기본 patch — 지정 안 하면 기존 동작과 동일)",
+    "version.option_default_help": "version.yml에 키가 없을 때 출력할 값 (기본 false)",
     # --- wf_aisum ---
     "wf_aisum.no_issue_in_branch": "브랜치명에서 이슈 번호를 찾지 못함 — 건너뜀: {ref}",
     # --- wf_changelog ---
@@ -2540,6 +2543,7 @@ KO = {
     "version_manager.err_invalid_version": "오류: 올바르지 않은 버전 형식: {version}",
     "version_manager.err_invalid_version_xyz": "오류: 올바르지 않은 버전 형식: {version} (x.y.z 형식이어야 합니다)",
     "version_manager.err_generic": "오류: {error}",
+    "version_manager.option_invalid": "::warning::version.yml의 {option} 값 \"{value}\"을(를) 인식하지 못해 false로 처리합니다. true 또는 false를 쓰세요.",
     "version_manager.err_no_types_sync": "오류: version.yml에서 project_types를 읽을 수 없어 프로젝트 파일을 동기화할 수 없습니다",
     "version_manager.err_no_types_check": "오류: version.yml에서 project_types를 읽을 수 없어 버전을 동기화할 수 없습니다",
     "version_manager.err_write_failed": "version.yml에 버전 {version}을(를) 기록하지 못했습니다",

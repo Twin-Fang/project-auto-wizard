@@ -152,7 +152,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          SEMVER_AUTO=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option semver_auto --default false || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
           echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
@@ -163,16 +163,18 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
-          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          COPILOT_AI=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option copilot_ai --default false || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Read release_automerge option from version.yml
         id: automerge_option
         run: |
-          # Same metadata: -> template: -> options: scope as copilot_ai. A missing key means ON:
-          # installs from before the option existed already automerge, and that must not change.
-          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?^\s+release_automerge:\s*\"?(true|false)", t, re.S|re.M); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          # Read with the same rule as the CLI (quotes, case and a trailing comment are fine; only true/false count).
+          # A missing key means ON: installs from before the option existed already automerge, and that must not change.
+          # A key that is present but unrecognized (e.g. maybe, off, empty) is reported and treated as false,
+          # so a typo never switches automerge back on for someone who turned it off.
+          AUTOMERGE=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option release_automerge --default true || echo "true")
           echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
           echo "release_automerge option: $AUTOMERGE"
 

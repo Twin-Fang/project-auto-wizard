@@ -19,7 +19,7 @@ Read-only and rule-based (no AI). It calls `gh api`, so it needs network access 
 | `WORKFLOW_PAT` secret registered | Optional; faster tag and Release |
 | Merge commits allowed | Required for the release PR to automerge |
 | Copilot summaries | Whether `copilot_ai` is on, and what that costs |
-| Release PR automerge | Whether `release_automerge` is on (shown only when the wizard is installed; a missing key means on) |
+| Release PR automerge | Whether `release_automerge` is on (shown only when the wizard is installed; a missing key means on; a value that is not `true`/`false` is a warning and reads as off) |
 | Flutter store files | For the selected store platforms: `Fastfile`, `ExportOptions.plist` and leftover placeholders in `ExportOptions.plist` (local files only; store secrets are not checked) |
 
 ## Reading the output

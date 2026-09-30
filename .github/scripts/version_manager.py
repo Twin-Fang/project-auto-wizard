@@ -22,6 +22,7 @@ Usage:
     version_manager.py increment-code   # version_code+1 only
     version_manager.py set X.Y.Z        # set version explicitly, sync
     version_manager.py sync             # sync version.yml <-> project files
+    version_manager.py option KEY [--default true|false]   # boolean option from metadata.template.options
 
 Contract:
     - The LAST line printed to stdout is always the value (callers do `| tail -n 1`).
@@ -187,6 +188,58 @@ def write_scalar_key(key, value, quote=True):
 def key_exists(key):
     text = read_text()
     return re.search(r'^' + re.escape(key) + r':', text, re.MULTILINE) is not None
+
+
+def parse_option_value(raw):
+    """One boolean option value -> True / False / None (None = not recognized).
+
+    Same rule as parseOptionValue() in src/core/options.js (tests/fixtures/option-value-cases.json runs both):
+    an inline comment (whitespace + #) is dropped, then one pair of matching quotes, then case is ignored.
+    Only true / false are recognized; yes, off, 0, maybe and an empty value are not."""
+    v = re.sub(r'(^|\s)#.*$', '', str(raw if raw is not None else '')).strip()
+    q = re.match(r'^(["\'])(.*)\1$', v)
+    if q:
+        v = q.group(2).strip()
+    v = v.lower()
+    if v == 'true':
+        return True
+    if v == 'false':
+        return False
+    return None
+
+
+def read_option(key, default, text=None):
+    """(value, raw) for a boolean under metadata.template.options in version.yml.
+
+    - key missing: (default, None)
+    - key written with a recognized value: (that value, None)
+    - key written with an unrecognized value: (False, raw) - the conservative side, reported by the caller;
+      a present-but-unreadable value is not a missing key, so the default must not be guessed for it
+    Mirrors the section walk of parseTemplateOptions() in src/core/version-yml.js; the first occurrence wins."""
+    if text is None:
+        text = read_text()
+    line_re = re.compile(r'^\s+' + re.escape(key) + r':\s*(.*)$')
+    in_template = in_options = False
+    for line in text.split("\n"):
+        if re.match(r'^\s*template:', line):
+            in_template = True
+            continue
+        if in_template and re.match(r'^\s+options:', line):
+            in_options = True
+            continue
+        if in_template and in_options:
+            m = line_re.match(line)
+            if m:
+                raw = m.group(1).strip()
+                parsed = parse_option_value(raw)
+                return (False, raw) if parsed is None else (parsed, None)
+            # another key indented 0-4 spaces ends the options section
+            if re.match(r'^\s{0,4}[a-z_]+:', line):
+                in_options = in_template = False
+        # a top-level key ends the template section
+        if in_template and re.match(r'^[a-z_]+:', line):
+            in_template = in_options = False
+    return default, None
 
 
 def get_current_version():
@@ -1011,6 +1064,20 @@ def cmd_sync(args):
     return 0
 
 
+def cmd_option(args):
+    """Print `true` / `false` for one boolean option; a missing version.yml or key prints the default.
+    An unrecognized value prints false and a warning on stderr (stdout stays the value contract)."""
+    default = args.default == "true"
+    if not _version_yml_path().is_file():
+        print("true" if default else "false")
+        return 0
+    value, raw = read_option(args.key, default)
+    if raw is not None:
+        log(t("version_manager.option_invalid", option=args.key, value=raw))
+    print("true" if value else "false")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="version_manager.py")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1022,6 +1089,11 @@ def build_parser():
                               help=t("version.bump_help"))
     sub.add_parser("increment-code")
     sub.add_parser("sync")
+
+    p_option = sub.add_parser("option")
+    p_option.add_argument("key")
+    p_option.add_argument("--default", choices=["true", "false"], default="false",
+                          help=t("version.option_default_help"))
 
     p_set = sub.add_parser("set")
     p_set.add_argument("version")
@@ -1041,6 +1113,7 @@ def main(argv=None):
         "increment-code": cmd_increment_code,
         "set": cmd_set,
         "sync": cmd_sync,
+        "option": cmd_option,
     }
     handler = handlers[args.command]
     try:

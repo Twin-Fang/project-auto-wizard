@@ -4,6 +4,8 @@ export default {
   "core.versionYml.pathMergedTitle": "타입당 폴더 하나",
   "core.versionYml.pathMerged": "version.yml 에 '{keptName}'(폴더 {kept})과 '{name}'(폴더 {path})이 따로 적혀 있지만 이제 같은 타입이라 타입당 폴더 하나만 관리합니다. {type}={final} 를 유지하고, {lost} 는 CI·버전 동기화에서 빠집니다.",
   "core.versionYml.pathMergedHint": "{path} 를 대신 관리하려면 --paths {type}={path} 로 다시 실행하세요. 둘 다 유지하려면 빠진 폴더용 CI 워크플로우를 직접 추가하세요.",
+  "core.versionYml.optionInvalid": "version.yml의 옵션 {key} 값 \"{value}\"을(를) 인식하지 못해 false로 읽습니다. true 또는 false를 쓰세요.",
+  "core.versionYml.optionInvalidTitle": "인식하지 못한 옵션 값",
   "core.breakingCheck.nonInteractive": "⚠️  CRITICAL 호환성 변경이 있습니다 — 비대화형 실행이라 계속 진행합니다. 위 내용을 꼭 확인하세요.",
   "core.logger.error.nameExhausted": "로그 파일 이름이 모두 사용 중입니다: {base}",
   "core.logger.warn.startFailed": "실행 로그를 시작하지 못했습니다: {message}",

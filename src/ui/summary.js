@@ -13,6 +13,8 @@ export function printSummary(ctx) {
   const { mode, types = [], version = "", versionCode = null, copiedFiles = [], autoUpdated = [], branches = null, gitignoreUpdated = false,
     // pr-flow but the develop branch could not be created on the remote - the layout line alone looks ready, so warn separately.
     developMissing = false,
+    // false when version.yml turns the release PR automerge off: the summary must not describe automerge or its PAT then.
+    releaseAutomerge = true,
     // Post-install verification and record
     answers = [], unresolved = [], secrets = new Map(), optionalSecrets = new Map(), logPath = "", legacyMdLogs = false, cleanup = null,
     // Flutter store deployment - app files created/kept and cleanup of deselected stores
@@ -49,7 +51,7 @@ export function printSummary(ctx) {
     if (branches.mode === "trunk-based") {
       err(t("ui.summary.branches.trunk", { main: branches.main }));
     } else {
-      err(t("ui.summary.branches.prFlow", { develop: branches.develop, main: branches.main }));
+      err(t(releaseAutomerge ? "ui.summary.branches.prFlow" : "ui.summary.branches.prFlowManual", { develop: branches.develop, main: branches.main }));
       if (developMissing) {
         err(t("ui.summary.branches.developMissing", { develop: branches.develop }));
         err(t("ui.summary.branches.developHint", { main: branches.main, develop: branches.develop }));
@@ -208,11 +210,18 @@ export function printSummary(ctx) {
     err("");
   }
 
-  err(`  ${num()} ${t("ui.summary.todo.pat")}`);
-  err(t("ui.summary.todo.patPath"));
-  err(t("ui.summary.todo.patName"));
-  err(t("ui.summary.todo.patAccount"));
-  err(t("ui.summary.todo.patOptional"));
+  // With automerge off (pr-flow) nothing merges the release PR on the workflow's behalf, so the PAT guidance does not apply.
+  // In trunk-based mode there is no release PR, and the PAT block is kept as before.
+  if (releaseAutomerge || !branches || branches.mode === "trunk-based") {
+    err(`  ${num()} ${t("ui.summary.todo.pat")}`);
+    err(t("ui.summary.todo.patPath"));
+    err(t("ui.summary.todo.patName"));
+    err(t("ui.summary.todo.patAccount"));
+    err(t("ui.summary.todo.patOptional"));
+  } else {
+    err(`  ${num()} ${t("ui.summary.todo.manualMerge")}`);
+    err(t("ui.summary.todo.manualMergeHow"));
+  }
   err("");
   // Installed workflows declare the permissions they need themselves - report it by the same rule as the doctor guidance.
   err(`  ${num()} ${t("ui.summary.todo.permissions")}`);
