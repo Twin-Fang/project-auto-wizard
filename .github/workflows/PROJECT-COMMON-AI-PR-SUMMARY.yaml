@@ -121,13 +121,13 @@ jobs:
           # On fallback, append the reason (the script also emits it as ::warning::) to the engine line so the cause is visible without opening the job log
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
-          echo "$(m wf_aisum.engine_label engine="$ENGINE_LINE")" >> "$GITHUB_STEP_SUMMARY"
+          m wf_aisum.engine_label engine="$ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
 
           # Find this bot's earlier summary comment by its marker and replace it with the latest content so pushes do not pile up comments
           MARKER="<!-- project-auto-wizard:pr-summary -->"
           {
             echo "$MARKER"
-            echo "$(m wf_aisum.summary_heading)"
+            m wf_aisum.summary_heading
             echo ""
             cat summary.md
             echo ""

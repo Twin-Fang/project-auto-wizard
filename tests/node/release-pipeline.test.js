@@ -168,7 +168,7 @@ for (const name of ["AI-PR-SUMMARY", "AUTO-CHANGELOG-CONTROL"]) {
       const body = read(path);
       assert.ok(body.includes('.get("fallback_reason")'), "must read fallback_reason from the result JSON");
       assert.ok(body.includes("html.escape("), "must be escaped because it goes into comment HTML");
-      assert.ok(body.includes('echo "$(m wf_aisum.engine_label engine="$ENGINE_LINE")" >> "$GITHUB_STEP_SUMMARY"'), "must also be recorded in the run summary");
+      assert.ok(body.includes('m wf_aisum.engine_label engine="$ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"'), "must also be recorded in the run summary");
       assert.match(body, /<sub>\$\(m wf_aisum\.engine_label engine="\$\{ENGINE[^}]*\}\$\{FALLBACK_REASON:\+ \(\$FALLBACK_REASON\)\}"\)<\/sub>|<sub>\$\(m wf_aisum\.engine_label engine="\$ENGINE_LINE"\)<\/sub>/, "the reason must be attached to the engine line of the PR comment");
     });
   }
