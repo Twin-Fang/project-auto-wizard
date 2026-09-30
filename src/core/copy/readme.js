@@ -15,15 +15,66 @@ export const README_STATUS_LABEL = {
   get "skip-no-readme"() { return t("copy.readme.status.skipNoReadme"); },
   get "skip-marker"() { return t("copy.readme.status.skipMarker"); },
   get "skip-version-line"() { return t("copy.readme.status.skipVersionLine"); },
+  get "heading-updated"() { return t("copy.readme.status.headingUpdated"); },
 };
 
+// Bundled default heading text ("Latest Version", ...) without the "## " prefix and version part, per language.
+const defaultHeading = (lang) => t("copy.readme.versionHeading", { version: "0" }, lang).replace(/^##\s*/, "").replace(/\s*:\s*v0$/, "");
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Text of the history link line in a given language (without the trailing newline).
+const historyLink = (lang) => t("copy.readme.historyLink", {}, lang);
+
+// Rewrites the wizard-made block (marker line, heading line, blank line, history link line) that was written
+// in another language so it matches the current one. Only text that exactly equals another language's bundled
+// default is replaced: a heading or link the user edited is left alone, and so is anything not directly
+// under the marker (code-block examples, a README without the marker).
+// Returns the new content, or null when nothing needs to change.
+function refreshBlockLanguage(content) {
+  const currentHeading = defaultHeading();
+  const currentLink = historyLink();
+  const markerRe = new RegExp("^" + escapeRe(MARKER_LINE.trimEnd()) + "[ \\t]*\\r?\\n", "gm");
+  let out = "";
+  let last = 0;
+  let changed = false;
+  for (let m = markerRe.exec(content); m; m = markerRe.exec(content)) {
+    // An odd number of fence lines before the marker means it sits inside a code block (an example).
+    if ((content.slice(0, m.index).match(/^[ \t]*(```|~~~)/gm) || []).length % 2 === 1) continue;
+    const start = m.index + m[0].length;
+    let rest = content.slice(start);
+    let head = "";
+    // Heading line directly under the marker.
+    for (const lang of SUPPORTED_LANGUAGES) {
+      const heading = defaultHeading(lang);
+      if (heading === currentHeading) continue;
+      const hm = new RegExp("^## " + escapeRe(heading) + " : (?=v[0-9])").exec(rest);
+      if (hm) { head = "## " + currentHeading + " : "; rest = rest.slice(hm[0].length); changed = true; break; }
+    }
+    out += content.slice(last, start) + head;
+    last = start + (content.slice(start).length - rest.length);
+    // History link line: heading line, one blank line, then the link.
+    const lm = /^([^\r\n]*\r?\n\r?\n)([^\r\n]*)/.exec(rest);
+    if (lm) {
+      const linkStart = last + lm[1].length;
+      const isStale = SUPPORTED_LANGUAGES.some((lang) => historyLink(lang) !== currentLink && lm[2] === historyLink(lang));
+      if (isStale) {
+        out += content.slice(last, linkStart) + currentLink;
+        last = linkStart + lm[2].length;
+        changed = true;
+      }
+    }
+  }
+  return changed ? out + content.slice(last) : null;
+}
+
 // Skip when README.md is missing, or when a marker or version line exists. Otherwise append to the end.
-// Returns: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
+// Returns: 'skip-no-readme' | 'heading-updated' | 'skip-marker' | 'skip-version-line' | 'added'
 // Only decides without writing, so the real append and the --dry-run preview share one decision.
 export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
+  if (refreshBlockLanguage(content) !== null) return "heading-updated";
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
   return "added";
@@ -31,8 +82,13 @@ export function planVersionSection(targetRoot = ".") {
 
 export function addVersionSectionToReadme(version, targetRoot = ".") {
   const status = planVersionSection(targetRoot);
-  if (status !== "added") return status;
   const p = join(targetRoot, "README.md");
+  if (status === "heading-updated") {
+    // Swap only the bundled default wording; version text after the colon stays as the workflow wrote it.
+    writeFileSync(p, refreshBlockLanguage(readFileSync(p, "utf8")));
+    return status;
+  }
+  if (status !== "added") return status;
   const content = readFileSync(p, "utf8");
 
   // The appended body starts with "\n---\n..." to leave a blank line between the existing text and the rule.

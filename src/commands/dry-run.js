@@ -144,6 +144,7 @@ export function printDryRun(plan) {
         "skip-no-readme": t("cmd.dryRun.readme.skipNoReadme"),
         "skip-marker": t("cmd.dryRun.readme.skipMarker"),
         "skip-version-line": t("cmd.dryRun.readme.skipVersionLine"),
+        "heading-updated": t("cmd.dryRun.readme.headingUpdated"),
       }[plan.readme] || t("cmd.dryRun.readme.other", { status: plan.readme }));
     }
     if (plan.baselineExists !== undefined) {

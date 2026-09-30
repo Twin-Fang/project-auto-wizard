@@ -1,11 +1,12 @@
 // tests/node/readme-remove.test.js
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
+import { setLanguage, getLanguage } from "../../src/i18n/index.js";
 import assert from "node:assert";
 import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { addVersionSectionToReadme, hasVersionSection, removeVersionSectionFromReadme } from "../../src/core/copy/readme.js";
+import { addVersionSectionToReadme, planVersionSection, hasVersionSection, removeVersionSectionFromReadme } from "../../src/core/copy/readme.js";
 
 test("hasVersionSection: false before add, true after add", () => {
   const target = mkdtempSync(join(tmpdir(), "paw-readme-remove-"));
@@ -163,7 +164,7 @@ test("addVersionSectionToReadme: no extra line is added to a README ending in CR
 
 // A README that already has a version heading without the marker (hand-written or from an older
 // install) must not get a second section appended - in the en default format and the ko one.
-for (const heading of ["## Latest Version : v1.0.0", "## Current version : v1.0.0", "## recent-version : v1.0.0", "## 최신 버전 : v1.0.0"]) {
+for (const heading of ["## Current version : v1.0.0", "## recent-version : v1.0.0", "## 최신 버전 : v1.0.0"]) {
   test(`addVersionSectionToReadme: skips when the README already has "${heading}" without a marker`, () => {
     const target = mkdtempSync(join(tmpdir(), "paw-readme-vline-"));
     try {
@@ -176,3 +177,94 @@ for (const heading of ["## Latest Version : v1.0.0", "## Current version : v1.0.
     }
   });
 }
+
+// Re-running under another language switches a bundled default heading, but never a heading the user wrote.
+const withReadme = (text, fn) => {
+  const target = mkdtempSync(join(tmpdir(), "paw-readme-lang-"));
+  const before = getLanguage();
+  try {
+    writeFileSync(join(target, "README.md"), text);
+    fn(target);
+  } finally {
+    setLanguage(before);
+    rmSync(target, { recursive: true, force: true });
+  }
+};
+
+test("addVersionSectionToReadme: a default English heading switches to the current (ko) language and keeps the version text", () => {
+  const text = "# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : v1.2.3 (2026-01-02)\n";
+  withReadme(text, (target) => {
+    setLanguage("ko");
+    assert.strictEqual(planVersionSection(target), "heading-updated");
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), text, "the plan must not write");
+    assert.strictEqual(addVersionSectionToReadme("9.9.9", target), "heading-updated");
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"),
+      "# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## 최신 버전 : v1.2.3 (2026-01-02)\n");
+    // Already in the current language: nothing more to do.
+    assert.strictEqual(planVersionSection(target), "skip-marker");
+  });
+});
+
+test("addVersionSectionToReadme: a default Korean heading switches to English when the language changes", () => {
+  const M = "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n";
+  withReadme(`# my-app\n\n${M}## 최신 버전 : v1.0.0\n`, (target) => {
+    setLanguage("en");
+    assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "heading-updated");
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), `# my-app\n\n${M}## Latest Version : v1.0.0\n`);
+  });
+});
+
+test("addVersionSectionToReadme: a heading the user changed is left untouched when the language changes", () => {
+  for (const heading of ["## Current Version : v1.0.0", "## Latest Version: v1.0.0", "## Latest  Version : v1.0.0", "## Latest-Version : v1.0.0"]) {
+    const text = `# my-app\n\n${heading}\n`;
+    withReadme(text, (target) => {
+      setLanguage("ko");
+      addVersionSectionToReadme("1.0.0", target);
+      assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), text, heading);
+    });
+  }
+});
+
+test("addVersionSectionToReadme: code-block examples and a README without the marker keep their heading", () => {
+  const M = "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->";
+  const inFence = `# my-app\n\n\`\`\`markdown\n${M}\n## Latest Version : v1.0.0\n\n[View full version history](CHANGELOG.md)\n\`\`\`\n`;
+  const noMarker = "# my-app\n\n## Latest Version : v1.0.0\n\n[View full version history](CHANGELOG.md)\n";
+  const farAway = `# my-app\n\n\`\`\`markdown\n## Latest Version : v1.0.0\n\`\`\`\n\n${M}\nsomething else\n`;
+  for (const text of [inFence, noMarker, farAway]) {
+    withReadme(text, (target) => {
+      setLanguage("ko");
+      assert.notStrictEqual(planVersionSection(target), "heading-updated");
+      addVersionSectionToReadme("1.0.0", target);
+      assert.ok(readFileSync(join(target, "README.md"), "utf8").startsWith(text), text);
+    });
+  }
+});
+
+test("addVersionSectionToReadme: en -> ko -> en round trip leaves no other-language text in the block", () => {
+  withReadme("# my-app\n", (target) => {
+    const read = () => readFileSync(join(target, "README.md"), "utf8");
+    setLanguage("en");
+    addVersionSectionToReadme("1.0.0", target);
+    const en = read();
+    setLanguage("ko");
+    assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "heading-updated");
+    const ko = read();
+    assert.match(ko, /## 최신 버전 : v1\.0\.0\n\n\[전체 버전 기록 보기\]\(CHANGELOG\.md\)\n$/);
+    assert.ok(!ko.includes("Latest Version") && !ko.includes("View full version history"));
+    setLanguage("en");
+    assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "heading-updated");
+    assert.strictEqual(read(), en);
+    // The block is now in the current language, and removal still finds it.
+    assert.strictEqual(removeVersionSectionFromReadme(target), "removed");
+  });
+});
+
+test("addVersionSectionToReadme: a history link the user edited stays when the language changes", () => {
+  const text = "# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : v1.0.0\n\n[Changelog](CHANGELOG.md)\n";
+  withReadme(text, (target) => {
+    setLanguage("ko");
+    addVersionSectionToReadme("1.0.0", target);
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"),
+      text.replace("## Latest Version", "## 최신 버전"));
+  });
+});

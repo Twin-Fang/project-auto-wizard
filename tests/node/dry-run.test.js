@@ -383,3 +383,21 @@ test("dry-run in English names the auto-updated files", () => {
     }
   });
 });
+
+test("planDryRun: a default heading from another language is previewed as switched and nothing is written", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-dry-"));
+  try {
+    const text = "# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : v1.0.0\n";
+    writeFileSync(join(target, "README.md"), text);
+    const plan = planDryRun("full", baseContext(), resolvePayloadRoot(), target);
+    assert.strictEqual(plan.readme, "heading-updated");
+    const lines = [];
+    const orig = console.log;
+    console.log = (s) => lines.push(s);
+    try { printDryRun(plan); } finally { console.log = orig; }
+    assert.ok(lines.join("\n").includes("버전 제목이 현재 언어로 교체"));
+    assert.strictEqual(readFileSync(join(target, "README.md"), "utf8"), text);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});

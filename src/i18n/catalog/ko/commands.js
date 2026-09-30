@@ -115,6 +115,7 @@ export default {
   "cmd.dryRun.readme.skipNoReadme": "README.md: 파일이 없어 버전 섹션을 추가하지 않음",
   "cmd.dryRun.readme.skipMarker": "README.md: 이미 버전 섹션이 있어 변경 없음",
   "cmd.dryRun.readme.skipVersionLine": "README.md: 이미 버전 줄이 있어 변경 없음",
+  "cmd.dryRun.readme.headingUpdated": "README.md: 버전 제목이 현재 언어로 교체될 예정 (기본 제목 그대로인 경우)",
   "cmd.dryRun.readme.other": "README.md: {status}",
   "cmd.dryRun.baseline.update": "{path}: 갱신될 예정 (다음 업데이트의 비교 기준)",
   "cmd.dryRun.baseline.create": "{path}: 새로 생성될 예정 (다음 업데이트의 비교 기준)",
