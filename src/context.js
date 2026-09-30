@@ -1,5 +1,5 @@
 // 마법사 전역 상태를 하나의 객체로 명시화
-import { TYPE_IDS } from "./core/types.js";
+import { TYPE_IDS, allHookValues } from "./core/types.js";
 
 // --type 화이트리스트 — 타입 레지스트리(core/types.js)의 표시 순서 그대로.
 export const VALID_TYPES = TYPE_IDS;
@@ -26,12 +26,8 @@ export function createContext(overrides = {}) {
     paths: new Map(),        // type -> path
     includeSemverAuto: null, // null=미설정(다운스트림에서 true로 해석), true/false=명시
     includeCopilotAi: null,  // null=미설정(다운스트림에서 false로 해석), true/false=명시 — Copilot AI 요약 opt-in
-    // Flutter 옵션 — Flutter 타입이 없는 프로젝트에서는 전부 무시된다.
-    // 결정은 src/core/flutter-options.js의 resolveFlutterOptions가 한다.
-    envMode: "",             // "dart-define" | "dotenv". ""=미결정 → 템플릿 기본값(dart-define)
-    flutterStore: null,      // 스토어 배포 대상 string[] (예: ["android","ios"]). null=미결정 → 둘 다(현행 동작)
-    androidDeployMode: "",   // store_only | store_prepare | store_submit. ""=미결정 → store_only
-    iosDeployMode: "",       // 위와 동일 (iOS)
+    // 타입 전용 옵션 필드 — 해당 타입이 없는 프로젝트에서는 전부 무시된다. 필드와 기본값은 타입 훅(contextDefaults)이 정한다.
+    ...allHookValues("contextDefaults"),
     templateVersion: "",
     deployValues: new Map(), // "type.KEY" -> value
     counters: {},

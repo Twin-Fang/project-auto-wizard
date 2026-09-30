@@ -94,6 +94,11 @@ export function storeAppFilesFor(stores) {
   return platforms.flatMap((p) => STORE_APP_FILES[p]);
 }
 
+// store_submit은 main push마다 심사를 제출하므로 고른 직후 한 줄로 알린다. 다른 모드는 알릴 것이 없어 빈 문자열.
+export function deployModeWarning(mode) {
+  return mode === "store_submit" ? "store_submit을 고르면 main push마다 심사가 자동 제출됩니다." : "";
+}
+
 const validOr = (isValid, value, fallback) => (isValid(value) ? value : fallback);
 
 // 옵션 최종 결정 — 우선순위: CLI > version.yml 저장값 > 기본값.

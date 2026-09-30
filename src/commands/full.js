@@ -198,16 +198,14 @@ export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { j
   return { cleanup, storeCleanup, staleCleanup };
 }
 
-// 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·Flutter 옵션)을 남긴다 — 대화형에서 고른 값도
+// 설치 결과를 가른 선택(배포 방식·자동 승격·Copilot·타입 전용 옵션)을 남긴다 — 대화형에서 고른 값도
 // 여기로 모이므로, 나중에 "왜 이렇게 설치됐나"를 로그만으로 따라갈 수 있다.
 function logChoices(context, types) {
   if (context.deployStyle) log.info("option", "deploy", context.deployStyle);
   if (context.includeSemverAuto != null) log.info("option", "semver", context.includeSemverAuto ? "on" : "off");
   if (context.includeCopilotAi != null) log.info("option", "copilot", context.includeCopilotAi ? "on" : "off");
-  if (types.includes("flutter")) {
-    const stores = Array.isArray(context.flutterStore) ? (context.flutterStore.join(",") || "없음") : "미결정(둘 다)";
-    log.info("option", "flutter",
-      `env=${context.envMode || "-"} stores=${stores} android=${context.androidDeployMode || "-"} ios=${context.iosDeployMode || "-"}`);
+  for (const { hook } of hooksFor(types, "logChoices")) {
+    for (const [name, value] of hook(context)) log.info("option", name, value);
   }
 }
 

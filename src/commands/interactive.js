@@ -317,7 +317,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     payload, existing, templateVersion, types,
     // 저장값이 무중단이어도 선택한 타입에 그 방식이 없으면 단일 서버 배포가 설치된다 — 설치된 방식을 기록한다.
     deployStyle: resolveDeployStyle({ payload, types, explicit: deployStyle, existing }),
-    flutterOptions,
+    typeOptions: flutterOptions,
     releaseOptions: { includeSemverAuto, includeCopilotAi },
     mode, force: true, version, versionCode, branch, branches, paths,
     repoName, resolvers, envValues, envUseDefaults, now, today,
