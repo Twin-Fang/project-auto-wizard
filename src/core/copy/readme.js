@@ -4,9 +4,9 @@ import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs
 import { t, SUPPORTED_LANGUAGES } from "../../i18n/index.js";
 
 export const MARKER = "<!-- AUTO-VERSION-SECTION";
-// "## <latest version|latest-version|Version|version> : vX.Y.Z", where the Korean words are written as
+// "## <latest version|latest-version|current/recent version|Version|version> : vX.Y.Z", where the Korean words are written as
 // \u escapes so this file stays free of Hangul (case-insensitive)
-const VERSION_LINE_RE = /##\s*(\uCD5C\uC2E0\s*\uBC84\uC804|\uCD5C\uC2E0\uBC84\uC804|Version|\uBC84\uC804)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
+const VERSION_LINE_RE = /##\s*(\uCD5C\uC2E0\s*\uBC84\uC804|\uCD5C\uC2E0\uBC84\uC804|(?:latest|current|recent)[\s-]*version|Version|\uBC84\uC804)\s*:\s*v[0-9]+\.[0-9]+\.[0-9]+/i;
 
 // Descriptions for the run log: a bare status code forces later readers to look up its meaning.
 // Getters keep the text lazy so it follows the language resolved at runtime.
