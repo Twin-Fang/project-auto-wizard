@@ -4,6 +4,7 @@ export default {
   "copy.readme.status.skipNoReadme": "README.md not found; version section not added",
   "copy.readme.status.skipMarker": "Version section already present; left as is",
   "copy.readme.status.skipVersionLine": "Version line already present; left as is",
+  "copy.readme.status.headingUpdated": "Switched the version heading to the current language",
   "copy.readme.versionHeading": "## Latest Version : v{version}",
   "copy.readme.historyLink": "[View full version history](CHANGELOG.md)",
   "copy.gitignore.newFileHeader": "# project-auto-wizard: backup files created during conflict handling (safe to ignore)",

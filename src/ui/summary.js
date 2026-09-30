@@ -34,7 +34,7 @@ export function printSummary(ctx) {
   err(t("ui.summary.features.title"));
 
   // Mention the automatic update only when the README version section really exists (added now or already there).
-  const readmeTracked = readme === "added" || readme === "skip-marker" || readme === "skip-version-line";
+  const readmeTracked = readme === "added" || readme === "skip-marker" || readme === "skip-version-line" || readme === "heading-updated";
   if (mode === "full") {
     err(t("ui.summary.features.versionSystem"));
     if (readmeTracked) err(t("ui.summary.features.readmeAuto"));

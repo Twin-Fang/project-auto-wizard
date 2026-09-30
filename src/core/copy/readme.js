@@ -15,15 +15,35 @@ export const README_STATUS_LABEL = {
   get "skip-no-readme"() { return t("copy.readme.status.skipNoReadme"); },
   get "skip-marker"() { return t("copy.readme.status.skipMarker"); },
   get "skip-version-line"() { return t("copy.readme.status.skipVersionLine"); },
+  get "heading-updated"() { return t("copy.readme.status.headingUpdated"); },
 };
 
+// Bundled default heading text ("Latest Version", ...) without the "## " prefix and version part, per language.
+const defaultHeading = (lang) => t("copy.readme.versionHeading", { version: "0" }, lang).replace(/^##\s*/, "").replace(/\s*:\s*v0$/, "");
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Finds a version line whose heading is exactly another language's bundled default, so a re-run under a
+// different language can switch it. A heading the user edited never matches and is left alone.
+// Returns the regex match (the "## <heading> : " prefix with its index) or null.
+function findStaleHeading(content) {
+  const current = defaultHeading();
+  for (const lang of SUPPORTED_LANGUAGES) {
+    const heading = defaultHeading(lang);
+    if (heading === current) continue;
+    const m = new RegExp("^## " + escapeRe(heading) + " : (?=v[0-9])", "m").exec(content);
+    if (m) return m;
+  }
+  return null;
+}
+
 // Skip when README.md is missing, or when a marker or version line exists. Otherwise append to the end.
-// Returns: 'skip-no-readme' | 'skip-marker' | 'skip-version-line' | 'added'
+// Returns: 'skip-no-readme' | 'heading-updated' | 'skip-marker' | 'skip-version-line' | 'added'
 // Only decides without writing, so the real append and the --dry-run preview share one decision.
 export function planVersionSection(targetRoot = ".") {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
+  if (findStaleHeading(content)) return "heading-updated";
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
   return "added";
@@ -31,8 +51,15 @@ export function planVersionSection(targetRoot = ".") {
 
 export function addVersionSectionToReadme(version, targetRoot = ".") {
   const status = planVersionSection(targetRoot);
-  if (status !== "added") return status;
   const p = join(targetRoot, "README.md");
+  if (status === "heading-updated") {
+    // Swap only the heading words; the version text after the colon stays as the workflow wrote it.
+    const content = readFileSync(p, "utf8");
+    const m = findStaleHeading(content);
+    writeFileSync(p, content.slice(0, m.index) + "## " + defaultHeading() + " : " + content.slice(m.index + m[0].length));
+    return status;
+  }
+  if (status !== "added") return status;
   const content = readFileSync(p, "utf8");
 
   // The appended body starts with "\n---\n..." to leave a blank line between the existing text and the rule.
