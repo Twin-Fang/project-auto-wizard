@@ -712,7 +712,7 @@ jobs:
           if [ -f ios/Podfile ]; then
             gem install cocoapods
             (cd ios && (pod install --repo-update || pod install))
-            echo "✅ CocoaPods installed"
+            m flutter_a.ci_pods_installed
           else
             m flutter_a.ci_podfile_missing
           fi

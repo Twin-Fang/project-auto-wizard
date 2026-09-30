@@ -674,6 +674,7 @@ EN = {
     "flutter_a.ci_apk_start": "📦 Starting the Flutter APK build (debug)...",
     "flutter_a.ci_apk_done": "✅ APK build complete",
     "flutter_a.ci_podfile_missing": "ℹ️ ios/Podfile not found, skipping pod install (no CocoaPods plugins)",
+    "flutter_a.ci_pods_installed": "✅ CocoaPods installed",
     "flutter_a.ci_ios_start": "📦 Starting the Flutter iOS build...",
     "flutter_a.ci_ios_done": "✅ iOS build complete",
     "flutter_a.ci_gate_results": "needs results: {results}",
@@ -1297,6 +1298,8 @@ EN = {
     "wf_aisum.expected_version": "expected next version: {version} (current: {current_version}, mode: {mode}, bump: {bump})",
     "wf_aisum.comment_update_failed": "comment update failed — continuing (this workflow never blocks the PR)",
     "wf_aisum.comment_post_failed": "comment post failed — continuing (this workflow never blocks the PR)",
+    "wf_aisum.summary_heading": "📋 **PR Summary (project-auto-wizard)**",
+    "wf_aisum.engine_label": "engine: {engine}",
     # --- wf_changelog ---
     "wf_changelog.pr_not_open": "PR #{pr_number} is already {state} — skipping the release pipeline",
     "wf_changelog.pr_state": "PR #{pr_number} state: {state}",
@@ -1321,6 +1324,7 @@ EN = {
     "wf_changelog.automerge_rename_failed": "Could not update PR #{pr_number} (title or guidance comment); the release still needs \"chore(release):\" in the merge commit message",
     "wf_changelog.automerge_off_comment": "**Automatic merge is off** (`release_automerge: false` in `version.yml`). Wait until this workflow run has finished (it confirms the version and renames this PR to `chore(release): ...`), then merge it yourself with **Create a merge commit** (recommended).\n\nOther merge methods may not publish the release by themselves. *Rebase and merge* leaves the version-confirm commit (`[skip ci]`) as the last commit, and *Squash and merge* with the default message (commit list included) puts that `[skip ci]` into the merge commit body; in both cases GitHub skips the push workflows and no tag or Release is created. If the repository's squash message default is the PR title only, a squash merge is published. If a release was skipped, run **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow) to publish. Both methods also rewrite the commit history the next release notes are built from, so earlier changes can be listed again (after a rebase merge only once develop has merged the release branch back). Merging before this run finishes has a similar effect: the safety-net workflow (PROJECT-VERSION-CONTROL) then publishes an extra patch version.",
     "wf_changelog.merge_retry": "merge attempt {attempt}/{max_attempts} failed — retrying in {wait}s",
+    "wf_changelog.head_updated": "head branch updated from base",
     "wf_changelog.merge_gave_up": "PR merge failed after {max_attempts} attempts (allow_merge_commit={allow_merge_commit}) — check branch protection rules, required checks, and token permissions",
     # --- wf_readme ---
     "wf_readme.not_found": "README.md not found — nothing to update, skipping",
@@ -1442,6 +1446,7 @@ EN = {
     "wf_flutter.release_notes_heading": "📝 Release Notes:",
     "wf_flutter.working_dir": "🔧 Working directory: {dir}",
     "wf_flutter.run_number": "🔍 GitHub Run Number: {number}",
+    "wf_flutter.github_sha": "🔍 GitHub SHA: {sha}",
     "wf_flutter.ci_analyze_only": "  Analyze Only: {value}",
 }
 
@@ -1951,6 +1956,7 @@ KO = {
     "flutter_a.ci_apk_start": "📦 Flutter APK 빌드 시작 (debug)...",
     "flutter_a.ci_apk_done": "✅ APK 빌드 완료",
     "flutter_a.ci_podfile_missing": "ℹ️ ios/Podfile이 없어 pod install을 건너뜁니다 (CocoaPods 플러그인 없음)",
+    "flutter_a.ci_pods_installed": "✅ CocoaPods 설치 완료",
     "flutter_a.ci_ios_start": "📦 Flutter iOS 빌드 시작...",
     "flutter_a.ci_ios_done": "✅ iOS 빌드 완료",
     "flutter_a.ci_gate_results": "needs 결과: {results}",
@@ -2574,6 +2580,8 @@ KO = {
     "wf_aisum.expected_version": "예상 다음 버전: {version} (현재: {current_version}, 모드: {mode}, 승격: {bump})",
     "wf_aisum.comment_update_failed": "댓글 수정 실패 — 계속 진행합니다 (이 워크플로우는 PR을 막지 않습니다)",
     "wf_aisum.comment_post_failed": "댓글 등록 실패 — 계속 진행합니다 (이 워크플로우는 PR을 막지 않습니다)",
+    "wf_aisum.summary_heading": "📋 **PR 요약 (project-auto-wizard)**",
+    "wf_aisum.engine_label": "엔진: {engine}",
     # --- wf_changelog ---
     "wf_changelog.pr_not_open": "PR #{pr_number}은(는) 이미 {state} 상태입니다 — 릴리스 파이프라인을 건너뜁니다",
     "wf_changelog.pr_state": "PR #{pr_number} 상태: {state}",
@@ -2598,6 +2606,7 @@ KO = {
     "wf_changelog.automerge_rename_failed": "PR #{pr_number}의 제목 또는 안내 댓글을 갱신하지 못했습니다. 릴리스가 되려면 머지 커밋 메시지에 \"chore(release):\"가 있어야 합니다",
     "wf_changelog.automerge_off_comment": "**자동 머지가 꺼져 있습니다** (`version.yml`의 `release_automerge: false`). 이 워크플로우 실행이 끝난 뒤(버전 확정과 PR 제목이 `chore(release): ...`로 바뀐 뒤) 릴리스할 준비가 되면 **Create a merge commit**으로 직접 머지하는 것을 권장합니다.\n\n다른 머지 방식은 릴리스가 저절로 발행되지 않을 수 있습니다. *Rebase and merge*는 버전 확정 커밋(`[skip ci]`)이 마지막 커밋으로 남고, 기본 메시지(커밋 목록 포함)의 *Squash and merge*는 그 `[skip ci]`가 머지 커밋 본문에 들어가므로, 두 경우 모두 GitHub가 push 워크플로우를 건너뛰어 태그와 Release가 만들어지지 않습니다. 레포의 squash 메시지 기본값을 PR 제목으로 바꿨다면 squash는 발행됩니다. 건너뛰었다면 릴리스 브랜치에서 **PROJECT-RELEASE-PUBLISH**를 수동으로 실행(Actions > Run workflow)하면 발행됩니다. 두 방식은 다음 릴리스 노트가 기대는 커밋 이력도 바꾸어 이전 변경이 다시 기재될 수 있습니다(rebase는 develop이 릴리스 브랜치를 역머지하기 전까지는 제외됩니다). 이 실행이 끝나기 전에 머지해도 비슷한 문제가 생깁니다. 안전망 워크플로우(PROJECT-VERSION-CONTROL)가 패치 버전을 하나 더 발행합니다.",
     "wf_changelog.merge_retry": "병합 시도 {attempt}/{max_attempts} 실패 — {wait}초 후 다시 시도합니다",
+    "wf_changelog.head_updated": "기준 브랜치의 변경을 head 브랜치에 반영했습니다",
     "wf_changelog.merge_gave_up": "PR 병합이 {max_attempts}회 시도 후에도 실패했습니다 (allow_merge_commit={allow_merge_commit}) — 브랜치 보호 규칙, 필수 체크, 토큰 권한을 확인하세요",
     # --- wf_readme ---
     "wf_readme.not_found": "README.md가 없습니다 — 수정할 것이 없어 건너뜁니다",
@@ -2719,6 +2728,7 @@ KO = {
     "wf_flutter.release_notes_heading": "📝 릴리스 노트:",
     "wf_flutter.working_dir": "🔧 작업 디렉터리: {dir}",
     "wf_flutter.run_number": "🔍 GitHub 실행 번호: {number}",
+    "wf_flutter.github_sha": "🔍 GitHub SHA: {sha}",
     "wf_flutter.ci_analyze_only": "  분석 전용: {value}",
 }
 

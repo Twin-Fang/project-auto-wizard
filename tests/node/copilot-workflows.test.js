@@ -63,8 +63,10 @@ test("the PR comment header uses an engine-neutral name and states the engine", 
     for (const path of [payloadPath(name), dogfoodPath(name)]) {
       const body = read(path);
       assert.ok(!body.includes("AI Summary (project-auto-wizard)"), `${path}: a misleading label is still present`);
-      assert.ok(body.includes("📋 **PR Summary (project-auto-wizard)**"), path);
-      assert.match(body, /<sub>engine: \$\{ENGINE/, path);
+      // The heading and engine label come from the message catalog so they follow the configured language
+      assert.ok(body.includes("$(m wf_aisum.summary_heading)"), path);
+      assert.match(body, /<sub>\$\(m wf_aisum\.engine_label engine="\$(\{ENGINE|ENGINE_LINE)/, path);
+      assert.ok(!body.includes("PR Summary (project-auto-wizard)"), `${path}: fixed English heading`);
     }
   }
 });

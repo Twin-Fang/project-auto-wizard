@@ -178,7 +178,7 @@ jobs:
           # so a typo never switches automerge back on for someone who turned it off.
           AUTOMERGE=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option release_automerge --default true || echo "true")
           echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
-          echo "release_automerge option: $AUTOMERGE"
+          echo "release_automerge=$AUTOMERGE"
 
       - name: Install Copilot CLI
         if: steps.copilot_options.outputs.copilot_ai == 'true'
@@ -329,7 +329,7 @@ jobs:
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
           echo "$(m wf_changelog.summary_engine engine_line="$ENGINE_LINE")"
-          echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
+          echo "$(m wf_aisum.engine_label engine="$ENGINE_LINE")" >> "$GITHUB_STEP_SUMMARY"
           echo "engine=$ENGINE" >> $GITHUB_OUTPUT
           echo "fallback_reason=$FALLBACK_REASON" >> $GITHUB_OUTPUT
 
@@ -351,11 +351,11 @@ jobs:
 
           {
             echo "$MARKER"
-            echo "📋 **PR Summary (project-auto-wizard)**"
+            echo "$(m wf_aisum.summary_heading)"
             echo ""
             cat summary.md
             echo ""
-            echo "<sub>engine: ${ENGINE:-unknown}${FALLBACK_REASON:+ ($FALLBACK_REASON)}</sub>"
+            echo "<sub>$(m wf_aisum.engine_label engine="${ENGINE:-unknown}${FALLBACK_REASON:+ ($FALLBACK_REASON)}")</sub>"
           } > comment_body.md
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
@@ -544,7 +544,7 @@ jobs:
               # date" rule, merge base into head to catch up (a mere propagation delay is
               # rejected as "no new commits" and simply retried)
               gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" > /dev/null 2>&1 \
-                && echo "head branch updated from base" || true
+                && echo "$(m wf_changelog.head_updated)" || true
             fi
             WAIT=$((ATTEMPT * 10))
             echo "$(m wf_changelog.merge_retry attempt="$ATTEMPT" max_attempts="$MAX_ATTEMPTS" wait="${WAIT}")"
