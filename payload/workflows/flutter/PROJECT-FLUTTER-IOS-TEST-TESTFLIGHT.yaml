@@ -94,6 +94,7 @@ jobs:
       - name: Load messages
         working-directory: ${{ github.workspace }}
         run: |
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw_messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw_messages.py" lang)
           rm -rf .paw-msg
@@ -251,6 +252,7 @@ jobs:
       - name: Load messages
         working-directory: ${{ github.workspace }}
         run: |
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw_messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw_messages.py" lang)
           rm -rf .paw-msg
@@ -541,6 +543,7 @@ jobs:
       - name: Load messages
         working-directory: ${{ github.workspace }}
         run: |
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw_messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw_messages.py" lang)
           rm -rf .paw-msg
@@ -948,6 +951,7 @@ jobs:
       - name: Load messages
         working-directory: ${{ github.workspace }}
         run: |
+          [ -f .paw-msg/.github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           cp .paw-msg/.github/scripts/messages.py "$RUNNER_TEMP/paw_messages.py"
           LANG_CODE=$(cd .paw-msg && python3 "$RUNNER_TEMP/paw_messages.py" lang)
           rm -rf .paw-msg

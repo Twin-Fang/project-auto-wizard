@@ -65,7 +65,9 @@ jobs:
         fetch-depth: 0
 
     - name: Load messages
-      run: echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
+      run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+        echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
 
     - name: Setup JDK
       uses: actions/setup-java@v5
@@ -119,6 +121,7 @@ jobs:
       id: report
       if: always()
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         STATUS_OK="$(m wf_spring_ci.status_ok)"
         STATUS_FAIL="$(m wf_spring_ci.status_fail)"
@@ -159,6 +162,7 @@ jobs:
       id: errors
       if: always()
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
         if [ -f compile_output.txt ] && [ "${{ steps.compile.outputs.compile_exit_code }}" != "0" ]; then
           echo "compile_errors<<EOF" >> $GITHUB_OUTPUT
@@ -372,6 +376,7 @@ jobs:
     - name: Fail Job on Build Failure
       if: steps.report.outputs.overall_ok == 'false'
       run: |
+        [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
         python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get wf_spring_ci.build_failed
         exit 1
 
@@ -395,6 +400,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           m wf_spring_ci.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

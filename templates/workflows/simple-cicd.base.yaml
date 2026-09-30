@@ -81,6 +81,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: Dockerfile
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
@@ -108,6 +109,7 @@ jobs:
 
       - name: Free up disk space
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cicd.disk_before
           df -h
@@ -127,6 +129,7 @@ jobs:
       - name: Create .env file
         working-directory: ${{ env.PROJECT_PATH }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
@@ -156,6 +159,7 @@ jobs:
       - name: Clean up after build
         if: always()
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cicd.post_build_cleanup
           docker system prune -f || true
@@ -181,6 +185,7 @@ jobs:
 
       - name: Load messages
         run: |
+          [ -f .github/scripts/messages.py ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           python3 .github/scripts/messages.py dump cicd. | PYTHONIOENCODING=utf-8 python3 -c 'import json,sys; [print("PAW_M_" + k.replace(".", "_") + "=" + v) for k, v in json.load(sys.stdin).items()]' >> "$GITHUB_ENV"
 
       - name: Deploy

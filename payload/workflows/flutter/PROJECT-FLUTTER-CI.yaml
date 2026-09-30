@@ -149,12 +149,15 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Pass the settings on as outputs
       - name: Pass settings
         id: config
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # Check the workflow_dispatch inputs
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
@@ -184,6 +187,7 @@ jobs:
           PAW_HEAD_REF: ${{ github.head_ref }}
           PAW_REF_NAME: ${{ github.ref_name }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$PAW_EVENT_NAME" == "pull_request" ]; then
             BRANCH_NAME="$PAW_HEAD_REF"
@@ -308,13 +312,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
@@ -335,6 +342,7 @@ jobs:
 
       - name: Verify Flutter version
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m wf_flutter.flutter_setup_done_ok
           flutter --version
@@ -349,6 +357,7 @@ jobs:
       - name: Install dependencies
         id: deps
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
@@ -359,6 +368,7 @@ jobs:
       - name: Run Flutter Analyze
         id: analyze
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_analyze_start
           flutter analyze --no-fatal-infos
@@ -369,6 +379,7 @@ jobs:
         id: test
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # flutter test itself fails when test/ has no *_test.dart, so skip it
           if [ -d test ] && [ -n "$(find test -name '*_test.dart' -print -quit)" ]; then
@@ -452,13 +463,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
@@ -479,6 +493,7 @@ jobs:
 
       - name: Verify Flutter version
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m wf_flutter.flutter_setup_done_ok
           flutter --version
@@ -502,6 +517,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
@@ -517,6 +533,7 @@ jobs:
 
       - name: Verify Java version
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m wf_flutter.java_setup_done_ok
           java -version
@@ -524,6 +541,7 @@ jobs:
       - name: Setup Gradle
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}/android
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # The default flutter create .gitignore does not commit gradlew - flutter build creates it when missing
           if [ -f gradlew ]; then
@@ -537,6 +555,7 @@ jobs:
       - name: Build APK
         id: build
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_apk_start
           flutter build apk --debug ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
@@ -596,7 +615,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -606,6 +627,7 @@ jobs:
           # xcode-select alone does not propagate to subprocesses, so set it explicitly
           DEVELOPER_DIR: /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m wf_flutter.xcode_platform_check
           if ls "$DEVELOPER_DIR/Platforms/iPhoneOS.platform/" 2>/dev/null; then
@@ -628,6 +650,7 @@ jobs:
         env:
           ENV_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ "$ENV_MODE" = "dotenv" ]; then
             printf '%s\n' "$ENV_CONTENT" > "$ENV_FILE_PATH"
@@ -648,6 +671,7 @@ jobs:
 
       - name: Verify Flutter version
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m wf_flutter.flutter_setup_done_ok
           flutter --version
@@ -661,6 +685,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           flutter pub get
           if grep -q "build_runner" pubspec.yaml; then
@@ -676,6 +701,7 @@ jobs:
 
       - name: Install CocoaPods
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           # A default project without plugins has no Podfile - once plugins are added, flutter build creates it
           if [ -f ios/Podfile ]; then
@@ -689,6 +715,7 @@ jobs:
       - name: Build iOS
         id: build
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_ios_start
           flutter build ios --release --no-codesign ${DART_DEFINE_FILE:+--dart-define-from-file="$DART_DEFINE_FILE"}
@@ -735,7 +762,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Load messages
-        run: echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
 
       - name: Update final result comment
         uses: actions/github-script@v9
@@ -944,6 +973,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m flutter_a.ci_gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then

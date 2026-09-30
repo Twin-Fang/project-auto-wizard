@@ -132,6 +132,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           DOCKERFILE: ${{ env.DOCKERFILE_PATH }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           MISSING=""
           for NAME in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SERVER_HOST SERVER_USER; do
@@ -172,6 +173,7 @@ jobs:
       # write it to a file in the resources directory
       - name: Generate application-prod.yml
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           mkdir -p ${{ env.APPLICATION_YML_DIR }}
 
@@ -238,6 +240,7 @@ jobs:
 
       - name: Load messages
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           MSGS="$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_deploy. \
             | python3 -c 'import json, shlex, sys; d = json.load(sys.stdin); print("\n".join("M_%s=%s" % (k.replace(".", "_"), shlex.quote(v)) for k, v in d.items()))' \
             | base64 | tr -d '\n')"

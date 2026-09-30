@@ -105,6 +105,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           # A push to {{DEVELOP_BRANCH}} mid-pipeline queues a run that later reprocesses the
@@ -142,6 +143,7 @@ jobs:
       - name: Read semver_auto option from version.yml
         id: semver_options
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
@@ -150,6 +152,7 @@ jobs:
       - name: Read copilot_ai option from version.yml
         id: copilot_options
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
@@ -165,6 +168,7 @@ jobs:
       - name: Collect commits since last release
         id: collect
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin {{MAIN_BRANCH}}
           git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
@@ -187,6 +191,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git log --pretty=%H "origin/{{MAIN_BRANCH}}..HEAD" > commit_shas.txt
 
@@ -225,6 +230,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # Idempotency: never raise a version this PR already confirmed (not yet published).
           # Looking only at the HEAD commit message lets the guard slip when more commits
@@ -284,6 +290,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_AI: ${{ steps.copilot_options.outputs.copilot_ai }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           VERSION=$(python3 .github/scripts/version_manager.py get | tail -n 1)
 
@@ -312,6 +319,7 @@ jobs:
           FALLBACK_REASON: ${{ steps.summary.outputs.fallback_reason }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           # Find this bot's earlier summary comment by its marker and replace it so re-runs and re-syncs do not pile up comments
@@ -364,6 +372,7 @@ jobs:
           # Passed through env so shell metacharacters in the branch name are never parsed as commands
           PAW_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           HEAD_BRANCH="$PAW_HEAD_REF"
           VERSION="${{ steps.bump.outputs.new_version }}"
@@ -428,6 +437,7 @@ jobs:
           # (RELEASE-PUBLISH etc.); GITHUB_TOKEN merges do not.
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           VERSION="${{ steps.bump.outputs.new_version }}"
@@ -516,6 +526,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           PR_NUMBER=${{ github.event.pull_request.number }}
           MAX_WAIT=1800
@@ -547,6 +558,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref {{MAIN_BRANCH}}
           echo "$(m wf_changelog.release_publish_triggered)"

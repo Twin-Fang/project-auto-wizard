@@ -69,6 +69,7 @@ jobs:
 
       - name: Create .env file
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           cat > .env << 'EOF'
           ${{ secrets.ENV_FILE }}
@@ -82,6 +83,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
@@ -97,6 +99,7 @@ jobs:
       # Projects without tests are skipped rather than failed
       - name: Run tests (pytest)
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -d tests ] || [ -d test ] || [ -n "$(find . \( -path ./.venv -o -path ./venv -o -path ./node_modules -o -path ./.git \) -prune -o \( -name 'test_*.py' -o -name '*_test.py' \) -type f -print -quit)" ]; then
             python -m pytest --version > /dev/null 2>&1 || pip install pytest
@@ -117,6 +120,7 @@ jobs:
       - name: Check for Dockerfile
         id: dockerfile
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           if [ -f Dockerfile ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -142,6 +146,7 @@ jobs:
 
       - name: Build verification complete
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.python_done
           echo ""
@@ -171,6 +176,7 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.gate_results results="$RESULTS"
           if echo "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
