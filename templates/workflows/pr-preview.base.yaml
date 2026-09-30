@@ -116,10 +116,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
 
       - name: Add 👀 reaction to comment
         if: contains(github.event.comment.body, '/wizard') && contains(github.event.comment.body, 'server')
@@ -226,10 +224,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -274,7 +270,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const prNumber = context.issue.number;
@@ -392,7 +388,7 @@ jobs:
           PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -581,7 +577,7 @@ jobs:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -665,7 +661,7 @@ jobs:
           PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING: ${{ steps.precheck.outputs.missing }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -776,17 +772,15 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
 
       - name: Extract branch name from issue comment
         id: extract
         uses: actions/github-script@v9
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = context.issue.number;
@@ -831,7 +825,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = context.issue.number;
@@ -897,10 +891,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -933,7 +925,7 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_BRANCH_NAME;
@@ -1012,7 +1004,7 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = parseInt(process.env.PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER, 10) || 0;
@@ -1141,7 +1133,7 @@ jobs:
           PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -1336,7 +1328,7 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -1424,7 +1416,7 @@ jobs:
           PAW_IN_NEEDS_GET_BRANCH_FROM_ISSUE_OUTPUTS_ISSUE_NUMBER: ${{ needs.get-branch-from-issue.outputs.issue_number }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -1529,10 +1521,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -1664,7 +1654,7 @@ jobs:
           PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER: ${{ steps.pr_number.outputs.number }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const number = parseInt(process.env.PAW_IN_STEPS_PR_NUMBER_OUTPUTS_NUMBER, 10) || 0;
@@ -1721,10 +1711,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -1831,7 +1819,7 @@ jobs:
           PAW_IN_STEPS_CHECK_RUNNING_OUTCOME: ${{ steps.check_running.outcome }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const number = context.issue.number;
@@ -1921,10 +1909,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -1956,7 +1942,7 @@ jobs:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
@@ -2048,7 +2034,7 @@ jobs:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const issueNumber = context.issue.number;
@@ -2187,7 +2173,7 @@ jobs:
           PAW_IN_STEPS_PROGRESS_OUTPUTS_DOCKER_START: ${{ steps.progress.outputs.docker_start }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -2376,7 +2362,7 @@ jobs:
           PAW_IN_STEPS_DOCKER_PROGRESS_OUTPUTS_DEPLOY_START: ${{ steps.docker_progress.outputs.deploy_start }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -2463,7 +2449,7 @@ jobs:
           PAW_IN_STEPS_PRECHECK_OUTPUTS_MISSING: ${{ steps.precheck.outputs.missing }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const commentId = parseInt(process.env.PAW_IN_STEPS_PROGRESS_OUTPUTS_COMMENT_ID, 10) || 0;
@@ -2566,10 +2552,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -2628,7 +2612,7 @@ jobs:
           PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH: ${{ needs.check-command.outputs.custom_branch }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
@@ -2712,7 +2696,7 @@ jobs:
           PAW_IN_STEPS_CONTAINER_INFO_OUTPUTS_CONTAINER_NAME: ${{ steps.container_info.outputs.container_name }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;
@@ -2773,10 +2757,8 @@ jobs:
           rm -rf .paw-msg
           # The workspace root has no version.yml; pass the language resolved above to every later messages.py call
           export PROJECT_AUTO_WIZARD_LANG="$LANG_CODE"
-          {
-            echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE"
-            echo "PAW_MSG=$(python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview.)"
-          } >> "$GITHUB_ENV"
+          python3 "$RUNNER_TEMP/paw/messages.py" dump wf_preview. > "$RUNNER_TEMP/paw-msg.json"
+          echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           # The deploy script runs on the remote server, where messages.py does not exist:
           # ship the messages it needs as a small shell function (m KEY name=value ...)
           python3 - >> "$GITHUB_ENV" <<'PY'
@@ -2897,7 +2879,7 @@ jobs:
           PAW_IN_STEPS_CONTAINER_INFO_OUTPUTS_CONTAINER_NAME: ${{ steps.container_info.outputs.container_name }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
 
             const branchName = process.env.PAW_IN_NEEDS_CHECK_COMMAND_OUTPUTS_CUSTOM_BRANCH;

@@ -62,14 +62,14 @@ jobs:
       - name: Load messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger.)" >> "$GITHUB_ENV"
+          python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump app_trigger. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Add 👀 reaction to the comment
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const commentId = context.payload.comment.id;
 
@@ -88,7 +88,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             // Keywords are matched on the lower-cased text (case-insensitive); the branch name is captured from the original body (case preserved)
             const comment = context.payload.comment.body.toLowerCase();
@@ -149,7 +149,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const customBranch = (process.env.CUSTOM_BRANCH || '').trim();
             const issueNumber = context.payload.issue.number;
@@ -272,7 +272,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
             const errorMessage = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_ERRORMESSAGE;
@@ -298,7 +298,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
             const runId = process.env.PAW_IN_GITHUB_RUN_ID;
@@ -335,7 +335,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const issueNumber = context.payload.issue.number;
             const branchName = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_BRANCHNAME;
@@ -378,7 +378,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceNumber = parseInt(process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER);
             const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
@@ -459,7 +459,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
             const sourceNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER;
@@ -505,7 +505,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const sourceType = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCETYPE;
             const sourceNumber = process.env.PAW_IN_STEPS_SOURCE_INFO_OUTPUTS_SOURCENUMBER;

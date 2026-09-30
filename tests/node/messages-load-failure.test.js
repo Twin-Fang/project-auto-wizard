@@ -54,7 +54,7 @@ for (const file of FILES) {
       const hasId = /^\s+id: load_messages$/m.test(steps[at].text);
       for (const s of steps.slice(at + 1)) {
         const cond = /^\s+if: (.*)$/m.exec(s.text)?.[1] ?? "";
-        if (/\b(always|failure)\(\)/.test(cond) && /PAW_MSG|PAW_MESSAGES_PY|messages\.py/.test(s.text) && (!cond.includes(COND) || !hasId)) {
+        if (/\b(always|failure)\(\)/.test(cond) && /PAW_MSG|paw-msg\.json|PAW_MESSAGES_PY|messages\.py/.test(s.text) && (!cond.includes(COND) || !hasId)) {
           bad.push(`${job}: ${s.text.split("\n")[0].trim()} (if: ${cond.slice(0, 50)})`);
         }
       }

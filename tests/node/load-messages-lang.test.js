@@ -105,7 +105,9 @@ function runStep(script, language) {
     delete env.PROJECT_AUTO_WIZARD_LANG;
     const r = spawnSync("bash", ["-eo", "pipefail", "-c", script], { cwd: ws, env, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
-    return readFileSync(envFile, "utf8");
+    // The catalog goes to a file (not GITHUB_ENV) so it is not echoed in every later step's env log; append it in the old line form
+    const msgFile = join(temp, "paw-msg.json");
+    return readFileSync(envFile, "utf8") + (existsSync(msgFile) ? `PAW_MSG=${readFileSync(msgFile, "utf8").trim()}\n` : "");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

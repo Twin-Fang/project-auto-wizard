@@ -151,7 +151,7 @@ jobs:
       - name: Load messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+          (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_) > "$RUNNER_TEMP/paw-msg.json"
 
       # Pass the settings on as outputs
       - name: Pass settings
@@ -219,7 +219,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const prNumber = context.payload.pull_request.number;
             const branchName = process.env.PAW_IN_STEPS_INFO_OUTPUTS_BRANCH_NAME;
@@ -317,7 +317,7 @@ jobs:
         id: load_messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+          (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_) > "$RUNNER_TEMP/paw-msg.json"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
@@ -409,7 +409,7 @@ jobs:
           PAW_IN_STEPS_TEST_OUTPUTS_SECONDS: ${{ steps.test.outputs.seconds }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const analyzeStart = parseInt(process.env.PAW_IN_STEPS_ANALYZE_START_OUTPUTS_TIME);
             const now = Date.now();
@@ -469,7 +469,7 @@ jobs:
         id: load_messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+          (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_) > "$RUNNER_TEMP/paw-msg.json"
 
       # Prepare env vars - a .env file when ENV_MODE=dotenv, a temp file outside the project (--dart-define-from-file) for dart-define
       - name: Prepare env file
@@ -575,7 +575,7 @@ jobs:
           PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
@@ -622,7 +622,7 @@ jobs:
         id: load_messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+          (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_) > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app/Contents/Developer
@@ -735,7 +735,7 @@ jobs:
           PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME: ${{ steps.build_start.outputs.time }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const buildStart = parseInt(process.env.PAW_IN_STEPS_BUILD_START_OUTPUTS_TIME);
             const now = Date.now();
@@ -769,7 +769,7 @@ jobs:
       - name: Load messages
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          echo "PAW_MSG=$(cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_)" >> "$GITHUB_ENV"
+          (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py dump flutter_a.ci_) > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Update final result comment
         uses: actions/github-script@v9
@@ -793,7 +793,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const m = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_COMMENT_ID);
             const startTime = parseInt(process.env.PAW_IN_NEEDS_PREPARE_OUTPUTS_START_TIME);

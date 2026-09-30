@@ -68,7 +68,7 @@ jobs:
       id: load_messages
       run: |
         [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-        echo "PAW_MSG=$(python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci.)" >> "$GITHUB_ENV"
+        python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" dump wf_spring_ci. > "$RUNNER_TEMP/paw-msg.json"
 
     - name: Setup JDK
       uses: actions/setup-java@v5
@@ -216,7 +216,7 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const M = JSON.parse(process.env.PAW_MSG);
+          const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
           const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
@@ -278,7 +278,7 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const M = JSON.parse(process.env.PAW_MSG);
+          const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
           const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
@@ -362,7 +362,7 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const M = JSON.parse(process.env.PAW_MSG);
+          const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
           const m = (k, p = {}) => M['wf_spring_ci.' + k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
           const conclusion = process.env.PAW_IN_STEPS_REPORT_OUTPUTS_OVERALL_OK === 'true' ? 'success' : 'failure';
           const summary = m(conclusion === 'success' ? 'check_summary_success' : 'check_summary_failure');

@@ -28,3 +28,13 @@ for (const file of FILES) {
     assert.deepStrictEqual(FIXED.filter((p) => code.includes(p)), []);
   });
 }
+
+// The message catalog is read from a file: a PAW_MSG env variable (GITHUB_ENV) would be echoed, in full,
+// in the env block of every later step's log.
+for (const file of FILES) {
+  test(`${file.slice(ROOT.length)}: the message catalog is not exported through the environment`, () => {
+    const code = readFileSync(file, "utf8").split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+    assert.doesNotMatch(code, /\bPAW_MSG=/);
+    assert.doesNotMatch(code, /process\.env\.PAW_MSG\b/);
+  });
+}
