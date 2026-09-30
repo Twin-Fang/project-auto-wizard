@@ -156,3 +156,42 @@ test("parsePathsCsv: paths pointing outside the repo ('..', absolute) throw CliE
   assert.strictEqual(parsePathsCsv("flutter=./apps/mobile/").get("flutter"), "apps/mobile");
   assert.strictEqual(parsePathsCsv("flutter=apps/..hidden").get("flutter"), "apps/..hidden");
 });
+
+// ── --name=value form ──────────────────────────────────────
+test("parseArgs: --name=value is the same as --name value for every value option", () => {
+  const pairs = [
+    [["--mode=status"], ["--mode", "status"]],
+    [["--lang=ko"], ["--lang", "ko"]],
+    [["--type=react,spring"], ["--type", "react,spring"]],
+    [["--deploy-style=nginx"], ["--deploy-style", "nginx"]],
+    [["--main-branch=release", "--develop-branch=dev"], ["--main-branch", "release", "--develop-branch", "dev"]],
+    [["--project-version=v1.2.3"], ["--project-version", "v1.2.3"]],
+    [["--flutter-store=android"], ["--flutter-store", "android"]],
+  ];
+  for (const [inline, spaced] of pairs) assert.deepStrictEqual(parseArgs(inline), parseArgs(spaced), inline.join(" "));
+});
+
+test("parseArgs: only the first '=' splits, so --paths=flutter=app keeps its value", () => {
+  assert.strictEqual(parseArgs(["--paths=flutter=app,react=client"]).pathsCsv, "flutter=app,react=client");
+});
+
+test("parseArgs: --name= with an empty value reports the same error as an empty space-separated value", () => {
+  assert.throws(() => parseArgs(["--paths="]), /--paths/);
+  assert.throws(() => parseArgs(["--main-branch="]), CliError);
+  assert.throws(() => parseArgs(["--lang="]), CliError);
+});
+
+test("parseArgs: a value option's value is never expanded, and the space and inline forms mix", () => {
+  assert.strictEqual(parseArgs(["--paths", "react=a=b", "--lang=ko"]).pathsCsv, "react=a=b");
+  assert.strictEqual(parseArgs(["--lang=ko", "--mode", "full"]).mode, "full");
+});
+
+test("parseArgs: a switch given a value is a clear error naming the option", () => {
+  for (const flag of ["--force", "--dry-run", "--help", "--version", "--yes", "--no-copilot"]) {
+    assert.throws(() => parseArgs([`${flag}=true`]), (e) => e instanceof CliError && e.message.includes(flag) && e.message.includes(`${flag}=true`), flag);
+  }
+});
+
+test("parseArgs: an unknown option with '=' is still reported as unknown", () => {
+  assert.throws(() => parseArgs(["--nope=1"]), (e) => e instanceof CliError && e.message.includes("--nope=1"));
+});

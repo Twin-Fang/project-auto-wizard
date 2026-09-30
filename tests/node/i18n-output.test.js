@@ -194,3 +194,21 @@ test("interactive prompts render in the selected language (en: no Hangul, ko: Ha
     setLanguage(saved);
   }
 });
+
+test("--lang=ko (inline form) selects the language for argument errors and output", async () => {
+  const dir = repo();
+  const saved = getLanguage();
+  const savedEnv = process.env.PROJECT_AUTO_WIZARD_LANG;
+  delete process.env.PROJECT_AUTO_WIZARD_LANG;
+  try {
+    const ko = await cli(["--lang=ko", "--bogus"], dir);
+    assert.strictEqual(ko.code, 1);
+    assert.match(ko.text, /알 수 없는 옵션/);
+    const en = await cli(["--lang=en", "--bogus"], dir);
+    assert.match(en.text, /Unknown option/);
+  } finally {
+    setLanguage(saved);
+    if (savedEnv === undefined) delete process.env.PROJECT_AUTO_WIZARD_LANG; else process.env.PROJECT_AUTO_WIZARD_LANG = savedEnv;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
