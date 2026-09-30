@@ -24,7 +24,6 @@ const FILE_ALLOW = [
   { path: /^README\.ko\.md$/, why: "Korean README translation" },
   { path: /^website\/src\/content\/docs\/ko\//, why: "ko locale of the docs site" },
   { path: /^CHANGELOG\.(md|json)$/, why: "past release entries" },
-  { path: /^\.issue\//, why: "historical work notes" },
   { path: /^tests\/fixtures\//, why: "fixture input data (e.g. Korean text handling)" },
 ];
 

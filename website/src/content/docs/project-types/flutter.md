@@ -5,6 +5,8 @@ description: CI, Android and iOS deployment, environment variables, deploy modes
 
 Detected from `pubspec.yaml`. Installed on top of [release automation](../common/).
 
+<a id="flutter-store"></a>
+
 ## Installed workflows
 
 | Workflow | Installed | Trigger | What it does |

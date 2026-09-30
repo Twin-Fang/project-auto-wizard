@@ -14,7 +14,7 @@ Set TypingSpeed 60ms
 Set WindowBar Colorful
 
 Hide
-Type "source assets/demo/setup.sh && export PS1='\[\e[32m\]my-service\[\e[0m\] $ ' && clear"
+Type "source assets/demo/setup.sh && export PROJECT_AUTO_WIZARD_LANG=en && export PS1='\[\e[32m\]my-service\[\e[0m\] $ ' && clear"
 Enter
 Sleep 1s
 Show
