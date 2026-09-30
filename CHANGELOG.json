@@ -1,15 +1,66 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-09-30T15:29:02Z",
-    "currentVersion": "0.15.1",
+    "lastUpdated": "2026-09-30T15:36:21Z",
+    "currentVersion": "0.16.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 32
+    "totalReleases": 33
   },
   "releases": [
+    {
+      "version": "0.16.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-09-30",
+      "pr_number": 394,
+      "raw_summary": "### ✨ Features\n- release_automerge가 꺼져 있으면 릴리스 PR 자동 머지와 대기 잡을 건너뛰고 수동 머지 안내를 남김 (#365)\n- release_automerge 옵션 추가 (기본 켜짐, 키가 없는 기존 설치도 켜짐) (#365)\n- 옵션 레지스트리 모듈 추가 (#365)\n\n### 🐛 Fixes\n- status의 release_automerge 미설정 표기·스위치 플래그 검증·워크플로우 리더 줄 고정을 바로잡고 수동 머지 안내를 머지 커밋으로 한정 (#365)\n\n### 📝 Documentation\n- 옵션 추가 가이드와 옵션 레지스트리 일관성 테스트 추가 (#365)\n\n### ♻️ Refactoring\n- 대화형 질문·수정 메뉴·상태 카드·요약을 레지스트리 구동으로 이전하고 질문하지 않는 저장 옵션이 재설치에서 유지되게 수정 (#365)\n- 옵션 해석·컨텍스트·CLI 플래그·version.yml 파싱과 렌더·status·로그를 레지스트리 기반으로 이전 (#365)\n\n### ✅ Tests\n- 옵션 해석·플래그·version.yml 파싱·표시 출력을 특성화 테스트로 고정 (#365)\n\n### 🔧 Changes\n- main 브랜치의 릴리스 버전 커밋을 develop에 병합",
+      "parsed_changes": {
+        "feat": {
+          "title": "✨ Features",
+          "items": [
+            "release_automerge가 꺼져 있으면 릴리스 PR 자동 머지와 대기 잡을 건너뛰고 수동 머지 안내를 남김 (#365)",
+            "release_automerge 옵션 추가 (기본 켜짐, 키가 없는 기존 설치도 켜짐) (#365)",
+            "옵션 레지스트리 모듈 추가 (#365)"
+          ]
+        },
+        "fix": {
+          "title": "🐛 Fixes",
+          "items": [
+            "status의 release_automerge 미설정 표기·스위치 플래그 검증·워크플로우 리더 줄 고정을 바로잡고 수동 머지 안내를 머지 커밋으로 한정 (#365)"
+          ]
+        },
+        "docs": {
+          "title": "📝 Documentation",
+          "items": [
+            "옵션 추가 가이드와 옵션 레지스트리 일관성 테스트 추가 (#365)"
+          ]
+        },
+        "refactor": {
+          "title": "♻️ Refactoring",
+          "items": [
+            "대화형 질문·수정 메뉴·상태 카드·요약을 레지스트리 구동으로 이전하고 질문하지 않는 저장 옵션이 재설치에서 유지되게 수정 (#365)",
+            "옵션 해석·컨텍스트·CLI 플래그·version.yml 파싱과 렌더·status·로그를 레지스트리 기반으로 이전 (#365)"
+          ]
+        },
+        "test": {
+          "title": "✅ Tests",
+          "items": [
+            "옵션 해석·플래그·version.yml 파싱·표시 출력을 특성화 테스트로 고정 (#365)"
+          ]
+        },
+        "changes": {
+          "title": "🔧 Changes",
+          "items": [
+            "main 브랜치의 릴리스 버전 커밋을 develop에 병합"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.15.1",
       "project_types": [
