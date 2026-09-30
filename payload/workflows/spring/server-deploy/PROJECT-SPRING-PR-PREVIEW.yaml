@@ -1090,11 +1090,13 @@ jobs:
       - name: Set issue info
         if: steps.check_branch.outputs.exists == 'true'
         id: issue
+        env:
+          PAW_BRANCH_NAME: ${{ needs.get-branch-from-issue.outputs.branch_name }}
         run: |
-          echo "ref=${{ needs.get-branch-from-issue.outputs.branch_name }}" >> $GITHUB_OUTPUT
+          echo "ref=$PAW_BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "issue_number=${{ needs.get-branch-from-issue.outputs.issue_number }}" >> $GITHUB_OUTPUT
           # Get the latest commit SHA of the branch
-          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git refs/heads/${{ needs.get-branch-from-issue.outputs.branch_name }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "sha=$(git ls-remote https://github.com/${{ github.repository }}.git "refs/heads/$PAW_BRANCH_NAME" | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Create progress comment
         if: steps.check_branch.outputs.exists == 'true'

@@ -699,3 +699,9 @@ test("language-aware Flutter workflows: English catalog has no Hangul and Korean
   assert.strictEqual(ko["ios_test_tf.log_ipa_failed"], "❌ 진행 상황 업데이트 완료: IPA 빌드 실패");
   assert.strictEqual(en["ios_test_tf.log_ipa_failed"], "❌ Progress update complete: IPA build failed");
 });
+
+test("FLUTTER-CI summary shows '-' (not a hardcoded English n/a) when the test duration is empty", () => {
+  const text = rawWorkflow("PROJECT-FLUTTER-CI.yaml");
+  assert.ok(!/n\/a/i.test(text), "a fixed English placeholder would also appear in Korean output");
+  assert.match(text, /PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION \|\| '-'/);
+});

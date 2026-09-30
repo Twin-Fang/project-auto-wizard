@@ -319,6 +319,8 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
@@ -326,4 +328,4 @@ jobs:
           echo "$(m wf_version.sum_skipped skip="${{ steps.release_guard.outputs.skip }}")"
           echo "$(m wf_version.sum_previous current_version="${{ steps.current_version.outputs.current_version }}")"
           echo "$(m wf_version.sum_new new_version="${{ steps.version.outputs.new_version }}")"
-          echo "$(m wf_version.sum_branch ref_name="${{ github.ref_name }}")"
+          echo "$(m wf_version.sum_branch ref_name="$PAW_REF_NAME")"

@@ -423,7 +423,7 @@ jobs:
               : (testOutcome === 'failure' ? 'failure' : 'skipped');
 
             core.setOutput('status', status);
-            // Only a run that finished has a measured time; otherwise leave it empty (shown as n/a)
+            // Only a run that finished has a measured time; otherwise leave it empty (shown as -)
             const testSeconds = parseInt(process.env.PAW_IN_STEPS_TEST_OUTPUTS_SECONDS, 10);
             const testDuration = Number.isNaN(testSeconds) ? '' : (testSeconds >= 60
               ? m('flutter_a.ci_dur_min_sec', { minutes: Math.floor(testSeconds / 60), seconds: testSeconds % 60 })
@@ -804,7 +804,7 @@ jobs:
             const analyzeStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_STATUS;
             const analyzeDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_DURATION || '-';
             const testStatus = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_STATUS;
-            const testDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION || 'n/a';
+            const testDuration = process.env.PAW_IN_NEEDS_ANALYZE_OUTPUTS_TEST_DURATION || '-';
             const androidStatus = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_STATUS;
             const androidDuration = process.env.PAW_IN_NEEDS_BUILD_ANDROID_OUTPUTS_DURATION || '-';
             const iosStatus = process.env.PAW_IN_NEEDS_BUILD_IOS_OUTPUTS_STATUS;
