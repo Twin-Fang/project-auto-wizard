@@ -61,6 +61,41 @@ test("github-script steps do not inline step/needs/github contexts into JS strin
   assert.deepStrictEqual(hits, [], `pass these through env instead:\n  ${hits.join("\n  ")}`);
 });
 
+test("github-script bodies contain no ${{ }} expression at all (numbers included)", () => {
+  // A bare numeric `const x = ${{ ... }};` breaks the script with a SyntaxError when the value is empty,
+  // so numbers also go through env and are read with parseInt(...) || fallback.
+  const hits = [];
+  for (const file of SCAN_DIRS.flatMap(walk)) {
+    for (const { line, body } of githubScripts(readFileSync(file, "utf8"))) {
+      body.split("\n").forEach((l, i) => {
+        if (l.includes("${{")) hits.push(`${file.slice(REPO_ROOT.length)}:${line + 1 + i}: ${l.trim()}`);
+      });
+    }
+  }
+  assert.deepStrictEqual(hits, [], `pass these through env instead:\n  ${hits.join("\n  ")}`);
+});
+
+test("shell run steps do not inline branch names (head_ref / pull_request.head.ref)", () => {
+  // A branch name may contain shell metacharacters; inside a run script it must be read from an env variable.
+  const hits = [];
+  const dirs = [...SCAN_DIRS, join(REPO_ROOT, ".github", "workflows")];
+  for (const file of dirs.flatMap(walk)) {
+    const lines = readFileSync(file, "utf8").split("\n");
+    let runIndent = -1;
+    lines.forEach((l, i) => {
+      const m = /^(\s*)(?:- )?run:\s*(.*)$/.exec(l);
+      if (m) {
+        runIndent = m[1].length;
+        if (m[2] && !/^[|>]/.test(m[2]) && /\$\{\{\s*(github\.head_ref|github\.event\.pull_request\.head\.ref)/.test(m[2])) hits.push(`${file.slice(REPO_ROOT.length)}:${i + 1}`);
+        return;
+      }
+      if (runIndent >= 0 && l.trim() !== "" && l.length - l.trimStart().length <= runIndent) runIndent = -1;
+      if (runIndent >= 0 && /\$\{\{\s*(github\.head_ref|github\.event\.pull_request\.head\.ref)/.test(l)) hits.push(`${file.slice(REPO_ROOT.length)}:${i + 1}: ${l.trim()}`);
+    });
+  }
+  assert.deepStrictEqual(hits, [], `pass these through a step env variable instead:\n  ${hits.join("\n  ")}`);
+});
+
 test("github-script bodies with their remaining expressions stubbed out are valid JavaScript", () => {
   const broken = [];
   // Templates have whole-line placeholders, so only the generated payload is syntax-checked

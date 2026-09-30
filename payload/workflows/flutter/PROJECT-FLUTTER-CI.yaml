@@ -178,12 +178,17 @@ jobs:
 
       - name: Collect build info
         id: info
+        env:
+          # Branch names are passed through env so shell metacharacters in them are never parsed as commands
+          PAW_EVENT_NAME: ${{ github.event_name }}
+          PAW_HEAD_REF: ${{ github.head_ref }}
+          PAW_REF_NAME: ${{ github.ref_name }}
         run: |
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="${{ github.head_ref }}"
+          if [ "$PAW_EVENT_NAME" == "pull_request" ]; then
+            BRANCH_NAME="$PAW_HEAD_REF"
           else
-            BRANCH_NAME="${{ github.ref_name }}"
+            BRANCH_NAME="$PAW_REF_NAME"
           fi
           COMMIT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
 
