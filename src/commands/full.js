@@ -73,7 +73,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const prevParsed = prevVy != null ? parseExisting(prevVy) : null;
   const extraTopLevel = prevParsed ? prevParsed.extraTopLevel : [];
   // Folders folded into one type entry are not managed after this rewrite; leave a trace in the install log.
-  for (const line of droppedPathLines(prevParsed?.droppedPaths)) log.warn("version", "paths", line);
+  for (const line of droppedPathLines(prevParsed?.droppedPaths, paths)) log.warn("version", "paths", line);
 
   // 2. Generate version.yml (render payload/version.yml.template; full regeneration)
   //    A re-run where only the date lines differ does not rewrite it (idempotent).

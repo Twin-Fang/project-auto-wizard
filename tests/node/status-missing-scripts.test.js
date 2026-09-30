@@ -41,7 +41,9 @@ test("status: every deleted script is reported with the restore command, and a f
     runFull(ctx(), PAYLOAD, target);
     for (const name of SCRIPT_NAMES) rmSync(join(target, ".github", "scripts", name));
     const s = runStatus(PAYLOAD, target);
-    assert.deepStrictEqual(s.missingScripts, SCRIPT_NAMES);
+    // Only scripts the installed workflows call count; truncate_release_notes.py is used by Flutter workflows alone.
+    assert.ok(s.missingScripts.includes("messages.py") && s.missingScripts.includes("version_manager.py"));
+    assert.ok(!s.missingScripts.includes("truncate_release_notes.py"));
     const out = capture(() => printStatus(s));
     assert.match(out, /messages\.py/);
     assert.match(out, /--mode full --force/);

@@ -33,9 +33,9 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   return { existed: existingRaw !== null, changed: existingRaw === null || !sameIgnoringTimestamps(existingRaw, wouldBe) };
 }
 
-function existingDroppedPaths(targetRoot) {
+function existingDroppedLines(targetRoot, paths) {
   const vyPath = join(targetRoot, PATHS.versionFile);
-  return existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")).droppedPaths : [];
+  return existsSync(vyPath) ? droppedPathLines(parseExisting(readFileSync(vyPath, "utf8")).droppedPaths, paths) : [];
 }
 
 // mode: "full" | "uninstall". Read-only: writes no file.
@@ -60,7 +60,7 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     flutterApp: planTypeAppFiles(context, payloadRoot, targetRoot),
     versionYml: versionYmlPreview(context, payloadRoot, targetRoot),
     // Folders the rewrite would drop from version.yml (same type listed under two names with different folders).
-    droppedPaths: existingDroppedPaths(targetRoot),
+    droppedPathLines: existingDroppedLines(targetRoot, context.paths),
     // Files the real install also changes; scripts that overwrite existing files in particular must be shown in advance.
     scripts: planScripts(payloadRoot, targetRoot),
     readme: planVersionSection(targetRoot),
@@ -137,7 +137,7 @@ export function printDryRun(plan) {
       // For types with a deploy block (spring etc.) say the preview may differ from the real install.
       lines.push(t("cmd.dryRun.versionYml.note"));
     }
-    if (plan.droppedPaths?.length) lines.push(...droppedPathLines(plan.droppedPaths).map((l) => `⚠️  ${l}`));
+    if (plan.droppedPathLines?.length) lines.push(...plan.droppedPathLines.map((l) => `⚠️  ${l}`));
     if (plan.scripts) {
       const mark = { create: "+", overwrite: "~", unchanged: "=" };
       const note = {

@@ -286,8 +286,6 @@ async function runInner(argv, {
   // Load the existing version.yml: the single source of truth for preserving version/version_code/project_paths
   const vyPath = join(cwd, "version.yml");
   const existing = existsSync(vyPath) ? parseExisting(readFileSync(vyPath, "utf8")) : null;
-  // The dry-run preview prints the same notice itself.
-  if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths)) console.error(`⚠️  ${line}`);
 
   // Detection (CLI args first, otherwise auto-detect; the version.yml-first rule lives inside detectTypes/detectVersion).
   // Pass --paths to detection so a monorepo that gives only --paths and omits --type is installed with those types.
@@ -317,6 +315,9 @@ async function runInner(argv, {
     if (e instanceof CliError) { console.error(e.message); return 1; }
     throw e;
   }
+
+  // Warn against the final folders (an explicit --paths may keep the other one). The dry-run preview prints its own notice.
+  if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths, paths)) console.error(`⚠️  ${line}`);
 
   // version: existing version.yml first (SSoT; prevents overwriting on re-run) -> CLI value -> file detection.
   // Non-interactive, so the fallback notice uses the CLI wording (--project-version) as is.

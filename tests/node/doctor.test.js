@@ -469,7 +469,9 @@ test("doctorExitCode: 0 without problems (INFO does not count), 1 for any WARN o
   assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "INFO" }]), 0);
   assert.strictEqual(doctorExitCode([{ status: "OK" }, { status: "WARN" }]), 1);
   assert.strictEqual(doctorExitCode([{ status: "FAIL" }, { status: "WARN" }]), 1);
-  // The all-healthy fixture (remote checks included) is a clean run: an installed folder with all its scripts.
+  // The all-healthy fixture (remote checks included) is a clean run, this repo's own root included
+  // (it deliberately omits scripts only some workflow types use).
+  assert.strictEqual(doctorExitCode(runDoctor(REPO_ROOT, { exec: fakeExec(ALL_OK_EXEC) })), 0);
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
     writeFileSync(join(dir, "version.yml"), 'version: "1.0.0"\n');
@@ -483,7 +485,9 @@ test("doctorExitCode: 0 without problems (INFO does not count), 1 for any WARN o
 test("runDoctor: an installed script that is missing is a WARN with the restore command; all present is not", () => {
   const dir = mkdtempSync(join(tmpdir(), "paw-doctor-"));
   try {
+    mkdirSync(join(dir, ".github", "workflows"), { recursive: true });
     writeFileSync(join(dir, "version.yml"), 'version: "1.0.0"\n');
+    writeFileSync(join(dir, ".github", "workflows", "PROJECT-X.yaml"), "run: python3 .github/scripts/version_manager.py\n");
     copyScripts(resolvePayloadRoot(), dir);
     const find = () => runDoctor(dir, { exec: fakeExec(ALL_OK_EXEC) }).find((r) => r.name === t("cmd.doctor.scripts.name"));
     assert.strictEqual(find(), undefined);
@@ -492,6 +496,11 @@ test("runDoctor: an installed script that is missing is a WARN with the restore 
     assert.strictEqual(item.status, "WARN");
     assert.match(item.value, /messages\.py/);
     assert.match(item.actions[0], /--mode full --force/);
+    // A script no installed workflow calls (Flutter-only truncate_release_notes.py) is not required.
+    rmSync(join(dir, ".github", "scripts", "messages.py"), { force: true });
+    copyScripts(resolvePayloadRoot(), dir);
+    rmSync(join(dir, ".github", "scripts", "truncate_release_notes.py"));
+    assert.strictEqual(find(), undefined);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

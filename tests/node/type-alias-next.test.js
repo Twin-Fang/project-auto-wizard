@@ -7,8 +7,10 @@ import assert from "node:assert";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { parseArgs, parsePathsCsv, CliError } from "../../src/cli/args.js";
-import { parseExisting } from "../../src/core/version-yml.js";
+import { setLanguage } from "../../src/i18n/index.js";
+import { parseExisting, droppedPathLines } from "../../src/core/version-yml.js";
 import { canonicalTypeId, canonicalTypeIds, TYPE_IDS } from "../../src/core/types.js";
 import { runFull } from "../../src/commands/full.js";
 import { runStatus } from "../../src/commands/status.js";
@@ -149,10 +151,12 @@ test("version.yml: react and next with different folders report the folded-away 
   const r = parseExisting(MONO_VY);
   assert.deepStrictEqual(r.types, ["react", "python"]);
   assert.deepStrictEqual([...r.paths], [["react", "client"], ["python", "api"]]);
-  assert.deepStrictEqual(r.droppedPaths, [{ type: "react", name: "next", path: "web", kept: "client" }]);
+  assert.deepStrictEqual(r.droppedPaths, [{ type: "react", keptName: "react", kept: "client", name: "next", path: "web" }]);
   // Same folder written two ways, or no duplicate at all, loses nothing.
   assert.deepStrictEqual(parseExisting(MONO_VY.replace('next: "web"', 'next: "./client/"')).droppedPaths, []);
-  assert.deepStrictEqual(parseExisting(MONO_VY.replace('  next: "web"\n', "")).droppedPaths, []);
+  // next listed without a folder sits at the repo root, which differs from react's folder.
+  assert.deepStrictEqual(parseExisting(MONO_VY.replace('  next: "web"\n', "")).droppedPaths,
+    [{ type: "react", keptName: "react", kept: "client", name: "next", path: "." }]);
 });
 
 test("update of a react + next monorepo: status and dry-run warn before the folder drops, the install log records it", async () => {
@@ -181,7 +185,7 @@ test("update of a react + next monorepo: status and dry-run warn before the fold
 
     const c = { ...ctx(["react", "python"]), paths: new Map([["react", "client"], ["python", "api"]]) };
     const plan = planDryRun("full", c, PAYLOAD, target);
-    assert.strictEqual(plan.droppedPaths[0].path, "web");
+    assert.strictEqual(plan.droppedPathLines.length, 2);
     const dryOut = capture(() => printDryRun(plan));
     assert.match(dryOut, /web/);
     assert.match(dryOut, /--paths react=web/);
@@ -201,4 +205,50 @@ test("update of a react + next monorepo: status and dry-run warn before the fold
 test("a normal react install prints no folder warning anywhere", () => {
   const r = parseExisting('version: "1.0.0"\nproject_types: ["react"]\nproject_paths:\n  react: "client"\n');
   assert.deepStrictEqual(r.droppedPaths, []);
+});
+
+test("folder warning follows the final folders and the original names", () => {
+  setLanguage("en");
+  try { foldedWarningAssertions(); } finally { setLanguage("ko"); }
+});
+
+function foldedWarningAssertions() {
+  const lines = (vy, finalPaths) => droppedPathLines(parseExisting(vy).droppedPaths, finalPaths);
+  // Saved winner stays: web drops out and the re-run hint is offered.
+  const kept = lines(MONO_VY);
+  assert.match(kept[0], /Keeping react=client; web drops out/);
+  assert.match(kept[1], /--paths react=web/);
+  // --paths react=web: client is what drops out, and no hint points back to web.
+  const flipped = lines(MONO_VY, new Map([["react", "web"]]));
+  assert.match(flipped[0], /Keeping react=web; client drops out/);
+  assert.strictEqual(flipped.length, 1);
+  // next written first: the message names next and react, never react twice.
+  const nextFirst = lines('version: "1.0.0"\nproject_types: ["next", "react"]\nproject_paths:\n  next: "web"\n  react: "."\n');
+  assert.match(nextFirst[0], /'next' \(folder web\) and 'react' \(folder \.\)/);
+  assert.match(nextFirst[0], /Keeping react=web; \. drops out/);
+  // A root react that has no project_paths entry is the folder that drops out.
+  const implicit = lines('version: "1.0.0"\nproject_types: ["react", "next"]\nproject_paths:\n  next: "web"\n');
+  assert.match(implicit[0], /Keeping react=web; \. drops out/);
+  // A single react entry or both at the root lose nothing.
+  assert.deepStrictEqual(parseExisting('version: "1.0.0"\nproject_types: ["react", "next"]\n').droppedPaths, []);
+}
+
+test("update with --paths react=web reports client as the dropped folder in dry-run and stderr", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-mono-"));
+  try {
+    writeFileSync(join(target, "version.yml"), MONO_VY);
+    for (const [d, dep] of [["client", "react"], ["web", "next"], ["api", null]]) {
+      mkdirSync(join(target, d));
+      if (dep) writeFileSync(join(target, d, "package.json"), `{"name":"x","version":"1.0.0","dependencies":{"${dep}":"^1"}}`);
+    }
+    const run = (...a) => spawnSync(process.execPath, [join(process.cwd(), "bin", "project-auto-wizard.js"), "--mode", "full", "--type", "react", "--paths", "react=web", ...a], {
+      cwd: target, encoding: "utf8", env: { ...process.env, PROJECT_AUTO_WIZARD_LANG: "en" },
+    });
+    const dry = run("--dry-run");
+    assert.match(dry.stdout, /Keeping react=web; client drops out/);
+    assert.doesNotMatch(dry.stdout, /Keeping react=client/);
+    const real = run("--force");
+    assert.match(real.stderr, /Keeping react=web; client drops out/);
+    assert.doesNotMatch(real.stderr, /rerun with --paths react=web/);
+  } finally { rmSync(target, { recursive: true, force: true }); }
 });

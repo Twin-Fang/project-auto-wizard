@@ -24,10 +24,18 @@ export function planScripts(payloadRoot, targetRoot = ".") {
   return out;
 }
 
-// Bundled scripts that are absent from the repo (deleted by hand or never copied). Workflows call them by path,
-// so a missing one only surfaces as a raw python error in the middle of a run.
+// Bundled scripts the installed workflows call but the repo no longer has (deleted by hand, never copied).
+// Only scripts an installed workflow actually references count: some (truncate_release_notes.py) belong to
+// workflows of one type only. messages.py is imported by the other scripts, so it is required once any is.
 export function findMissingScripts(payloadRoot, targetRoot = ".") {
-  return planScripts(payloadRoot, targetRoot).filter((s) => s.action === "create").map((s) => s.name);
+  const wfDir = join(targetRoot, PATHS.workflowsDir);
+  let text = "";
+  try {
+    for (const f of readdirSync(wfDir)) if (/\.ya?ml$/.test(f)) text += `${readFileSync(join(wfDir, f), "utf8")}\n`;
+  } catch { return []; }
+  const required = SCRIPT_NAMES.filter((n) => text.includes(n));
+  if (required.length && !required.includes("messages.py")) required.push("messages.py");
+  return SCRIPT_NAMES.filter((n) => required.includes(n) && exists(join(payloadRoot, PAYLOAD.scriptsDir, n)) && !exists(join(targetRoot, PATHS.scriptsDir, n)));
 }
 
 // Scripts are always overwritten with the payload version (+chmod, meaningless but harmless on Windows).
