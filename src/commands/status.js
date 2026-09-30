@@ -77,8 +77,9 @@ export function printStatus(status) {
   if (status.branches) {
     lines.push(t("cmd.status.branchMode", { mode: status.branches.mode, main: status.branches.main, develop: status.branches.develop }));
   }
-  const boolLabel = (v) => (v === null ? t("cmd.status.unsetDefaultFalse") : v);
-  const optionLabels = OPTIONS.map((o) => `${o.key}=${boolLabel(status.options[o.name] ?? null)}`).join(" ");
+  // An unset option is shown with the value it resolves to on this (existing) install, i.e. its legacyDefault.
+  const unsetLabel = (o) => t(o.legacyDefault ? "cmd.status.unsetDefaultTrue" : "cmd.status.unsetDefaultFalse");
+  const optionLabels = OPTIONS.map((o) => `${o.key}=${status.options[o.name] ?? unsetLabel(o)}`).join(" ");
   const typeLabels = hooksFor(status.types, "statusLabels").map(({ hook }) => hook(status.options)).join("");
   const deployLabel = status.options.deployStyle ? ` deploy_style=${status.options.deployStyle}` : "";
   lines.push(t("cmd.status.options", { value: `${optionLabels}${deployLabel}${typeLabels}` }));

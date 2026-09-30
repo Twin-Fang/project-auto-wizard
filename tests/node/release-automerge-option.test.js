@@ -123,3 +123,41 @@ test("interactive: a first interactive install writes release_automerge: true", 
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+test("status: a missing release_automerge key is shown as default true, not default false", async () => {
+  const { printStatus } = await import("../../src/commands/status.js");
+  const status = {
+    installed: true, version: "1.0.0", templateVersion: "1.0.0", types: ["basic"], branches: null,
+    options: { semverAuto: null, copilotAi: null, releaseAutomerge: null, deployStyle: null },
+    modifiedFiles: [], missingFiles: [], staleFiles: [], missingScripts: [], droppedPaths: [],
+  };
+  const orig = console.log;
+  const lines = [];
+  console.log = (...a) => lines.push(a.join(" "));
+  try { printStatus(status); } finally { console.log = orig; }
+  const out = lines.join("\n");
+  assert.ok(out.includes("release_automerge=미설정(기본 true)"), out);
+  assert.ok(out.includes("copilot_ai=미설정(기본 false)"), "the false-default options keep their label");
+});
+
+test("args: --release-automerge=value fails like the other switches (not as an unknown option)", () => {
+  const messageOf = (argv) => { try { parseArgs(argv); } catch (e) { return e.message; } return ""; };
+  const copilot = messageOf(["--copilot=false"]);
+  const automerge = messageOf(["--release-automerge=false"]);
+  assert.ok(copilot && automerge);
+  assert.strictEqual(automerge.replaceAll("release-automerge", "copilot"), copilot);
+});
+
+test("guidance never recommends squash (it makes the next release re-collect already released commits)", () => {
+  const files = [
+    "payload/version.yml.template", "payload/scripts/messages.py", "src/i18n/catalog/en/commands.js",
+    "src/i18n/catalog/ko/commands.js", "website/src/content/docs/reference/version-yml.md",
+    "website/src/content/docs/ko/reference/version-yml.md", "payload/workflows/common/PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
+  ];
+  for (const f of files) {
+    const text = readFileSync(join(import.meta.dirname, "..", "..", f), "utf8");
+    for (const line of text.split("\n").filter((l) => /automerge/i.test(l) || /squash/i.test(l))) {
+      assert.ok(!/squash/i.test(line) || /not squash|금지|쓰지 마세요|Do not use/i.test(line), `${f}: ${line.slice(0, 120)}`);
+    }
+  }
+});

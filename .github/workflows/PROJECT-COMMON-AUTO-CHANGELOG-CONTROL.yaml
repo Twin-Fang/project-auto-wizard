@@ -31,7 +31,7 @@
 #
 # With version.yml release_automerge: false, step 5 and the wait job are
 # skipped: the PR is renamed to the release-confirm subject and one guidance
-# comment asks the maintainer to merge it (merge commit or squash, not rebase).
+# comment asks the maintainer to merge it with a merge commit (not squash or rebase).
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -172,7 +172,7 @@ jobs:
         run: |
           # Same metadata: -> template: -> options: scope as copilot_ai. A missing key means ON:
           # installs from before the option existed already automerge, and that must not change.
-          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?release_automerge:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?^\s+release_automerge:\s*\"?(true|false)", t, re.S|re.M); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
           echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
           echo "release_automerge option: $AUTOMERGE"
 
@@ -457,7 +457,7 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           VERSION="${{ steps.bump.outputs.new_version }}"
 
-          # The PR title carries the release-confirm pattern, so a human merge (merge commit or squash)
+          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
           # still passes the RELEASE-PUBLISH gate. A failed rename only warns: the run must not fail here.
           SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
           if gh pr edit "$PR_NUMBER" --title "$SUBJECT"; then

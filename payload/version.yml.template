@@ -10,8 +10,8 @@
 #   workflows call GitHub Copilot CLI, which consumes GitHub Copilot AI Credits.
 #   Falls back to rule-based summaries whenever Copilot is off or unavailable.
 # - release_automerge: default true — false stops the release PR (develop -> main)
-#   from being merged automatically. Merge it yourself with a merge commit or
-#   squash (not rebase); the workflow renames the PR so the release still publishes.
+#   from being merged automatically. Merge it yourself with a merge commit
+#   (not squash or rebase); the workflow renames the PR so the release still publishes.
 # ===
 # Supported project types: spring, flutter, react, react-native,
 #                          react-native-expo, node, python, basic, go

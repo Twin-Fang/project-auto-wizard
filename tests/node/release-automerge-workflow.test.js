@@ -33,6 +33,12 @@ test("reader: an unrelated release_automerge key outside metadata.template.optio
   assert.strictEqual(readerOutput(`release_automerge: false\n${yml("      semver_auto: true\n")}`), "true");
 });
 
+test("reader: a commented-out or prefixed key is not read as release_automerge", () => {
+  assert.strictEqual(readerOutput(yml("      # release_automerge: false\n      semver_auto: true\n")), "true");
+  assert.strictEqual(readerOutput(yml("      pre_release_automerge: false\n")), "true");
+  assert.strictEqual(readerOutput(yml("      semver_auto: true\n      release_automerge: false\n")), "false");
+});
+
 test("Enable automerge only runs when the option is not false", () => {
   assert.match(WF, /- name: Enable automerge\n\s+if: steps\.automerge_option\.outputs\.release_automerge != 'false'/);
 });

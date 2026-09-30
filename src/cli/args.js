@@ -28,7 +28,7 @@ const VALUE_FLAGS = new Set([
 const SWITCH_FLAGS = new Set([
   "--version", "--help", "--force", "--dry-run", "--purge-readme", "--purge-gitignore", "--purge-version", "--yes", "--allow-dirty",
   "--delete-develop-branch", "--keep-version-yml", "--keep-readme", "--keep-changelog", "--keep-workflows", "--keep-scripts",
-  "--semver-auto", "--no-semver-auto", "--copilot", "--no-copilot",
+  ...OPTIONS.flatMap((o) => [`--${o.flag}`, `--no-${o.flag}`]),
 ]);
 
 // `--name=value` -> `--name`, `value`, so the parser below only sees the space-separated form.

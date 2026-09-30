@@ -56,7 +56,7 @@ test("docs list every option: version.yml reference and CLI reference, en and ko
 test("workflow readers only read registry keys and fall back to the registry legacyDefault", () => {
   const readers = [];
   for (const f of walk(join(ROOT, "payload/workflows")).filter((p) => /\.ya?ml$/.test(p))) {
-    for (const m of readFileSync(f, "utf8").matchAll(/options:\.\*\?(\w+):[^\n]*?print\(m\.group\(1\) if m else "(true|false)"\)/g)) {
+    for (const m of readFileSync(f, "utf8").matchAll(/options:\.\*\?(?:\^\\s\+)?(\w+):[^\n]*?print\(m\.group\(1\) if m else "(true|false)"\)/g)) {
       readers.push({ file: f, key: m[1], fallback: m[2] });
     }
   }
