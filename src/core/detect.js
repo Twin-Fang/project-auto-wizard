@@ -87,28 +87,38 @@ export function detectVersionFromFiles({ read, readJson, list, gitTag, warn, hin
   // 릴리스 때의 version_manager.py와 같은 규칙이어야 한다.
   // 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다 — url 'https://…'의 `//`나 문자열 속 중괄호가
   // 블록 깊이 계산을 흐트러뜨리지 않게 한다. version_manager.py와 같은 규칙이어야 한다.
-  const gradleCode = (line) => {
-    let out = "", quote = "";
-    for (let i = 0; i < line.length; i++) {
+  // quote는 이 줄이 시작될 때 열려 있던 따옴표다. 삼중따옴표(""" ''')는 여러 줄에 걸치므로
+  // { code, quote }로 줄 끝에서 열려 있는 따옴표를 돌려줘 다음 줄이 이어받게 한다.
+  // 한 줄짜리 따옴표는 줄 끝에서 닫힌 것으로 본다.
+  const gradleCode = (line, quote) => {
+    let out = "";
+    for (let i = 0; i < line.length;) {
       const ch = line[i];
       if (quote) {
-        if (ch === "\\" && i + 1 < line.length) { out += "  "; i++; continue; }
-        if (ch === quote) { quote = ""; out += ch; } else out += " ";
+        if (ch === "\\" && i + 1 < line.length) { out += "  "; i += 2; continue; }
+        if (line.startsWith(quote, i)) { out += quote; i += quote.length; quote = ""; continue; }
+        out += " ";
+      } else if (line.startsWith('"""', i) || line.startsWith("'''", i)) {
+        quote = line.slice(i, i + 3); out += quote; i += 3; continue;
       } else if (ch === "'" || ch === '"') { quote = ch; out += ch; }
       else if (line.startsWith("//", i)) break;
       else out += ch;
+      i++;
     }
-    return out;
+    return { code: out, quote: quote.length === 3 ? quote : "" };
   };
   const gradleVersion = (content) => {
     const top = [], shared = [], stack = [];
+    let quote = ""; // 여러 줄 문자열 안이면 그 따옴표. 문자열 속 줄은 코드가 아니다
     for (const line of (content || "").split("\n")) {
-      const m = line.match(gradleRe);
+      const m = quote ? null : line.match(gradleRe);
       if (m) {
         if (m[1] === "") top.push(m[3]);
         else if (stack.some((b) => b === "allprojects" || b === "subprojects")) shared.push(m[3]);
       }
-      const code = gradleCode(line);
+      const r = gradleCode(line, quote);
+      quote = r.quote;
+      const code = r.code;
       const name = code.match(/(\w+)\s*\{[^{}]*$/)?.[1] ?? "";
       for (const ch of code) {
         if (ch === "{") stack.push(name);

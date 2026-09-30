@@ -439,19 +439,24 @@ _GRADLE_VERSION_RE = re.compile(r"""^([ \t]*version[ \t]*=[ \t]*)(['"])([^'"\n]*
 _GRADLE_SHARED_BLOCKS = ("allprojects", "subprojects")
 
 
-def _gradle_code(line):
+def _gradle_code(line, quote=""):
     """한 줄에서 주석을 떼고 따옴표 안 글자는 공백으로 바꾼다. url 'https://…'의 `//`나
-    문자열 속 중괄호가 블록 깊이 계산을 흐트러뜨리지 않게 한다. detect.js와 같은 규칙."""
-    out, quote, i = [], "", 0
+    문자열 속 중괄호가 블록 깊이 계산을 흐트러뜨리지 않게 한다. detect.js와 같은 규칙.
+
+    quote는 이 줄이 시작될 때 열려 있던 따옴표다. 삼중따옴표(\"\"\" ''')는 여러 줄에 걸치므로
+    (코드, 줄 끝에서 열려 있는 따옴표)를 돌려줘 다음 줄이 이어받게 한다. 한 줄짜리 따옴표는
+    줄 끝에서 닫힌 것으로 본다."""
+    out, i = [], 0
     while i < len(line):
         ch = line[i]
         if quote:
             if ch == "\\" and i + 1 < len(line):
                 out.append("  "); i += 2; continue
-            if ch == quote:
-                quote = ""; out.append(ch)
-            else:
-                out.append(" ")
+            if line.startswith(quote, i):
+                out.append(quote); i += len(quote); quote = ""; continue
+            out.append(" ")
+        elif line.startswith(('"""', "'''"), i):
+            quote = line[i:i + 3]; out.append(quote); i += 3; continue
         elif ch in "'\"":
             quote = ch; out.append(ch)
         elif line.startswith("//", i):
@@ -459,7 +464,7 @@ def _gradle_code(line):
         else:
             out.append(ch)
         i += 1
-    return "".join(out)
+    return "".join(out), quote if len(quote) == 3 else ""
 
 
 def _gradle_version_matches(text):
@@ -470,16 +475,17 @@ def _gradle_version_matches(text):
     프로젝트 버전으로 오인하면 버전이 뛰고 빌드 설정이 깨진다."""
     top, shared = [], []
     stack = []  # 열린 블록 이름. 줄 끝이 `{`로 끝나는 줄의 마지막 단어
+    quote = ""  # 여러 줄 문자열 안이면 그 따옴표. 문자열 속 줄은 코드가 아니다
     pos = 0
     for line in text.splitlines(keepends=True):
-        m = _GRADLE_VERSION_RE.match(line)
+        m = None if quote else _GRADLE_VERSION_RE.match(line)
         if m:
             m = _GRADLE_VERSION_RE.match(text, pos)
             if not m.group(1)[:1].isspace():
                 top.append(m)
             elif any(b in _GRADLE_SHARED_BLOCKS for b in stack):
                 shared.append(m)
-        code = _gradle_code(line)
+        code, quote = _gradle_code(line, quote)
         name = re.search(r"(\w+)\s*\{[^{}]*$", code)
         for ch in code:
             if ch == "{":
