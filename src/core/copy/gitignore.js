@@ -43,7 +43,7 @@ const newFileContent = (lang) =>
   "*.template.yaml\n";
 // The header comment depends on the language it was written in, so a file created in one language must
 // still be recognized under another: check every supported language's variant.
-const NEW_FILE_CONTENT = () => newFileContent(undefined);
+const NEW_FILE_CONTENT = (lang) => newFileContent(lang);
 const matchingNewFileContent = (content) =>
   [NEW_FILE_CONTENT(), ...SUPPORTED_LANGUAGES.map(newFileContent)].find((c) => content.startsWith(c)) ?? null;
 
@@ -57,11 +57,11 @@ export function planGitignore(targetRoot = ".") {
 }
 
 // Returns: {created, added:[...]}
-export function ensureGitignore(targetRoot = ".") {
+export function ensureGitignore(targetRoot = ".", lang) {
   const p = join(targetRoot, ".gitignore");
   const plan = planGitignore(targetRoot);
   if (plan.created) {
-    writeFileSync(p, NEW_FILE_CONTENT());
+    writeFileSync(p, NEW_FILE_CONTENT(lang));
     return plan;
   }
   const toAdd = plan.added;

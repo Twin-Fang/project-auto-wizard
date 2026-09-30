@@ -64,7 +64,7 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     droppedPathLines: existingDroppedLines(targetRoot, context.paths),
     // Files the real install also changes; scripts that overwrite existing files in particular must be shown in advance.
     scripts: planScripts(payloadRoot, targetRoot),
-    readme: planVersionSection(targetRoot),
+    readme: planVersionSection(targetRoot, context.language),
     baselineExists: existsSync(join(targetRoot, BASELINE_PATH)),
   };
 }

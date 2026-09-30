@@ -87,7 +87,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   }
 
   // 3. README version section
-  const readme = addVersionSectionToReadme(version, targetRoot);
+  const readme = addVersionSectionToReadme(version, targetRoot, context.language);
   log.info("readme", readme === "added" ? "append" : "skip", README_STATUS_LABEL[readme] || readme);
 
   // 4. scripts (payload/scripts/*.py -> .github/scripts/): always overwritten, so also record that user edits are lost.
@@ -123,7 +123,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0
     || staleCleanup.backedUp.length > 0;
   if (gitignoreUpdated) {
-    const gi = ensureGitignore(targetRoot);
+    const gi = ensureGitignore(targetRoot, context.language);
     log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
       gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : t("cmd.full.log.gitignoreExisting"));
   }

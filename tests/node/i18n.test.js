@@ -216,6 +216,33 @@ test("the environment variable does not overwrite a saved language; --lang does;
   }
 });
 
+test("a run under another PROJECT_AUTO_WIZARD_LANG writes README, .gitignore and version.yml in the saved language", async () => {
+  const dir = makeRepo();
+  try {
+    writeFileSync(join(dir, "README.md"), "# my-app\n");
+    assert.strictEqual(await install(dir, ["--lang", "en"]), 0);
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    const norm = (f) => readFileSync(join(dir, f), "utf8").replace(/\r\n/g, "\n");
+    assert.match(norm("version.yml"), /^language: "en"/m);
+    const readme = norm("README.md");
+    assert.match(readme, /^## Latest Version : v/m);
+    assert.ok(!readme.includes("최신 버전") && !readme.includes("전체 버전 기록"), readme);
+    // the plan (used by --dry-run) judges the README by the language it is given, not by the run's output language
+    const { planVersionSection } = await import("../../src/core/copy/readme.js");
+    assert.strictEqual(planVersionSection(dir, "en"), "skip-marker");
+    assert.strictEqual(planVersionSection(dir, "ko"), "heading-updated");
+    // a new .gitignore header follows the stored language too
+    const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
+    const gi = mkdtempSync(join(tmpdir(), "my-app-gi-"));
+    try {
+      ensureGitignore(gi, "en");
+      assert.ok(readFileSync(join(gi, ".gitignore"), "utf8").startsWith(t("copy.gitignore.newFileHeader", {}, "en")));
+    } finally { rmSync(gi, { recursive: true, force: true }); }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("no notice when --lang or the environment variable decides the language", async () => {
   const dir = makeRepo();
   try {

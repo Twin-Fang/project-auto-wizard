@@ -30,9 +30,9 @@ const historyLink = (lang) => t("copy.readme.historyLink", {}, lang);
 // default is replaced: a heading or link the user edited is left alone, and so is anything not directly
 // under the marker (code-block examples, a README without the marker).
 // Returns the new content, or null when nothing needs to change.
-function refreshBlockLanguage(content) {
-  const currentHeading = defaultHeading();
-  const currentLink = historyLink();
+function refreshBlockLanguage(content, lang) {
+  const currentHeading = defaultHeading(lang);
+  const currentLink = historyLink(lang);
   const markerRe = new RegExp("^" + escapeRe(MARKER_LINE.trimEnd()) + "[ \\t]*\\r?\\n", "gm");
   let out = "";
   let last = 0;
@@ -70,22 +70,23 @@ function refreshBlockLanguage(content) {
 // Skip when README.md is missing, or when a marker or version line exists. Otherwise append to the end.
 // Returns: 'skip-no-readme' | 'heading-updated' | 'skip-marker' | 'skip-version-line' | 'added'
 // Only decides without writing, so the real append and the --dry-run preview share one decision.
-export function planVersionSection(targetRoot = ".") {
+// lang: the language recorded in version.yml for this install (not necessarily the language of this run's output)
+export function planVersionSection(targetRoot = ".", lang) {
   const p = join(targetRoot, "README.md");
   if (!existsSync(p)) return "skip-no-readme";
   const content = readFileSync(p, "utf8");
-  if (refreshBlockLanguage(content) !== null) return "heading-updated";
+  if (refreshBlockLanguage(content, lang) !== null) return "heading-updated";
   if (content.includes(MARKER)) return "skip-marker";
   if (VERSION_LINE_RE.test(content)) return "skip-version-line";
   return "added";
 }
 
-export function addVersionSectionToReadme(version, targetRoot = ".") {
-  const status = planVersionSection(targetRoot);
+export function addVersionSectionToReadme(version, targetRoot = ".", lang) {
+  const status = planVersionSection(targetRoot, lang);
   const p = join(targetRoot, "README.md");
   if (status === "heading-updated") {
     // Swap only the bundled default wording; version text after the colon stays as the workflow wrote it.
-    writeFileSync(p, refreshBlockLanguage(readFileSync(p, "utf8")));
+    writeFileSync(p, refreshBlockLanguage(readFileSync(p, "utf8"), lang));
     return status;
   }
   if (status !== "added") return status;
@@ -97,9 +98,9 @@ export function addVersionSectionToReadme(version, targetRoot = ".") {
     "---\n" +
     "\n" +
     "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n" +
-    t("copy.readme.versionHeading", { version }) + "\n" +
+    t("copy.readme.versionHeading", { version }, lang) + "\n" +
     "\n" +
-    t("copy.readme.historyLink") + "\n";
+    t("copy.readme.historyLink", {}, lang) + "\n";
   // Appending directly to a README without a trailing newline puts "---" right after the last line,
   // and Markdown turns that line into a heading (Setext h2), so terminate the line first.
   const lead = content.length > 0 && !content.endsWith("\n") ? "\n" : "";

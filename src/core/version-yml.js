@@ -282,7 +282,7 @@ export function buildVersionYml({
   // project_paths block (full-line token {{PROJECT_PATHS}} - line removed when absent)
   let pathsBlock = "";
   if (paths.size) {
-    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment")}`];
+    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment", {}, language)}`];
     for (const [t, p] of paths) {
       const marker = pathMarkers.get(t) || "";
       const pf = p === "." ? marker : (marker ? `${p}/${marker}` : p);
@@ -295,7 +295,7 @@ export function buildVersionYml({
   let deployBlock = "";
   const deployTypes = [...deployValues.keys()].filter((t) => deployValues.get(t) && deployValues.get(t).size > 0);
   if (deployTypes.length) {
-    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment")}`];
+    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment", {}, language)}`];
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
       // Reuse the same escape - deploy values arrive by the same path as @wizard ask values, so
