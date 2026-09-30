@@ -18,6 +18,7 @@ import { readBaseline, writeBaseline, appFileHash } from "../core/baseline.js";
 import { scanUnsubstituted, classifySecrets, narrowSecretsBySshAuth } from "../core/verify.js";
 import { cleanupOtherDeployWorkflows, payloadWorkflowNames, DEFAULT_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { hooksFor } from "../core/types.js";
+import { OPTIONS } from "../core/options.js";
 import { findStaleWorkflows, cleanupStaleWorkflows } from "../core/removal-plan.js";
 import { log, maskValue } from "../core/logger.js";
 import { t } from "../i18n/index.js";
@@ -207,8 +208,9 @@ export function cleanupWorkflows(context, payloadRoot, targetRoot, baseline, { j
 // Values picked interactively converge here too, so "why was it installed like this?" can later be traced from the log alone.
 function logChoices(context, types) {
   if (context.deployStyle) log.info("option", "deploy", context.deployStyle);
-  if (context.includeSemverAuto != null) log.info("option", "semver", context.includeSemverAuto ? "on" : "off");
-  if (context.includeCopilotAi != null) log.info("option", "copilot", context.includeCopilotAi ? "on" : "off");
+  for (const o of OPTIONS) {
+    if (context[o.ctxField] != null) log.info("option", o.logLabel, context[o.ctxField] ? "on" : "off");
+  }
   for (const { hook } of hooksFor(types, "logChoices")) {
     for (const [name, value] of hook(context)) log.info("option", name, value);
   }

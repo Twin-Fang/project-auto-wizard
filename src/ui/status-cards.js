@@ -3,6 +3,7 @@
 import { A, paint } from "./ansi.js";
 import { t } from "../i18n/index.js";
 import { DEFAULT_DEPLOY_MODE } from "../core/flutter-options.js";
+import { askableOptions } from "../core/options.js";
 
 const GUT = paint("│", A.gray);
 const HEAD = paint("◆", A.cyan);
@@ -59,8 +60,7 @@ export function printAnalysisCard({ mode = "", modeLabel = "", types = [], versi
   // Optional workflows - a saved value is used without asking, so show the current value before confirmation.
   if (options) {
     const onOff = (v) => (v ? paint(t("ui.status-cards.card.on"), A.green) : paint(t("ui.status-cards.card.off"), A.dim));
-    row("🔢", t("ui.status-cards.card.autoBump"), onOff(options.semverAuto));
-    row("🤖", "Copilot", onOff(options.copilotAi));
+    for (const o of askableOptions()) row(o.ask.cardIcon, t(o.ask.cardLabelKey), onOff(options[o.name]));
   }
   // Monorepo paths - shown when at least one entry is not the root
   const nonRoot = [...paths.entries()].filter(([, p]) => p && p !== ".");

@@ -187,6 +187,15 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
     ],
   });
 
+  // release_automerge is on unless version.yml says false (a missing key also means on), so only an explicit false is reported as off.
+  const releaseAutomerge = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options.releaseAutomerge : null;
+  add({
+    name: t("cmd.doctor.automerge.name"), label: t("cmd.doctor.automerge.name"), purpose: t("cmd.doctor.automerge.purpose"), status: "INFO",
+    note: releaseAutomerge === false
+      ? [t("cmd.doctor.automerge.off"), t("cmd.doctor.automerge.offHow")]
+      : [t("cmd.doctor.automerge.on"), t("cmd.doctor.automerge.onHow")],
+  });
+
   return results;
 }
 

@@ -20,6 +20,7 @@ export default {
   "ui.status-cards.card.on": "on",
   "ui.status-cards.card.off": "off",
   "ui.status-cards.card.autoBump": "Auto-bump",
+  "ui.status-cards.card.copilot": "Copilot",
   "ui.status-cards.card.paths": "Paths",
   "ui.status-cards.kind.update": "{title} — template {from} → {to}",
   "ui.status-cards.kind.updateTitle": "Update",

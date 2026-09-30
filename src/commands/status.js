@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseExisting, droppedPathLines } from "../core/version-yml.js";
+import { OPTIONS } from "../core/options.js";
 import { planWorkflows } from "../core/copy/workflows.js";
 import { makeResolvers, detectRepoName, detectDefaultBranch } from "../core/detect-fs.js";
 import { PATHS } from "../core/paths.js";
@@ -76,12 +77,12 @@ export function printStatus(status) {
   if (status.branches) {
     lines.push(t("cmd.status.branchMode", { mode: status.branches.mode, main: status.branches.main, develop: status.branches.develop }));
   }
-  const boolLabel = (v) => (v === null ? t("cmd.status.unsetDefaultFalse") : v);
-  const semverAutoLabel = status.options.semverAuto === null ? t("cmd.status.unsetDefaultFalse") : status.options.semverAuto;
-  const copilotAiLabel = boolLabel(status.options.copilotAi ?? null);
+  // An unset option is shown with the value it resolves to on this (existing) install, i.e. its legacyDefault.
+  const unsetLabel = (o) => t(o.legacyDefault ? "cmd.status.unsetDefaultTrue" : "cmd.status.unsetDefaultFalse");
+  const optionLabels = OPTIONS.map((o) => `${o.key}=${status.options[o.name] ?? unsetLabel(o)}`).join(" ");
   const typeLabels = hooksFor(status.types, "statusLabels").map(({ hook }) => hook(status.options)).join("");
   const deployLabel = status.options.deployStyle ? ` deploy_style=${status.options.deployStyle}` : "";
-  lines.push(t("cmd.status.options", { value: `semver_auto=${semverAutoLabel} copilot_ai=${copilotAiLabel}${deployLabel}${typeLabels}` }));
+  lines.push(t("cmd.status.options", { value: `${optionLabels}${deployLabel}${typeLabels}` }));
   if (status.modifiedFiles.length) {
     lines.push("", t("cmd.status.modified", { n: status.modifiedFiles.length }));
     for (const f of status.modifiedFiles) lines.push(`  - ${f}`);

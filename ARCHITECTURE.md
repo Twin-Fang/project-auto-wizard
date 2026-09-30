@@ -2,7 +2,7 @@
 
 This document explains how `project-auto-wizard` is put together: where the code lives, what
 happens during an install, and the rules that keep re-runs safe. For the step-by-step procedure
-to add a new project type, see [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md).
+to add a new project type, see [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md); to add an on/off release option, see [ADDING-AN-OPTION.md](ADDING-AN-OPTION.md).
 
 ## Module map
 

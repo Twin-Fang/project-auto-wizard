@@ -16,6 +16,7 @@ import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/a
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
 import { parseExisting, droppedPathLines } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
+import { explicitFromContext, optionContextFields } from "./core/options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
 import { resolveProjectPaths } from "./core/paths-resolve.js";
 import {
@@ -149,7 +150,7 @@ async function runInner(argv, {
     // The log file is created on the first write, so viewing only status/doctor from the menu leaves nothing behind.
     startLog("install");
     return await runInteractive(
-      { includeSemverAuto: opts.includeSemverAuto, includeCopilotAi: opts.includeCopilotAi, language },
+      { ...optionContextFields(opts), language },
       { cwd, payloadRoot: payload, clock },
     );
   }
@@ -366,7 +367,7 @@ async function runInner(argv, {
     payload, existing, templateVersion: readTemplateVersion(), types, deployStyle: chosenDeployStyle,
     typeOptions,
     // Options: CLI flag first -> saved version.yml option -> default (same rule as interactive)
-    releaseOptions: resolveReleaseOptions({ semverAuto: opts.includeSemverAuto, copilotAi: opts.includeCopilotAi }, existing),
+    releaseOptions: resolveReleaseOptions(explicitFromContext(opts), existing),
     mode: opts.mode, force: opts.force, version, versionCode, branch,
     branches,
     paths,

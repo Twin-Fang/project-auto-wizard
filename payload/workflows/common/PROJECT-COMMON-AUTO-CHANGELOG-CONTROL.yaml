@@ -29,6 +29,10 @@
 #    direct merge), retrying with backoff while GitHub catches up with the
 #    freshly pushed head; an already-merged PR counts as success
 #
+# With version.yml release_automerge: false, step 5 and the wait job are
+# skipped: the PR is renamed to the release-confirm subject and one guidance
+# comment asks the maintainer to merge it with a merge commit (not squash or rebase).
+#
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
 # and PROJECT-COMMON-RELEASE-PUBLISH.
@@ -127,6 +131,9 @@ jobs:
     needs: precheck
     if: needs.precheck.outputs.open == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      # Read by wait-for-merge-and-trigger-release: with automerge off there is no merge for it to wait for
+      automerge: ${{ steps.automerge_option.outputs.release_automerge }}
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v7
@@ -159,6 +166,15 @@ jobs:
           COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
+
+      - name: Read release_automerge option from version.yml
+        id: automerge_option
+        run: |
+          # Same metadata: -> template: -> options: scope as copilot_ai. A missing key means ON:
+          # installs from before the option existed already automerge, and that must not change.
+          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?^\s+release_automerge:\s*\"?(true|false)", t, re.S|re.M); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
+          echo "release_automerge option: $AUTOMERGE"
 
       - name: Install Copilot CLI
         if: steps.copilot_options.outputs.copilot_ai == 'true'
@@ -431,7 +447,38 @@ jobs:
             fi
           fi
 
+      - name: Prepare manual release merge (release_automerge=false)
+        if: steps.automerge_option.outputs.release_automerge == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          VERSION="${{ steps.bump.outputs.new_version }}"
+
+          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
+          # still passes the RELEASE-PUBLISH gate. A failed rename only warns: the run must not fail here.
+          SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
+          if gh pr edit "$PR_NUMBER" --title "$SUBJECT"; then
+            echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
+          else
+            echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
+          fi
+
+          # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
+          MARKER='<!-- release-automerge-off -->'
+          EXISTING=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" 2>/dev/null | head -1 || true)
+          if [ -z "$EXISTING" ]; then
+            BODY="$MARKER
+          $(m wf_changelog.automerge_off_comment)"
+            gh pr comment "$PR_NUMBER" --body "$BODY" \
+              || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
+          fi
+
       - name: Enable automerge
+        if: steps.automerge_option.outputs.release_automerge != 'false'
         env:
           # With a PAT the merge push triggers downstream workflows
           # (RELEASE-PUBLISH etc.); GITHUB_TOKEN merges do not.
@@ -503,6 +550,8 @@ jobs:
   wait-for-merge-and-trigger-release:
     name: Wait for merge and trigger RELEASE-PUBLISH (works without WORKFLOW_PAT)
     needs: changelog-and-merge
+    # Nothing merges by itself when release_automerge is false, so there is nothing to wait for.
+    if: needs.changelog-and-merge.outputs.automerge != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:

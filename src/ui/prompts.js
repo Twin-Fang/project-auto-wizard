@@ -6,6 +6,7 @@ import * as engine from "./readline-engine.js";
 import { t } from "../i18n/index.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { TYPE_IDS, typeInfo } from "../core/types.js";
+import { askableOptions } from "../core/options.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE, deployModeWarning } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
@@ -47,8 +48,7 @@ export function editMenuOptions({ showFlutter = false, showOptions = false } = {
     { value: "branch", label: t("ui.prompts.edit.branch") },
   ];
   if (showOptions) {
-    options.push({ value: "semverAuto", label: t("ui.prompts.edit.semverAuto") });
-    options.push({ value: "copilotAi", label: t("ui.prompts.edit.copilotAi") });
+    for (const o of askableOptions()) options.push({ value: o.name, label: t(o.ask.menuLabelKey) });
   }
   if (showFlutter) {
     options.push({ value: "envMode", label: t("ui.prompts.edit.envMode") });
