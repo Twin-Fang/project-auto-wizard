@@ -5,6 +5,7 @@ export default {
   "core.detect.buildNumber.pubspecMissing": "⚠️  pubspec.yaml has no build number (+N), so version_code could not be detected — using the default 1. Check your actual build number.",
   "core.detect.buildNumber.gradleMissing": "⚠️  android/app/build.gradle has no versionCode, so version_code could not be detected — using the default 1. Check your actual build number.",
   "core.detect.buildNumber.expoMissing": "⚠️  expo.android.versionCode is missing in app.json, so version_code could not be detected — using the default 1. Check your actual build number.",
+  "core.detectFs.monorepoDropped": "Only one folder per type is managed: {type}={kept} would be used, and {lost} would stay out of CI and version sync.",
   "core.detectFs.monorepoWarn": "⚠️  No project files found at the root, installing as basic. Found in subfolders: {list}\n   For a monorepo, run again with --paths \"{hint}\".",
   "core.detectFs.defaultBranchWarn": "⚠️  Could not determine the remote default branch (e.g. an empty remote repo), assuming '{fallback}' as the release branch.{hint}",
   "core.branches.developMissing": "The remote has no '{develop}' branch — commit the installed files, push '{main}', then create it: git push origin {main}:{develop}",

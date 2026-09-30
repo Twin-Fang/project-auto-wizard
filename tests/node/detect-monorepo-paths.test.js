@@ -58,6 +58,27 @@ test("detectTypes: warns about subfolder projects and a --paths example when the
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("detectTypes: names the folders of the same type that the suggested --paths leaves out", () => {
+  const root = monorepo({ "web/package.json": JSON.stringify({ name: "web", dependencies: { react: "18" } }) });
+  try {
+    const warned = [];
+    detectTypes(root, { warn: (m) => warned.push(m) });
+    assert.strictEqual(warned.length, 1);
+    // react=client is suggested (first folder); web is reported as left out, with how to manage it instead
+    assert.match(warned[0], /--paths "react=client,spring=server"/);
+    assert.match(warned[0], /react=client/);
+    assert.match(warned[0], /web/);
+    assert.match(warned[0], /--paths react=web/);
+    // a single folder per type adds no extra lines
+    const single = monorepo();
+    try {
+      const w2 = [];
+      detectTypes(single, { warn: (m) => w2.push(m) });
+      assert.ok(!w2[0].includes("--paths react="));
+    } finally { rmSync(single, { recursive: true, force: true }); }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("detectTypes: does not warn when no subfolder has a project either", () => {
   const root = mkdtempSync(join(tmpdir(), "paw-mono-detect-"));
   try {
