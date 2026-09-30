@@ -35,6 +35,13 @@
 # trigger and workflow_dispatch is dispatched too. A PAT or human merge
 # already fired the push event, so those are left alone (no double deploy).
 #
+# The trunk-based docs commit is pushed with fetch -> rebase -> push retries.
+# If README.md conflicts with a concurrent README commit (a date refresh),
+# the remote README is kept and the released version line is reapplied, so
+# a README conflict never stops the tag and the Release from being created.
+# README-VERSION-UPDATE skips its own push run in trunk-based mode; this
+# workflow dispatches it after publishing instead.
+#
 # Release-confirm pattern: "chore(release):" — keep in sync with
 # PROJECT-COMMON-AUTO-CHANGELOG-CONTROL and PROJECT-COMMON-VERSION-CONTROL.
 #
@@ -296,8 +303,12 @@ jobs:
           else
             git commit -m "chore(version): release v${NEW_VERSION} docs [skip ci]"
 
-            # Race-condition guard: pull-rebase then push (up to 3 retries)
-            MAX_RETRIES=3
+            # >>> push-with-retry
+            # Race-condition guard: fetch -> rebase -> push, retried. A concurrent
+            # README-only commit (date refresh) touches the same version line and
+            # conflicts on rebase; the remote README is kept and this run's version
+            # line is reapplied, so a README conflict never blocks the release.
+            MAX_RETRIES=5
             RETRY_COUNT=0
             PUSH_SUCCESS=false
 
@@ -309,22 +320,36 @@ jobs:
                 PUSH_SUCCESS=true
                 echo "$(m wf_release.docs_pushed)"
                 break
-              else
-                echo "$(m wf_common.push_failed_syncing)"
-                if git pull --rebase origin main; then
-                  echo "$(m wf_common.rebase_ok)"
-                else
-                  echo "$(m wf_common.rebase_failed)"
-                  git rebase --abort 2>/dev/null || true
-                  exit 1
+              fi
+
+              echo "$(m wf_common.push_failed_syncing)"
+              git fetch origin main
+              if git rebase origin/main; then
+                echo "$(m wf_common.rebase_ok)"
+                continue
+              fi
+
+              # Only README.md conflicting: "ours" is the remote side during a rebase
+              if [ "$(git diff --name-only --diff-filter=U)" = "README.md" ]; then
+                git checkout --ours -- README.md
+                python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); import version_manager as vm; vm.update_readme_version(vm.get_current_version())' || true
+                git add README.md
+                if GIT_EDITOR=true git rebase --continue; then
+                  echo "$(m wf_common.readme_conflict_resolved)"
+                  continue
                 fi
               fi
+
+              echo "$(m wf_common.rebase_failed)"
+              git rebase --abort 2>/dev/null || true
+              exit 1
             done
 
             if [ "$PUSH_SUCCESS" = false ]; then
               echo "$(m wf_common.push_gave_up max_retries="$MAX_RETRIES")"
               exit 1
             fi
+            # <<< push-with-retry
           fi
 
       - name: Resolve version + idempotency guard
