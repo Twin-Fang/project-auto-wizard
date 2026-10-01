@@ -116,6 +116,8 @@ export default {
   "ui.readline-engine.yes": "예",
   "ui.readline-engine.no": "아니오",
   "ui.readline-engine.cancelled": "취소했습니다.",
+  "ui.prompts.language.message": "언어 선택",
+  "ui.prompts.language.label": "한국어",
   "ui.prompts.mode.messageAgain": "다음으로 무엇을 할까요?",
   "ui.prompts.mode.message": "무엇을 설치할까요?",
   "ui.prompts.mode.full": "설치 / 업데이트 — 버전관리 + 자동화 워크플로우 (처음이라면 추천)",

@@ -48,7 +48,7 @@ import FlowDiagram from '../../../../components/FlowDiagram.astro';
 
 ### 3. 릴리스 노트와 CHANGELOG
 
-`changelog_manager.py`가 커밋 제목과 상한이 걸린 `git diff --stat`(파일 단위 요약, diff 본문 없음)으로 요약을 만듭니다. 같은 내용을 PR 댓글로 남기고(재실행 시 그 댓글을 수정), `CHANGELOG.json`과 `CHANGELOG.md`에 기록합니다. [요약 엔진](../summary-engine/)을 참고하세요.
+`changelog_manager.py`가 커밋 제목과 상한이 걸린 `git diff --stat`(파일 단위 요약, diff 본문 없음)으로 요약을 만듭니다. 같은 내용을 PR 댓글로 남기고(재실행 시 그 댓글을 수정), `CHANGELOG.json`과 `CHANGELOG.md`에 기록합니다. 항목은 커밋 제목에서 만들어지므로 `language` 설정은 항목 본문을 번역하지 않습니다. [요약 엔진](../summary-engine/)을 참고하세요.
 
 ### 4. automerge
 
