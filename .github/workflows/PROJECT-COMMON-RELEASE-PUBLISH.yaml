@@ -313,6 +313,7 @@ jobs:
             # README-only commit (date refresh) touches the same version line and
             # conflicts on rebase; the remote README is kept and this run's version
             # line is reapplied, so a README conflict never blocks the release.
+            PUSH_ERR="${RUNNER_TEMP:-/tmp}/push_err.txt"
             MAX_RETRIES=5
             RETRY_COUNT=0
             PUSH_SUCCESS=false
@@ -321,10 +322,19 @@ jobs:
               RETRY_COUNT=$((RETRY_COUNT + 1))
               echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
-              if git push origin HEAD:main; then
+              if git push origin HEAD:main 2> "$PUSH_ERR"; then
+                cat "$PUSH_ERR" >&2
                 PUSH_SUCCESS=true
                 echo "$(m wf_release.docs_pushed)"
                 break
+              fi
+
+              cat "$PUSH_ERR" >&2
+              # A branch-protection rejection is a standing rule, not a race: retrying cannot succeed
+              if grep -qiE "GH006|GH013|protected branch|repository rule violations" "$PUSH_ERR"; then
+                echo "::error::$(m wf_common.push_protected branch="main")"
+                echo "::error::$(m wf_release.push_protected_trunk branch="main")"
+                exit 1
               fi
 
               echo "$(m wf_common.push_failed_syncing)"
