@@ -78,7 +78,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
 
   // 2. Generate version.yml (render payload/version.yml.template; full regeneration)
   //    A re-run where only the date lines differ does not rewrite it (idempotent).
-  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel, lastUpdatedBy: prevParsed?.lastUpdatedBy || "" });
+  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel, lastUpdatedBy: prevParsed?.lastUpdatedBy || "", integrationDate: prevParsed?.integrationDate || "", integratedDate: prevParsed?.integratedDate || "" });
   if (prevVy == null || !sameIgnoringTimestamps(prevVy, vyText)) {
     writeText(vyPath, vyText);
     log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);

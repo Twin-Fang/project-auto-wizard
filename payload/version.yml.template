@@ -44,11 +44,11 @@ metadata:
   last_updated: "{{NOW}}"
   last_updated_by: "{{LAST_UPDATED_BY}}"
   default_branch: "{{DEFAULT_BRANCH}}"
-  integration_date: "{{TODAY}}"
+  integration_date: "{{INTEGRATION_DATE}}"
   template:
     source: "project-auto-wizard"
     version: "{{TEMPLATE_VERSION}}"
-    integrated_date: "{{TODAY}}"
+    integrated_date: "{{INTEGRATED_DATE}}"
     last_update_date: "{{TODAY}}"
     branches:
       main: "{{MAIN_BRANCH}}"

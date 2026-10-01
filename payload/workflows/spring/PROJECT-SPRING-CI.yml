@@ -371,7 +371,8 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             name: 'Build Verification',
-            head_sha: context.sha,
+            // On a PR, context.sha is the temporary merge commit; attach the check run to the PR head commit
+            head_sha: context.payload.pull_request?.head?.sha ?? context.sha,
             status: 'completed',
             conclusion: conclusion,
             output: {

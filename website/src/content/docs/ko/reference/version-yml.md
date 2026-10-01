@@ -74,7 +74,9 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 
 불리언 옵션(`semver_auto`, `copilot_ai`, `release_automerge`)은 CLI와 워크플로우가 같은 규칙으로 읽습니다. 따옴표(`'false'`, `"false"`), 대소문자(`False`), 뒤의 `# 주석`은 허용하고, `true`와 `false`만 인식합니다. 그 밖의 값(`no`, `off`, `0`, `maybe`, 빈 값)은 추측하지 않고 `false`로 읽으며, 워크플로우는 경고를 출력하고 CLI는 경고한 뒤 다음 실행에서 `false`로 다시 씁니다. 키가 없는 것은 다르게 처리되어 위 표의 기본값을 씁니다(`release_automerge`는 켜짐).
 
-나머지 `metadata` 필드(`last_updated`, `integration_date`, `template.version` 등)는 마법사와 워크플로우가 기록하는 관리용 값입니다.
+`integration_date`와 `template.integrated_date`는 최초 설치일을 유지합니다. 마법사를 다시 실행해도 덮어쓰지 않습니다. 마지막 실행 시각은 `last_updated`와 `template.last_update_date`에 기록됩니다.
+
+나머지 `metadata` 필드(`template.version` 등)는 마법사와 워크플로우가 기록하는 관리용 값입니다.
 
 ## 타입별 버전 동기화 파일
 
