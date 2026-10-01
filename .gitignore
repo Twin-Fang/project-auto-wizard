@@ -19,3 +19,7 @@ website/.astro/
 
 # Local copies of issue drafts
 .issue/
+
+# Local tool working directories
+.playwright-mcp/
+.superpowers/
