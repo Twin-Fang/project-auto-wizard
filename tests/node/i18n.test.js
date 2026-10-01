@@ -180,6 +180,69 @@ test("update of a version.yml without language prints the default-language notic
   }
 });
 
+test("an unsupported saved language gets its own notice, not the 'now default to English' one", async () => {
+  const dir = makeRepo();
+  try {
+    assert.strictEqual(await install(dir), 0);
+    const p = join(dir, "version.yml");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^language:.*$/m, 'language: "fr"'));
+    const out = await capturedInstall(dir);
+    assert.ok(out.includes(t("cli.lang.unsupportedSavedNotice", { value: "fr", supported: "en, ko" }, "en")), out);
+    assert.ok(!out.includes(NOTICE), "must not read as if the install used to be Korean");
+    assert.ok(!(await capturedInstall(dir)).includes("'fr'"), "the value is normalized on update, so the notice appears once");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the environment variable does not overwrite a saved language; --lang does; a first install saves it", async () => {
+  const dir = makeRepo();
+  try {
+    const p = join(dir, "version.yml");
+    const saved = () => /^language:\s*"?(\w+)/m.exec(readFileSync(p, "utf8").replace(/\r\n/g, "\n"))?.[1];
+    // first install: nothing saved yet, so the env value is what gets stored
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    assert.strictEqual(saved(), "ko");
+    // a one-off run with another language leaves the saved choice alone
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "en" });
+    assert.strictEqual(saved(), "ko");
+    await capturedInstall(dir);
+    assert.strictEqual(saved(), "ko");
+    // an explicit --lang changes it, even with the env set
+    await capturedInstall(dir, ["--lang", "en"], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    assert.strictEqual(saved(), "en");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a run under another PROJECT_AUTO_WIZARD_LANG writes README, .gitignore and version.yml in the saved language", async () => {
+  const dir = makeRepo();
+  try {
+    writeFileSync(join(dir, "README.md"), "# my-app\n");
+    assert.strictEqual(await install(dir, ["--lang", "en"]), 0);
+    await capturedInstall(dir, [], { PROJECT_AUTO_WIZARD_LANG: "ko" });
+    const norm = (f) => readFileSync(join(dir, f), "utf8").replace(/\r\n/g, "\n");
+    assert.match(norm("version.yml"), /^language: "en"/m);
+    const readme = norm("README.md");
+    assert.match(readme, /^## Latest Version : v/m);
+    assert.ok(!readme.includes("최신 버전") && !readme.includes("전체 버전 기록"), readme);
+    // the plan (used by --dry-run) judges the README by the language it is given, not by the run's output language
+    const { planVersionSection } = await import("../../src/core/copy/readme.js");
+    assert.strictEqual(planVersionSection(dir, "en"), "skip-marker");
+    assert.strictEqual(planVersionSection(dir, "ko"), "heading-updated");
+    // a new .gitignore header follows the stored language too
+    const { ensureGitignore } = await import("../../src/core/copy/gitignore.js");
+    const gi = mkdtempSync(join(tmpdir(), "my-app-gi-"));
+    try {
+      ensureGitignore(gi, "en");
+      assert.ok(readFileSync(join(gi, ".gitignore"), "utf8").startsWith(t("copy.gitignore.newFileHeader", {}, "en")));
+    } finally { rmSync(gi, { recursive: true, force: true }); }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("no notice when --lang or the environment variable decides the language", async () => {
   const dir = makeRepo();
   try {

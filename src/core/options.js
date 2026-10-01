@@ -11,6 +11,10 @@
 // logLabel      : label used by the install log line ("option <logLabel> on|off")
 // ask           : present only for options the interactive wizard asks about / lists in the edit menu
 //   { questionKey, initial, menuLabelKey, summaryKey, cardIcon, cardLabelKey } (all i18n keys except initial/cardIcon)
+// doctor       : present only for options that get an info item in `doctor`
+//   { prefix, always, notes } - `<prefix>.name` / `<prefix>.purpose` label the item; `always` shows it even without an install
+//   (otherwise it is left out, since there is no saved value to report); `notes` maps the saved value ("true" | "false" | "null")
+//   to the `<prefix>.<key>` messages to print, plus an optional `invalid` list (its messages get {value}) that turns the item into a warning
 // Keys only - this module never imports the i18n layer, so core stays free of UI dependencies.
 export const OPTIONS = Object.freeze([
   {
@@ -27,6 +31,14 @@ export const OPTIONS = Object.freeze([
     key: "copilot_ai", name: "copilotAi", ctxField: "includeCopilotAi",
     flag: "copilot", default: false, legacyDefault: false,
     conflictKey: "cli.args.copilotConflict", logLabel: "copilot",
+    doctor: {
+      prefix: "cmd.doctor.copilot", always: true,
+      notes: {
+        true: ["on", "creditsOn", "fallback"],
+        false: ["off", "creditsOff", "fallback"],
+        null: ["default", "creditsOff", "fallback"],
+      },
+    },
     ask: {
       questionKey: "interactive.question.copilotAi", initial: false,
       menuLabelKey: "ui.prompts.edit.copilotAi", summaryKey: "interactive.summary.copilotAi",
@@ -38,6 +50,14 @@ export const OPTIONS = Object.freeze([
     key: "release_automerge", name: "releaseAutomerge", ctxField: "includeReleaseAutomerge",
     flag: "release-automerge", default: true, legacyDefault: true,
     conflictKey: "cli.args.releaseAutomergeConflict", logLabel: "release-automerge",
+    doctor: {
+      prefix: "cmd.doctor.automerge", always: false,
+      notes: {
+        // A missing key also means on (installs from before the option existed already automerge)
+        true: ["on", "onHow"], false: ["off", "offHow"], null: ["on", "onHow"],
+        invalid: ["invalid", "invalidHow"],
+      },
+    },
   },
 ]);
 

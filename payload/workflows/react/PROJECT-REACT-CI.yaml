@@ -211,7 +211,8 @@ jobs:
         env:
           BUILD_STATUS: ${{ steps.build.outputs.status }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-          COMMIT_SHA: ${{ github.sha }}
+          # On a PR, github.sha is the temporary merge commit; show the PR head commit instead
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
@@ -234,7 +235,7 @@ jobs:
             m cibuild.node_result_status status="$BUILD_STATUS"
           fi
           m cibuild.node_result_branch branch="$BRANCH_NAME"
-          m cibuild.node_result_commit sha="$COMMIT_SHA"
+          m cibuild.node_result_commit sha="$(echo "$COMMIT_SHA" | cut -c1-7)"
           m cibuild.node_result_time time="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

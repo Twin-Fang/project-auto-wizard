@@ -2,10 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { parseArgs, CliError } from "../../src/cli/args.js";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../src/index.js";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 test("parseArgs: an unknown --mode value throws CliError", () => {
   assert.throws(() => parseArgs(["--mode", "ful"]), CliError);
@@ -66,8 +67,8 @@ test("run(): an invalid --mode value exits 1 and does not create/push a remote d
     assert.ok(!git(bare, ["branch"]).includes("develop"), "a develop branch must not appear on the remote (bare repo)");
     assert.ok(!git(target, ["branch"]).includes("develop"), "a develop branch must not appear locally either");
   } finally {
-    rmSync(bare, { recursive: true, force: true });
-    rmSync(target, { recursive: true, force: true });
+    rmTmp(bare);
+    rmTmp(target);
   }
 });
 

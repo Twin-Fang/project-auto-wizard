@@ -2,6 +2,7 @@
 export default {
   "cli.lang.invalid": "Unsupported language '{value}' ({source}). Supported: {supported}",
   "cli.lang.defaultNotice": "Workflow messages now default to English. Use --lang ko to keep Korean.",
+  "cli.lang.unsupportedSavedNotice": "version.yml has language '{value}', which is not supported ({supported}); workflow messages use English. Use --lang to choose one.",
   "cli.lang.missing": "--lang requires a value. Supported: {supported}",
   "cli.lang.help": "Message language: {supported} (default: en)",
   "cli.bin.nodeVersion": "Node.js 20.12 or later is required (current: {current})",

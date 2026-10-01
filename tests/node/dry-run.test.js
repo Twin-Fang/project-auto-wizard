@@ -389,7 +389,7 @@ test("planDryRun: a default heading from another language is previewed as switch
   try {
     const text = "# my-app\n\n<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n## Latest Version : v1.0.0\n";
     writeFileSync(join(target, "README.md"), text);
-    const plan = planDryRun("full", baseContext(), resolvePayloadRoot(), target);
+    const plan = planDryRun("full", { ...baseContext(), language: "ko" }, resolvePayloadRoot(), target);
     assert.strictEqual(plan.readme, "heading-updated");
     const lines = [];
     const orig = console.log;

@@ -23,11 +23,12 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
 
   const vyPath = join(targetRoot, PATHS.versionFile);
   const existingRaw = existsSync(vyPath) ? readFileSync(vyPath, "utf8") : null;
-  const extraTopLevel = existingRaw !== null ? parseExisting(existingRaw).extraTopLevel : [];
+  const prevParsed = existingRaw !== null ? parseExisting(existingRaw) : null;
+  const extraTopLevel = prevParsed ? prevParsed.extraTopLevel : [];
 
   // Use the same render function as the real install; assembling separately drifts the preview whenever an option is added.
   const wouldBe = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), {
-    pathMarkers, extraTopLevel,
+    pathMarkers, extraTopLevel, lastUpdatedBy: prevParsed?.lastUpdatedBy || "",
   });
   // Compare by the same rule as the real install: if only the timestamp lines differ, the install does not rewrite the file either.
   return { existed: existingRaw !== null, changed: existingRaw === null || !sameIgnoringTimestamps(existingRaw, wouldBe) };
@@ -63,7 +64,7 @@ export function planDryRun(mode, context, payloadRoot, targetRoot = ".") {
     droppedPathLines: existingDroppedLines(targetRoot, context.paths),
     // Files the real install also changes; scripts that overwrite existing files in particular must be shown in advance.
     scripts: planScripts(payloadRoot, targetRoot),
-    readme: planVersionSection(targetRoot),
+    readme: planVersionSection(targetRoot, context.language),
     baselineExists: existsSync(join(targetRoot, BASELINE_PATH)),
   };
 }

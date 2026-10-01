@@ -50,7 +50,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 Commit the generated files and push. `npx project-auto-wizard --mode doctor` checks the repository settings the workflows depend on.
 
-Messages are in English or Korean (`en` | `ko`). Pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence.
+Messages are in English or Korean (`en` | `ko`). Pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence. The environment variable applies to that run only and does not overwrite a valid saved `language` (it is saved only when there is none); `--lang` does.
 
 ## What you get
 

@@ -22,6 +22,7 @@ function installFixture() {
     branch: "main", branches: { main: "main", develop: "develop", mode: "pr-flow" },
     paths: new Map(),
     now: "2026-08-01 00:00:00", today: "2026-08-01", templateVersion: "0.1.0",
+    language: "ko", // the README block is written in the install language; these tests assert the ko text
   });
   runFull(ctx, resolvePayloadRoot(), target);
   // full mode creates .gitignore only when conflict backups were actually made — this fixture exists to

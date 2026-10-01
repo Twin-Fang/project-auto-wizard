@@ -4,10 +4,11 @@
 // rebase: the PR commits replayed, the last one being the version-confirm commit).
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8").replace(/\r\n/g, "\n");
@@ -98,7 +99,7 @@ maybe("merge commit: the release gate opens and no [skip ci] is in the message",
   try {
     const head = mergeInto(repo, "merge");
     assert.deepStrictEqual(publishes(repo.work, head), { skipped: false, gate: true, published: true });
-  } finally { rmSync(repo.base, { recursive: true, force: true }); }
+  } finally { rmTmp(repo.base); }
 });
 
 maybe("squash merge: the gate would open but the [skip ci] of the confirm commit skips the push workflows", () => {
@@ -106,7 +107,7 @@ maybe("squash merge: the gate would open but the [skip ci] of the confirm commit
   try {
     const head = mergeInto(repo, "squash");
     assert.deepStrictEqual(publishes(repo.work, head), { skipped: true, gate: true, published: false });
-  } finally { rmSync(repo.base, { recursive: true, force: true }); }
+  } finally { rmTmp(repo.base); }
 });
 
 maybe("rebase merge: the head commit is the confirm commit, so it is skipped and the gate is closed", () => {
@@ -114,7 +115,7 @@ maybe("rebase merge: the head commit is the confirm commit, so it is skipped and
   try {
     const head = mergeInto(repo, "rebase");
     assert.deepStrictEqual(publishes(repo.work, head), { skipped: true, gate: false, published: false });
-  } finally { rmSync(repo.base, { recursive: true, force: true }); }
+  } finally { rmTmp(repo.base); }
 });
 
 // ── the next release's commit list ──────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function nextCommits(method, { backMerge = false } = {}) {
     const r = spawnSync("bash", ["-e", "-c", lines[0]], { cwd: repo.work, encoding: "utf-8", env: ENV });
     assert.strictEqual(r.status, 0, r.stderr);
     return readFileSync(join(repo.work, "commits.txt"), "utf8").split("\n").filter(Boolean);
-  } finally { rmSync(repo.base, { recursive: true, force: true }); }
+  } finally { rmTmp(repo.base); }
 }
 
 maybe("next release notes after a merge commit list only the new commit", () => {

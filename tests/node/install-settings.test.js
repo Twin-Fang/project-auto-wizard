@@ -4,7 +4,7 @@
 import "../setup-lang.mjs"; // these tests assert the ko output
 import { test } from "node:test";
 import assert from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -12,6 +12,7 @@ import { run } from "../../src/index.js";
 import { runInteractive } from "../../src/commands/interactive.js";
 import { savedDeployStyle, resolveDeployStyle } from "../../src/commands/install-settings.js";
 import { resolvePayloadRoot } from "../../src/core/assets.js";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const CLOCK = { now: "2026-01-02 03:04:05", today: "2026-01-02", ms: 1767323045000 };
 
@@ -73,8 +74,8 @@ test("default install result is the same for CLI and interactive (spring)", asyn
     assert.strictEqual(await runInteractive({}, { cwd: inter.dir, clock: CLOCK, io: recordingIo().io }), 0);
     assert.deepStrictEqual(snapshot(inter.dir), snapshot(cli.dir));
   } finally {
-    rmSync(cli.base, { recursive: true, force: true });
-    rmSync(inter.base, { recursive: true, force: true });
+    rmTmp(cli.base);
+    rmTmp(inter.base);
   }
 });
 
@@ -86,8 +87,8 @@ test("default install result is the same for CLI and interactive (flutter)", asy
     assert.strictEqual(await runInteractive({}, { cwd: inter.dir, clock: CLOCK, io: recordingIo().io }), 0);
     assert.deepStrictEqual(snapshot(inter.dir), snapshot(cli.dir));
   } finally {
-    rmSync(cli.base, { recursive: true, force: true });
-    rmSync(inter.base, { recursive: true, force: true });
+    rmTmp(cli.base);
+    rmTmp(inter.base);
   }
 });
 
@@ -108,7 +109,7 @@ test("interactive question order and wording: fresh spring install", async () =>
       "askText:개발 브랜치를 선택하세요 (기본: develop)",
     ]);
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });
 
@@ -129,7 +130,7 @@ test("interactive question order and wording: fresh flutter install", async () =
       "confirmProjectMenu",
     ]);
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });
 

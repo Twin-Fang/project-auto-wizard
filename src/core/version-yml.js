@@ -139,6 +139,12 @@ export function parseExisting(content) {
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
+  // The unsupported value that was written (null when the key is absent or valid), so callers can tell "no key" from "unknown value"
+  const languageUnsupported = langRaw && !language ? langRaw : null;
+  // metadata.last_updated_by: the release scripts write the acting user here, so a re-install keeps it instead of resetting it
+  // (quoted values are unescaped; an unquoted one ends at whitespace or a comment)
+  const byMatch = /^[ \t]+last_updated_by:[ \t]*(?:"((?:[^"\\]|\\.)*)"|([^\s#"']+))/m.exec(text);
+  const lastUpdatedBy = byMatch ? (byMatch[1] !== undefined ? byMatch[1].replace(/\\(.)/g, "$1") : byMatch[2]) : null;
   // project_paths block: `  type: "path"`
   const paths = new Map();
   // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
@@ -190,7 +196,7 @@ export function parseExisting(content) {
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
+    version, versionCode, types, language, languageUnsupported, lastUpdatedBy, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }
@@ -262,6 +268,7 @@ export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
   templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {}, language = DEFAULT_LANGUAGE,
+  lastUpdatedBy = "",
 }) {
   if (!templateText) throw new Error(tr("core.versionYml.error.templateRequired"));
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -275,7 +282,7 @@ export function buildVersionYml({
   // project_paths block (full-line token {{PROJECT_PATHS}} - line removed when absent)
   let pathsBlock = "";
   if (paths.size) {
-    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment")}`];
+    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment", {}, language)}`];
     for (const [t, p] of paths) {
       const marker = pathMarkers.get(t) || "";
       const pf = p === "." ? marker : (marker ? `${p}/${marker}` : p);
@@ -288,7 +295,7 @@ export function buildVersionYml({
   let deployBlock = "";
   const deployTypes = [...deployValues.keys()].filter((t) => deployValues.get(t) && deployValues.get(t).size > 0);
   if (deployTypes.length) {
-    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment")}`];
+    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment", {}, language)}`];
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
       // Reuse the same escape - deploy values arrive by the same path as @wizard ask values, so
@@ -306,6 +313,8 @@ export function buildVersionYml({
     PROJECT_TYPES: typesJson,
     LANGUAGE: isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE,
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
+    // A previously recorded value (e.g. the user who last bumped the version) wins over the installer's own name
+    LAST_UPDATED_BY: escapeYamlDoubleQuoted(lastUpdatedBy || "project-auto-wizard"),
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     ...Object.fromEntries(OPTIONS.map((o) => [optionVar(o), String(optionValues[o.ctxField])])),
@@ -344,13 +353,13 @@ export function sameIgnoringTimestamps(a, b) {
 // Builds the final version.yml from a single context - the real install (full) and the preview (dry-run)
 // use the same function, structurally preventing "the preview differs from the result".
 // deployValues exist only in a real install (the preview performs no substitution, so it is an empty Map).
-export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
+export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [], lastUpdatedBy = "" }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null, language,
     deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
-    deployValues, extraTopLevel, language,
+    deployValues, extraTopLevel, language, lastUpdatedBy,
     typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,

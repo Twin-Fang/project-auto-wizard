@@ -33,6 +33,7 @@ Add one object to `OPTIONS`.
 | `legacyDefault` | Value on an existing install whose `version.yml` lacks the key. Choose it so an upgrade never changes behavior on its own: an option that keeps today's behavior is `true` (or `false`) for both defaults; a risky new behavior stays off for existing installs. |
 | `conflictKey` | i18n key of the "both flags given" error. |
 | `logLabel` | Label in the install log line (`option <label> on\|off`). |
+| `doctor` | Optional. Add it only if `doctor` should show the current value: `{ prefix, always, notes }` — the item is named by `<prefix>.name` / `<prefix>.purpose`, and `notes` lists the `<prefix>.<key>` messages to print for the saved value (`true`, `false`, `null` = key absent, optional `invalid` for an unrecognized value, which turns the item into a warning). |
 | `ask` | Optional. Add it only if the wizard should ask about the option and list it in the edit menu: `{ questionKey, initial, menuLabelKey, summaryKey, cardIcon, cardLabelKey }`. Without `ask` the option is controlled by the flag and `version.yml` only, and a saved value survives a wizard reinstall. |
 
 Value precedence is always: explicit value (flag or wizard answer) → value saved in `version.yml` →
@@ -46,8 +47,8 @@ case) and one comment line in the header describing the option.
 ## 3. Messages — `src/i18n/catalog/{en,ko}/`
 
 Add the `conflictKey` message in `cli.js`, the `--<flag> / --no-<flag>` line in `cli.help.text`
-(both languages), and, with `ask`, the question, menu label, summary and card label keys. Add a
-`doctor` note in `src/commands/doctor.js` if users need to see the current value.
+(both languages), and, with `ask`, the question, menu label, summary and card label keys. With `doctor`, the
+item name, purpose and note messages (`<prefix>.*`).
 
 ## 4. Workflow — only if a workflow reads the option
 
