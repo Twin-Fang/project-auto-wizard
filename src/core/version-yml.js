@@ -145,6 +145,10 @@ export function parseExisting(content) {
   // (quoted values are unescaped; an unquoted one ends at whitespace or a comment)
   const byMatch = /^[ \t]+last_updated_by:[ \t]*(?:"((?:[^"\\]|\\.)*)"|([^\s#"']+))/m.exec(text);
   const lastUpdatedBy = byMatch ? (byMatch[1] !== undefined ? byMatch[1].replace(/\\(.)/g, "$1") : byMatch[2]) : null;
+  // The original install dates: a re-install keeps them instead of overwriting them with the re-install date
+  const dateLine = (key) => line(new RegExp(`^\\s+${key}:\\s*"?(\\d{4}-\\d{2}-\\d{2})"?`));
+  const integrationDate = dateLine("integration_date");
+  const integratedDate = dateLine("integrated_date");
   // project_paths block: `  type: "path"`
   const paths = new Map();
   // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
@@ -196,7 +200,7 @@ export function parseExisting(content) {
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, languageUnsupported, lastUpdatedBy, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
+    version, versionCode, types, language, languageUnsupported, lastUpdatedBy, integrationDate, integratedDate, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }
@@ -268,7 +272,7 @@ export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
   templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {}, language = DEFAULT_LANGUAGE,
-  lastUpdatedBy = "",
+  lastUpdatedBy = "", integrationDate = "", integratedDate = "",
 }) {
   if (!templateText) throw new Error(tr("core.versionYml.error.templateRequired"));
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -313,6 +317,8 @@ export function buildVersionYml({
     PROJECT_TYPES: typesJson,
     LANGUAGE: isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE,
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
+    // The original install dates win; today is written only when the key is absent (fresh install)
+    INTEGRATION_DATE: integrationDate || today || optionsDate, INTEGRATED_DATE: integratedDate || today || optionsDate,
     // A previously recorded value (e.g. the user who last bumped the version) wins over the installer's own name
     LAST_UPDATED_BY: escapeYamlDoubleQuoted(lastUpdatedBy || "project-auto-wizard"),
     TEMPLATE_VERSION: templateVersion,
@@ -353,13 +359,13 @@ export function sameIgnoringTimestamps(a, b) {
 // Builds the final version.yml from a single context - the real install (full) and the preview (dry-run)
 // use the same function, structurally preventing "the preview differs from the result".
 // deployValues exist only in a real install (the preview performs no substitution, so it is an empty Map).
-export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [], lastUpdatedBy = "" }) {
+export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [], lastUpdatedBy = "", integrationDate = "", integratedDate = "" }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null, language,
     deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
-    deployValues, extraTopLevel, language, lastUpdatedBy,
+    deployValues, extraTopLevel, language, lastUpdatedBy, integrationDate, integratedDate,
     typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,

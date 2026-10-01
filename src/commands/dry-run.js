@@ -29,6 +29,7 @@ function versionYmlPreview(context, payloadRoot, targetRoot) {
   // Use the same render function as the real install; assembling separately drifts the preview whenever an option is added.
   const wouldBe = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), {
     pathMarkers, extraTopLevel, lastUpdatedBy: prevParsed?.lastUpdatedBy || "",
+    integrationDate: prevParsed?.integrationDate || "", integratedDate: prevParsed?.integratedDate || "",
   });
   // Compare by the same rule as the real install: if only the timestamp lines differ, the install does not rewrite the file either.
   return { existed: existingRaw !== null, changed: existingRaw === null || !sameIgnoringTimestamps(existingRaw, wouldBe) };
