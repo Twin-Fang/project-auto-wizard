@@ -136,6 +136,8 @@ jobs:
         # A duplicate run (release + workflow_dispatch for the same tag) can pass the check above
         # before the registry reflects the first publish, and npm answers E409. That means the
         # version is already published, so it is treated as success; any other failure still fails.
+        # Known limitation: E409 is assumed to mean another run already published/staged the same
+        # version; if that earlier run later fails, this run will not detect it.
         run: |
           if OUTPUT=$(npm publish --provenance --access public 2>&1); then
             STATUS=0
@@ -146,8 +148,8 @@ jobs:
           if [ "$STATUS" -eq 0 ]; then
             exit 0
           fi
-          if echo "$OUTPUT" | grep -q "E409"; then
-            echo "already_published=true" >> $GITHUB_OUTPUT
+          if grep -Eq 'npm error code E409|Cannot publish over previously staged version' <<< "$OUTPUT"; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
             echo "::notice::E409: this version is already published/staged by another run. Treating as success."
             exit 0
           fi

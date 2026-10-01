@@ -90,20 +90,50 @@ test("NPM-PUBLISH sets the README version line to the release version before pac
 });
 
 // A duplicate run (release + workflow_dispatch) gets E409 from the registry even though the version is published.
-test("NPM-PUBLISH treats E409 as already published but still fails on other publish errors", () => {
-  const body = read(join(".github", "workflows", "NPM-PUBLISH.yaml"));
-  const start = body.indexOf("- name: Publish to npm");
-  const end = body.indexOf("- name: Publish summary");
-  assert.ok(start > -1 && end > start, "missing publish step");
-  const step = body.slice(start, end);
-  assert.ok(step.includes("id: publish"), "summary needs the publish step output");
-  assert.ok(step.includes("npm publish --provenance --access public 2>&1"), "must keep provenance and capture the output");
-  assert.ok(step.includes('echo "$OUTPUT"'), "must echo the publish output");
-  assert.match(step, /grep -q "E409"[\s\S]*already_published=true[\s\S]*exit 0/, "E409 must exit 0 and expose already_published");
-  assert.match(step, /exit "\$STATUS"\s*\n\s*env:/, "other failures must keep the original exit code");
-  assert.ok(!step.includes("|| true"), "must not swallow every failure");
-  assert.ok(step.includes("NODE_AUTH_TOKEN"), "must keep the npm token env");
-  assert.ok(body.slice(end).includes("steps.publish.outputs.already_published != 'true'"), "summary must not claim a publish on E409");
+function runPublishStep(t, { output, code }) {
+  const lines = read(join(".github", "workflows", "NPM-PUBLISH.yaml")).split("\n");
+  const start = lines.findIndex((l) => l.includes("- name: Publish to npm"));
+  const runAt = lines.findIndex((l, i) => i > start && l.trim() === "run: |");
+  const envAt = lines.findIndex((l, i) => i > runAt && l === "        env:");
+  assert.ok(start > -1 && runAt > start && envAt > runAt, "could not find the publish step run block");
+  const script = lines.slice(runAt + 1, envAt).map((l) => l.replace(/^ {10}/, "")).join("\n");
+  const dir = mkdtempSync(join(tmpdir(), "npm-publish-"));
+  t.after(() => rmTmp(dir));
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "bin", "npm"), 'printf "%s\\n" "$FAKE_NPM_OUTPUT"\nexit "$FAKE_NPM_CODE"\n', { mode: 0o755 });
+  const githubOutput = join(dir, "out.txt");
+  writeFileSync(githubOutput, "");
+  const r = spawnSync("bash", ["-e", "-c", script], {
+    encoding: "utf-8",
+    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}`, GITHUB_OUTPUT: githubOutput, FAKE_NPM_OUTPUT: output, FAKE_NPM_CODE: String(code) },
+  });
+  return { status: r.status, stdout: r.stdout, githubOutput: readFileSync(githubOutput, "utf-8") };
+}
+
+test("NPM-PUBLISH publish step: success exits 0 without already_published", (t) => {
+  const r = runPublishStep(t, { output: "+ project-auto-wizard@1.0.0", code: 0 });
+  assert.strictEqual(r.status, 0);
+  assert.ok(!r.githubOutput.includes("already_published"));
+});
+
+test("NPM-PUBLISH publish step: E409 is treated as already published (exit 0, output echoed)", (t) => {
+  const output = "npm error code E409\nnpm error 409 Conflict - Cannot publish over previously staged version";
+  const r = runPublishStep(t, { output, code: 1 });
+  assert.strictEqual(r.status, 0);
+  assert.ok(r.githubOutput.includes("already_published=true"));
+  assert.ok(r.stdout.includes("Cannot publish over previously staged version"), "publish output must be echoed");
+});
+
+test("NPM-PUBLISH publish step: other failures keep their exit code", (t) => {
+  const r = runPublishStep(t, { output: "npm error code E403\nnpm error 403 Forbidden", code: 3 });
+  assert.strictEqual(r.status, 3);
+  assert.ok(!r.githubOutput.includes("already_published"));
+});
+
+test("NPM-PUBLISH publish step: E409 merely inside an unrelated line is not success", (t) => {
+  const r = runPublishStep(t, { output: "npm notice shasum: sha512-aE409bcdE409==\nnpm error code E500", code: 1 });
+  assert.strictEqual(r.status, 1);
+  assert.ok(!r.githubOutput.includes("already_published"));
 });
 
 // ---------------------------------------------------------------
