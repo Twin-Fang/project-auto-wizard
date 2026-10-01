@@ -29,7 +29,7 @@ import * as prompts from "../ui/prompts.js";
 import { runStatus, printStatus } from "./status.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { currentLogPath, hasLegacyMdLogs } from "../core/logger.js";
-import { t, getLanguage } from "../i18n/index.js";
+import { t, getLanguage, setLanguage, isSupportedLanguage, DEFAULT_LANGUAGE } from "../i18n/index.js";
 
 const CANCEL = prompts.CANCEL;
 
@@ -39,6 +39,15 @@ const isCancel = (v) => v === CANCEL || typeof v === "symbol";
 export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot, clock, io = prompts } = {}) {
   const payload = assertPayload(payloadRoot ?? resolvePayloadRoot());
   const templateVersion = readTemplateVersion();
+
+  // No language is known yet (no --lang, env var or saved value): ask before anything is printed so the banner
+  // already uses the pick. ESC or an unusable answer keeps the default. Stubs without the prompt skip it.
+  let language = baseCtx.language ?? null;
+  if (baseCtx.askLanguage && io.selectLanguage) {
+    const picked = await io.selectLanguage();
+    language = isSupportedLanguage(picked) ? picked : DEFAULT_LANGUAGE;
+    setLanguage(language);
+  }
 
   // Start banner. Stubs have no banner -> fall back to intro.
   if (io.banner) io.banner({ version: templateVersion, modeLabel: t("interactive.banner.modeLabel") });
@@ -324,7 +333,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
     releaseOptions: Object.fromEntries(OPTIONS.map((o) => [o.ctxField, optionState[o.name]])),
     mode, force: true, version, versionCode, branch, branches, paths,
     repoName, resolvers, envValues, envUseDefaults, now, today,
-    language: baseCtx.language ?? existing?.language ?? getLanguage(),
+    language: language ?? existing?.language ?? getLanguage(),
     // Extra context used by the install log and completion summary - does not change the install behaviour itself.
     markers, envAnswers, detectWarnings,
   });
