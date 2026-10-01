@@ -89,6 +89,23 @@ test("NPM-PUBLISH sets the README version line to the release version before pac
   assert.match(body, /^env:\n(?:  .*\n)*  PYTHONDONTWRITEBYTECODE: "1"/m, "pyc left by the publish-gate tests would be shipped in the package");
 });
 
+// A duplicate run (release + workflow_dispatch) gets E409 from the registry even though the version is published.
+test("NPM-PUBLISH treats E409 as already published but still fails on other publish errors", () => {
+  const body = read(join(".github", "workflows", "NPM-PUBLISH.yaml"));
+  const start = body.indexOf("- name: Publish to npm");
+  const end = body.indexOf("- name: Publish summary");
+  assert.ok(start > -1 && end > start, "missing publish step");
+  const step = body.slice(start, end);
+  assert.ok(step.includes("id: publish"), "summary needs the publish step output");
+  assert.ok(step.includes("npm publish --provenance --access public 2>&1"), "must keep provenance and capture the output");
+  assert.ok(step.includes('echo "$OUTPUT"'), "must echo the publish output");
+  assert.match(step, /grep -q "E409"[\s\S]*already_published=true[\s\S]*exit 0/, "E409 must exit 0 and expose already_published");
+  assert.match(step, /exit "\$STATUS"\s*\n\s*env:/, "other failures must keep the original exit code");
+  assert.ok(!step.includes("|| true"), "must not swallow every failure");
+  assert.ok(step.includes("NODE_AUTH_TOKEN"), "must keep the npm token env");
+  assert.ok(body.slice(end).includes("steps.publish.outputs.already_published != 'true'"), "summary must not claim a publish on E409");
+});
+
 // ---------------------------------------------------------------
 // Commit collection: keep the one-subject-line-per-entry format while BREAKING CHANGE footers in the body still reach the bump decision.
 // The workflow's collection lines are extracted verbatim and run in a real git repo.

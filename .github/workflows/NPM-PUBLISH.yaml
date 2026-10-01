@@ -5,7 +5,8 @@
 # - When a GitHub Release is published, checks out that tag and publishes to npm
 # - Extracts the version from the tag and fails if it differs from version.yml
 # - Runs the tests before publishing (only verified code ships)
-# - Exits successfully if the version is already on the registry (idempotent)
+# - Exits successfully if the version is already on the registry (idempotent),
+#   including when npm answers E409 because another run just published it
 # - The README version line is committed after the tag, so it is aligned to the
 #   published version right before packaging
 # - Attaches provenance so the build commit and workflow can be verified
@@ -130,11 +131,30 @@ jobs:
         run: npm publish --dry-run --access public
 
       - name: Publish to npm
+        id: publish
         if: steps.check.outputs.skip == 'false'
-        run: npm publish --provenance --access public
+        # A duplicate run (release + workflow_dispatch for the same tag) can pass the check above
+        # before the registry reflects the first publish, and npm answers E409. That means the
+        # version is already published, so it is treated as success; any other failure still fails.
+        run: |
+          if OUTPUT=$(npm publish --provenance --access public 2>&1); then
+            STATUS=0
+          else
+            STATUS=$?
+          fi
+          echo "$OUTPUT"
+          if [ "$STATUS" -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$OUTPUT" | grep -q "E409"; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "::notice::E409: this version is already published/staged by another run. Treating as success."
+            exit 0
+          fi
+          exit "$STATUS"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish summary
-        if: steps.check.outputs.skip == 'false'
+        if: steps.check.outputs.skip == 'false' && steps.publish.outputs.already_published != 'true'
         run: echo "project-auto-wizard@${{ steps.target.outputs.version }} published to npm (provenance attached)"
