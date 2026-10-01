@@ -146,7 +146,7 @@ export function parseExisting(content) {
   const byMatch = /^[ \t]+last_updated_by:[ \t]*(?:"((?:[^"\\]|\\.)*)"|([^\s#"']+))/m.exec(text);
   const lastUpdatedBy = byMatch ? (byMatch[1] !== undefined ? byMatch[1].replace(/\\(.)/g, "$1") : byMatch[2]) : null;
   // The original install dates: a re-install keeps them instead of overwriting them with the re-install date
-  const dateLine = (key) => line(new RegExp(`^\\s+${key}:\\s*"?(\\d{4}-\\d{2}-\\d{2})"?`));
+  const dateLine = (key) => line(new RegExp(`^\\s+${key}:\\s*["']?(\\d{4}-\\d{2}-\\d{2})["']?\\s*(?:#.*)?$`));
   const integrationDate = dateLine("integration_date");
   const integratedDate = dateLine("integrated_date");
   // project_paths block: `  type: "path"`

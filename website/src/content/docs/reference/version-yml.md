@@ -76,7 +76,7 @@ Boolean options (`semver_auto`, `copilot_ai`, `release_automerge`) are read the 
 
 `integration_date` and `template.integrated_date` keep the date of the first install: re-running the wizard does not overwrite them. `last_updated` and `template.last_update_date` record the latest run.
 
-The other `metadata` fields (`last_updated`, `integration_date`, `template.version`, …) are bookkeeping written by the wizard and the workflows.
+The other `metadata` fields (`template.version`, …) are bookkeeping written by the wizard and the workflows.
 
 ## Version files synced per type
 

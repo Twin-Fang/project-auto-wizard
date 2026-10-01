@@ -27,6 +27,8 @@ test("parseExisting: reads the install dates and null when absent", () => {
   const parsed = parseExisting('metadata:\n  integration_date: "2026-07-09"\n  template:\n    integrated_date: "2026-07-10"\n');
   assert.strictEqual(parsed.integrationDate, "2026-07-09");
   assert.strictEqual(parsed.integratedDate, "2026-07-10");
+  assert.strictEqual(parseExisting("metadata:\n  integration_date: '2026-07-09'\n").integrationDate, "2026-07-09");
+  assert.strictEqual(parseExisting('metadata:\n  integration_date: "2026-07-09x"\n').integrationDate, null);
   assert.strictEqual(parseExisting('version: "1.0.0"\n').integrationDate, null);
   assert.strictEqual(parseExisting('version: "1.0.0"\n').integratedDate, null);
 });
