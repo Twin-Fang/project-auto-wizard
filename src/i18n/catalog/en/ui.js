@@ -116,6 +116,8 @@ export default {
   "ui.readline-engine.yes": "Yes",
   "ui.readline-engine.no": "No",
   "ui.readline-engine.cancelled": "Cancelled.",
+  "ui.prompts.language.message": "Select language",
+  "ui.prompts.language.label": "English",
   "ui.prompts.mode.messageAgain": "What would you like to do next?",
   "ui.prompts.mode.message": "What would you like to install?",
   "ui.prompts.mode.full": "Install / update — version management + automation workflows (recommended for first time)",

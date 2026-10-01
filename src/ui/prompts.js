@@ -3,13 +3,23 @@
 // On ESC each function returns the CANCEL symbol -> the caller interprets it as default/stay.
 // Ctrl+C / Ctrl+D make the engine reject with PromptAbortError -> run() catches it and exits with code 130.
 import * as engine from "./readline-engine.js";
-import { t } from "../i18n/index.js";
+import { t, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from "../i18n/index.js";
 import { DEPLOY_STYLES, NO_DEPLOY_STYLE } from "../core/deploy-style.js";
 import { TYPE_IDS, typeInfo } from "../core/types.js";
 import { askableOptions } from "../core/options.js";
 import { ENV_MODES, DEFAULT_ENV_MODE, STORE_PLATFORMS, DEPLOY_MODES, DEFAULT_DEPLOY_MODE, deployModeWarning } from "../core/flutter-options.js";
 
 export const CANCEL = engine.CANCEL;
+
+// Language selection - asked before any language is known, so the message and every label are rendered
+// once per supported language instead of in the active one. Returns the language code. CANCEL on cancel.
+export async function selectLanguage() {
+  return engine.select({
+    message: SUPPORTED_LANGUAGES.map((lang) => t("ui.prompts.language.message", {}, lang)).join(" / "),
+    options: SUPPORTED_LANGUAGES.map((lang) => ({ value: lang, label: t("ui.prompts.language.label", {}, lang) })),
+    initialIndex: Math.max(0, SUPPORTED_LANGUAGES.indexOf(DEFAULT_LANGUAGE)),
+  });
+}
 
 // Mode selection - localized labels, returns the internal key. CANCEL on cancel.
 // again=true is a re-entry after running a read-only mode (status/doctor) and returning to the menu -
