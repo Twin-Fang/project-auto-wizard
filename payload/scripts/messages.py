@@ -1296,7 +1296,8 @@ EN = {
     "wf_common.rebase_ok": "rebase ok, retrying push...",
     "wf_common.rebase_failed": "rebase failed, manual conflict resolution required",
     "wf_common.push_gave_up": "push failed after {max_retries} attempts",
-    "wf_common.push_protected": "Push to {branch} was rejected by a branch protection rule, not by a race, so retrying cannot help. The bot commit has to be pushed to {branch} directly: allow the pushing account (the WORKFLOW_PAT owner, or the GitHub Actions bot when no PAT is set) to bypass the rule. If this repository releases straight from {branch} (trunk-based), the rule must always allow that push; otherwise use the develop -> main release flow, where the bot only commits to the release PR branch.",
+    "wf_common.push_protected": "Push to {branch} was rejected by a branch protection rule, not by a race, so retrying cannot help. The bot commit has to be pushed to {branch} directly: allow the pushing account (the WORKFLOW_PAT owner, or the GitHub Actions bot when no PAT is set) to bypass the rule.",
+    "wf_release.push_protected_trunk": "trunk-based mode commits every release (version bump and CHANGELOG) straight to {branch}, so its protection rule must allow that push. If it cannot, switch to the develop -> main release flow, where the bot only commits to the release PR branch.",
     "wf_common.readme_conflict_resolved": "README.md conflicted with a concurrent update - kept the remote copy and reapplied the version line",
     # --- wf_aisum ---
     "wf_aisum.expected_version": "expected next version: {version} (current: {current_version}, mode: {mode}, bump: {bump})",
@@ -2582,7 +2583,8 @@ KO = {
     "wf_common.rebase_ok": "rebase 성공, push를 다시 시도합니다...",
     "wf_common.rebase_failed": "rebase 실패, 충돌을 직접 해결해야 합니다",
     "wf_common.push_gave_up": "push가 {max_retries}회 시도 후에도 실패했습니다",
-    "wf_common.push_protected": "{branch} 브랜치 보호 규칙이 push를 거부했습니다. 경합이 아니므로 재시도해도 소용없습니다. 봇 커밋은 {branch}에 직접 push되어야 합니다: push하는 계정(WORKFLOW_PAT 소유자, PAT가 없으면 GitHub Actions 봇)이 규칙을 우회할 수 있게 허용하세요. 이 레포가 {branch}에서 바로 릴리스하는 방식(trunk-based)이라면 규칙이 그 push를 항상 허용해야 하며, 그렇지 않다면 봇이 릴리스 PR 브랜치에만 커밋하는 develop -> main 흐름을 쓰세요.",
+    "wf_common.push_protected": "{branch} 브랜치 보호 규칙이 push를 거부했습니다. 경합이 아니므로 재시도해도 소용없습니다. 봇 커밋은 {branch}에 직접 push되어야 합니다: push하는 계정(WORKFLOW_PAT 소유자, PAT가 없으면 GitHub Actions 봇)이 규칙을 우회할 수 있게 허용하세요.",
+    "wf_release.push_protected_trunk": "trunk-based 모드는 모든 릴리스(버전 증가와 CHANGELOG)를 {branch}에 직접 커밋하므로 보호 규칙이 그 push를 허용해야 합니다. 허용할 수 없다면 봇이 릴리스 PR 브랜치에만 커밋하는 develop -> main 흐름으로 바꾸세요.",
     "wf_common.readme_conflict_resolved": "동시에 수정된 README.md 충돌을 원격 내용을 유지하고 버전 줄을 다시 반영해 해결했습니다",
     # --- wf_aisum ---
     "wf_aisum.expected_version": "예상 다음 버전: {version} (현재: {current_version}, 모드: {mode}, 승격: {bump})",

@@ -334,6 +334,7 @@ jobs:
               # A branch-protection rejection is a standing rule, not a race: retrying cannot succeed
               if grep -qiE "GH006|GH013|protected branch|repository rule violations" "$PUSH_ERR"; then
                 echo "::error::$(m wf_common.push_protected branch="{{MAIN_BRANCH}}")"
+                echo "::error::$(m wf_release.push_protected_trunk branch="{{MAIN_BRANCH}}")"
                 exit 1
               fi
 

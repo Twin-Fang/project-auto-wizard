@@ -66,6 +66,8 @@ for (const name of MARKED) {
         assert.notStrictEqual(r.status, 0, out);
         assert.strictEqual(count(out, "wf_common.push_attempt"), 1, "a rule rejection must not be retried");
         assert.match(out, /::error::wf_common\.push_protected/);
+        // only the trunk-based release step adds the trunk advice; the other loops are used in pr-flow too
+        assert.strictEqual(/wf_release\.push_protected_trunk/.test(out), name === "RELEASE-PUBLISH", out);
         assert.ok(!/wf_common\.push_gave_up|wf_common\.push_failed_syncing/.test(out), out);
         assert.match(out, new RegExp(rejection.slice(0, 5)), "the remote's own message stays visible in the log");
       } finally {
@@ -98,12 +100,17 @@ test("AUTO-CHANGELOG-CONTROL's push to the PR head branch also names a rule reje
   }
 });
 
-test("the protected-branch message exists in both languages and names the options", () => {
+test("the protected-branch messages exist in both languages; the generic one is flow-neutral, the trunk advice is separate", () => {
   const messages = read("payload/scripts/messages.py");
-  const lines = messages.split("\n").filter((l) => l.includes('"wf_common.push_protected"'));
-  assert.strictEqual(lines.length, 2);
-  for (const line of lines) {
+  for (const key of ["wf_common.push_protected", "wf_release.push_protected_trunk"]) {
+    assert.strictEqual(messages.split("\n").filter((l) => l.includes(`"${key}"`)).length, 2, `${key} must be defined once per language`);
+  }
+  for (const line of messages.split("\n").filter((l) => l.includes('"wf_common.push_protected"'))) {
     assert.match(line, /WORKFLOW_PAT/);
+    assert.ok(!/trunk-based|develop -> main/.test(line), "the generic message must not give trunk-based advice");
+  }
+  for (const line of messages.split("\n").filter((l) => l.includes('"wf_release.push_protected_trunk"'))) {
     assert.match(line, /trunk-based/);
+    assert.match(line, /develop -> main/);
   }
 });
