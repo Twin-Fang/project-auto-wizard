@@ -54,6 +54,14 @@ The new version is written to `version.yml` and to each type's version file, the
 
 The workflow enables automerge with a merge commit, falls back to a direct merge, and retries with backoff while GitHub catches up with the freshly pushed head. An already-merged PR counts as success.
 
+#### When branch protection blocks the merge
+
+If a standing rule on the release branch rejects the merge (for example it requires an approving review, or a required check has not passed), the run fails and says which kind of rule it was, with the options. The workflow also renames the release PR to `chore(release): vX.Y.Z (PR #N)` and leaves one guidance comment, so a merge you make yourself with **Create a merge commit** still publishes the release.
+
+- To let the workflow merge next time, change the rule so the account that merges (the `WORKFLOW_PAT` owner, or the GitHub Actions bot when no PAT is set) is allowed to merge.
+- To merge by hand every time without a failing run, set `release_automerge: false` (see below).
+- Branch protection and rulesets are not available on private repositories of a free plan, so this only comes up where they can be created.
+
 #### Merging the release PR yourself
 
 Automerge is on by default. To keep a human in the loop, set `release_automerge: false` in `version.yml` (or reinstall with `--no-release-automerge`). The workflow then skips automerge and the wait-for-merge job, renames the release PR to `chore(release): vX.Y.Z (PR #N)` and leaves one guidance comment.

@@ -35,6 +35,10 @@
 # put the [skip ci] of the confirm commit into the merge result, so GitHub skips the push
 # workflows and PROJECT-RELEASE-PUBLISH has to be run manually for them.
 #
+# When step 5 is rejected by branch protection (required review or checks), the run
+# fails with the cause and the options, and the PR gets the same rename and a guidance
+# comment, so a merge the maintainer makes by hand still publishes the release.
+#
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
 # and PROJECT-COMMON-RELEASE-PUBLISH.
@@ -455,48 +459,8 @@ jobs:
             fi
           fi
 
-      - name: Prepare manual release merge (release_automerge=false)
-        if: steps.automerge_option.outputs.release_automerge == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
-        run: |
-          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          VERSION="${{ steps.bump.outputs.new_version }}"
-
-          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
-          # still passes the RELEASE-PUBLISH gate. A failed rename only warns: the run must not fail here.
-          SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
-          # The REST endpoint is used instead of `gh pr edit`, which goes through GraphQL and can fail on token scopes.
-          RENAMED=true
-          if gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -f title="$SUBJECT" > /dev/null; then
-            echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
-          else
-            RENAMED=false
-            echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
-          fi
-
-          # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
-          # If the comment list cannot be read we cannot tell whether it exists, so skip rather than post a duplicate.
-          MARKER='<!-- release-automerge-off -->'
-          if ! COMMENT_IDS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
-            echo "::warning::$(m wf_changelog.automerge_off_list_failed pr_number="$PR_NUMBER")"
-          elif [ -z "$COMMENT_IDS" ]; then
-            BODY="$MARKER
-          $(m wf_changelog.automerge_off_comment)"
-            # A failed rename means the merge message will not carry the release marker unless the maintainer sets it.
-            if [ "$RENAMED" = false ]; then
-              BODY="$BODY
-
-          $(m wf_changelog.automerge_off_rename_hint subject="$SUBJECT")"
-            fi
-            gh pr comment "$PR_NUMBER" --body "$BODY" \
-              || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
-          fi
-
       - name: Enable automerge
+        id: automerge
         if: steps.automerge_option.outputs.release_automerge != 'false'
         env:
           # With a PAT the merge push triggers downstream workflows
@@ -561,9 +525,83 @@ jobs:
             elif [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
               echo "::error::$(m wf_changelog.merge_commit_disabled)"
             else
-              echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
+              # Branch protection is a standing rule, not a propagation delay: name the cause and the options.
+              # Whatever the cause, the next step renames the PR so a merge you make yourself still publishes the release.
+              REVIEW_DECISION=$(gh pr view "$PR_NUMBER" --json reviewDecision -q .reviewDecision 2>/dev/null || echo "")
+              MERGE_STATE=$(gh pr view "$PR_NUMBER" --json mergeStateStatus -q .mergeStateStatus 2>/dev/null || echo "")
+              if [ "$REVIEW_DECISION" = "REVIEW_REQUIRED" ] || [ "$REVIEW_DECISION" = "CHANGES_REQUESTED" ]; then
+                echo "merge_blocked=review" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_blocked_review prod="main")"
+              elif [ "$MERGE_STATE" = "BLOCKED" ] || grep -qi "base branch policy" "$ERR_FILE"; then
+                echo "merge_blocked=policy" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_blocked_policy prod="main")"
+              else
+                echo "merge_blocked=other" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
+              fi
             fi
             exit 1
+          fi
+
+      # Runs for release_automerge=false (nothing merges by itself) and when automerge was rejected by a standing rule
+      # such as branch protection (a person has to merge). A conflict or a disabled merge-commit setting is not covered: those
+      # need a fix first, and the next run retries the automerge.
+      # The step never merges; it only prepares the PR so a human merge still passes the RELEASE-PUBLISH gate.
+      - name: Prepare manual release merge
+        if: (success() && steps.automerge_option.outputs.release_automerge == 'false') || (failure() && steps.automerge.outcome == 'failure' && steps.automerge.outputs.merge_blocked != '')
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
+          MERGE_BLOCKED: ${{ steps.automerge.outputs.merge_blocked }}
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          VERSION="${{ steps.bump.outputs.new_version }}"
+
+          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
+          # still passes the RELEASE-PUBLISH gate. A failed rename only warns: this step must not fail the run.
+          SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
+          # The REST endpoint is used instead of `gh pr edit`, which goes through GraphQL and can fail on token scopes.
+          RENAMED=true
+          if gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -f title="$SUBJECT" > /dev/null; then
+            if [ "${{ steps.automerge_option.outputs.release_automerge }}" = "false" ]; then
+              echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
+            else
+              echo "$(m wf_changelog.automerge_blocked_renamed subject="$SUBJECT")"
+            fi
+          else
+            RENAMED=false
+            echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
+          fi
+
+          # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
+          # If the comment list cannot be read we cannot tell whether it exists, so skip rather than post a duplicate.
+          if [ "${{ steps.automerge_option.outputs.release_automerge }}" = "false" ]; then
+            MARKER='<!-- release-automerge-off -->'
+            CONTENT="$(m wf_changelog.automerge_off_comment)"
+          else
+            MARKER='<!-- release-merge-blocked -->'
+            case "${MERGE_BLOCKED:-other}" in
+              review) REASON="$(m wf_changelog.merge_blocked_reason_review)" ;;
+              policy) REASON="$(m wf_changelog.merge_blocked_reason_policy)" ;;
+              *) REASON="$(m wf_changelog.merge_blocked_reason_other)" ;;
+            esac
+            CONTENT="$(m wf_changelog.merge_blocked_comment reason="$REASON")"
+          fi
+          if ! COMMENT_IDS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
+            echo "::warning::$(m wf_changelog.automerge_off_list_failed pr_number="$PR_NUMBER")"
+          elif [ -z "$COMMENT_IDS" ]; then
+            BODY="$MARKER
+          $CONTENT"
+            # A failed rename means the merge message will not carry the release marker unless the maintainer sets it.
+            if [ "$RENAMED" = false ]; then
+              BODY="$BODY
+
+          $(m wf_changelog.automerge_off_rename_hint subject="$SUBJECT")"
+            fi
+            gh pr comment "$PR_NUMBER" --body "$BODY" \
+              || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
           fi
 
   wait-for-merge-and-trigger-release:
