@@ -1,15 +1,58 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-10-01T05:27:13Z",
-    "currentVersion": "0.16.2",
+    "lastUpdated": "2026-10-01T07:11:12Z",
+    "currentVersion": "0.17.0",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 35
+    "totalReleases": 36
   },
   "releases": [
+    {
+      "version": "0.17.0",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-10-01",
+      "pr_number": 415,
+      "raw_summary": "### ✨ Features\n- 언어 정보가 없으면 대화형 시작 시 언어를 먼저 묻고 선택값을 version.yml에 저장 (#410)\n- 대화형 언어 선택 프롬프트(selectLanguage)와 이중 표기 카탈로그 키 추가 (#410)\n\n### 🐛 Fixes\n- 발행 단계 테스트의 가짜 npm을 PATH 셸 대신 셸 함수로 바꿔 Windows CI에서도 통과하도록 수정 (#409)\n- E409 판별을 npm 오류 줄로 좁히고 발행 단계를 실제 실행하는 테스트로 교체 (#409)\n- 설치일 파싱에서 작은따옴표 값을 허용하고 값 뒤의 잡문자는 거부 (#402)\n- npm 발행이 E409(이미 발행/스테이징된 버전)로 거부되면 중복 실행으로 보고 성공 처리하도록 변경 (#409)\n- 재설치 시 integration_date·integrated_date를 최초 설치일로 유지하고 문서에 명시 (#402)\n- Spring CI의 Build Verification check run을 PR 머지 임시 커밋이 아닌 PR head 커밋에 연결 (#402)\n\n### 📝 Documentation\n- 대화형 언어 선택과 CHANGELOG 본문 언어 동작을 README와 문서 사이트에 반영 (#410)\n- 원작 projectops 저작권 고지를 LICENSE에 추가하고 README에 출처 섹션 추가 (#408)\n\n### 🔧 Changes\n- .playwright-mcp·.superpowers를 gitignore에 추가하고 ROADMAP의 출시 항목을 Done으로 정리 (#408)",
+      "parsed_changes": {
+        "feat": {
+          "title": "✨ Features",
+          "items": [
+            "언어 정보가 없으면 대화형 시작 시 언어를 먼저 묻고 선택값을 version.yml에 저장 (#410)",
+            "대화형 언어 선택 프롬프트(selectLanguage)와 이중 표기 카탈로그 키 추가 (#410)"
+          ]
+        },
+        "fix": {
+          "title": "🐛 Fixes",
+          "items": [
+            "발행 단계 테스트의 가짜 npm을 PATH 셸 대신 셸 함수로 바꿔 Windows CI에서도 통과하도록 수정 (#409)",
+            "E409 판별을 npm 오류 줄로 좁히고 발행 단계를 실제 실행하는 테스트로 교체 (#409)",
+            "설치일 파싱에서 작은따옴표 값을 허용하고 값 뒤의 잡문자는 거부 (#402)",
+            "npm 발행이 E409(이미 발행/스테이징된 버전)로 거부되면 중복 실행으로 보고 성공 처리하도록 변경 (#409)",
+            "재설치 시 integration_date·integrated_date를 최초 설치일로 유지하고 문서에 명시 (#402)",
+            "Spring CI의 Build Verification check run을 PR 머지 임시 커밋이 아닌 PR head 커밋에 연결 (#402)"
+          ]
+        },
+        "docs": {
+          "title": "📝 Documentation",
+          "items": [
+            "대화형 언어 선택과 CHANGELOG 본문 언어 동작을 README와 문서 사이트에 반영 (#410)",
+            "원작 projectops 저작권 고지를 LICENSE에 추가하고 README에 출처 섹션 추가 (#408)"
+          ]
+        },
+        "changes": {
+          "title": "🔧 Changes",
+          "items": [
+            ".playwright-mcp·.superpowers를 gitignore에 추가하고 ROADMAP의 출시 항목을 Done으로 정리 (#408)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.16.2",
       "project_types": [
