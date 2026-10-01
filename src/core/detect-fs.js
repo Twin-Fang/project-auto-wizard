@@ -39,11 +39,16 @@ export function detectTypes(root, { paths = new Map(), warn } = {}) {
   if (fromRoot.length === 1 && fromRoot[0] === "basic" && warn) {
     const found = findSubdirProjects(root);
     if (found.length) {
-      const firstDir = new Map();
-      for (const { dir, types } of found) for (const t of types) if (!firstDir.has(t)) firstDir.set(t, dir);
+      // Only one folder per type is managed and the hint names the first one, so say which folders of the same type are left out
+      const dirsByType = new Map();
+      for (const { dir, types } of found) for (const t of types) dirsByType.set(t, [...(dirsByType.get(t) || []), dir]);
       const list = found.map(({ dir, types }) => `${dir}(${types.join(", ")})`).join(", ");
-      const hint = [...firstDir].map(([t, d]) => `${t}=${d}`).join(",");
-      warn(tr("core.detectFs.monorepoWarn", { list, hint }));
+      const hint = [...dirsByType].map(([t, dirs]) => `${t}=${dirs[0]}`).join(",");
+      const dropped = [...dirsByType].filter(([, dirs]) => dirs.length > 1).flatMap(([type, [kept, ...rest]]) => [
+        tr("core.detectFs.monorepoDropped", { type, kept, lost: rest.join(", ") }),
+        ...rest.map((path) => tr("core.versionYml.pathMergedHint", { type, path })),
+      ]);
+      warn([tr("core.detectFs.monorepoWarn", { list, hint }), ...dropped.map((l) => `   ${l}`)].join("\n"));
     }
   }
   return fromRoot;

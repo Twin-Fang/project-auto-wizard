@@ -5,6 +5,7 @@ export default {
   "core.detect.buildNumber.pubspecMissing": "⚠️  pubspec.yaml에 빌드 번호(+N)가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.",
   "core.detect.buildNumber.gradleMissing": "⚠️  android/app/build.gradle에 versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.",
   "core.detect.buildNumber.expoMissing": "⚠️  app.json의 expo.android.versionCode가 없어 version_code를 감지하지 못했습니다 — 기본값 1을 사용합니다. 실제 빌드 번호를 확인하세요.",
+  "core.detectFs.monorepoDropped": "타입당 폴더 하나만 관리합니다: {type}={kept} 를 쓰고, {lost} 는 CI·버전 동기화에서 빠집니다.",
   "core.detectFs.monorepoWarn": "⚠️  루트에서 프로젝트 파일을 찾지 못해 basic으로 설치합니다. 하위 폴더에서 발견: {list}\n   모노레포라면 --paths \"{hint}\"로 다시 실행하세요.",
   "core.detectFs.defaultBranchWarn": "⚠️  원격 기본 브랜치를 확인할 수 없어(빈 원격 레포 등) 릴리스 브랜치를 '{fallback}'(으)로 가정합니다.{hint}",
   "core.branches.developMissing": "원격에 '{develop}' 브랜치가 없습니다 — 설치 파일을 커밋해 '{main}'을 push한 뒤 만들어 주세요: git push origin {main}:{develop}",

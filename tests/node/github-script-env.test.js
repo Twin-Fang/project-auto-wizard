@@ -4,8 +4,10 @@
 // through env and be read with process.env.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -145,8 +147,11 @@ test("Spring CI failure comment is built from multi-line error output containing
   assert.strictEqual(messages.status, 0, messages.stderr);
 
   const hostile = "line1 'quoted'\nline2 `tick` ${not_a_template} $HOME \\n \"dq\"";
+  // The catalog is read from a file under RUNNER_TEMP (not an env variable, which would be echoed in every step log)
+  const tempDir = mkdtempSync(join(tmpdir(), "paw-gs-"));
+  writeFileSync(join(tempDir, "paw-msg.json"), messages.stdout.trim());
   const env = {
-    PAW_MSG: messages.stdout.trim(),
+    RUNNER_TEMP: tempDir,
     PAW_IN_STEPS_ERRORS_OUTPUTS_COMPILE_ERRORS: hostile,
     PAW_IN_STEPS_ERRORS_OUTPUTS_TEST_ERRORS: "",
     PAW_IN_STEPS_ERRORS_OUTPUTS_BUILD_ERRORS: "build 'failed'\nnext",
@@ -175,9 +180,11 @@ test("Spring CI failure comment is built from multi-line error output containing
   Object.assign(process.env, env);
   try {
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    await new AsyncFunction("github", "context", step.body)(github, context);
+    // github-script provides `require` to the script body
+    await new AsyncFunction("github", "context", "require", step.body)(github, context, createRequire(import.meta.url));
   } finally {
     for (const k of Object.keys(env)) k in saved ? (process.env[k] = saved[k]) : delete process.env[k];
+    rmSync(tempDir, { recursive: true, force: true });
   }
   assert.ok(posted.includes(hostile), "compile errors are posted verbatim");
   assert.ok(posted.includes("build 'failed'\nnext"), "build errors are posted verbatim");

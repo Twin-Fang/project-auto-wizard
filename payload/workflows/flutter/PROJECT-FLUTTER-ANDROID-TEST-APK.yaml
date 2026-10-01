@@ -109,7 +109,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump apk_test.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump apk_test. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Verify the branch exists up front
         id: verify_branch
@@ -122,7 +122,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
             const prNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER;
@@ -197,7 +197,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
             const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
@@ -375,7 +375,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump apk_test.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump apk_test. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -543,7 +543,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
@@ -690,7 +690,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
@@ -820,7 +820,7 @@ jobs:
           PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_END_TIME: ${{ steps.progress_step2.outputs.end_time }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const step2EndTime = parseInt(process.env.PAW_IN_STEPS_PROGRESS_STEP2_OUTPUTS_END_TIME);
             const now = Date.now();
@@ -899,7 +899,7 @@ jobs:
           PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_END_TIME: ${{ steps.artifact_time.outputs.end_time }}
         with:
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const artifactEndTime = parseInt(process.env.PAW_IN_STEPS_ARTIFACT_TIME_OUTPUTS_END_TIME);
             const now = Date.now();
@@ -932,7 +932,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);
@@ -1059,7 +1059,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('apk_test.step_' + name)} | ${msg('apk_test.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_PREPARE_TEST_BUILD_OUTPUTS_PROGRESS_COMMENT_ID);

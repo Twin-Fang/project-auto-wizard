@@ -45,7 +45,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 | `version` | 현재 버전 `x.y.z`. 릴리스 워크플로우가 갱신 |
 | `version_code` | 버전과 함께 올라가는 단조 증가 빌드 번호 (앱 빌드에서 사용) |
 | `project_types` | 모든 프로젝트 타입. 첫 항목이 주 타입이며, 릴리스 때 이 타입의 버전 파일을 `version.yml`과 비교 |
-| `language` | 메시지 언어. 설치기와 설치되는 워크플로우·스크립트가 출력하는 문구 모두에 적용되며 `en`(기본) 또는 `ko`. `--lang`·`PROJECT_AUTO_WIZARD_LANG`로 지정하며 업데이트 때 유지. 이 키가 없는 기존 파일은 `en`으로 처리하므로 한국어를 유지하려면 `--lang ko`를 쓰세요 |
+| `language` | 메시지 언어. 설치기와 설치되는 워크플로우·스크립트가 출력하는 문구 모두에 적용되며 `en`(기본) 또는 `ko`. `--lang`으로 지정하면 저장되어 업데이트 때 유지되고, `PROJECT_AUTO_WIZARD_LANG`는 설정한 실행에만 적용되며, 저장된 유효한 `language`가 없을 때(첫 설치, 키 없음, 잘못된 값)만 저장됩니다. 이 키가 없는 기존 파일은 `en`으로 처리하므로 한국어를 유지하려면 `--lang ko`를 쓰세요 |
 | `project_paths` | 레포 루트 기준 타입별 폴더. 없는 타입은 루트 |
 | `deploy` | 마법사가 물은 타입별 비민감 값(예: 배포 포트). 다음 실행에서 재사용. 그런 값이 있는 타입만 기록 |
 
@@ -65,12 +65,14 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 |---|---|---|
 | `semver_auto` | `true`(기본) / `false` | 커밋 타입 기반 승격. `false`면 매 릴리스 patch+1, major/minor는 직접 수정 |
 | `copilot_ai` | `false`(기본) / `true` | 요약 워크플로우가 Copilot CLI를 호출 (AI Credits 소비) |
-| `release_automerge` | `true`(기본, 키가 없어도 켜짐) / `false` | 릴리스 PR 자동 머지. `false`면 직접 머지(머지 커밋만 사용, squash·rebase 금지) |
+| `release_automerge` | `true`(기본, 키가 없어도 켜짐) / `false` | 릴리스 PR 자동 머지. `false`면 직접 머지하며 머지 커밋을 권장합니다(squash·rebase는 릴리스 워크플로우가 건너뛰어짐, [릴리스 흐름](../../understand/release-flow/) 참고) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | 서버 배포 방식. 서버 배포 워크플로우가 있는 타입일 때 기록 |
 | `env_mode` | `dart-define` / `dotenv` | Flutter 전용. 환경변수 방식 |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter 전용. 스토어 배포 대상 |
 | `android_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter 전용. Play Store 배포 모드 |
 | `ios_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter 전용. iOS 배포 모드 |
+
+불리언 옵션(`semver_auto`, `copilot_ai`, `release_automerge`)은 CLI와 워크플로우가 같은 규칙으로 읽습니다. 따옴표(`'false'`, `"false"`), 대소문자(`False`), 뒤의 `# 주석`은 허용하고, `true`와 `false`만 인식합니다. 그 밖의 값(`no`, `off`, `0`, `maybe`, 빈 값)은 추측하지 않고 `false`로 읽으며, 워크플로우는 경고를 출력하고 CLI는 경고한 뒤 다음 실행에서 `false`로 다시 씁니다. 키가 없는 것은 다르게 처리되어 위 표의 기본값을 씁니다(`release_automerge`는 켜짐).
 
 나머지 `metadata` 필드(`last_updated`, `integration_date`, `template.version` 등)는 마법사와 워크플로우가 기록하는 관리용 값입니다.
 

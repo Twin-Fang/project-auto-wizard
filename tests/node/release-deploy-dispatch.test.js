@@ -4,10 +4,11 @@
 // do not deploy twice by overlapping with the push event.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync, existsSync, copyFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync, copyFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const read = (p) => readFileSync(p, "utf8");
 const PAYLOAD_RP = join("payload", "workflows", "common", "PROJECT-COMMON-RELEASE-PUBLISH.yaml");
@@ -166,7 +167,7 @@ function runStep(t, { mergedBy = "", hasPat = "false", releaseMerge = true } = {
       stdout: r.stdout,
     };
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmTmp(root);
   }
 }
 

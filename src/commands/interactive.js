@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "../core/assets.js";
 import { detectTypes, detectVersion, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "../core/detect-fs.js";
-import { parseExisting, droppedPathLines } from "../core/version-yml.js";
+import { parseExisting, droppedPathLines, invalidOptionLines } from "../core/version-yml.js";
 import { pickReleaseOptions, resolveReleaseOptions } from "../core/release-options.js";
 import { OPTIONS, askableOptions, explicitFromContext } from "../core/options.js";
 import { runBreakingCheck } from "../core/breaking-check.js";
@@ -292,6 +292,9 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // Announce merged folders only now: the message must follow the folders actually chosen, not the saved ones.
   if (existing?.droppedPaths?.length) io.note?.(droppedPathLines(existing.droppedPaths, paths).join("\n"), t("core.versionYml.pathMergedTitle"));
 
+  // Option values that could not be read are rewritten as false by this run; tell the user before they confirm.
+  if (existing?.invalidOptions?.length) io.note?.(invalidOptionLines(existing.invalidOptions).join("\n"), t("core.versionYml.optionInvalidTitle"));
+
   // In a monorepo the version/build-number files live inside the type folder - detect there now that paths are settled.
   if (versionAutoDetected && [...paths.values()].some((p) => p && p !== ".")) {
     version = detectVersion(cwd, { types, paths, warn: () => {} });
@@ -376,6 +379,7 @@ export async function runInteractive(baseCtx, { cwd = process.cwd(), payloadRoot
   // Completion summary
   io.summary?.({
     mode, types, version, versionCode, branches, developMissing,
+    releaseAutomerge: ctx.includeReleaseAutomerge !== false,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,

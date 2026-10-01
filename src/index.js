@@ -8,13 +8,13 @@ import { readFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseArgs, parsePathsCsv, CliError, TYPE_CLI_FLAGS } from "./cli/args.js";
 import { helpText } from "./cli/help.js";
-import { resolveLanguage, setLanguage, t, DEFAULT_LANGUAGE, LANG_ENV_VAR, normalizeLanguage } from "./i18n/index.js";
+import { resolveLanguage, setLanguage, t, DEFAULT_LANGUAGE, LANG_ENV_VAR, SUPPORTED_LANGUAGES, normalizeLanguage } from "./i18n/index.js";
 import { fallbackStyleTypes } from "./core/deploy-style.js";
 import { hooksFor, mergeHookResults } from "./core/types.js";
 import { PATHS } from "./core/paths.js";
 import { resolvePayloadRoot, assertPayload, readTemplateVersion } from "./core/assets.js";
 import { detectTypes, detectDefaultBranch, detectRepoName, makeResolvers, detectMarkers } from "./core/detect-fs.js";
-import { parseExisting, droppedPathLines } from "./core/version-yml.js";
+import { parseExisting, droppedPathLines, invalidOptionLines } from "./core/version-yml.js";
 import { resolveReleaseOptions } from "./core/release-options.js";
 import { explicitFromContext, optionContextFields } from "./core/options.js";
 import { runBreakingCheck } from "./core/breaking-check.js";
@@ -100,16 +100,25 @@ async function runInner(argv, {
   // Language: --lang -> env var -> saved version.yml value -> en. Resolved after --help/--version
   // so an invalid env var cannot block the help output.
   let language;
+  // Language written to version.yml: the environment variable only decides this run's output, so it must not
+  // overwrite a saved choice. Only --lang (or a first install / an unusable saved value) sets the stored language.
+  let storedLanguage;
   try {
     const savedVy = join(cwd, "version.yml");
-    const saved = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")).language : null;
+    const savedParsed = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")) : null;
+    const saved = savedParsed?.language ?? null;
     language = resolveLanguage({ flag: opts.lang, env: process.env[LANG_ENV_VAR], saved });
+    storedLanguage = normalizeLanguage(opts.lang) ? language : (saved ?? language);
     // An existing install without a saved language now falls back to English: say so once, since
-    // its workflow messages switch from Korean on the next update.
+    // its workflow messages switch from Korean on the next update. A hand-edited unknown value also
+    // falls back to English, but it was never the old default, so it gets its own wording.
     const existingWithoutLanguage = existsSync(savedVy) && !saved;
     const unspecified = !normalizeLanguage(opts.lang) && !normalizeLanguage(process.env[LANG_ENV_VAR]);
     if (existingWithoutLanguage && unspecified && ["full", "interactive"].includes(opts.mode)) {
-      console.error(t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
+      const unknown = savedParsed?.languageUnsupported;
+      console.error(unknown
+        ? t("cli.lang.unsupportedSavedNotice", { value: unknown, supported: SUPPORTED_LANGUAGES.join(", ") }, DEFAULT_LANGUAGE)
+        : t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
     }
   } catch (e) {
     if (e instanceof CliError) { console.error(e.message); return 1; }
@@ -150,7 +159,7 @@ async function runInner(argv, {
     // The log file is created on the first write, so viewing only status/doctor from the menu leaves nothing behind.
     startLog("install");
     return await runInteractive(
-      { ...optionContextFields(opts), language },
+      { ...optionContextFields(opts), language: storedLanguage },
       { cwd, payloadRoot: payload, clock },
     );
   }
@@ -319,6 +328,8 @@ async function runInner(argv, {
 
   // Warn against the final folders (an explicit --paths may keep the other one). The dry-run preview prints its own notice.
   if (!opts.dryRun) for (const line of droppedPathLines(existing?.droppedPaths, paths)) console.error(`⚠️  ${line}`);
+  // An option value that could not be read is rewritten as false by this run - say so instead of doing it silently.
+  for (const line of invalidOptionLines(existing?.invalidOptions)) console.error(`⚠️  ${line}`);
 
   // version: existing version.yml first (SSoT; prevents overwriting on re-run) -> CLI value -> file detection.
   // Non-interactive, so the fallback notice uses the CLI wording (--project-version) as is.
@@ -374,7 +385,7 @@ async function runInner(argv, {
     repoName,
     // resolvers that compute @wizard ask/auto token values
     resolvers: makeResolvers(cwd, repoName, paths, typeOptions),
-    now, today, language,
+    now, today, language: storedLanguage,
     // Extra context for the install log; does not change the install itself.
     markers: detectMarkers(cwd, types), detectWarnings,
   });
@@ -406,6 +417,7 @@ async function runInner(argv, {
   // Completion summary (also printed in CLI mode)
   printSummary({
     mode: opts.mode, types, version, versionCode, branches, developMissing,
+    releaseAutomerge: context.includeReleaseAutomerge !== false,
     copiedFiles: result?.workflows?.copiedFiles ?? [],
     autoUpdated: result?.workflows?.autoUpdated ?? [],
     gitignoreUpdated: result?.gitignoreUpdated === true,

@@ -1,5 +1,5 @@
 import { DEFAULT_DEPLOY_STYLE } from "./deploy-style.js";
-import { OPTIONS, optionVar, renderValues } from "./options.js";
+import { OPTIONS, optionVar, renderValues, parseOptionValue } from "./options.js";
 import { escapeYamlDoubleQuoted } from "./wizard-env.js";
 import { hooksFor, mergeHookResults, allHookValues, canonicalTypeId, canonicalTypeIds } from "./types.js";
 import { normalizePath } from "./paths.js";
@@ -43,14 +43,17 @@ export function parseExtraTopLevel(content) {
 // Type-specific option key -> returned field (type hook savedOptionKeys). The value is returned as the raw string; validity is up to the type hook's resolveOptions.
 const TYPE_OPTION_KEYS = allHookValues("savedOptionKeys");
 const OPTION_BY_KEY = new Map(OPTIONS.map((o) => [o.key, o]));
-const OPTION_LINE = new RegExp(`^\\s+(${OPTIONS.map((o) => o.key).join("|")}):\\s*(.+)`);
+// (.*) on purpose: a key with an empty value is still a written value (an unrecognized one), not a missing key.
+const OPTION_LINE = new RegExp(`^\\s+(${OPTIONS.map((o) => o.key).join("|")}):\\s*(.*)`);
 const TYPE_OPTION_LINE = new RegExp(`^\\s+(${Object.keys(TYPE_OPTION_KEYS).join("|")}):\\s*(.+)`);
 
 // State-machine parse of metadata.template.options.
 // Returns: { <one bool|null per registry option, e.g. semverAuto/copilotAi>, deployStyle: string|null,
 //         type-specific option fields (e.g. envMode/flutterStore/androidDeployMode/iosDeployMode): string|null } - null = not written.
 // Other keys such as the old synology/coderabbit ones hit no branch and are naturally ignored (no parse error).
-export function parseTemplateOptions(content) {
+// invalid (optional out array): receives { key, value } for every option key whose written value was not recognized.
+export function parseTemplateOptions(content, invalid = []) {
+  const seen = new Set();
   const out = {
     ...Object.fromEntries(OPTIONS.map((o) => [o.name, null])), deployStyle: null,
     ...Object.fromEntries(Object.values(TYPE_OPTION_KEYS).map((field) => [field, null])),
@@ -69,12 +72,18 @@ export function parseTemplateOptions(content) {
       if (m) { const v = strip(m[1]); if (v) out.deployStyle = v; continue; }
       m = line.match(TYPE_OPTION_LINE);
       if (m) { const v = strip(m[2]); if (v) out[TYPE_OPTION_KEYS[m[1]]] = v; continue; }
-      // Boolean options come from the registry; a value other than true/false is left null (= not written).
+      // Boolean options come from the registry and are read with parseOptionValue (same rule as the workflows).
+      // The first occurrence wins, like the workflow reader. An unrecognized value reads as false and is reported
+      // through `invalid`, so it can never turn an option on (or release_automerge back on) without a word.
       const optionLine = line.match(OPTION_LINE);
       if (optionLine) {
-        const v = strip(optionLine[2]);
-        if (v === "true") out[OPTION_BY_KEY.get(optionLine[1]).name] = true;
-        if (v === "false") out[OPTION_BY_KEY.get(optionLine[1]).name] = false;
+        const name = OPTION_BY_KEY.get(optionLine[1]).name;
+        if (!seen.has(name)) {
+          seen.add(name);
+          const parsed = parseOptionValue(optionLine[2]);
+          out[name] = parsed ?? false;
+          if (parsed === null) invalid.push({ key: optionLine[1], value: optionLine[2].replace(/\r$/, "").trim() });
+        }
         continue;
       }
       // another key indented 0-4 spaces -> end of the options section
@@ -101,6 +110,11 @@ export function droppedPathLines(droppedPaths = [], finalPaths = null) {
   });
 }
 
+// Warning lines for option values that were written but not recognized (they read as false); empty when all are fine.
+export function invalidOptionLines(invalidOptions = []) {
+  return invalidOptions.map((o) => tr("core.versionYml.optionInvalid", { key: o.key, value: o.value }));
+}
+
 // Extract values from an existing version.yml (line-based, avoids false hits on comment lines).
 export function parseExisting(content) {
   const text = String(content || "");
@@ -125,6 +139,12 @@ export function parseExisting(content) {
   // language: "en" - only supported values count; a hand-edited unknown value is treated as unset
   const langRaw = normalizeLanguage((line(/^language:\s*(.+)/) || "").replace(/\s+#.*$/, "").replace(/["']/g, ""));
   const language = isSupportedLanguage(langRaw) ? langRaw : null;
+  // The unsupported value that was written (null when the key is absent or valid), so callers can tell "no key" from "unknown value"
+  const languageUnsupported = langRaw && !language ? langRaw : null;
+  // metadata.last_updated_by: the release scripts write the acting user here, so a re-install keeps it instead of resetting it
+  // (quoted values are unescaped; an unquoted one ends at whitespace or a comment)
+  const byMatch = /^[ \t]+last_updated_by:[ \t]*(?:"((?:[^"\\]|\\.)*)"|([^\s#"']+))/m.exec(text);
+  const lastUpdatedBy = byMatch ? (byMatch[1] !== undefined ? byMatch[1].replace(/\\(.)/g, "$1") : byMatch[2]) : null;
   // project_paths block: `  type: "path"`
   const paths = new Map();
   // Entries folded into another entry of the same canonical type with a different folder (react: client + next: web).
@@ -171,11 +191,12 @@ export function parseExisting(content) {
     }
   }
   // Optional workflow options (metadata.template.options)
-  const options = parseTemplateOptions(text);
+  const invalidOptions = [];
+  const options = parseTemplateOptions(text, invalidOptions);
   // metadata.template.branches - main/develop/mode (to skip re-asking in update mode)
   const branches = parseTemplateBranches(text);
   return {
-    version, versionCode, types, language, paths, droppedPaths, templateVersion, options, branches,
+    version, versionCode, types, language, languageUnsupported, lastUpdatedBy, paths, droppedPaths, templateVersion, options, invalidOptions, branches,
     deploy: parseDeployBlock(text), extraTopLevel: parseExtraTopLevel(text),
   };
 }
@@ -247,6 +268,7 @@ export function buildVersionYml({
   templateText, version, types = [], paths = new Map(), pathMarkers = new Map(),
   branch = "main", branches = null, versionCode = 1, now, today,
   templateOptions = null, deployValues = new Map(), extraTopLevel = [], typeOptions = {}, language = DEFAULT_LANGUAGE,
+  lastUpdatedBy = "",
 }) {
   if (!templateText) throw new Error(tr("core.versionYml.error.templateRequired"));
   const typesJson = types.length ? `[${types.map((t) => `"${t}"`).join(", ")}]` : `["basic"]`;
@@ -260,7 +282,7 @@ export function buildVersionYml({
   // project_paths block (full-line token {{PROJECT_PATHS}} - line removed when absent)
   let pathsBlock = "";
   if (paths.size) {
-    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment")}`];
+    const rows = [`project_paths: # ${tr("core.versionYml.pathsComment", {}, language)}`];
     for (const [t, p] of paths) {
       const marker = pathMarkers.get(t) || "";
       const pf = p === "." ? marker : (marker ? `${p}/${marker}` : p);
@@ -273,7 +295,7 @@ export function buildVersionYml({
   let deployBlock = "";
   const deployTypes = [...deployValues.keys()].filter((t) => deployValues.get(t) && deployValues.get(t).size > 0);
   if (deployTypes.length) {
-    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment")}`];
+    const rows = ["", `deploy: # ${tr("core.versionYml.deployComment", {}, language)}`];
     for (const t of deployTypes) {
       rows.push(`  ${t}:`);
       // Reuse the same escape - deploy values arrive by the same path as @wizard ask values, so
@@ -291,6 +313,8 @@ export function buildVersionYml({
     PROJECT_TYPES: typesJson,
     LANGUAGE: isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE,
     NOW: now, TODAY: today || optionsDate, DEFAULT_BRANCH: branch,
+    // A previously recorded value (e.g. the user who last bumped the version) wins over the installer's own name
+    LAST_UPDATED_BY: escapeYamlDoubleQuoted(lastUpdatedBy || "project-auto-wizard"),
     TEMPLATE_VERSION: templateVersion,
     MAIN_BRANCH: b.main, DEVELOP_BRANCH: b.develop, BRANCH_MODE: b.mode,
     ...Object.fromEntries(OPTIONS.map((o) => [optionVar(o), String(optionValues[o.ctxField])])),
@@ -329,13 +353,13 @@ export function sameIgnoringTimestamps(a, b) {
 // Builds the final version.yml from a single context - the real install (full) and the preview (dry-run)
 // use the same function, structurally preventing "the preview differs from the result".
 // deployValues exist only in a real install (the preview performs no substitution, so it is an empty Map).
-export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [] }) {
+export function renderVersionYml(context, templateText, { pathMarkers, deployValues = new Map(), extraTopLevel = [], lastUpdatedBy = "" }) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
     now, today, templateVersion = "unknown", branches = null, language,
     deployStyle } = context;
   return buildVersionYml({
     templateText, version, types, paths, pathMarkers, branch, branches, versionCode, now, today,
-    deployValues, extraTopLevel, language,
+    deployValues, extraTopLevel, language, lastUpdatedBy,
     typeOptions: mergeHookResults(types, "optionsFromContext", context),
     templateOptions: {
       templateVersion,

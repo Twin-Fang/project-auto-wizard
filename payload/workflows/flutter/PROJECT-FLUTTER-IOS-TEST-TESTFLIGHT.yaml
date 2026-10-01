@@ -100,7 +100,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Verify the branch exists up front
         id: verify_branch
@@ -112,7 +112,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
             const prNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER;
@@ -175,7 +175,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const prNumber = parseInt(process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_PR_NUMBER);
@@ -260,7 +260,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -275,6 +275,7 @@ jobs:
 
       # Report every missing setting up front, before importing certificates or building — otherwise the macOS runner builds for a long time and fails at an unrelated step
       - name: Validate deploy settings
+        id: validate
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
@@ -286,27 +287,37 @@ jobs:
           m() { python3 "$PAW_MESSAGES_PY" get "$@"; }
           FAILED=0
           MISSING=""
+          ITEMS=""
           for name in APPLE_CERTIFICATE_BASE64 APPLE_PROVISIONING_PROFILE_BASE64 IOS_PROVISIONING_PROFILE_NAME \
                       APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_BASE64; do
             [ -n "${!name}" ] || MISSING="$MISSING $name"
           done
           if [ -n "$MISSING" ]; then
             echo "::error::$(m ios_test_tf.secrets_missing missing="$MISSING")"
+            ITEMS="${MISSING# }"
+            ITEMS="${ITEMS// /, }"
             FAILED=1
           fi
           if [ ! -f ios/ExportOptions.plist ]; then
             echo "::error::$(m ios_test_tf.export_options_missing)"
+            ITEMS="${ITEMS:+$ITEMS, }ios/ExportOptions.plist"
             FAILED=1
           elif grep -Eq '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist; then
             echo "::error::$(m ios_test_tf.export_options_placeholders)"
             grep -En '__[A-Z][A-Z0-9_]*__' ios/ExportOptions.plist
+            ITEMS="${ITEMS:+$ITEMS, }ios/ExportOptions.plist"
             FAILED=1
           fi
           if [ ! -f ios/fastlane/Fastfile ]; then
             echo "::error::$(m ios_test_tf.fastfile_missing_error)"
+            ITEMS="${ITEMS:+$ITEMS, }ios/fastlane/Fastfile"
             FAILED=1
           fi
-          [ "$FAILED" -eq 0 ] || exit 1
+          if [ "$FAILED" -ne 0 ]; then
+            # The progress comment names what blocked the build and deploy steps
+            echo "missing=$ITEMS" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
           m ios_test_tf.preflight_ok
 
       - name: Select Xcode version
@@ -480,14 +491,20 @@ jobs:
           PAW_IN_GITHUB_RUN_ID: ${{ github.run_id }}
           PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID: ${{ needs.notify-start.outputs.comment_id }}
           PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME: ${{ needs.notify-start.outputs.start_time }}
+          PAW_IN_STEPS_VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PAW_IN_STEPS_VALIDATE_OUTPUTS_MISSING: ${{ steps.validate.outputs.missing }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
-            const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
+            const row = (name, status, elapsed = '-', p = {}) => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status, p)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
             const startTime = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_START_TIME);
+            // When the deploy-settings check failed, later steps did not run because of it: say what was missing
+            const blocked = process.env.PAW_IN_STEPS_VALIDATE_OUTCOME === 'failure';
+            const notRun = blocked ? 'precheck_blocked' : 'not_run';
+            const notRunParams = { missing: process.env.PAW_IN_STEPS_VALIDATE_OUTPUTS_MISSING || '-' };
             const branchName = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BRANCH_NAME;
             const buildNumber = process.env.PAW_IN_GITHUB_EVENT_CLIENT_PAYLOAD_BUILD_NUMBER;
             const runId = process.env.PAW_IN_GITHUB_RUN_ID;
@@ -505,15 +522,15 @@ jobs:
               msg('ios_test_tf.table_header'),
               '|------|------|----------|',
               row('prepare', 'failed', duration),
-              row('build', 'canceled'),
-              row('deploy', 'canceled'),
+              row('build', notRun, '-', notRunParams),
+              row('deploy', notRun, '-', notRunParams),
               '',
               msg('ios_test_tf.kv_head'),
               '|------|-----|',
               msg('ios_test_tf.row_build_number', { build: buildNumber }),
               msg('ios_test_tf.row_branch', { branch: branchName }),
               '',
-              msg('ios_test_tf.prepare_error'),
+              blocked ? msg('ios_test_tf.prepare_precheck_error', notRunParams) : msg('ios_test_tf.prepare_error'),
               '',
               msg('ios_test_tf.run_log_check_link', { url: runUrl })
             ].join('\n');
@@ -566,7 +583,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf. > "$RUNNER_TEMP/paw-msg.json"
 
       # Progress update - prepare done (must be updated when the build job starts so the prepare time is shown accurately)
       - name: Progress update - prepare done
@@ -583,7 +600,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
@@ -825,7 +842,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
@@ -892,7 +909,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
@@ -924,7 +941,7 @@ jobs:
               '|------|------|----------|',
               row('prepare', 'done', step1Elapsed || '-'),
               row('build', 'failed', step2ElapsedStr),
-              row('deploy', 'canceled'),
+              row('deploy', 'not_run'),
               '',
               msg('ios_test_tf.kv_head'),
               '|------|-----|',
@@ -979,7 +996,7 @@ jobs:
           rm -rf .paw-msg
           echo "PROJECT_AUTO_WIZARD_LANG=$LANG_CODE" >> "$GITHUB_ENV"
           echo "PAW_MESSAGES_PY=$RUNNER_TEMP/paw_messages.py" >> "$GITHUB_ENV"
-          echo "PAW_MSG=$(PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf.)" >> "$GITHUB_ENV"
+          PROJECT_AUTO_WIZARD_LANG=$LANG_CODE python3 "$RUNNER_TEMP/paw_messages.py" dump ios_test_tf. > "$RUNNER_TEMP/paw-msg.json"
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -1112,7 +1129,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);
@@ -1188,7 +1205,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const M = JSON.parse(process.env.PAW_MSG);
+            const M = JSON.parse(require('fs').readFileSync(`${process.env.RUNNER_TEMP}/paw-msg.json`, 'utf8'));
             const msg = (k, p = {}) => M[k].replace(/\{(\w+)\}/g, (s, n) => (n in p ? p[n] : s));
             const row = (name, status, elapsed = '-') => `| ${msg('ios_test_tf.step_' + name)} | ${msg('ios_test_tf.st_' + status)} | ${elapsed} |`;
             const commentId = parseInt(process.env.PAW_IN_NEEDS_NOTIFY_START_OUTPUTS_COMMENT_ID);

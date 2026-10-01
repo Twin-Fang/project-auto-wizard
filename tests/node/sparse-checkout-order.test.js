@@ -4,11 +4,12 @@
 // a separate `path:`, or disable sparse mode before relying on the full tree.
 import { test } from "node:test";
 import assert from "node:assert";
-import { readFileSync, readdirSync, statSync, mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, mkdtempSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { rmTmp } from "../helpers/tmp.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -113,7 +114,7 @@ function sparseThenFull(origin, work, msgPath) {
   git(dir, "sparse-checkout", "set", "--no-cone", ".github/scripts/messages.py", "version.yml");
   git(dir, "fetch", "-q", "origin", "main");
   git(dir, "checkout", "-q", "-f", "FETCH_HEAD");
-  if (msgPath) rmSync(dir, { recursive: true, force: true });
+  if (msgPath) rmTmp(dir);
   // step 2: full checkout of the same repo at the workspace root
   git(work, "fetch", "-q", "origin", "main");
   git(work, "checkout", "-q", "-f", "FETCH_HEAD");
@@ -135,6 +136,6 @@ test("local repro: sparse clone at the root leaves the tree incomplete, separate
     assert.ok(existsSync(join(good, "version.yml")));
     assert.ok(!existsSync(join(good, ".paw-msg")));
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    rmTmp(base);
   }
 });

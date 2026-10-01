@@ -49,7 +49,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 생성된 파일을 커밋하고 push하세요. `npx project-auto-wizard --mode doctor`는 워크플로우가 의존하는 레포 설정을 점검합니다.
 
-메시지 언어는 영어 또는 한국어(`en` | `ko`)입니다. `--lang`, 환경변수 `PROJECT_AUTO_WIZARD_LANG`, `version.yml`의 `language` 순서로 우선 적용됩니다.
+메시지 언어는 영어 또는 한국어(`en` | `ko`)입니다. `--lang`, 환경변수 `PROJECT_AUTO_WIZARD_LANG`, `version.yml`의 `language` 순서로 우선 적용됩니다. 환경변수는 그 실행에만 적용되며 저장된 유효한 `language`를 덮어쓰지 않습니다(유효한 값이 없을 때만 저장). 덮어쓰려면 `--lang`을 쓰세요.
 
 ## 설치되는 것
 

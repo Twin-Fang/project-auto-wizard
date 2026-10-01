@@ -90,7 +90,7 @@ jobs:
             [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
           done
           # The package name may be registered as a Variable instead of a Secret
-          [ -n "$ANDROID_PACKAGE_NAME" ] || MISSING="$MISSING ANDROID_PACKAGE_NAME(Secret or Variable)"
+          [ -n "$ANDROID_PACKAGE_NAME" ] || MISSING="$MISSING ANDROID_PACKAGE_NAME(Secret/Variable)"
           if [ -n "$MISSING" ]; then
             echo "::error title=$(m flutter_a.precheck_missing_title)::$(m flutter_a.precheck_missing_body missing="$MISSING")"
             exit 1
@@ -678,7 +678,7 @@ jobs:
           echo "=========================================="
           m flutter_a.deploy_start_time cmd1="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           m wf_flutter.run_number number="${{ github.run_number }}"
-          echo "🔍 GitHub SHA: ${{ github.sha }}"
+          m wf_flutter.github_sha sha="${{ github.sha }}"
           
           # Initialize and validate environment variables
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"

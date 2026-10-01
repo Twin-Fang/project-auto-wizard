@@ -6,7 +6,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { writeText, findUnwritable } from "../core/fsutil.js";
 import { CliError } from "../core/errors.js";
 import { PATHS } from "../core/paths.js";
-import { renderVersionYml, parseExisting, sameIgnoringTimestamps, droppedPathLines } from "../core/version-yml.js";
+import { renderVersionYml, parseExisting, sameIgnoringTimestamps, droppedPathLines, invalidOptionLines } from "../core/version-yml.js";
 import { readVersionYmlTemplate } from "../core/assets.js";
 import { existingMarkerInDir } from "../core/paths-resolve.js";
 import { addVersionSectionToReadme, README_STATUS_LABEL } from "../core/copy/readme.js";
@@ -28,8 +28,7 @@ import { t } from "../i18n/index.js";
 // payloadRoot: the package's payload/ root. targetRoot: the install target.
 export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const { version, types = [], paths = new Map(), branch = "main", versionCode = 1,
-    force = true, now, today, templateVersion = "unknown",
-    includeSemverAuto } = context;
+    force = true, now, today, templateVersion = "unknown" } = context;
 
   // Check permissions before writing anything: stopping midway would leave a half-installed state.
   const blocked = findUnwritable(targetRoot,
@@ -75,10 +74,11 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const extraTopLevel = prevParsed ? prevParsed.extraTopLevel : [];
   // Folders folded into one type entry are not managed after this rewrite; leave a trace in the install log.
   for (const line of droppedPathLines(prevParsed?.droppedPaths, paths)) log.warn("version", "paths", line);
+  for (const line of invalidOptionLines(prevParsed?.invalidOptions)) log.warn("version", "options", line);
 
   // 2. Generate version.yml (render payload/version.yml.template; full regeneration)
   //    A re-run where only the date lines differ does not rewrite it (idempotent).
-  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel });
+  const vyText = renderVersionYml(context, readVersionYmlTemplate(payloadRoot), { pathMarkers, deployValues, extraTopLevel, lastUpdatedBy: prevParsed?.lastUpdatedBy || "" });
   if (prevVy == null || !sameIgnoringTimestamps(prevVy, vyText)) {
     writeText(vyPath, vyText);
     log.info("version", "write", `version.yml (v${version}, code=${versionCode})`);
@@ -87,7 +87,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   }
 
   // 3. README version section
-  const readme = addVersionSectionToReadme(version, targetRoot);
+  const readme = addVersionSectionToReadme(version, targetRoot, context.language);
   log.info("readme", readme === "added" ? "append" : "skip", README_STATUS_LABEL[readme] || readme);
 
   // 4. scripts (payload/scripts/*.py -> .github/scripts/): always overwritten, so also record that user edits are lost.
@@ -123,7 +123,7 @@ export function runFull(context, payloadRoot, targetRoot = ".", hooks = {}) {
   const gitignoreUpdated = gitignoreUpdated0 || cleanup.backedUp.length > 0 || storeCleanup.backedUp.length > 0
     || staleCleanup.backedUp.length > 0;
   if (gitignoreUpdated) {
-    const gi = ensureGitignore(targetRoot);
+    const gi = ensureGitignore(targetRoot, context.language);
     log.info("gitignore", gi.created ? "create" : gi.added.length ? "append" : "skip",
       gi.added.length ? `.gitignore += ${gi.added.join(", ")}` : t("cmd.full.log.gitignoreExisting"));
   }

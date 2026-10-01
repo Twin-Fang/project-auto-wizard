@@ -180,7 +180,7 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "semver_auto:" key can never hijack the value
-          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          SEMVER_AUTO=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option semver_auto --default false || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
           echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
@@ -195,7 +195,7 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
-          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          COPILOT_AI=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option copilot_ai --default false || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
@@ -314,6 +314,7 @@ jobs:
             # README-only commit (date refresh) touches the same version line and
             # conflicts on rebase; the remote README is kept and this run's version
             # line is reapplied, so a README conflict never blocks the release.
+            PUSH_ERR="${RUNNER_TEMP:-/tmp}/push_err.txt"
             MAX_RETRIES=5
             RETRY_COUNT=0
             PUSH_SUCCESS=false
@@ -322,10 +323,19 @@ jobs:
               RETRY_COUNT=$((RETRY_COUNT + 1))
               echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
-              if git push origin HEAD:{{MAIN_BRANCH}}; then
+              if git push origin HEAD:{{MAIN_BRANCH}} 2> "$PUSH_ERR"; then
+                cat "$PUSH_ERR" >&2
                 PUSH_SUCCESS=true
                 echo "$(m wf_release.docs_pushed)"
                 break
+              fi
+
+              cat "$PUSH_ERR" >&2
+              # A branch-protection rejection is a standing rule, not a race: retrying cannot succeed
+              if grep -qiE "GH006|GH013|protected branch|repository rule violations" "$PUSH_ERR"; then
+                echo "::error::$(m wf_common.push_protected branch="{{MAIN_BRANCH}}")"
+                echo "::error::$(m wf_release.push_protected_trunk branch="{{MAIN_BRANCH}}")"
+                exit 1
               fi
 
               echo "$(m wf_common.push_failed_syncing)"

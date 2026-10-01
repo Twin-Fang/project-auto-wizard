@@ -54,13 +54,35 @@ import FlowDiagram from '../../../../components/FlowDiagram.astro';
 
 merge commit 방식으로 automerge를 켜고, 안 되면 직접 머지로 폴백합니다. 방금 push한 head를 GitHub이 반영할 때까지 백오프로 재시도하며, 이미 머지된 PR은 성공으로 봅니다.
 
-#### 릴리스 PR을 직접 머지하려면
+#### 브랜치 보호 규칙이 머지를 막을 때
+
+릴리스 브랜치의 고정 규칙이 머지를 거부하면(예: 승인(approving review)이 필요하거나 필수 체크가 통과하지 않은 경우) 실행이 실패하고, 어떤 종류의 규칙인지와 선택지를 알려 줍니다. 워크플로우는 릴리스 PR 제목도 `chore(release): vX.Y.Z (PR #N)`으로 바꾸고 안내 댓글을 한 번 남기므로, 직접 **Create a merge commit**으로 머지해도 릴리스가 발행됩니다.
+
+- 다음부터 워크플로우가 머지하게 하려면, 머지하는 계정(`WORKFLOW_PAT` 소유자, PAT가 없으면 GitHub Actions 봇)이 머지할 수 있도록 규칙을 바꾸세요.
+- 실패하는 실행 없이 항상 직접 머지하려면 `release_automerge: false`로 설정하세요(아래 참고).
+- 무료 플랜의 private 레포에서는 브랜치 보호와 ruleset을 만들 수 없으므로, 규칙을 만들 수 있는 곳에서만 해당합니다.
 
 automerge는 기본으로 켜져 있습니다. 사람이 직접 머지하고 싶다면 `version.yml`의 `release_automerge: false`로 바꾸거나 `--no-release-automerge`로 다시 설치하세요. 그러면 워크플로우가 automerge와 머지 대기 잡을 건너뛰고, 릴리스 PR 제목을 `chore(release): vX.Y.Z (PR #N)`으로 바꾼 뒤 안내 댓글을 한 번 남깁니다.
 
 - 그 워크플로우 실행이 끝난 뒤에 머지하세요. 버전 확정과 PR 제목 변경이 그 실행에서 이뤄집니다.
-- **Create a merge commit**을 쓰세요. 릴리스 게이트는 머지 커밋 메시지(PR 제목 포함)의 `chore(release):`를 읽습니다. *Squash and merge*는 다음 릴리스 노트가 기대는 이력을 바꾸고, *Rebase and merge*는 표식을 없앱니다.
+- **Create a merge commit**을 쓰는 것을 권장합니다. 릴리스 게이트는 머지 커밋 메시지(PR 제목 포함)의 `chore(release):`를 읽습니다.
 - 자동 제목 변경이 실패하면 댓글이 릴리스가 발행되려면 어떤 머지 메시지를 지정해야 하는지 알려 줍니다.
+
+머지 방식별로 릴리스가 어떻게 되는지는 아래와 같습니다.
+
+| 머지 방식 | 릴리스 발행 | 이유 |
+|---|---|---|
+| Create a merge commit | 됩니다 | 머지 커밋 메시지에 바뀐 PR 제목(`chore(release): ...`)이 들어가고 `[skip ci]`는 없습니다. |
+| Squash and merge | 기본 squash 메시지에서는 안 됩니다 | 기본 메시지(커밋 목록 포함)면 머지 커밋 본문에 버전 확정 커밋의 `[skip ci]`가 들어가 GitHub가 push 워크플로우를 건너뜁니다. 레포의 squash 메시지 기본값을 PR 제목으로 바꿨다면 릴리스가 발행됩니다. 원래 커밋이 릴리스 브랜치 이력에 없어서 다음 릴리스 노트에 이전 변경이 다시 기재될 수 있습니다. |
+| Rebase and merge | 저절로는 안 됩니다 | 릴리스 브랜치의 마지막 커밋이 버전 확정 커밋(`[skip ci]`)이라 push 워크플로우가 건너뛰어집니다. 다음 릴리스 노트에는 rebase된 커밋이 반복되지 않지만, develop이 릴리스 브랜치를 역머지하기 전까지만 그렇고 역머지 뒤에는 다시 기재됩니다. |
+| 실행이 끝나기 전에 머지 | 패치 릴리스가 하나 더 생김 | PR 제목이 바뀌지 않고 버전도 확정되기 전이라, 안전망 워크플로우가 자체 패치 버전을 발행합니다. |
+
+rebase로 머지했거나 기본 메시지로 squash 머지했다면 릴리스 브랜치에서 **PROJECT-RELEASE-PUBLISH**를 수동 실행(Actions > Run workflow)해 발행하세요. 여러 번 실행해도 안전합니다.
+
+알려진 제약입니다.
+
+- 릴리스 노트가 기대는 릴리스 브랜치 이력은 머지 커밋만 보존합니다. squash 머지는 다음 노트를 모을 때 새 작업과 구분되지 않습니다.
+- 이전 버전(0.15.1 이하)의 마법사는 `release_automerge` 키를 모르기 때문에 그 버전으로 다시 설치하면 키가 지워져 automerge가 다시 켜집니다. 0.16.0 이상으로 설치하거나 키를 다시 추가하세요.
 
 ### 5. 태그와 GitHub Release
 

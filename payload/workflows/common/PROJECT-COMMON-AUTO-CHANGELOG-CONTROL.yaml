@@ -31,7 +31,13 @@
 #
 # With version.yml release_automerge: false, step 5 and the wait job are
 # skipped: the PR is renamed to the release-confirm subject and one guidance
-# comment asks the maintainer to merge it with a merge commit (not squash or rebase).
+# comment asks the maintainer to merge it with a merge commit. Squash and rebase merges
+# put the [skip ci] of the confirm commit into the merge result, so GitHub skips the push
+# workflows and PROJECT-RELEASE-PUBLISH has to be run manually for them.
+#
+# When step 5 is rejected by branch protection (required review or checks), the run
+# fails with the cause and the options, and the PR gets the same rename and a guidance
+# comment, so a merge the maintainer makes by hand still publishes the release.
 #
 # The merge-commit subject carries the release-confirm pattern
 # "chore(release):" — keep in sync with PROJECT-COMMON-VERSION-CONTROL
@@ -152,7 +158,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          SEMVER_AUTO=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?semver_auto:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          SEMVER_AUTO=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option semver_auto --default false || echo "false")
           echo "semver_auto=$SEMVER_AUTO" >> $GITHUB_OUTPUT
           echo "$(m wf_common.semver_auto_option semver_auto="$SEMVER_AUTO")"
 
@@ -163,18 +169,20 @@ jobs:
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           # scoped to the metadata: -> template: -> options: chain so an
           # unrelated "copilot_ai:" key can never hijack the value
-          COPILOT_AI=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?copilot_ai:\s*\"?(true|false)", t, re.S); print(m.group(1) if m else "false")' 2>/dev/null || echo "false")
+          COPILOT_AI=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option copilot_ai --default false || echo "false")
           echo "copilot_ai=$COPILOT_AI" >> $GITHUB_OUTPUT
           echo "$(m wf_common.copilot_ai_option copilot_ai="$COPILOT_AI")"
 
       - name: Read release_automerge option from version.yml
         id: automerge_option
         run: |
-          # Same metadata: -> template: -> options: scope as copilot_ai. A missing key means ON:
-          # installs from before the option existed already automerge, and that must not change.
-          AUTOMERGE=$(python3 -c 'import re; t=open("version.yml",encoding="utf-8").read(); m=re.search(r"metadata:.*?template:.*?options:.*?^\s+release_automerge:\s*\"?(true|false)", t, re.S|re.M); print(m.group(1) if m else "true")' 2>/dev/null || echo "true")
+          # Read with the same rule as the CLI (quotes, case and a trailing comment are fine; only true/false count).
+          # A missing key means ON: installs from before the option existed already automerge, and that must not change.
+          # A key that is present but unrecognized (e.g. maybe, off, empty) is reported and treated as false,
+          # so a typo never switches automerge back on for someone who turned it off.
+          AUTOMERGE=$(python3 "$GITHUB_WORKSPACE/.github/scripts/version_manager.py" option release_automerge --default true || echo "true")
           echo "release_automerge=$AUTOMERGE" >> $GITHUB_OUTPUT
-          echo "release_automerge option: $AUTOMERGE"
+          echo "release_automerge=$AUTOMERGE"
 
       - name: Install Copilot CLI
         if: steps.copilot_options.outputs.copilot_ai == 'true'
@@ -187,11 +195,15 @@ jobs:
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
           git fetch origin {{MAIN_BRANCH}}
-          git log --pretty=%s "origin/{{MAIN_BRANCH}}..HEAD" > commits.txt
+          # --cherry-pick --right-only drops commits whose change already exists on {{MAIN_BRANCH}} under another hash
+          # (a rebase-merged release PR), but only while {{DEVELOP_BRANCH}} has not merged {{MAIN_BRANCH}} back: after that merge the
+          # rebased copies are on {{DEVELOP_BRANCH}} too, nothing is left to compare with, and they are listed again.
+          # A squash merge leaves no matching patch at all and cannot be told apart this way.
+          git log --cherry-pick --right-only --pretty=%s "origin/{{MAIN_BRANCH}}...HEAD" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
           # would turn description lines into change entries.
-          git log --pretty=%b "origin/{{MAIN_BRANCH}}..HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
+          git log --cherry-pick --right-only --pretty=%b "origin/{{MAIN_BRANCH}}...HEAD" | grep -E '^BREAKING[ -]CHANGE[[:space:]]*:' >> commits.txt || true
           git diff --stat "origin/{{MAIN_BRANCH}}...HEAD" > _full_diff_stat.txt
           if [ "$(wc -l < _full_diff_stat.txt)" -gt 49 ]; then
             { head -49 _full_diff_stat.txt; tail -1 _full_diff_stat.txt; } > diff_stat.txt
@@ -209,7 +221,7 @@ jobs:
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          git log --pretty=%H "origin/{{MAIN_BRANCH}}..HEAD" > commit_shas.txt
+          git log --cherry-pick --right-only --pretty=%H "origin/{{MAIN_BRANCH}}...HEAD" > commit_shas.txt
 
           gh pr list --state merged --base {{DEVELOP_BRANCH}} \
             --json number,headRefName,mergeCommit --limit 200 > merged_prs.json
@@ -321,7 +333,7 @@ jobs:
           FALLBACK_REASON=$(python3 -c 'import html,json,sys; print(html.escape((json.loads(sys.argv[1]).get("fallback_reason") or "")[:200]))' "$SUMMARY_RESULT" 2>/dev/null || echo "")
           ENGINE_LINE="$ENGINE${FALLBACK_REASON:+ ($FALLBACK_REASON)}"
           echo "$(m wf_changelog.summary_engine engine_line="$ENGINE_LINE")"
-          echo "engine: $ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
+          m wf_aisum.engine_label engine="$ENGINE_LINE" >> "$GITHUB_STEP_SUMMARY"
           echo "engine=$ENGINE" >> $GITHUB_OUTPUT
           echo "fallback_reason=$FALLBACK_REASON" >> $GITHUB_OUTPUT
 
@@ -343,11 +355,11 @@ jobs:
 
           {
             echo "$MARKER"
-            echo "📋 **PR Summary (project-auto-wizard)**"
+            m wf_aisum.summary_heading
             echo ""
             cat summary.md
             echo ""
-            echo "<sub>engine: ${ENGINE:-unknown}${FALLBACK_REASON:+ ($FALLBACK_REASON)}</sub>"
+            echo "<sub>$(m wf_aisum.engine_label engine="${ENGINE:-unknown}${FALLBACK_REASON:+ ($FALLBACK_REASON)}")</sub>"
           } > comment_body.md
 
           python3 -c 'import json; print(json.dumps({"body": open("comment_body.md", encoding="utf-8").read()}))' > comment_payload.json
@@ -417,6 +429,7 @@ jobs:
             git commit -m "chore(version): confirm v${VERSION} and update release docs [skip ci]"
 
             # Race-condition guard: pull-rebase then push (up to 3 retries)
+            PUSH_ERR="${RUNNER_TEMP:-/tmp}/push_err.txt"
             MAX_RETRIES=3
             RETRY_COUNT=0
             PUSH_SUCCESS=false
@@ -425,11 +438,18 @@ jobs:
               RETRY_COUNT=$((RETRY_COUNT + 1))
               echo "$(m wf_common.push_attempt retry_count="$RETRY_COUNT" max_retries="$MAX_RETRIES")"
 
-              if git push origin HEAD:$HEAD_BRANCH; then
+              if git push origin HEAD:$HEAD_BRANCH 2> "$PUSH_ERR"; then
+                cat "$PUSH_ERR" >&2
                 PUSH_SUCCESS=true
                 echo "$(m wf_changelog.docs_pushed head_branch="$HEAD_BRANCH")"
                 break
               else
+                cat "$PUSH_ERR" >&2
+                # A branch-protection rejection is a standing rule, not a race: retrying cannot succeed
+                if grep -qiE "GH006|GH013|protected branch|repository rule violations" "$PUSH_ERR"; then
+                  echo "::error::$(m wf_common.push_protected branch="$HEAD_BRANCH")"
+                  exit 1
+                fi
                 echo "$(m wf_common.push_failed_syncing)"
                 if git pull --rebase origin $HEAD_BRANCH; then
                   echo "$(m wf_common.rebase_ok)"
@@ -447,48 +467,8 @@ jobs:
             fi
           fi
 
-      - name: Prepare manual release merge (release_automerge=false)
-        if: steps.automerge_option.outputs.release_automerge == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
-        run: |
-          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
-          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          VERSION="${{ steps.bump.outputs.new_version }}"
-
-          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
-          # still passes the RELEASE-PUBLISH gate. A failed rename only warns: the run must not fail here.
-          SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
-          # The REST endpoint is used instead of `gh pr edit`, which goes through GraphQL and can fail on token scopes.
-          RENAMED=true
-          if gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -f title="$SUBJECT" > /dev/null; then
-            echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
-          else
-            RENAMED=false
-            echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
-          fi
-
-          # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
-          # If the comment list cannot be read we cannot tell whether it exists, so skip rather than post a duplicate.
-          MARKER='<!-- release-automerge-off -->'
-          if ! COMMENT_IDS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
-            echo "::warning::$(m wf_changelog.automerge_off_list_failed pr_number="$PR_NUMBER")"
-          elif [ -z "$COMMENT_IDS" ]; then
-            BODY="$MARKER
-          $(m wf_changelog.automerge_off_comment)"
-            # A failed rename means the merge message will not carry the release marker unless the maintainer sets it.
-            if [ "$RENAMED" = false ]; then
-              BODY="$BODY
-
-          $(m wf_changelog.automerge_off_rename_hint subject="$SUBJECT")"
-            fi
-            gh pr comment "$PR_NUMBER" --body "$BODY" \
-              || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
-          fi
-
       - name: Enable automerge
+        id: automerge
         if: steps.automerge_option.outputs.release_automerge != 'false'
         env:
           # With a PAT the merge push triggers downstream workflows
@@ -536,7 +516,7 @@ jobs:
               # date" rule, merge base into head to catch up (a mere propagation delay is
               # rejected as "no new commits" and simply retried)
               gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/update-branch" > /dev/null 2>&1 \
-                && echo "head branch updated from base" || true
+                && m wf_changelog.head_updated || true
             fi
             WAIT=$((ATTEMPT * 10))
             echo "$(m wf_changelog.merge_retry attempt="$ATTEMPT" max_attempts="$MAX_ATTEMPTS" wait="${WAIT}")"
@@ -553,9 +533,83 @@ jobs:
             elif [ "$ALLOW_MERGE_COMMIT" = "false" ]; then
               echo "::error::$(m wf_changelog.merge_commit_disabled)"
             else
-              echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
+              # Branch protection is a standing rule, not a propagation delay: name the cause and the options.
+              # Whatever the cause, the next step renames the PR so a merge you make yourself still publishes the release.
+              REVIEW_DECISION=$(gh pr view "$PR_NUMBER" --json reviewDecision -q .reviewDecision 2>/dev/null || echo "")
+              MERGE_STATE=$(gh pr view "$PR_NUMBER" --json mergeStateStatus -q .mergeStateStatus 2>/dev/null || echo "")
+              if [ "$REVIEW_DECISION" = "REVIEW_REQUIRED" ] || [ "$REVIEW_DECISION" = "CHANGES_REQUESTED" ]; then
+                echo "merge_blocked=review" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_blocked_review prod="{{MAIN_BRANCH}}")"
+              elif [ "$MERGE_STATE" = "BLOCKED" ] || grep -qi "base branch policy" "$ERR_FILE"; then
+                echo "merge_blocked=policy" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_blocked_policy prod="{{MAIN_BRANCH}}")"
+              else
+                echo "merge_blocked=other" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
+              fi
             fi
             exit 1
+          fi
+
+      # Runs for release_automerge=false (nothing merges by itself) and when automerge was rejected by a standing rule
+      # such as branch protection (a person has to merge). A conflict or a disabled merge-commit setting is not covered: those
+      # need a fix first, and the next run retries the automerge.
+      # The step never merges; it only prepares the PR so a human merge still passes the RELEASE-PUBLISH gate.
+      - name: Prepare manual release merge
+        if: (success() && steps.automerge_option.outputs.release_automerge == 'false') || (failure() && steps.automerge.outcome == 'failure' && steps.automerge.outputs.merge_blocked != '')
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || github.token }}
+          MERGE_BLOCKED: ${{ steps.automerge.outputs.merge_blocked }}
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          VERSION="${{ steps.bump.outputs.new_version }}"
+
+          # The PR title carries the release-confirm pattern, so a human merge commit (its message includes the PR title)
+          # still passes the RELEASE-PUBLISH gate. A failed rename only warns: this step must not fail the run.
+          SUBJECT="chore(release): v${VERSION} (PR #${PR_NUMBER})"
+          # The REST endpoint is used instead of `gh pr edit`, which goes through GraphQL and can fail on token scopes.
+          RENAMED=true
+          if gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -f title="$SUBJECT" > /dev/null; then
+            if [ "${{ steps.automerge_option.outputs.release_automerge }}" = "false" ]; then
+              echo "$(m wf_changelog.automerge_off subject="$SUBJECT")"
+            else
+              echo "$(m wf_changelog.automerge_blocked_renamed subject="$SUBJECT")"
+            fi
+          else
+            RENAMED=false
+            echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
+          fi
+
+          # One guidance comment per PR: re-runs (synchronize) find it by its marker and leave it alone.
+          # If the comment list cannot be read we cannot tell whether it exists, so skip rather than post a duplicate.
+          if [ "${{ steps.automerge_option.outputs.release_automerge }}" = "false" ]; then
+            MARKER='<!-- release-automerge-off -->'
+            CONTENT="$(m wf_changelog.automerge_off_comment)"
+          else
+            MARKER='<!-- release-merge-blocked -->'
+            case "${MERGE_BLOCKED:-other}" in
+              review) REASON="$(m wf_changelog.merge_blocked_reason_review)" ;;
+              policy) REASON="$(m wf_changelog.merge_blocked_reason_policy)" ;;
+              *) REASON="$(m wf_changelog.merge_blocked_reason_other)" ;;
+            esac
+            CONTENT="$(m wf_changelog.merge_blocked_comment reason="$REASON")"
+          fi
+          if ! COMMENT_IDS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
+            echo "::warning::$(m wf_changelog.automerge_off_list_failed pr_number="$PR_NUMBER")"
+          elif [ -z "$COMMENT_IDS" ]; then
+            BODY="$MARKER
+          $CONTENT"
+            # A failed rename means the merge message will not carry the release marker unless the maintainer sets it.
+            if [ "$RENAMED" = false ]; then
+              BODY="$BODY
+
+          $(m wf_changelog.automerge_off_rename_hint subject="$SUBJECT")"
+            fi
+            gh pr comment "$PR_NUMBER" --body "$BODY" \
+              || echo "::warning::$(m wf_changelog.automerge_rename_failed pr_number="$PR_NUMBER")"
           fi
 
   wait-for-merge-and-trigger-release:

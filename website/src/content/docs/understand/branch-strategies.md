@@ -38,6 +38,8 @@ Only `PROJECT-COMMON-RELEASE-PUBLISH` is installed for releases (`AUTO-CHANGELOG
 
 The AI PR summary bot comments on every PR in this mode, because every PR targets the release branch.
 
+Because the bot commits the version bump and CHANGELOG straight to the release branch, a branch protection rule or ruleset on it (for example "require a pull request") rejects that push. The run stops at the first rejection with the cause instead of retrying, and no tag or Release is created. Allow the pushing account to bypass the rule (the `WORKFLOW_PAT` owner, or the GitHub Actions bot when no PAT is set), or use `pr-flow`, where the bot only commits to the release PR branch.
+
 Use it for small projects or libraries where every merge to `main` should ship.
 
 ## Choosing branches

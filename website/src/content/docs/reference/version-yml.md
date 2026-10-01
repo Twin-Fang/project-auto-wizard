@@ -45,7 +45,7 @@ deploy: # deploy settings the wizard remembers (non-sensitive / safe to edit)
 | `version` | Current version, `x.y.z`. Updated by the release workflows. |
 | `version_code` | Monotonically increasing build number, bumped with every version (used by app builds). |
 | `project_types` | All project types. The first entry is the primary type; its version file is compared with `version.yml` during releases. |
-| `language` | Message language for both the installer and the messages printed by the installed workflows and scripts, `en` (default) or `ko`. Set with `--lang` or `PROJECT_AUTO_WIZARD_LANG`; kept on update. An existing file without this key is treated as `en`; use `--lang ko` to keep Korean. |
+| `language` | Message language for both the installer and the messages printed by the installed workflows and scripts, `en` (default) or `ko`. Set with `--lang` (saved and kept on update); `PROJECT_AUTO_WIZARD_LANG` affects only the run it is set for, and is saved only when there is no valid saved `language` (first install, missing key, or unsupported value). An existing file without this key is treated as `en`; use `--lang ko` to keep Korean. |
 | `project_paths` | Per-type folder relative to the repository root. Omitted types live at the root. |
 | `deploy` | Non-secret values the wizard asked for per type (for example deploy ports), reused on the next run. Written only for types that have such values. |
 
@@ -65,12 +65,14 @@ Unknown top-level fields you add are preserved when the wizard rewrites the file
 |---|---|---|
 | `semver_auto` | `true` (default) / `false` | Bump from commit types. `false` means patch + 1 every release; edit major/minor by hand. |
 | `copilot_ai` | `false` (default) / `true` | Let the summary workflows call the Copilot CLI (consumes AI Credits) |
-| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge (merge commit, not squash or rebase) |
+| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge; use a merge commit (squash and rebase skip the release workflow, see [Release flow](../../understand/release-flow/)) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | Server deploy style. Written when a type has server deploy workflows. |
 | `env_mode` | `dart-define` / `dotenv` | Flutter only. Environment variable mode. |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter only. Store deploy targets. |
 | `android_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter only. Play Store deploy mode. |
 | `ios_deploy_mode` | `store_only` / `store_prepare` / `store_submit` | Flutter only. iOS deploy mode. |
+
+Boolean options (`semver_auto`, `copilot_ai`, `release_automerge`) are read the same way by the CLI and by the workflows: quotes (`'false'`, `"false"`), upper or lower case (`False`) and a trailing `# comment` are fine, and only `true` and `false` are recognized. Any other value (`no`, `off`, `0`, `maybe`, an empty value) is not guessed: it is read as `false`, the workflows print a warning, and the CLI warns and writes `false` back on the next run. A missing key is different: it uses the default shown above (for `release_automerge` that is on).
 
 The other `metadata` fields (`last_updated`, `integration_date`, `template.version`, …) are bookkeeping written by the wizard and the workflows.
 

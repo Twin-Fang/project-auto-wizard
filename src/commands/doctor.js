@@ -18,6 +18,7 @@ import { findMissingScripts } from "../core/copy/simple.js";
 import { resolvePayloadRoot } from "../core/assets.js";
 import { parseExisting } from "../core/version-yml.js";
 import { hooksFor } from "../core/types.js";
+import { OPTIONS } from "../core/options.js";
 import { t } from "../i18n/index.js";
 
 const defaultExec = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
@@ -172,31 +173,20 @@ export function runDoctor(cwd = process.cwd(), { exec = defaultExec } = {}) {
   }
 
   // Show the actual setting: telling a user who turned it on that it is off would misrepresent the current state.
-  // version.yml is read once; both option notes below use it.
-  const savedOptions = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")).options : null;
-  const copilotAi = savedOptions ? savedOptions.copilotAi : null;
-  const copilotState = copilotAi === true
-    ? t("cmd.doctor.copilot.on")
-    : copilotAi === false
-      ? t("cmd.doctor.copilot.off")
-      : t("cmd.doctor.copilot.default");
-  add({
-    name: t("cmd.doctor.copilot.name"), label: t("cmd.doctor.copilot.name"), purpose: t("cmd.doctor.copilot.purpose"), status: "INFO",
-    note: [
-      copilotState,
-      t(copilotAi === true ? "cmd.doctor.copilot.creditsOn" : "cmd.doctor.copilot.creditsOff"),
-      t("cmd.doctor.copilot.fallback"),
-    ],
-  });
-
-  // release_automerge is on unless version.yml says false (a missing key also means on), so only an explicit false is reported as off.
-  // Without an install there is no saved setting to report, so the item is left out.
-  if (savedOptions) {
+  // One item per option that declares a `doctor` spec in the registry; version.yml is read once.
+  const savedParsed = installed ? parseExisting(readFileSync(join(cwd, "version.yml"), "utf8")) : null;
+  const savedOptions = savedParsed ? savedParsed.options : null;
+  for (const o of OPTIONS.filter((opt) => opt.doctor)) {
+    const { prefix, always, notes } = o.doctor;
+    // Without an install there is no saved setting to report
+    if (!savedOptions && !always) continue;
+    // An unrecognized value is a problem to fix (the workflow reads it as off), not just information.
+    const invalid = notes.invalid ? savedParsed?.invalidOptions.find((i) => i.key === o.key) : null;
+    const keys = invalid ? notes.invalid : notes[String(savedOptions?.[o.name] ?? null)];
     add({
-      name: t("cmd.doctor.automerge.name"), label: t("cmd.doctor.automerge.name"), purpose: t("cmd.doctor.automerge.purpose"), status: "INFO",
-      note: savedOptions.releaseAutomerge === false
-        ? [t("cmd.doctor.automerge.off"), t("cmd.doctor.automerge.offHow")]
-        : [t("cmd.doctor.automerge.on"), t("cmd.doctor.automerge.onHow")],
+      name: t(`${prefix}.name`), label: t(`${prefix}.name`), purpose: t(`${prefix}.purpose`),
+      status: invalid ? "WARN" : "INFO",
+      note: keys.map((k) => t(`${prefix}.${k}`, invalid ? { value: invalid.value } : {})),
     });
   }
 

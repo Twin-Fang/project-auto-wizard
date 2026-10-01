@@ -50,20 +50,36 @@ test("docs list every option: version.yml reference and CLI reference, en and ko
   }
 });
 
-// A workflow reads an option with `... options:.*?<key>:\s*\"?(true|false) ... print(m.group(1) if m else "<default>")`.
-// The default printed when the key is missing must be the registry's legacyDefault: an existing install lacking the key
-// has to behave exactly as the CLI resolves it.
+// A workflow reads an option with `version_manager.py option <key> --default <value> || echo "<value>"`.
+// The default used when the key is missing (and when the script cannot run) must be the registry's legacyDefault: an existing
+// install lacking the key has to behave exactly as the CLI resolves it.
 test("workflow readers only read registry keys and fall back to the registry legacyDefault", () => {
   const readers = [];
   for (const f of walk(join(ROOT, "payload/workflows")).filter((p) => /\.ya?ml$/.test(p))) {
-    for (const m of readFileSync(f, "utf8").matchAll(/options:\.\*\?(?:\^\\s\+)?(\w+):[^\n]*?print\(m\.group\(1\) if m else "(true|false)"\)/g)) {
+    for (const m of readFileSync(f, "utf8").matchAll(/version_manager\.py"? option (\w+) --default (true|false) \|\| echo "(true|false)"/g)) {
+      assert.strictEqual(m[3], m[2], `${f}: the script default and the fallback echo for ${m[1]} must agree`);
       readers.push({ file: f, key: m[1], fallback: m[2] });
     }
   }
-  assert.ok(readers.length >= 2, "expected the copilot_ai and release_automerge readers to be found");
+  assert.ok(readers.length >= 7, "expected the semver_auto, copilot_ai and release_automerge readers to be found");
   for (const r of readers) {
     const o = OPTIONS.find((x) => x.key === r.key);
     assert.ok(o, `${r.file}: reads "${r.key}" which is not in the option registry`);
     assert.strictEqual(r.fallback, String(o.legacyDefault), `${r.file}: fallback for ${r.key} must equal the registry legacyDefault`);
   }
+});
+
+test("an option's doctor spec names messages that exist in both languages", async () => {
+  const { t, setLanguage } = await import("../../src/i18n/index.js");
+  for (const o of OPTIONS.filter((x) => x.doctor)) {
+    const { prefix, notes } = o.doctor;
+    const keys = [`${prefix}.name`, `${prefix}.purpose`, ...Object.values(notes).flat().map((k) => `${prefix}.${k}`)];
+    for (const lang of ["en", "ko"]) {
+      setLanguage(lang);
+      for (const key of keys) assert.notStrictEqual(t(key), key, `${o.key}: ${key} missing in ${lang}`);
+    }
+    // Every saved value (true / false / key absent) must have a note list
+    for (const state of ["true", "false", "null"]) assert.ok(Array.isArray(notes[state]), `${o.key}: no doctor notes for ${state}`);
+  }
+  setLanguage("ko");
 });

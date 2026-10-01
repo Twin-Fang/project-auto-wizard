@@ -27,7 +27,7 @@ Without `--mode`, the wizard runs interactively.
 | `--semver-auto` / `--no-semver-auto` | — | on | Bump major/minor/patch from commit types |
 | `--copilot` / `--no-copilot` | — | off | Generate summaries with Copilot (consumes GitHub Copilot AI Credits) |
 | `--release-automerge` / `--no-release-automerge` | — | on | Merge the release PR automatically; off means you merge it yourself |
-| `--lang LANG` | `en` \| `ko` | `PROJECT_AUTO_WIZARD_LANG`, then the saved `language` in `version.yml`, then `en` | Message language. The choice is saved to `version.yml` and kept on update. |
+| `--lang LANG` | `en` \| `ko` | `PROJECT_AUTO_WIZARD_LANG`, then the saved `language` in `version.yml`, then `en` | Message language. `--lang` is saved to `version.yml` and kept on update; `PROJECT_AUTO_WIZARD_LANG` applies to that run only and never overwrites a valid saved language; it is saved only when there is none (first install, missing key, or unsupported value). |
 | `--force` | — | — | Required for `full`; makes `uninstall` non-interactive. Skips all confirmations and uses defaults. |
 | `--dry-run` | — | — | Show what would change without changing files (`full` and `uninstall`) |
 | `--purge-readme` | — | — | With `--mode uninstall --force`, also remove the README version section |
