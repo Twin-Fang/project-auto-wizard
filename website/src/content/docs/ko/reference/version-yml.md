@@ -45,7 +45,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 | `version` | 현재 버전 `x.y.z`. 릴리스 워크플로우가 갱신 |
 | `version_code` | 버전과 함께 올라가는 단조 증가 빌드 번호 (앱 빌드에서 사용) |
 | `project_types` | 모든 프로젝트 타입. 첫 항목이 주 타입이며, 릴리스 때 이 타입의 버전 파일을 `version.yml`과 비교 |
-| `language` | 메시지 언어. 설치기와 설치되는 워크플로우·스크립트가 출력하는 문구 모두에 적용되며 `en`(기본) 또는 `ko`. `--lang`으로 지정하면 저장되어 업데이트 때 유지되고, `PROJECT_AUTO_WIZARD_LANG`는 설정한 실행에만 적용되며, 저장된 유효한 `language`가 없을 때(첫 설치, 키 없음, 잘못된 값)만 저장됩니다. 이 키가 없는 기존 파일은 `en`으로 처리하므로 한국어를 유지하려면 `--lang ko`를 쓰세요 |
+| `language` | 메시지 언어. 설치기와 설치되는 워크플로우·스크립트가 출력하는 문구 모두에 적용되며 `en`(기본) 또는 `ko`. `--lang`으로 지정하면 저장되어 업데이트 때 유지되고, `PROJECT_AUTO_WIZARD_LANG`는 설정한 실행에만 적용되며, 저장된 유효한 `language`가 없을 때(첫 설치, 키 없음, 잘못된 값)만 저장됩니다. 이 키가 없는 기존 파일은 비대화형 실행에서 `en`으로 처리하고, 대화형 마법사는 `--lang`, 환경변수, 유효한 저장값이 모두 없으면 가장 먼저 언어를 묻고 설치 때 답을 저장합니다(메뉴에서 status, doctor, uninstall을 고르면 저장하지 않습니다) |
 | `project_paths` | 레포 루트 기준 타입별 폴더. 없는 타입은 루트 |
 | `deploy` | 마법사가 물은 타입별 비민감 값(예: 배포 포트). 다음 실행에서 재사용. 그런 값이 있는 타입만 기록 |
 
@@ -74,7 +74,9 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 
 불리언 옵션(`semver_auto`, `copilot_ai`, `release_automerge`)은 CLI와 워크플로우가 같은 규칙으로 읽습니다. 따옴표(`'false'`, `"false"`), 대소문자(`False`), 뒤의 `# 주석`은 허용하고, `true`와 `false`만 인식합니다. 그 밖의 값(`no`, `off`, `0`, `maybe`, 빈 값)은 추측하지 않고 `false`로 읽으며, 워크플로우는 경고를 출력하고 CLI는 경고한 뒤 다음 실행에서 `false`로 다시 씁니다. 키가 없는 것은 다르게 처리되어 위 표의 기본값을 씁니다(`release_automerge`는 켜짐).
 
-나머지 `metadata` 필드(`last_updated`, `integration_date`, `template.version` 등)는 마법사와 워크플로우가 기록하는 관리용 값입니다.
+`integration_date`와 `template.integrated_date`는 최초 설치일을 유지합니다. 마법사를 다시 실행해도 덮어쓰지 않습니다. 마지막 실행 시각은 `last_updated`와 `template.last_update_date`에 기록됩니다.
+
+나머지 `metadata` 필드(`template.version` 등)는 마법사와 워크플로우가 기록하는 관리용 값입니다.
 
 ## 타입별 버전 동기화 파일
 

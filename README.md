@@ -21,7 +21,7 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 </div>
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v0.16.2 (2026-10-01)
+## Latest Version : v0.17.0 (2026-10-01)
 
 [Full release history](CHANGELOG.md)
 
@@ -50,7 +50,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 Commit the generated files and push. `npx project-auto-wizard --mode doctor` checks the repository settings the workflows depend on.
 
-Messages are in English or Korean (`en` | `ko`). Pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence. The environment variable applies to that run only and does not overwrite a valid saved `language` (it is saved only when there is none); `--lang` does.
+Messages are in English or Korean (`en` | `ko`). The interactive wizard asks for the language first when nothing says which one to use; you can also pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence. The environment variable applies to that run only and does not overwrite a valid saved `language` (it is saved only when there is none); `--lang` does.
 
 ## What you get
 
@@ -166,6 +166,10 @@ Issues and pull requests are welcome. Branch from `develop` and open PRs against
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module map, install pipeline, `@wizard` marker grammar, how updates compare files
 - [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md) — step-by-step guide to adding a project type
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup and pull request rules
+
+## Origin & Acknowledgements
+
+This project grew out of the GitHub Actions automation templates of [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops) (MIT, Copyright (c) 2025 Cassiiopeia). Some of the workflow structure and naming (for example the `PROJECT-COMMON-*` workflows) carries over from that work; project-auto-wizard repackages and extends it as an `npx` installer. The original copyright notice is kept in [LICENSE](LICENSE).
 
 ## License
 

@@ -49,7 +49,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 生成されたファイルをコミットして push してください。`npx project-auto-wizard --mode doctor` は、ワークフローが依存するリポジトリ設定を確認します。
 
-メッセージの言語は英語または韓国語（`en` | `ko`）です。`--lang`、環境変数 `PROJECT_AUTO_WIZARD_LANG`、`version.yml` の `language` の順に優先されます。環境変数はその実行にのみ適用され、有効な保存済み `language` は上書きしません（有効な値がない場合のみ保存）。上書きするには `--lang` を使います。
+メッセージの言語は英語または韓国語（`en` | `ko`）です。使う言語が決まっていない場合、対話型ウィザードは最初に言語を尋ねます。`--lang` でも指定できます。`--lang`、環境変数 `PROJECT_AUTO_WIZARD_LANG`、`version.yml` の `language` の順に優先されます。環境変数はその実行にのみ適用され、有効な保存済み `language` は上書きしません（有効な値がない場合のみ保存）。上書きするには `--lang` を使います。
 
 ## インストールされるもの
 
@@ -161,6 +161,10 @@ Flutter のストアデプロイ（Play Store、Firebase、TestFlight）の設�
 ## コントリビュート
 
 issue と pull request を歓迎します。`develop` からブランチを作り、`develop` に対して PR を開いてください。セットアップとテスト（`npm test`）は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。このリポジトリは、自身がインストールするワークフローで自分自身をリリースしています。
+
+## 由来と謝辞
+
+このプロジェクトは [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops)（MIT、Copyright (c) 2025 Cassiiopeia）の GitHub Actions 自動化テンプレートから発展しました。ワークフローの構成や名前の一部（例: `PROJECT-COMMON-*` ワークフロー）はその成果を引き継いでおり、project-auto-wizard はそれを `npx` インストーラーとして再構成し拡張したものです。原作の著作権表示は [LICENSE](LICENSE) に残しています。
 
 ## ライセンス
 

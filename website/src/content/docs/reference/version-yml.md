@@ -45,7 +45,7 @@ deploy: # deploy settings the wizard remembers (non-sensitive / safe to edit)
 | `version` | Current version, `x.y.z`. Updated by the release workflows. |
 | `version_code` | Monotonically increasing build number, bumped with every version (used by app builds). |
 | `project_types` | All project types. The first entry is the primary type; its version file is compared with `version.yml` during releases. |
-| `language` | Message language for both the installer and the messages printed by the installed workflows and scripts, `en` (default) or `ko`. Set with `--lang` (saved and kept on update); `PROJECT_AUTO_WIZARD_LANG` affects only the run it is set for, and is saved only when there is no valid saved `language` (first install, missing key, or unsupported value). An existing file without this key is treated as `en`; use `--lang ko` to keep Korean. |
+| `language` | Message language for both the installer and the messages printed by the installed workflows and scripts, `en` (default) or `ko`. Set with `--lang` (saved and kept on update); `PROJECT_AUTO_WIZARD_LANG` affects only the run it is set for, and is saved only when there is no valid saved `language` (first install, missing key, or unsupported value). An existing file without this key is treated as `en` in non-interactive runs; the interactive wizard asks for the language first when no `--lang`, environment variable or valid saved value exists, and stores the answer on install (choosing status, doctor or uninstall from the menu stores nothing). |
 | `project_paths` | Per-type folder relative to the repository root. Omitted types live at the root. |
 | `deploy` | Non-secret values the wizard asked for per type (for example deploy ports), reused on the next run. Written only for types that have such values. |
 
@@ -74,7 +74,9 @@ Unknown top-level fields you add are preserved when the wizard rewrites the file
 
 Boolean options (`semver_auto`, `copilot_ai`, `release_automerge`) are read the same way by the CLI and by the workflows: quotes (`'false'`, `"false"`), upper or lower case (`False`) and a trailing `# comment` are fine, and only `true` and `false` are recognized. Any other value (`no`, `off`, `0`, `maybe`, an empty value) is not guessed: it is read as `false`, the workflows print a warning, and the CLI warns and writes `false` back on the next run. A missing key is different: it uses the default shown above (for `release_automerge` that is on).
 
-The other `metadata` fields (`last_updated`, `integration_date`, `template.version`, …) are bookkeeping written by the wizard and the workflows.
+`integration_date` and `template.integrated_date` keep the date of the first install: re-running the wizard does not overwrite them. `last_updated` and `template.last_update_date` record the latest run.
+
+The other `metadata` fields (`template.version`, …) are bookkeeping written by the wizard and the workflows.
 
 ## Version files synced per type
 

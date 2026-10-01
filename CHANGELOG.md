@@ -1,7 +1,32 @@
 # Changelog
 
-**Current version:** 0.16.2  
-**Last updated:** 2026-10-01T05:27:13Z  
+**Current version:** 0.17.0  
+**Last updated:** 2026-10-01T07:11:12Z  
+
+---
+
+## [0.17.0] - 2026-10-01
+
+**PR:** #415  
+
+**✨ Features**
+- 언어 정보가 없으면 대화형 시작 시 언어를 먼저 묻고 선택값을 version.yml에 저장 (#410)
+- 대화형 언어 선택 프롬프트(selectLanguage)와 이중 표기 카탈로그 키 추가 (#410)
+
+**🐛 Fixes**
+- 발행 단계 테스트의 가짜 npm을 PATH 셸 대신 셸 함수로 바꿔 Windows CI에서도 통과하도록 수정 (#409)
+- E409 판별을 npm 오류 줄로 좁히고 발행 단계를 실제 실행하는 테스트로 교체 (#409)
+- 설치일 파싱에서 작은따옴표 값을 허용하고 값 뒤의 잡문자는 거부 (#402)
+- npm 발행이 E409(이미 발행/스테이징된 버전)로 거부되면 중복 실행으로 보고 성공 처리하도록 변경 (#409)
+- 재설치 시 integration_date·integrated_date를 최초 설치일로 유지하고 문서에 명시 (#402)
+- Spring CI의 Build Verification check run을 PR 머지 임시 커밋이 아닌 PR head 커밋에 연결 (#402)
+
+**📝 Documentation**
+- 대화형 언어 선택과 CHANGELOG 본문 언어 동작을 README와 문서 사이트에 반영 (#410)
+- 원작 projectops 저작권 고지를 LICENSE에 추가하고 README에 출처 섹션 추가 (#408)
+
+**🔧 Changes**
+- .playwright-mcp·.superpowers를 gitignore에 추가하고 ROADMAP의 출시 항목을 Done으로 정리 (#408)
 
 ---
 

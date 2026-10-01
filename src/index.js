@@ -103,6 +103,8 @@ async function runInner(argv, {
   // Language written to version.yml: the environment variable only decides this run's output, so it must not
   // overwrite a saved choice. Only --lang (or a first install / an unusable saved value) sets the stored language.
   let storedLanguage;
+  // Interactive mode asks for the language itself when nothing says which one to use.
+  let askLanguage = false;
   try {
     const savedVy = join(cwd, "version.yml");
     const savedParsed = existsSync(savedVy) ? parseExisting(readFileSync(savedVy, "utf8")) : null;
@@ -114,11 +116,15 @@ async function runInner(argv, {
     // falls back to English, but it was never the old default, so it gets its own wording.
     const existingWithoutLanguage = existsSync(savedVy) && !saved;
     const unspecified = !normalizeLanguage(opts.lang) && !normalizeLanguage(process.env[LANG_ENV_VAR]);
+    askLanguage = opts.mode === "interactive" && unspecified && !saved;
     if (existingWithoutLanguage && unspecified && ["full", "interactive"].includes(opts.mode)) {
       const unknown = savedParsed?.languageUnsupported;
-      console.error(unknown
-        ? t("cli.lang.unsupportedSavedNotice", { value: unknown, supported: SUPPORTED_LANGUAGES.join(", ") }, DEFAULT_LANGUAGE)
-        : t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
+      if (unknown) {
+        console.error(t("cli.lang.unsupportedSavedNotice", { value: unknown, supported: SUPPORTED_LANGUAGES.join(", ") }, DEFAULT_LANGUAGE));
+      } else if (!askLanguage) {
+        // When the user is asked instead, there is no silent fallback left to explain.
+        console.error(t("cli.lang.defaultNotice", {}, DEFAULT_LANGUAGE));
+      }
     }
   } catch (e) {
     if (e instanceof CliError) { console.error(e.message); return 1; }
@@ -159,7 +165,7 @@ async function runInner(argv, {
     // The log file is created on the first write, so viewing only status/doctor from the menu leaves nothing behind.
     startLog("install");
     return await runInteractive(
-      { ...optionContextFields(opts), language: storedLanguage },
+      { ...optionContextFields(opts), language: askLanguage ? null : storedLanguage, askLanguage },
       { cwd, payloadRoot: payload, clock },
     );
   }

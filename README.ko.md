@@ -49,7 +49,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 생성된 파일을 커밋하고 push하세요. `npx project-auto-wizard --mode doctor`는 워크플로우가 의존하는 레포 설정을 점검합니다.
 
-메시지 언어는 영어 또는 한국어(`en` | `ko`)입니다. `--lang`, 환경변수 `PROJECT_AUTO_WIZARD_LANG`, `version.yml`의 `language` 순서로 우선 적용됩니다. 환경변수는 그 실행에만 적용되며 저장된 유효한 `language`를 덮어쓰지 않습니다(유효한 값이 없을 때만 저장). 덮어쓰려면 `--lang`을 쓰세요.
+메시지 언어는 영어 또는 한국어(`en` | `ko`)입니다. 어떤 언어를 쓸지 정해진 것이 없으면 대화형 마법사가 가장 먼저 언어를 묻고, `--lang`으로도 지정할 수 있습니다. `--lang`, 환경변수 `PROJECT_AUTO_WIZARD_LANG`, `version.yml`의 `language` 순서로 우선 적용됩니다. 환경변수는 그 실행에만 적용되며 저장된 유효한 `language`를 덮어쓰지 않습니다(유효한 값이 없을 때만 저장). 덮어쓰려면 `--lang`을 쓰세요.
 
 ## 설치되는 것
 
@@ -161,6 +161,10 @@ Flutter 스토어 배포(Play Store, Firebase, TestFlight) 설정은 [문서 사
 ## 기여하기
 
 이슈와 풀 리퀘스트를 환영합니다. `develop`에서 브랜치를 만들고 `develop`을 대상으로 PR을 여세요. 설정과 테스트(`npm test`)는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요. 이 레포는 마법사가 설치하는 워크플로우로 스스로 릴리스됩니다.
+
+## 출처와 감사
+
+이 프로젝트는 [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops)(MIT, Copyright (c) 2025 Cassiiopeia)의 GitHub Actions 자동화 템플릿에서 출발했습니다. 워크플로우 구조와 이름 일부(예: `PROJECT-COMMON-*` 워크플로우)는 해당 작업에서 이어졌고, project-auto-wizard는 이를 `npx` 설치기로 다시 구성하고 확장했습니다. 원작의 저작권 고지는 [LICENSE](LICENSE)에 유지합니다.
 
 ## 라이선스
 
