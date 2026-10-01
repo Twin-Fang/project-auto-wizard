@@ -48,7 +48,7 @@ The new version is written to `version.yml` and to each type's version file, the
 
 ### 3. Release notes and CHANGELOG
 
-`changelog_manager.py` builds the summary from commit subjects plus a capped `git diff --stat` (file-level summary, no diff body). The same text is posted as a PR comment (re-runs edit that comment) and written to `CHANGELOG.json` and `CHANGELOG.md`. See [Summary engine](../summary-engine/).
+`changelog_manager.py` builds the summary from commit subjects plus a capped `git diff --stat` (file-level summary, no diff body). The same text is posted as a PR comment (re-runs edit that comment) and written to `CHANGELOG.json` and `CHANGELOG.md`. The entries come from commit subjects, so the `language` setting does not translate them. See [Summary engine](../summary-engine/).
 
 ### 4. Automerge
 

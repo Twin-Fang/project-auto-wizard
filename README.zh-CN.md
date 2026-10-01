@@ -49,7 +49,7 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 提交生成的文件并 push。`npx project-auto-wizard --mode doctor` 会检查工作流所依赖的仓库设置。
 
-消息语言为英语或韩语（`en` | `ko`）。可通过 `--lang`、环境变量 `PROJECT_AUTO_WIZARD_LANG` 或 `version.yml` 中的 `language` 指定，优先级依次降低。环境变量仅对该次运行生效，不会覆盖已保存的有效 `language`（仅在没有有效值时才保存）；如需覆盖请使用 `--lang`。
+消息语言为英语或韩语（`en` | `ko`）。如果没有任何信息指明语言，交互式向导会首先询问语言，也可以通过 `--lang`、环境变量 `PROJECT_AUTO_WIZARD_LANG` 或 `version.yml` 中的 `language` 指定，优先级依次降低。环境变量仅对该次运行生效，不会覆盖已保存的有效 `language`（仅在没有有效值时才保存）；如需覆盖请使用 `--lang`。
 
 ## 安装内容
 
