@@ -99,13 +99,13 @@ function runPublishStep(t, { output, code }) {
   const script = lines.slice(runAt + 1, envAt).map((l) => l.replace(/^ {10}/, "")).join("\n");
   const dir = mkdtempSync(join(tmpdir(), "npm-publish-"));
   t.after(() => rmTmp(dir));
-  mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "npm"), 'printf "%s\\n" "$FAKE_NPM_OUTPUT"\nexit "$FAKE_NPM_CODE"\n', { mode: 0o755 });
   const githubOutput = join(dir, "out.txt");
   writeFileSync(githubOutput, "");
-  const r = spawnSync("bash", ["-e", "-c", script], {
+  // A shell function stands in for npm: a PATH shim is not portable (the Windows runner has ';' separators and drive letters).
+  const fakeNpm = 'npm() { printf "%s\\n" "$FAKE_NPM_OUTPUT"; return "$FAKE_NPM_CODE"; }\n';
+  const r = spawnSync("bash", ["-e", "-c", fakeNpm + script], {
     encoding: "utf-8",
-    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}`, GITHUB_OUTPUT: githubOutput, FAKE_NPM_OUTPUT: output, FAKE_NPM_CODE: String(code) },
+    env: { ...process.env, GITHUB_OUTPUT: githubOutput.replaceAll("\\", "/"), FAKE_NPM_OUTPUT: output, FAKE_NPM_CODE: String(code) },
   });
   return { status: r.status, stdout: r.stdout, githubOutput: readFileSync(githubOutput, "utf-8") };
 }
