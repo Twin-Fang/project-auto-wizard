@@ -162,6 +162,10 @@ Flutter のストアデプロイ（Play Store、Firebase、TestFlight）の設�
 
 issue と pull request を歓迎します。`develop` からブランチを作り、`develop` に対して PR を開いてください。セットアップとテスト（`npm test`）は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。このリポジトリは、自身がインストールするワークフローで自分自身をリリースしています。
 
+## 由来と謝辞
+
+このプロジェクトは [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops)（MIT、Copyright (c) 2025 Cassiiopeia）の GitHub Actions 自動化テンプレートから発展しました。ワークフローの構成や名前の一部（例: `PROJECT-COMMON-*` ワークフロー）はその成果を引き継いでおり、project-auto-wizard はそれを `npx` インストーラーとして再構成し拡張したものです。原作の著作権表示は [LICENSE](LICENSE) に残しています。
+
 ## ライセンス
 
 [MIT](LICENSE)
