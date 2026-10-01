@@ -162,6 +162,10 @@ Flutter 商店部署（Play Store、Firebase、TestFlight）的设置见[文档�
 
 欢迎提交 issue 和 pull request。请从 `develop` 创建分支，并向 `develop` 发起 PR；环境搭建和测试（`npm test`）见 [CONTRIBUTING.md](CONTRIBUTING.md)。本仓库使用它自己安装的工作流来发布自身。
 
+## 来源与致谢
+
+本项目源自 [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops)（MIT，Copyright (c) 2025 Cassiiopeia）的 GitHub Actions 自动化模板。工作流的部分结构和命名（例如 `PROJECT-COMMON-*` 工作流）沿用自该项目；project-auto-wizard 将其重新整理并扩展为 `npx` 安装器。原作的版权声明保留在 [LICENSE](LICENSE) 中。
+
 ## 许可证
 
 [MIT](LICENSE)

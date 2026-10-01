@@ -167,6 +167,10 @@ Issues and pull requests are welcome. Branch from `develop` and open PRs against
 - [ADDING-A-PROJECT-TYPE.md](ADDING-A-PROJECT-TYPE.md) — step-by-step guide to adding a project type
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup and pull request rules
 
+## Origin & Acknowledgements
+
+This project grew out of the GitHub Actions automation templates of [Cassiiopeia/projectops](https://github.com/Cassiiopeia/projectops) (MIT, Copyright (c) 2025 Cassiiopeia). Some of the workflow structure and naming (for example the `PROJECT-COMMON-*` workflows) carries over from that work; project-auto-wizard repackages and extends it as an `npx` installer. The original copyright notice is kept in [LICENSE](LICENSE).
+
 ## License
 
 [MIT](LICENSE)
