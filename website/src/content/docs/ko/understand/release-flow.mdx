@@ -54,7 +54,13 @@ import FlowDiagram from '../../../../components/FlowDiagram.astro';
 
 merge commit 방식으로 automerge를 켜고, 안 되면 직접 머지로 폴백합니다. 방금 push한 head를 GitHub이 반영할 때까지 백오프로 재시도하며, 이미 머지된 PR은 성공으로 봅니다.
 
-#### 릴리스 PR을 직접 머지하려면
+#### 브랜치 보호 규칙이 머지를 막을 때
+
+릴리스 브랜치의 고정 규칙이 머지를 거부하면(예: 승인(approving review)이 필요하거나 필수 체크가 통과하지 않은 경우) 실행이 실패하고, 어떤 종류의 규칙인지와 선택지를 알려 줍니다. 워크플로우는 릴리스 PR 제목도 `chore(release): vX.Y.Z (PR #N)`으로 바꾸고 안내 댓글을 한 번 남기므로, 직접 **Create a merge commit**으로 머지해도 릴리스가 발행됩니다.
+
+- 다음부터 워크플로우가 머지하게 하려면, 머지하는 계정(`WORKFLOW_PAT` 소유자, PAT가 없으면 GitHub Actions 봇)이 머지할 수 있도록 규칙을 바꾸세요.
+- 실패하는 실행 없이 항상 직접 머지하려면 `release_automerge: false`로 설정하세요(아래 참고).
+- 무료 플랜의 private 레포에서는 브랜치 보호와 ruleset을 만들 수 없으므로, 규칙을 만들 수 있는 곳에서만 해당합니다.
 
 automerge는 기본으로 켜져 있습니다. 사람이 직접 머지하고 싶다면 `version.yml`의 `release_automerge: false`로 바꾸거나 `--no-release-automerge`로 다시 설치하세요. 그러면 워크플로우가 automerge와 머지 대기 잡을 건너뛰고, 릴리스 PR 제목을 `chore(release): vX.Y.Z (PR #N)`으로 바꾼 뒤 안내 댓글을 한 번 남깁니다.
 

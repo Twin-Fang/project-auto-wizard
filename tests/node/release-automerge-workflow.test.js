@@ -53,7 +53,7 @@ test("reader: a commented-out or prefixed key is not read as release_automerge",
 });
 
 test("Enable automerge only runs when the option is not false", () => {
-  assert.match(WF, /- name: Enable automerge\n\s+if: steps\.automerge_option\.outputs\.release_automerge != 'false'/);
+  assert.match(WF, /- name: Enable automerge\n\s+id: automerge\n\s+if: steps\.automerge_option\.outputs\.release_automerge != 'false'/);
 });
 
 test("the job exposes the option and the wait job is skipped when it is false", () => {
@@ -62,13 +62,14 @@ test("the job exposes the option and the wait job is skipped when it is false", 
 });
 
 test("manual-merge step: renames the PR with the release-confirm subject, warns instead of failing, dedups the comment", () => {
-  const step = WF.match(/- name: Prepare manual release merge[\s\S]*?(?=\n      - name: )/);
+  const step = WF.match(/- name: Prepare manual release merge[\s\S]*?(?=\n      - name: |\n  [a-z][\w-]*:\n)/);
   assert.ok(step, "the manual-merge step must exist");
   const body = step[0];
-  assert.match(body, /if: steps\.automerge_option\.outputs\.release_automerge == 'false'/);
+  assert.match(body, /if: \(success\(\) && steps\.automerge_option\.outputs\.release_automerge == 'false'\) \|\| \(failure\(\) && steps\.automerge\.outcome == 'failure' && steps\.automerge\.outputs\.merge_blocked != ''\)/);
   assert.match(body, /SUBJECT="chore\(release\): v\$\{VERSION\} \(PR #\$\{PR_NUMBER\}\)"/);
   assert.match(body, /gh api -X PATCH "repos\/\$\{GITHUB_REPOSITORY\}\/pulls\/\$\{PR_NUMBER\}" -f title="\$SUBJECT"/, "the rename goes through the REST endpoint");
   assert.match(body, /<!-- release-automerge-off -->/);
+  assert.match(body, /<!-- release-merge-blocked -->/);
   assert.match(body, /contains\(\\"\$MARKER\\"\)/, "an existing guidance comment is detected by its marker");
   assert.ok(!/gh pr merge/.test(body), "the manual-merge step must never merge");
 });
