@@ -1,0 +1,10 @@
+# coverage.py settings for `npm run test:coverage:py` (scripts/run-py-tests.mjs --coverage).
+[run]
+# Only the shipped scripts count; the tests themselves would inflate the number.
+source = payload/scripts
+# Some tests run a script as a subprocess (e.g. truncate_release_notes.py); measure those too.
+patch = subprocess
+parallel = true
+# Report branch coverage too, so the number lines up with the Node report.
+branch = true
+data_file = coverage/.coverage
