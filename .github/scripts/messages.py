@@ -1340,6 +1340,8 @@ EN = {
     "wf_changelog.merge_blocked_reason_review": "the release branch requires an approving review.",
     "wf_changelog.merge_blocked_reason_policy": "branch protection on the release branch blocks the merge (required checks, reviews or another rule).",
     "wf_changelog.merge_blocked_reason_other": "GitHub rejected the merge.",
+    "wf_changelog.merge_blocked_reason_transient": "GitHub returned a temporary error while merging (for example a timeout); no setting on this repository blocked it.",
+    "wf_changelog.merge_transient": "GitHub returned a temporary error while merging the release PR (for example 504 or \"Merge already in progress\"), and the PR is still open. Nothing needs to change: in a few minutes open this run and choose Re-run failed jobs, or merge the PR yourself.",
     "wf_changelog.merge_blocked_comment": "**The release PR was not merged automatically** — {reason}\n\nThis PR was renamed to `chore(release): ...`, so a merge you make yourself still publishes the release. Once the requirements are met, merge it with **Create a merge commit** (recommended).\n\n- To let the workflow merge it next time, change the protection rule on the release branch so the account that merges (the `WORKFLOW_PAT` owner, or the GitHub Actions bot when no PAT is set) is allowed to merge.\n- To always merge by hand without this run failing, set `release_automerge: false` in `version.yml`.\n\nSquash or rebase merges may not publish the release by themselves. If a release was skipped, run **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow).",
     # --- wf_readme ---
     "wf_readme.not_found": "README.md not found — nothing to update, skipping",
@@ -2639,6 +2641,8 @@ KO = {
     "wf_changelog.merge_blocked_reason_review": "릴리스 브랜치가 승인(approving review)을 요구합니다.",
     "wf_changelog.merge_blocked_reason_policy": "릴리스 브랜치의 보호 규칙이 머지를 막고 있습니다 (필수 체크, 리뷰 또는 다른 규칙).",
     "wf_changelog.merge_blocked_reason_other": "GitHub이 머지를 거부했습니다.",
+    "wf_changelog.merge_blocked_reason_transient": "머지 중 GitHub이 일시 오류(예: 시간 초과)를 돌려줬습니다. 이 레포의 설정이 막은 것은 아닙니다.",
+    "wf_changelog.merge_transient": "릴리스 PR을 머지하는 중 GitHub이 일시 오류(예: 504, \"Merge already in progress\")를 돌려줬고 PR은 아직 열려 있습니다. 바꿀 설정은 없습니다. 몇 분 뒤 이 실행에서 Re-run failed jobs를 누르거나 PR을 직접 머지하세요.",
     "wf_changelog.merge_blocked_comment": "**릴리스 PR이 자동으로 머지되지 않았습니다** — {reason}\n\n이 PR의 제목을 `chore(release): ...`로 바꿔 두었으므로, 직접 머지해도 릴리스가 발행됩니다. 조건이 충족되면 **Create a merge commit**(권장)으로 머지하세요.\n\n- 다음부터 워크플로우가 머지하게 하려면, 릴리스 브랜치의 보호 규칙에서 머지하는 계정(`WORKFLOW_PAT` 소유자, PAT가 없으면 GitHub Actions 봇)이 머지할 수 있도록 바꾸세요.\n- 항상 직접 머지하고 이 실행이 실패로 끝나지 않게 하려면 `version.yml`에 `release_automerge: false`를 설정하세요.\n\nSquash나 rebase 머지는 릴리스가 자동으로 발행되지 않을 수 있습니다. 릴리스가 건너뛰어졌다면 릴리스 브랜치에서 **PROJECT-RELEASE-PUBLISH**를 수동 실행하세요 (Actions > Run workflow).",
     # --- wf_readme ---
     "wf_readme.not_found": "README.md가 없습니다 — 수정할 것이 없어 건너뜁니다",

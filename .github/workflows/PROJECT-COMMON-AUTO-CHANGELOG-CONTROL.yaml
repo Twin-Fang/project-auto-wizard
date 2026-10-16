@@ -489,6 +489,9 @@ jobs:
           # head yet and intermittently fails with "Head branch is out of date" / "not
           # mergeable". Retry with growing intervals.
           MERGED=false
+          # Every rejection is kept, so the cause can be told apart after the loop
+          ALL_ERR="${RUNNER_TEMP:-/tmp}/merge_err_all.txt"
+          : > "$ALL_ERR"
           MAX_ATTEMPTS=4
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
             if [ "$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null)" = "MERGED" ]; then
@@ -502,12 +505,14 @@ jobs:
               break
             fi
             cat "$ERR_FILE" >&2
+            cat "$ERR_FILE" >> "$ALL_ERR"
             if gh pr merge "$PR_NUMBER" --merge --subject "$SUBJECT" 2> "$ERR_FILE"; then
               echo "$(m wf_changelog.automerge_unavailable subject="$SUBJECT")"
               MERGED=true
               break
             fi
             cat "$ERR_FILE" >&2
+            cat "$ERR_FILE" >> "$ALL_ERR"
             [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && break
             # A conflict never resolves by waiting
             [ "$(gh pr view "$PR_NUMBER" --json mergeable -q .mergeable 2>/dev/null)" = "CONFLICTING" ] && break
@@ -522,6 +527,23 @@ jobs:
             echo "$(m wf_changelog.merge_retry attempt="$ATTEMPT" max_attempts="$MAX_ATTEMPTS" wait="${WAIT}")"
             sleep "$WAIT"
           done
+
+          # GitHub's own temporary errors (5xx, a merge it is still processing) are not a rule on the branch (#438).
+          # Such a merge can still complete on GitHub's side, so look again before calling it a failure.
+          TRANSIENT=false
+          if grep -qiE "merge already in progress|50[0-9] (gateway|bad gateway|service|internal)|gateway timeout|timed out|something went wrong" "$ALL_ERR"; then
+            TRANSIENT=true
+          fi
+          if [ "$MERGED" != "true" ] && [ "$TRANSIENT" = "true" ]; then
+            for CHECK in 1 2 3 4 5 6; do
+              if [ "$(gh pr view "$PR_NUMBER" --json state -q .state 2>/dev/null)" = "MERGED" ]; then
+                echo "$(m wf_changelog.pr_already_merged pr_number="$PR_NUMBER")"
+                MERGED=true
+                break
+              fi
+              sleep 10
+            done
+          fi
 
           if [ "$MERGED" != "true" ]; then
             # All attempts failed — diagnose instead of pretending success.
@@ -543,6 +565,9 @@ jobs:
               elif [ "$MERGE_STATE" = "BLOCKED" ] || grep -qi "base branch policy" "$ERR_FILE"; then
                 echo "merge_blocked=policy" >> "$GITHUB_OUTPUT"
                 echo "::error::$(m wf_changelog.merge_blocked_policy prod="main")"
+              elif [ "$TRANSIENT" = "true" ]; then
+                echo "merge_blocked=transient" >> "$GITHUB_OUTPUT"
+                echo "::error::$(m wf_changelog.merge_transient)"
               else
                 echo "merge_blocked=other" >> "$GITHUB_OUTPUT"
                 echo "::error::$(m wf_changelog.merge_gave_up max_attempts="$MAX_ATTEMPTS" allow_merge_commit="$ALLOW_MERGE_COMMIT")"
@@ -592,6 +617,7 @@ jobs:
             case "${MERGE_BLOCKED:-other}" in
               review) REASON="$(m wf_changelog.merge_blocked_reason_review)" ;;
               policy) REASON="$(m wf_changelog.merge_blocked_reason_policy)" ;;
+              transient) REASON="$(m wf_changelog.merge_blocked_reason_transient)" ;;
               *) REASON="$(m wf_changelog.merge_blocked_reason_other)" ;;
             esac
             CONTENT="$(m wf_changelog.merge_blocked_comment reason="$REASON")"
