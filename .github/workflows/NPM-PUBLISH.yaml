@@ -23,8 +23,10 @@
 #   workflow to start. Events created by GITHUB_TOKEN do not trigger other
 #   workflows by GitHub policy.
 #
-# Required secret: NPM_TOKEN (npm Granular Access Token)
-#   Note: registering a Trusted Publisher on npmjs.com lets you publish via OIDC without this secret.
+# Auth: npm Trusted Publishing (OIDC). No npm token secret (#435).
+#   npmjs.com package settings > Trusted Publisher > GitHub Actions:
+#   Twin-Fang / project-auto-wizard / NPM-PUBLISH.yaml (environment empty).
+#   Needs id-token: write and npm 11.5.1 or later.
 
 name: NPM-PUBLISH
 
@@ -76,8 +78,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
+
+      - name: Ensure npm supports Trusted Publishing
+        # OIDC publish needs npm 11.5.1 or later
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
 
       - name: Set up Python (for test:py)
         uses: actions/setup-python@v7
@@ -154,8 +162,6 @@ jobs:
             exit 0
           fi
           exit "$STATUS"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish summary
         if: steps.check.outputs.skip == 'false' && steps.publish.outputs.already_published != 'true'

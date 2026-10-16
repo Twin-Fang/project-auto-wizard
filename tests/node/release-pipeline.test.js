@@ -94,9 +94,10 @@ function runPublishStep(t, { output, code }) {
   const lines = read(join(".github", "workflows", "NPM-PUBLISH.yaml")).split("\n");
   const start = lines.findIndex((l) => l.includes("- name: Publish to npm"));
   const runAt = lines.findIndex((l, i) => i > start && l.trim() === "run: |");
-  const envAt = lines.findIndex((l, i) => i > runAt && l === "        env:");
-  assert.ok(start > -1 && runAt > start && envAt > runAt, "could not find the publish step run block");
-  const script = lines.slice(runAt + 1, envAt).map((l) => l.replace(/^ {10}/, "")).join("\n");
+  // The run block ends at the first line indented less than its body (next key or next step)
+  const endAt = lines.findIndex((l, i) => i > runAt && l.trim() !== "" && !l.startsWith("          "));
+  assert.ok(start > -1 && runAt > start && endAt > runAt, "could not find the publish step run block");
+  const script = lines.slice(runAt + 1, endAt).map((l) => l.replace(/^ {10}/, "")).join("\n");
   const dir = mkdtempSync(join(tmpdir(), "npm-publish-"));
   t.after(() => rmTmp(dir));
   const githubOutput = join(dir, "out.txt");
@@ -514,3 +515,10 @@ for (const path of bothCopies("VERSION-CONTROL")) {
     assert.ok(step.includes("git ls-files -z --others --exclude-standard -- CHANGELOG.json CHANGELOG.md"));
   });
 }
+
+test("NPM-PUBLISH publishes with Trusted Publishing (OIDC), not an npm token secret (#435)", () => {
+  const body = read(join(".github", "workflows", "NPM-PUBLISH.yaml"));
+  assert.match(body, /id-token: write/);
+  assert.match(body, /npm install -g npm@\^11\.5\.1/);
+  assert.ok(!body.includes("secrets.NPM_TOKEN"), "an expired token would be used instead of OIDC");
+});
