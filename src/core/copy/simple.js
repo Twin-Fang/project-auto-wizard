@@ -26,9 +26,15 @@ export function planScripts(payloadRoot, targetRoot = ".") {
 
 // Script -> bundled scripts it imports (`import x` / `from x import ...`), read from the payload so the
 // dependency table cannot drift from the code. Only names in SCRIPT_NAMES count; stdlib imports are ignored.
-function scriptImports(payloadRoot, name) {
+// Reads the installed copy when there is one: what runs is the repo's script, and an older install's scripts may not
+// import what the bundled version does (#424). A missing installed copy falls back to the bundled one.
+function scriptImports(payloadRoot, name, targetRoot) {
   let src = "";
-  try { src = readFileSync(join(payloadRoot, PAYLOAD.scriptsDir, name), "utf8"); } catch { return []; }
+  try {
+    src = readFileSync(join(targetRoot, PATHS.scriptsDir, name), "utf8");
+  } catch {
+    try { src = readFileSync(join(payloadRoot, PAYLOAD.scriptsDir, name), "utf8"); } catch { return []; }
+  }
   const mods = new Set();
   for (const m of src.matchAll(/^[ \t]*(?:from[ \t]+(\w+)[ \t]+import\b|import[ \t]+([\w, \t]+))/gm)) {
     if (m[1]) mods.add(m[1]);
@@ -50,7 +56,7 @@ export function findMissingScripts(payloadRoot, targetRoot = ".") {
   const required = new Set(SCRIPT_NAMES.filter((n) => text.includes(n)));
   const queue = [...required];
   while (queue.length) {
-    for (const dep of scriptImports(payloadRoot, queue.pop())) if (!required.has(dep)) { required.add(dep); queue.push(dep); }
+    for (const dep of scriptImports(payloadRoot, queue.pop(), targetRoot)) if (!required.has(dep)) { required.add(dep); queue.push(dep); }
   }
   return SCRIPT_NAMES.filter((n) => required.has(n) && exists(join(payloadRoot, PAYLOAD.scriptsDir, n)) && !exists(join(targetRoot, PATHS.scriptsDir, n)));
 }

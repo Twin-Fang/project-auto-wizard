@@ -7,7 +7,7 @@
 #
 # Project settings (env section)
 #   PROJECT_NAME : project name
-#   NODE_VERSION : Node.js version (default: 20.15.0)
+#   NODE_VERSION : Node.js version (default: 22, a supported LTS line)
 #   ENV_FILE     : environment file name (default: .env)
 
 name: PROJECT-REACT-CI
@@ -21,7 +21,7 @@ on:
 
 env:
   PROJECT_NAME: "__PROJECT_NAME__"  # @wizard ask:@repo
-  NODE_VERSION: "20.15.0"
+  NODE_VERSION: "22"
   ENV_FILE: ".env"
   # Subdirectory of this project in a monorepo ('.' means always verify)
   PROJECT_PATH: "."  # @wizard auto:project-path
