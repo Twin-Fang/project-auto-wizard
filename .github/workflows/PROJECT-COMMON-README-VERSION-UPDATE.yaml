@@ -227,6 +227,18 @@ jobs:
           else
             # Update the existing version line
 
+            # >>> readme-already-current
+            # The line already shows the current version (any date): leave README alone. The release PR's
+            # version-confirm commit owns this line, so a date-only commit here would exist only on
+            # main and conflict with the next release PR (#423).
+            # Dots as [.] (no backslash escaping, which shells on some platforms rewrite)
+            VERSION_RE=$(printf '%s' "$LATEST_VERSION" | sed 's/[.]/[.]/g')
+            if printf '%s\n' "$VERSION_LINE" | grep -qE ":[[:space:]]*v?${VERSION_RE}([[:space:]]*\([0-9]{4}-[0-9]{2}-[0-9]{2}\))?[[:space:]]*$"; then
+              echo "$(m wf_readme.already_current version="$LATEST_VERSION")"
+              exit 0
+            fi
+            # <<< readme-already-current
+
             # Validate the line format
             if [[ "$VERSION_LINE" =~ \*\* ]]; then
               echo ""
