@@ -130,7 +130,7 @@ flowchart TD
         direction LR
         E["自动合并"] --> F["标签和 Release"] --> G["README 和部署"]
     end
-    D --> E
+    S1 --> S2
 ```
 
 使用 `trunk-based`（发布分支同时也是开发分支）时，每次 push 到 `main` 都是一次发布：

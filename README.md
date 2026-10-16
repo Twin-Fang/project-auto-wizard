@@ -131,7 +131,7 @@ flowchart TD
         direction LR
         E["automerge"] --> F["tag and Release"] --> G["README and deploys"]
     end
-    D --> E
+    S1 --> S2
 ```
 
 With `trunk-based` (the release branch is also the development branch), every push to `main` is a release:

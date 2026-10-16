@@ -130,7 +130,7 @@ flowchart TD
         direction LR
         E["자동 머지"] --> F["태그와 Release"] --> G["README와 배포"]
     end
-    D --> E
+    S1 --> S2
 ```
 
 `trunk-based`(릴리스 브랜치가 곧 개발 브랜치)에서는 `main`에 push할 때마다 릴리스됩니다.

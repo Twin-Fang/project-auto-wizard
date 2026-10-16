@@ -130,7 +130,7 @@ flowchart TD
         direction LR
         E["自動マージ"] --> F["タグと Release"] --> G["README とデプロイ"]
     end
-    D --> E
+    S1 --> S2
 ```
 
 `trunk-based`（リリースブランチが開発ブランチを兼ねる）では、`main` への push ごとにリリースされます:
