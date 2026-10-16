@@ -370,7 +370,8 @@ jobs:
           await github.rest.checks.create({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            name: 'Build Verification',
+            // Not the job's name: a check run named like a job shows up twice in the run and in required-check lists (#424)
+            name: 'CI Build Check',
             // On a PR, context.sha is the temporary merge commit; attach the check run to the PR head commit
             head_sha: context.payload.pull_request?.head?.sha ?? context.sha,
             status: 'completed',
