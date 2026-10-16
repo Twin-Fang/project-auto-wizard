@@ -25,11 +25,13 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 
 [Full release history](CHANGELOG.md)
 
-## Why
+## What is project-auto-wizard?
 
-Every new project starts with the same chores before the first feature: decide how versions are bumped, keep a CHANGELOG, write release notes, tag releases, and copy CI/CD workflows over from the last project and fix them up. It takes hours, and each repo ends up slightly different.
+Every new project starts with the same chores before the first feature: decide how versions go up, keep a CHANGELOG, write release notes, tag releases, and copy CI/CD workflows over from the last project. It takes hours, and each repository ends up slightly different.
 
-project-auto-wizard does that setup once, with a few prompts. After that, merging a release PR is all it takes to cut a release.
+project-auto-wizard does that setup once. Run it in your repository, answer a few questions, and it writes ordinary GitHub Actions workflows and a few scripts into `.github/`. From then on your commit messages decide the next version: a `feat:` raises the minor version, a `fix:` the patch, a `!` the major. Open a pull request from `develop` to `main` and the workflows write the release notes, update the CHANGELOG, merge, tag `vX.Y.Z` and publish a GitHub Release.
+
+It is a setup tool, not a release service. Think of it as a carpenter who builds the shelves and leaves: nothing runs outside your repository, nothing calls home, and every file it writes is yours to read, change or remove.
 
 <a id="try-it"></a>
 
@@ -45,24 +47,65 @@ Step-by-step guide with what to check after each step: [Try it in your browser](
 
 ## Quickstart
 
-Run it in the root of your repository (Node.js 20.12 or later):
+In the root of your repository (Node.js 20.12 or later):
 
-```bash
-npx project-auto-wizard
-```
+1. **Install.** It detects your project type and asks about the branch strategy, the deploy style and Copilot summaries. The defaults are fine.
 
-It detects your project type, asks a few questions (branch strategy, deploy style, whether to use Copilot for summaries) and writes the files. For CI or scripts, run it non-interactively:
+   ```bash
+   npx project-auto-wizard
+   ```
 
-```bash
-npx project-auto-wizard --mode full --force --type spring,react
-npx project-auto-wizard --mode full --force --type node --dry-run   # preview only, writes nothing
-```
+   ✓ `.github/workflows/PROJECT-COMMON-*.yaml`, `.github/scripts/` and `version.yml` exist, and `README.md` ends with a `Latest Version` section.
 
-Commit the generated files and push. `npx project-auto-wizard --mode doctor` checks the repository settings the workflows depend on.
+2. **Check the repository settings** the workflows depend on.
+
+   ```bash
+   npx project-auto-wizard --mode doctor
+   ```
+
+   ✓ Every item is OK, or the output says what to change and where.
+
+3. **Commit, push, and create `develop`.**
+
+   ```bash
+   git add .github version.yml README.md   # and .gitignore if the wizard added entries
+   git commit -m "chore: add release automation"
+   git push origin main && git push origin main:develop
+   ```
+
+   ✓ The **Actions** tab shows `PROJECT-RELEASE-PUBLISH` and `README VERSION UPDATE` succeeding on `main`, without creating a release.
+
+4. **Release.** Commit `feat: …` to `develop` and open a pull request from `develop` to `main`.
+
+   ✓ Within a minute the PR gets a release-notes comment and is merged by `github-actions`, and **Releases** shows `vX.Y.Z`.
+
+For CI or scripts, run it without prompts: `npx project-auto-wizard --mode full --force --type spring,react`. Add `--dry-run` to preview without writing anything.
 
 Messages are in English or Korean (`en` | `ko`). The interactive wizard asks for the language first when nothing says which one to use; you can also pick one with `--lang`, the `PROJECT_AUTO_WIZARD_LANG` environment variable, or `language` in `version.yml`, in that order of precedence. The environment variable applies to that run only and does not overwrite a valid saved `language` (it is saved only when there is none); `--lang` does.
 
 ## What you get
+
+A Spring project, for example, ends up with:
+
+```text
+your-repo/
+├── .github/
+│   ├── workflows/
+│   │   ├── PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml   # release PR: next version, notes, CHANGELOG, automerge
+│   │   ├── PROJECT-COMMON-RELEASE-PUBLISH.yaml          # tag vX.Y.Z and GitHub Release
+│   │   ├── PROJECT-COMMON-RELEASE-PR-MERGED.yaml        # publishes release PRs merged with squash or rebase
+│   │   ├── PROJECT-COMMON-VERSION-CONTROL.yaml          # patch release for direct pushes to main
+│   │   ├── PROJECT-COMMON-README-VERSION-UPDATE.yaml    # keeps the README "Latest Version" line current
+│   │   ├── PROJECT-COMMON-AI-PR-SUMMARY.yaml            # summary comment on feature PRs
+│   │   ├── PROJECT-COMMON-ISSUE-HELPER.yaml             # branch name and commit message on new issues
+│   │   └── PROJECT-SPRING-*.yml / *.yaml                # CI, PR preview and deploy for your stack
+│   ├── scripts/*.py                                     # the logic behind the workflows (Python standard library)
+│   └── .wizard/baseline.json                            # install record, used to keep your edits on update
+├── version.yml                                          # single source: version, types, paths, branches, options
+└── README.md                                            # + "Latest Version" section
+```
+
+`CHANGELOG.md` and `CHANGELOG.json` appear with the first release.
 
 | Installed | Purpose |
 |---|---|
@@ -74,19 +117,68 @@ Messages are in English or Korean (`en` | `ko`). The interactive wizard asks for
 
 The files are yours to read and edit. Running the wizard again updates them: files you changed are kept when the upstream version did not change, and when both changed it asks whether to keep yours, replace with a backup, or add the new version alongside.
 
-How a release flows with the default `pr-flow` strategy:
+## How a release flows
 
-```
-feature PRs ──▶ develop ──▶ release PR (develop → main)
-                              │  next version from commit types: feat → minor, ! → major, else patch
-                              │  release notes written, CHANGELOG.md / CHANGELOG.json updated
-                              ▼
-                           automerge ──▶ tag vX.Y.Z + GitHub Release ──▶ README version updated
+With the default `pr-flow` strategy (`develop` → `main`):
+
+```mermaid
+flowchart LR
+    A[feature PRs] --> B[develop]
+    B --> C[release PR<br/>develop to main]
+    C --> D[next version from commit types<br/>feat: minor, fix: patch, !: major]
+    D --> E[release notes and CHANGELOG]
+    E --> F[automerge]
+    F --> G[tag vX.Y.Z and GitHub Release]
+    G --> H[README version line and deploy workflows]
 ```
 
-With `trunk-based` (release branch = development branch), every push to the release branch runs the same steps in one workflow.
+With `trunk-based` (the release branch is also the development branch), every push to `main` is a release:
+
+```mermaid
+flowchart LR
+    A[push to main] --> B[next version from commit types]
+    B --> C[release notes and CHANGELOG]
+    C --> D[tag vX.Y.Z and GitHub Release]
+    D --> E[README version line and deploy workflows]
+```
 
 Release notes are rule-based by default. You can turn on GitHub Copilot (uses your Copilot AI Credits) or point it at any OpenAI-compatible API. If a model is unavailable or fails, it falls back to the rules, so a release is never blocked by the summary step.
+
+## Built for real repositories
+
+- **Works with default settings.** Release automation needs no secrets and no personal access token, and runs under an organization's default workflow permission (read). Each workflow declares the permissions it needs.
+- **Every merge method publishes.** A release PR merged with a merge commit, squash or rebase is published; a direct push to `main` gets a patch release; a new repository created from a template does not.
+- **Protected branches are explained, not hidden.** When a rule blocks the automatic merge, the run says which rule and what to change, and a release PR you merge by hand still publishes.
+- **Your edits survive updates.** Updates compare against the install record and keep files you changed; `--dry-run`, `--mode status`, `--mode doctor` and `--mode uninstall` show and undo every change.
+- **Tested.** Over 1,800 Node.js and 300 Python tests run on every pull request on Node.js 20, 22 and 24, Linux and Windows. Release flows are exercised end to end on real GitHub repositories, with the results recorded in the issues.
+
+## Supported project types
+
+| Type | Detected from | Installed on top of release automation |
+|---|---|---|
+| `spring` | `build.gradle`, `build.gradle.kts`, `pom.xml` | CI, server deploy (single server / zero-downtime Nginx or Traefik), PR preview |
+| `flutter` | `pubspec.yaml` | CI, Android (Firebase, Play Store, self-hosted, test APK), iOS TestFlight |
+| `react` (React / Next.js) | `package.json` with a `react` or `next` dependency | CI, CI + CD |
+| `python` | `pyproject.toml`, `setup.py`, `requirements.txt` | CI, PR preview, server deploy |
+| `go` | `go.mod` | CI, PR preview, server deploy |
+| `node`, `react-native`, `react-native-expo`, `basic` | `package.json` / fallback | Release automation only |
+
+Several types can live in one repo (`--type spring,react`), and monorepo subfolders are set with `--paths "flutter=app,react=client"`.
+
+<a id="post-install"></a>
+
+## After installing
+
+| Item | What to do |
+|---|---|
+| Workflow permissions | The installed workflows declare their own permissions. Set Settings → Actions → General → Workflow permissions to **Read and write permissions** only if your own workflows rely on the default |
+| Merge commits | Allow merge commits so the release PR can automerge |
+| `WORKFLOW_PAT` (optional) | Without it, a `GITHUB_TOKEN` fallback finishes the release, including the deploy workflows on the release branch, about 20 seconds later. Required only if you add your own workflows triggered by the Release event. Issue it from a bot or machine account (scopes: `repo`, `workflow`) |
+| Copilot summaries (optional) | Off by default. Uses Copilot AI Credits; organizations must allow Copilot CLI billed to the organization |
+
+<a id="flutter-store"></a>
+
+Flutter store deployment (Play Store, Firebase, TestFlight) setup is described in the [Flutter page of the docs site](https://twin-fang.github.io/project-auto-wizard/project-types/flutter/).
 
 ## Without / with
 
@@ -131,34 +223,6 @@ Skip it if:
 - the release itself must publish to a package registry (add your own workflow on the Release event, as this repo does for npm; this needs `WORKFLOW_PAT`, because releases created with `GITHUB_TOKEN` don't trigger other workflows)
 - your packages need independent versions
 - the repository is not on GitHub
-
-## Supported project types
-
-| Type | Detected from | Installed on top of release automation |
-|---|---|---|
-| `spring` | `build.gradle`, `build.gradle.kts`, `pom.xml` | CI, server deploy (single server / zero-downtime Nginx or Traefik), PR preview |
-| `flutter` | `pubspec.yaml` | CI, Android (Firebase, Play Store, self-hosted, test APK), iOS TestFlight |
-| `react` (React / Next.js) | `package.json` with a `react` or `next` dependency | CI, CI + CD |
-| `python` | `pyproject.toml`, `setup.py`, `requirements.txt` | CI, PR preview, server deploy |
-| `go` | `go.mod` | CI, PR preview, server deploy |
-| `node`, `react-native`, `react-native-expo`, `basic` | `package.json` / fallback | Release automation only |
-
-Several types can live in one repo (`--type spring,react`), and monorepo subfolders are set with `--paths "flutter=app,react=client"`.
-
-<a id="post-install"></a>
-
-## After installing
-
-| Item | What to do |
-|---|---|
-| Workflow permissions | The installed workflows declare their own permissions. Set Settings → Actions → General → Workflow permissions to **Read and write permissions** only if your own workflows rely on the default |
-| Merge commits | Allow merge commits so the release PR can automerge |
-| `WORKFLOW_PAT` (optional) | Without it, a `GITHUB_TOKEN` fallback finishes the release, including the deploy workflows on the release branch, about 20 seconds later. Required only if you add your own workflows triggered by the Release event. Issue it from a bot or machine account (scopes: `repo`, `workflow`) |
-| Copilot summaries (optional) | Off by default. Uses Copilot AI Credits; organizations must allow Copilot CLI billed to the organization |
-
-<a id="flutter-store"></a>
-
-Flutter store deployment (Play Store, Firebase, TestFlight) setup is described in the [Flutter page of the docs site](https://twin-fang.github.io/project-auto-wizard/project-types/flutter/).
 
 ## Documentation
 
