@@ -121,8 +121,16 @@ your-repo/
 デフォルトの `pr-flow` 戦略（`develop` → `main`）:
 
 ```mermaid
-flowchart LR
-    A["機能 PR"] --> B["develop"] --> C["リリース PR"] --> D["コミットでバージョン決定<br/>ノートと CHANGELOG"] --> E["自動マージ"] --> F["タグと Release"] --> G["README とデプロイ"]
+flowchart TD
+    subgraph S1["リリース PR で"]
+        direction LR
+        A["機能 PR"] --> B["develop"] --> C["リリース PR"] --> D["コミットでバージョン決定<br/>ノートと CHANGELOG"]
+    end
+    subgraph S2["マージ後"]
+        direction LR
+        E["自動マージ"] --> F["タグと Release"] --> G["README とデプロイ"]
+    end
+    D --> E
 ```
 
 `trunk-based`（リリースブランチが開発ブランチを兼ねる）では、`main` への push ごとにリリースされます:

@@ -121,8 +121,16 @@ your-repo/
 默认的 `pr-flow` 策略（`develop` → `main`）：
 
 ```mermaid
-flowchart LR
-    A["功能 PR"] --> B["develop"] --> C["发布 PR"] --> D["根据提交决定版本<br/>说明和 CHANGELOG"] --> E["自动合并"] --> F["标签和 Release"] --> G["README 和部署"]
+flowchart TD
+    subgraph S1["发布 PR 上"]
+        direction LR
+        A["功能 PR"] --> B["develop"] --> C["发布 PR"] --> D["根据提交决定版本<br/>说明和 CHANGELOG"]
+    end
+    subgraph S2["合并之后"]
+        direction LR
+        E["自动合并"] --> F["标签和 Release"] --> G["README 和部署"]
+    end
+    D --> E
 ```
 
 使用 `trunk-based`（发布分支同时也是开发分支）时，每次 push 到 `main` 都是一次发布：

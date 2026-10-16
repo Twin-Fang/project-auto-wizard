@@ -122,8 +122,16 @@ The files are yours to read and edit. Running the wizard again updates them: fil
 With the default `pr-flow` strategy (`develop` → `main`):
 
 ```mermaid
-flowchart LR
-    A["feature PRs"] --> B["develop"] --> C["release PR"] --> D["version from commits<br/>notes and CHANGELOG"] --> E["automerge"] --> F["tag and Release"] --> G["README and deploys"]
+flowchart TD
+    subgraph S1["On the release PR"]
+        direction LR
+        A["feature PRs"] --> B["develop"] --> C["release PR"] --> D["version from commits<br/>notes and CHANGELOG"]
+    end
+    subgraph S2["After the merge"]
+        direction LR
+        E["automerge"] --> F["tag and Release"] --> G["README and deploys"]
+    end
+    D --> E
 ```
 
 With `trunk-based` (the release branch is also the development branch), every push to `main` is a release:

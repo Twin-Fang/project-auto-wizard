@@ -121,8 +121,16 @@ your-repo/
 기본 `pr-flow` 전략(`develop` → `main`):
 
 ```mermaid
-flowchart LR
-    A["기능 PR"] --> B["develop"] --> C["릴리스 PR"] --> D["커밋으로 버전 결정<br/>노트와 CHANGELOG"] --> E["자동 머지"] --> F["태그와 Release"] --> G["README와 배포"]
+flowchart TD
+    subgraph S1["릴리스 PR에서"]
+        direction LR
+        A["기능 PR"] --> B["develop"] --> C["릴리스 PR"] --> D["커밋으로 버전 결정<br/>노트와 CHANGELOG"]
+    end
+    subgraph S2["머지 후"]
+        direction LR
+        E["자동 머지"] --> F["태그와 Release"] --> G["README와 배포"]
+    end
+    D --> E
 ```
 
 `trunk-based`(릴리스 브랜치가 곧 개발 브랜치)에서는 `main`에 push할 때마다 릴리스됩니다.
