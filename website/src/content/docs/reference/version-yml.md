@@ -105,3 +105,5 @@ The other `metadata` fields (`template.version`, …) are bookkeeping written by
 ```
 
 Markdown bold inside the line, a missing colon, or regex special characters (`*`, `[`, `]`, `^`, `$`) are not supported.
+
+In pr-flow the release PR's version-confirm commit rewrites this line, so the README on the tag already shows the new version. `README-VERSION-UPDATE` leaves the line alone when it already shows the current version (whatever the date), so the release branch never gets a date-only commit that the development branch lacks. The installer writes the line in the same `vX.Y.Z (YYYY-MM-DD)` format, with the install date.
