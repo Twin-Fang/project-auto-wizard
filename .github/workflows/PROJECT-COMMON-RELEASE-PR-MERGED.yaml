@@ -1,0 +1,80 @@
+# project-auto-wizard:managed-workflow
+# PROJECT-COMMON-RELEASE-PR-MERGED.yaml
+# Publish the release after a squash or rebase merge of the release PR
+#
+# The version-confirm commit on the release PR carries [skip ci] (the bot pushes it to
+# the open PR, and without the marker GitHub would queue that PR's workflows for
+# approval). A squash merge with the default message (the commit list) or a rebase merge
+# puts that [skip ci] into the merge result, so GitHub skips every push workflow on
+# main, RELEASE-PUBLISH included. pull_request_target is not affected by
+# [skip ci], so this workflow reads the merged release PR and, only when the merge
+# commit carries a skip marker, dispatches RELEASE-PUBLISH (#398). A merge commit or a
+# title-only squash is published by the push as usual, so nothing is dispatched twice.
+#
+# Security: pull_request_target runs with this repository's token, so this workflow never
+# checks out or runs code from the PR. It reads the message catalog from main
+# only, ignores PRs from forks and other heads, and its token can only read contents and
+# dispatch workflows.
+#
+# pr-flow only (not installed in trunk-based mode, where every push is a release).
+
+name: PROJECT-RELEASE-PR-MERGED
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: ["main"]
+
+permissions:
+  actions: write
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  dispatch-release:
+    name: Publish a release whose merge push was skipped
+    # Merged release PRs only: head is the development branch of THIS repository (forks excluded)
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      # Message catalog and language setting from the release branch (never the PR's code)
+      - name: Checkout message catalog
+        uses: actions/checkout@v7
+        with:
+          ref: "main"
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/messages.py
+            version.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Dispatch RELEASE-PUBLISH when the merge skipped the push workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
+          m() { python3 "$GITHUB_WORKSPACE/.github/scripts/messages.py" get "$@"; }
+          MERGE_MESSAGE=$(gh api "repos/$GH_REPO/commits/$MERGE_SHA" --jq .commit.message)
+
+          # >>> merge-skipped-push
+          # Skip markers GitHub honors for push events (case-insensitive)
+          if ! printf '%s\n' "$MERGE_MESSAGE" | grep -qiE '\[(skip ci|ci skip|no ci|skip actions|actions skip)\]'; then
+            echo "$(m wf_release_merged.push_runs pr_number="$PR_NUMBER")"
+            exit 0
+          fi
+          # <<< merge-skipped-push
+
+          if gh workflow run PROJECT-COMMON-RELEASE-PUBLISH.yaml --ref "main"; then
+            echo "$(m wf_release_merged.dispatched pr_number="$PR_NUMBER")"
+          else
+            echo "::error::$(m wf_release_merged.dispatch_failed main_branch="main")"
+            exit 1
+          fi

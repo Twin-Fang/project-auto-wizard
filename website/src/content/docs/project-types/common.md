@@ -12,6 +12,7 @@ Every project type, including `basic`, gets the same release automation. The typ
 | `PROJECT-COMMON-AUTO-CHANGELOG-CONTROL` | PR from the development branch to the release branch | Confirms the version, writes release notes and CHANGELOG, automerges. pr-flow only. |
 | `PROJECT-COMMON-RELEASE-PUBLISH` | Push to the release branch, `workflow_dispatch` | Tag `vX.Y.Z` and GitHub Release. In trunk-based mode it also bumps the version and writes the CHANGELOG. |
 | `PROJECT-COMMON-VERSION-CONTROL` | Push to the release branch (skipped when only `CHANGELOG.*` or `version.yml` changed), `workflow_dispatch` | Safety-net patch bump for direct pushes. pr-flow only. |
+| `PROJECT-COMMON-RELEASE-PR-MERGED` | Release PR merged into the release branch (`pull_request_target`) | Dispatches `RELEASE-PUBLISH` when a squash or rebase merge carried `[skip ci]` and skipped the push workflows. Never checks out PR code. pr-flow only. |
 | `PROJECT-COMMON-README-VERSION-UPDATE` | Push to the release branch, `workflow_dispatch` | Rewrites the version line under `<!-- AUTO-VERSION-SECTION -->` in `README.md`. |
 | `PROJECT-COMMON-AI-PR-SUMMARY` | PR to the release branch | Posts a summary comment. Skips release PRs. |
 | `PROJECT-COMMON-ISSUE-HELPER` | Issue opened, or title edited | Comments a normalized branch name and commit message. |

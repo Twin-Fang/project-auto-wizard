@@ -12,6 +12,7 @@ description: 모든 프로젝트 타입에 설치되는 공통 워크플로우�
 | `PROJECT-COMMON-AUTO-CHANGELOG-CONTROL` | 개발 브랜치 → 릴리스 브랜치 PR | 버전 확정, 릴리스 노트와 CHANGELOG 작성, automerge. pr-flow 전용. |
 | `PROJECT-COMMON-RELEASE-PUBLISH` | 릴리스 브랜치 push, `workflow_dispatch` | 태그 `vX.Y.Z`와 GitHub Release. trunk-based에서는 버전 승격과 CHANGELOG 작성까지 합니다. |
 | `PROJECT-COMMON-VERSION-CONTROL` | 릴리스 브랜치 push (`CHANGELOG.*`, `version.yml`만 바뀐 push 제외), `workflow_dispatch` | 직접 push에 대한 patch 승격 안전망. pr-flow 전용. |
+| `PROJECT-COMMON-RELEASE-PR-MERGED` | 릴리스 PR이 릴리스 브랜치에 머지됨(`pull_request_target`) | squash·rebase 머지 결과에 `[skip ci]`가 있어 push 워크플로우가 건너뛰어졌을 때 `RELEASE-PUBLISH`를 실행합니다. PR 코드를 checkout하지 않습니다. pr-flow 전용. |
 | `PROJECT-COMMON-README-VERSION-UPDATE` | 릴리스 브랜치 push, `workflow_dispatch` | `README.md`의 `<!-- AUTO-VERSION-SECTION -->` 아래 버전 줄 갱신 |
 | `PROJECT-COMMON-AI-PR-SUMMARY` | 릴리스 브랜치 대상 PR | 요약 댓글. 릴리스 PR은 건너뜀. |
 | `PROJECT-COMMON-ISSUE-HELPER` | 이슈 생성, 제목 수정 | 정규화한 브랜치명과 커밋 메시지를 댓글로 안내 |

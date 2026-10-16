@@ -312,7 +312,8 @@ jobs:
               echo "$(m wf_version.already_contains develop_branch="$DEVELOP_BRANCH" main_branch="{{MAIN_BRANCH}}")"
               exit 0
             fi
-            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/{{MAIN_BRANCH}}"; then
+            # No [skip ci]: as the head of {{DEVELOP_BRANCH}} it would make GitHub skip the release PR's workflows (#426)
+            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH}" "origin/{{MAIN_BRANCH}}"; then
               git merge --abort 2>/dev/null || true
               echo "::warning::$(m wf_version.backmerge_conflict prod="{{MAIN_BRANCH}}" dev="$DEVELOP_BRANCH" manual="$MANUAL")"
               exit 0
