@@ -24,11 +24,13 @@
 
 最新版本和完整的变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 为什么做这个
+## project-auto-wizard 是什么？
 
-每个新项目在写第一个功能之前，都要先做同样的杂事：决定版本怎么递增，维护 CHANGELOG，撰写发布说明，给发布打标签，再把上一个项目的 CI/CD 工作流复制过来修修改改。这要花几个小时，而且每个仓库最后都会略有不同。
+每个新项目在写第一个功能之前，都要先做同样的杂事：决定版本怎么递增，维护 CHANGELOG，撰写发布说明，给发布打标签，再把上一个项目的 CI/CD 工作流复制过来。这要花几个小时，而且每个仓库最后都会略有不同。
 
-project-auto-wizard 用几个提问一次性完成这些配置。之后只要合并发布 PR，就能完成一次发布。
+project-auto-wizard 一次性完成这些配置。在仓库中运行它并回答几个问题，它会把普通的 GitHub Actions 工作流和几个脚本写入 `.github/`。之后由提交信息决定下一个版本：`feat:` 递增次版本号，`fix:` 递增修订号，`!` 递增主版本号。从 `develop` 向 `main` 发起 PR，工作流就会撰写发布说明、更新 CHANGELOG、合并、打上 `vX.Y.Z` 标签并发布 GitHub Release。
+
+它是配置工具，不是发布服务。就像一位木匠：把架子搭好就离开。没有任何东西在你的仓库之外运行，也不会向外部发送数据，它写入的每个文件你都可以阅读、修改或删除。
 
 <a id="try-it"></a>
 
@@ -46,22 +48,63 @@ project-auto-wizard 用几个提问一次性完成这些配置。之后只要合
 
 在仓库根目录运行（需要 Node.js 20.12 或更高版本）：
 
-```bash
-npx project-auto-wizard
-```
+1. **安装。** 它会检测项目类型，并询问分支策略、部署方式以及是否使用 Copilot 生成摘要。直接使用默认值即可。
 
-它会检测项目类型，询问几个问题（分支策略、部署方式、是否使用 Copilot 生成摘要），然后写入文件。在 CI 或脚本中，可以用非交互方式运行：
+   ```bash
+   npx project-auto-wizard
+   ```
 
-```bash
-npx project-auto-wizard --mode full --force --type spring,react
-npx project-auto-wizard --mode full --force --type node --dry-run   # preview only, writes nothing
-```
+   ✓ 生成了 `.github/workflows/PROJECT-COMMON-*.yaml`、`.github/scripts/` 和 `version.yml`，`README.md` 末尾多了 `Latest Version` 部分。
 
-提交生成的文件并 push。`npx project-auto-wizard --mode doctor` 会检查工作流所依赖的仓库设置。
+2. **检查工作流所依赖的仓库设置。**
+
+   ```bash
+   npx project-auto-wizard --mode doctor
+   ```
+
+   ✓ 所有项目都是 OK，或者输出会说明需要在哪里改什么。
+
+3. **提交、push 并创建 `develop`。**
+
+   ```bash
+   git add .github version.yml README.md   # 如果向导添加了条目，也加上 .gitignore
+   git commit -m "chore: add release automation"
+   git push origin main && git push origin main:develop
+   ```
+
+   ✓ **Actions** 页签中，`main` 上的 `PROJECT-RELEASE-PUBLISH` 和 `README VERSION UPDATE` 成功运行，且不会创建发布。
+
+4. **发布。** 向 `develop` 提交 `feat: …`，然后从 `develop` 向 `main` 发起 PR。
+
+   ✓ 一分钟内 PR 会收到发布说明评论并由 `github-actions` 合并，**Releases** 中出现 `vX.Y.Z`。
+
+在 CI 或脚本中可以不经提问运行：`npx project-auto-wizard --mode full --force --type spring,react`。加上 `--dry-run` 只预览，不写入任何文件。
 
 消息语言为英语或韩语（`en` | `ko`）。如果没有任何信息指明语言，交互式向导会首先询问语言，也可以通过 `--lang`、环境变量 `PROJECT_AUTO_WIZARD_LANG` 或 `version.yml` 中的 `language` 指定，优先级依次降低。环境变量仅对该次运行生效，不会覆盖已保存的有效 `language`（仅在没有有效值时才保存）；如需覆盖请使用 `--lang`。
 
 ## 安装内容
+
+以 Spring 项目为例，安装后会得到：
+
+```text
+your-repo/
+├── .github/
+│   ├── workflows/
+│   │   ├── PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml   # 发布 PR：下一个版本、说明、CHANGELOG、自动合并
+│   │   ├── PROJECT-COMMON-RELEASE-PUBLISH.yaml          # vX.Y.Z 标签和 GitHub Release
+│   │   ├── PROJECT-COMMON-RELEASE-PR-MERGED.yaml        # 发布以 squash 或 rebase 合并的发布 PR
+│   │   ├── PROJECT-COMMON-VERSION-CONTROL.yaml          # 直接 push 到 main 时发布修订版本
+│   │   ├── PROJECT-COMMON-README-VERSION-UPDATE.yaml    # 更新 README 的 "Latest Version" 行
+│   │   ├── PROJECT-COMMON-AI-PR-SUMMARY.yaml            # 功能 PR 的摘要评论
+│   │   ├── PROJECT-COMMON-ISSUE-HELPER.yaml             # 为新 issue 给出分支名和提交信息
+│   │   └── PROJECT-SPRING-*.yml / *.yaml                # 技术栈的 CI、PR 预览和部署
+│   ├── scripts/*.py                                     # 工作流背后的逻辑（Python 标准库）
+│   └── .wizard/baseline.json                            # 安装记录，更新时用来保留你的修改
+├── version.yml                                          # 唯一来源：版本、类型、路径、分支、选项
+└── README.md                                            # + "Latest Version" 部分
+```
+
+`CHANGELOG.md` 和 `CHANGELOG.json` 会在第一次发布时生成。
 
 | 安装项 | 用途 |
 |---|---|
@@ -73,19 +116,67 @@ npx project-auto-wizard --mode full --force --type node --dry-run   # preview on
 
 这些文件归你所有，可以随意阅读和修改。再次运行向导会更新它们：如果上游版本没有变化，你修改过的文件会被保留；如果双方都有变化，向导会询问是保留你的文件、备份后替换，还是把新版本放在旁边。
 
-默认的 `pr-flow` 策略下，一次发布的流程如下：
+## 一次发布的流程
 
-```
-feature PRs ──▶ develop ──▶ release PR (develop → main)
-                              │  next version from commit types: feat → minor, ! → major, else patch
-                              │  release notes written, CHANGELOG.md / CHANGELOG.json updated
-                              ▼
-                           automerge ──▶ tag vX.Y.Z + GitHub Release ──▶ README version updated
+默认的 `pr-flow` 策略（`develop` → `main`）：
+
+```mermaid
+flowchart TD
+    subgraph S1["发布 PR 上"]
+        direction LR
+        A["功能 PR"] --> B["develop"] --> C["发布 PR"] --> D["根据提交决定版本<br/>说明和 CHANGELOG"]
+    end
+    subgraph S2["合并之后"]
+        direction LR
+        E["自动合并"] --> F["标签和 Release"] --> G["README 和部署"]
+    end
+    S1 --> S2
 ```
 
-使用 `trunk-based`（发布分支 = 开发分支）时，每次 push 到发布分支，都会在一个工作流中执行相同的步骤。
+使用 `trunk-based`（发布分支同时也是开发分支）时，每次 push 到 `main` 都是一次发布：
+
+```mermaid
+flowchart LR
+    A["push 到 main"] --> B["根据提交决定版本<br/>说明和 CHANGELOG"] --> C["标签和 Release"] --> D["README 和部署"]
+```
 
 发布说明默认基于规则生成。你可以开启 GitHub Copilot（消耗你的 Copilot AI Credits），或者指向任何兼容 OpenAI 的 API。如果模型不可用或调用失败，会回退到规则生成，因此发布不会被摘要步骤卡住。
+
+## 为真实仓库而设计
+
+- **默认设置即可运行。** 发布自动化不需要任何 Secret 或个人访问令牌，在组织默认的工作流权限（read）下即可运行。每个工作流都声明了自己所需的权限。
+- **任何合并方式都会发布。** 用 merge commit、squash 或 rebase 合并发布 PR 都会发布；直接 push 到 `main` 会发布修订版本；从模板创建的新仓库不会产生发布。
+- **受保护分支会给出说明，而不是静默失败。** 当规则阻止自动合并时，运行日志会说明是哪条规则以及需要改什么；你手动合并的发布 PR 同样会发布。
+- **更新时保留你的修改。** 更新会与安装记录对比，保留你改过的文件；`--dry-run`、`--mode status`、`--mode doctor` 和 `--mode uninstall` 可以查看和撤销所有改动。
+- **经过测试。** 每个 PR 都会在 Node.js 20、22、24 以及 Linux、Windows 上运行 1,800 多个 Node.js 测试和 300 多个 Python 测试；发布流程会在真实的 GitHub 仓库中端到端演练，结果记录在 issue 中。
+
+## 支持的项目类型
+
+| 类型 | 检测依据 | 在发布自动化之外额外安装 |
+|---|---|---|
+| `spring` | `build.gradle`、`build.gradle.kts`、`pom.xml` | CI、服务器部署（单台服务器 / Nginx 或 Traefik 零停机）、PR 预览 |
+| `flutter` | `pubspec.yaml` | CI、Android（Firebase、Play Store、自托管、测试 APK）、iOS TestFlight |
+| `react`（React / Next.js） | `package.json` 中的 `react` 或 `next` dependency | CI、CI + CD |
+| `python` | `pyproject.toml`、`setup.py`、`requirements.txt` | CI、PR 预览、服务器部署 |
+| `go` | `go.mod` | CI、PR 预览、服务器部署 |
+| `node`、`react-native`、`react-native-expo`、`basic` | `package.json` / 兜底 | 仅发布自动化 |
+
+一个仓库里可以有多种类型（`--type spring,react`），monorepo 的子目录用 `--paths "flutter=app,react=client"` 指定。
+
+<a id="post-install"></a>
+
+## 安装之后
+
+| 事项 | 需要做什么 |
+|---|---|
+| Workflow permissions | 已安装的工作流会自行声明所需权限。只有当你自己的工作流依赖默认值时，才需要把 Settings → Actions → General → Workflow permissions 设为 **Read and write permissions** |
+| Merge commit | 允许 merge commit，发布 PR 才能 automerge |
+| `WORKFLOW_PAT`（可选） | 没有它时，`GITHUB_TOKEN` 回退方案会在约 20 秒后完成发布，包括发布分支上的部署工作流。只有当你自己添加了由 Release 事件触发的工作流时才需要。请用 bot 或 machine 账号签发（scopes：`repo`、`workflow`） |
+| Copilot 摘要（可选） | 默认关闭。会消耗 Copilot AI Credits；组织需要允许向组织计费的 Copilot CLI |
+
+<a id="flutter-store"></a>
+
+Flutter 商店部署（Play Store、Firebase、TestFlight）的设置见[文档站点的 Flutter 页面](https://twin-fang.github.io/project-auto-wizard/project-types/flutter/)。
 
 ## 使用前后对比
 
@@ -130,34 +221,6 @@ feature PRs ──▶ develop ──▶ release PR (develop → main)
 - 发布本身必须推送到包仓库（请在 Release 事件上添加你自己的工作流，就像本仓库发布 npm 那样；这需要 `WORKFLOW_PAT`，因为用 `GITHUB_TOKEN` 创建的 Release 不会触发其他工作流）
 - 你的包需要独立的版本号
 - 仓库不在 GitHub 上
-
-## 支持的项目类型
-
-| 类型 | 检测依据 | 在发布自动化之外额外安装 |
-|---|---|---|
-| `spring` | `build.gradle`、`build.gradle.kts`、`pom.xml` | CI、服务器部署（单台服务器 / Nginx 或 Traefik 零停机）、PR 预览 |
-| `flutter` | `pubspec.yaml` | CI、Android（Firebase、Play Store、自托管、测试 APK）、iOS TestFlight |
-| `react`（React / Next.js） | `package.json` 中的 `react` 或 `next` dependency | CI、CI + CD |
-| `python` | `pyproject.toml`、`setup.py`、`requirements.txt` | CI、PR 预览、服务器部署 |
-| `go` | `go.mod` | CI、PR 预览、服务器部署 |
-| `node`、`react-native`、`react-native-expo`、`basic` | `package.json` / 兜底 | 仅发布自动化 |
-
-一个仓库里可以有多种类型（`--type spring,react`），monorepo 的子目录用 `--paths "flutter=app,react=client"` 指定。
-
-<a id="post-install"></a>
-
-## 安装之后
-
-| 事项 | 需要做什么 |
-|---|---|
-| Workflow permissions | 已安装的工作流会自行声明所需权限。只有当你自己的工作流依赖默认值时，才需要把 Settings → Actions → General → Workflow permissions 设为 **Read and write permissions** |
-| Merge commit | 允许 merge commit，发布 PR 才能 automerge |
-| `WORKFLOW_PAT`（可选） | 没有它时，`GITHUB_TOKEN` 回退方案会在约 20 秒后完成发布，包括发布分支上的部署工作流。只有当你自己添加了由 Release 事件触发的工作流时才需要。请用 bot 或 machine 账号签发（scopes：`repo`、`workflow`） |
-| Copilot 摘要（可选） | 默认关闭。会消耗 Copilot AI Credits；组织需要允许向组织计费的 Copilot CLI |
-
-<a id="flutter-store"></a>
-
-Flutter 商店部署（Play Store、Firebase、TestFlight）的设置见[文档站点的 Flutter 页面](https://twin-fang.github.io/project-auto-wizard/project-types/flutter/)。
 
 ## 文档
 
