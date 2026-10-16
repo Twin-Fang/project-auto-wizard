@@ -356,7 +356,8 @@ for (const path of bothCopies("VERSION-CONTROL")) {
     assert.ok(idx > -1, "missing back-merge step");
     const step = body.slice(idx, body.indexOf("- name: Summary"));
     assert.ok(step.includes("steps.commit_push.outputs.pushed == 'true'"), "only when the bump was actually pushed");
-    assert.match(step, /git merge --no-edit -m "chore\(version\): merge v\$\{NEW_VERSION\} safety-net bump into \$\{DEVELOP_BRANCH\} \[skip ci\]"/);
+    // No [skip ci]: as the head of develop it would make GitHub skip the release PR's workflows (#426)
+    assert.match(step, /git merge --no-edit -m "chore\(version\): merge v\$\{NEW_VERSION\} safety-net bump into \$\{DEVELOP_BRANCH\}"/);
     assert.ok(step.includes('git push origin "HEAD:$DEVELOP_BRANCH"'));
     assert.ok(step.includes("git merge --abort"), "on conflict, clean up the working tree and only leave guidance");
     assert.ok(!/^\s+exit 1\s*$/m.test(step), "a back-merge failure must not fail the safety-net release");

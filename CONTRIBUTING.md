@@ -27,7 +27,10 @@ node bin/project-auto-wizard.js --mode full --force --type node --dry-run   # pr
 npm test          # everything: node --test + python unittest
 npm run test:node # Node tests only (tests/node/**/*.test.js)
 npm run test:py   # Python tests only (tests/py)
+npm run test:coverage # coverage for src/, bin/ and payload/scripts/ (Node 22.5+, needs `pip install coverage`)
 ```
+
+`npm run test:coverage` writes `coverage/summary.md` and the raw reports (`lcov.info`, `py-coverage.json`) to `coverage/`. CI runs it on ubuntu with Node 24 and shows the table in the job summary. There is no minimum threshold.
 
 When you add a feature or fix a bug, add a test that covers the behavior in the same PR.
 

@@ -249,7 +249,7 @@ test("addVersionSectionToReadme: en -> ko -> en round trip leaves no other-langu
     setLanguage("ko");
     assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "heading-updated");
     const ko = read();
-    assert.match(ko, /## 최신 버전 : v1\.0\.0\n\n\[전체 버전 기록 보기\]\(CHANGELOG\.md\)\n$/);
+    assert.match(ko, /## 최신 버전 : v1\.0\.0 \(\d{4}-\d{2}-\d{2}\)\n\n\[전체 버전 기록 보기\]\(CHANGELOG\.md\)\n$/);
     assert.ok(!ko.includes("Latest Version") && !ko.includes("View full version history"));
     setLanguage("en");
     assert.strictEqual(addVersionSectionToReadme("1.0.0", target), "heading-updated");

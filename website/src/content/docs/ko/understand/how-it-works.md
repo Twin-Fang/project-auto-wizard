@@ -50,6 +50,8 @@ npx project-auto-wizard
 | 릴리스 브랜치 대상 PR (릴리스 PR 제외) | `PROJECT-COMMON-AI-PR-SUMMARY`가 요약 댓글 |
 | 릴리스 PR (`develop → main`) | `PROJECT-COMMON-AUTO-CHANGELOG-CONTROL`이 버전 확정, 노트·CHANGELOG 작성, automerge |
 | 릴리스 브랜치 push | `PROJECT-COMMON-RELEASE-PUBLISH`가 태그와 Release 발행, 릴리스 PR을 거치지 않은 push면 `PROJECT-COMMON-VERSION-CONTROL`이 버전 승격, `PROJECT-COMMON-README-VERSION-UPDATE`가 README 버전 줄 갱신 |
+| 릴리스 PR을 squash·rebase로 머지(`[skip ci]`로 push 건너뜀) | `PROJECT-COMMON-RELEASE-PR-MERGED`가 `PROJECT-COMMON-RELEASE-PUBLISH` 실행 |
+| 릴리스 PR을 squash·rebase로 머지(`[skip ci]`로 push 건너뜀) | `PROJECT-COMMON-RELEASE-PR-MERGED`가 `PROJECT-COMMON-RELEASE-PUBLISH` 실행 |
 | 개발 브랜치 PR / push | 타입별 CI (`PROJECT-<TYPE>-CI`) |
 | 릴리스 브랜치 push | 타입별 배포 워크플로우 (서버 배포, 스토어 배포) |
 

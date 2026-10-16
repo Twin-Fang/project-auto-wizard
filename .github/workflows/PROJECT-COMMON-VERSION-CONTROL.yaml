@@ -84,6 +84,12 @@ jobs:
             echo "$(m wf_version.confirm_skip)"
           fi
 
+          # first commit of a repository (a "Use this template" copy, a new repo's first push): no direct fix to bump (#429)
+          if ! git rev-parse -q --verify "HEAD^" >/dev/null; then
+            SKIP="true"
+            echo "$(m wf_version.initial_commit_skip)"
+          fi
+
           # release merge detection: the release push includes a version.yml change
           BEFORE="${{ github.event.before }}"
           if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
@@ -312,7 +318,8 @@ jobs:
               echo "$(m wf_version.already_contains develop_branch="$DEVELOP_BRANCH" main_branch="main")"
               exit 0
             fi
-            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH} [skip ci]" "origin/main"; then
+            # No [skip ci]: as the head of develop it would make GitHub skip the release PR's workflows (#426)
+            if ! git merge --no-edit -m "chore(version): merge v${NEW_VERSION} safety-net bump into ${DEVELOP_BRANCH}" "origin/main"; then
               git merge --abort 2>/dev/null || true
               echo "::warning::$(m wf_version.backmerge_conflict prod="main" dev="$DEVELOP_BRANCH" manual="$MANUAL")"
               exit 0

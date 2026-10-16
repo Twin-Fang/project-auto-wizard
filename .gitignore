@@ -6,6 +6,9 @@ tmp/
 .idea/
 .worktrees/
 
+# Test coverage output (npm run test:coverage)
+/coverage/
+
 # Docs site (website/) build output
 website/node_modules/
 website/dist/

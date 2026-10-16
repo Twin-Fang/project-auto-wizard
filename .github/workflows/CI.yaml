@@ -13,6 +13,10 @@
 # runtime gate in bin/project-auto-wizard.js require 20.12.
 #
 # There are zero dependencies and no package-lock.json, so there is no install step.
+#
+# The coverage job runs the same tests once more on one combination (ubuntu, Node 24) and
+# writes the Node and Python coverage table to the job summary. coverage.py is installed only
+# in that job; it is not a project dependency. There is no minimum threshold yet.
 
 name: CI
 
@@ -62,3 +66,29 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  coverage:
+    name: Coverage (Node 24 · ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # --test-coverage-include needs Node 22.5+, so coverage is not measured on Node 20.
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      # Latest coverage.py: tests/py/.coveragerc uses the newer `patch = subprocess` setting.
+      - name: Install coverage.py
+        run: python -m pip install coverage
+
+      - name: Measure coverage
+        run: npm run test:coverage

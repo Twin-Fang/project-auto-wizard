@@ -95,3 +95,29 @@ test("findMissingScripts: imports are followed transitively but uncalled scripts
     assert.deepStrictEqual(findMissingScripts(payload, target), []);
   } finally { rmSync(payload, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
 });
+
+// An install from before messages.py existed (0.13.x): its workflows never call messages.py and its own scripts do not
+// import it, so nothing fails at run time. Imports are read from the installed copy, not from the newer bundled one (#424).
+test("findMissingScripts: an older install whose own scripts do not import messages.py reports nothing missing", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-scripts-"));
+  try {
+    mkdirSync(join(target, ".github", "workflows"), { recursive: true });
+    mkdirSync(join(target, ".github", "scripts"), { recursive: true });
+    writeFileSync(join(target, ".github", "workflows", "PROJECT-COMMON-VERSION-CONTROL.yaml"),
+      "jobs:\n  bump:\n    steps:\n      - run: python3 .github/scripts/version_manager.py get\n");
+    writeFileSync(join(target, ".github", "scripts", "version_manager.py"), "import re\nimport sys\n\nprint('0.1.0')\n");
+    assert.deepStrictEqual(findMissingScripts(PAYLOAD, target), []);
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});
+
+test("findMissingScripts: an installed script that imports a deleted one still reports it", () => {
+  const target = mkdtempSync(join(tmpdir(), "paw-scripts-"));
+  try {
+    mkdirSync(join(target, ".github", "workflows"), { recursive: true });
+    mkdirSync(join(target, ".github", "scripts"), { recursive: true });
+    writeFileSync(join(target, ".github", "workflows", "PROJECT-COMMON-VERSION-CONTROL.yaml"),
+      "jobs:\n  bump:\n    steps:\n      - run: python3 .github/scripts/version_manager.py get\n");
+    writeFileSync(join(target, ".github", "scripts", "version_manager.py"), "from messages import t\n");
+    assert.deepStrictEqual(findMissingScripts(PAYLOAD, target), ["messages.py"]);
+  } finally { rmSync(target, { recursive: true, force: true }); }
+});

@@ -65,7 +65,7 @@ Unknown top-level fields you add are preserved when the wizard rewrites the file
 |---|---|---|
 | `semver_auto` | `true` (default) / `false` | Bump from commit types. `false` means patch + 1 every release; edit major/minor by hand. |
 | `copilot_ai` | `false` (default) / `true` | Let the summary workflows call the Copilot CLI (consumes AI Credits) |
-| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge; use a merge commit (squash and rebase skip the release workflow, see [Release flow](../../understand/release-flow/)) |
+| `release_automerge` | `true` (default; a missing key also means on) / `false` | Merge the release PR automatically. `false` leaves it for you to merge; every merge method publishes the release, and a merge commit is recommended (see [Release flow](../../understand/release-flow/)) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | Server deploy style. Written when a type has server deploy workflows. |
 | `env_mode` | `dart-define` / `dotenv` | Flutter only. Environment variable mode. |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter only. Store deploy targets. |
@@ -105,3 +105,5 @@ The other `metadata` fields (`template.version`, …) are bookkeeping written by
 ```
 
 Markdown bold inside the line, a missing colon, or regex special characters (`*`, `[`, `]`, `^`, `$`) are not supported.
+
+In pr-flow the release PR's version-confirm commit rewrites this line, so the README on the tag already shows the new version. `README-VERSION-UPDATE` leaves the line alone when it already shows the current version (whatever the date), so the release branch never gets a date-only commit that the development branch lacks. The installer writes the line in the same `vX.Y.Z (YYYY-MM-DD)` format, with the install date.

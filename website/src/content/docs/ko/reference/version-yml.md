@@ -65,7 +65,7 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 |---|---|---|
 | `semver_auto` | `true`(기본) / `false` | 커밋 타입 기반 승격. `false`면 매 릴리스 patch+1, major/minor는 직접 수정 |
 | `copilot_ai` | `false`(기본) / `true` | 요약 워크플로우가 Copilot CLI를 호출 (AI Credits 소비) |
-| `release_automerge` | `true`(기본, 키가 없어도 켜짐) / `false` | 릴리스 PR 자동 머지. `false`면 직접 머지하며 머지 커밋을 권장합니다(squash·rebase는 릴리스 워크플로우가 건너뛰어짐, [릴리스 흐름](../../understand/release-flow/) 참고) |
+| `release_automerge` | `true`(기본, 키가 없어도 켜짐) / `false` | 릴리스 PR 자동 머지. `false`면 직접 머지합니다. 어떤 머지 방식이든 릴리스가 발행되며 머지 커밋을 권장합니다([릴리스 흐름](../../understand/release-flow/) 참고) |
 | `deploy_style` | `simple` / `nginx` / `traefik` / `none` | 서버 배포 방식. 서버 배포 워크플로우가 있는 타입일 때 기록 |
 | `env_mode` | `dart-define` / `dotenv` | Flutter 전용. 환경변수 방식 |
 | `flutter_store` | `android` / `ios` / `android,ios` / `none` | Flutter 전용. 스토어 배포 대상 |
@@ -105,3 +105,5 @@ deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가
 ```
 
 줄 안의 마크다운 굵게(`**`), 콜론 누락, 정규식 특수문자(`*`, `[`, `]`, `^`, `$`)는 지원하지 않습니다.
+
+pr-flow에서는 릴리스 PR의 버전 확정 커밋이 이 줄을 고치므로, 태그 시점의 README에 이미 새 버전이 표시됩니다. `README-VERSION-UPDATE`는 줄이 이미 현재 버전이면 날짜와 상관없이 그대로 둡니다. 그래서 릴리스 브랜치에만 날짜를 바꾸는 커밋이 생겨 개발 브랜치와 갈라지는 일이 없습니다. 설치기도 같은 `vX.Y.Z (YYYY-MM-DD)` 형식에 설치일을 넣어 줄을 씁니다.

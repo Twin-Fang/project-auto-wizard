@@ -1,0 +1,20 @@
+{
+  "title": "Try project-auto-wizard in 5 minutes",
+  "subtitle": "Browser only  ·  No install  ·  No secrets  ·  Real GitHub Actions",
+  "steps": {
+    "01-use-template": "Open the example repository and click Use this template",
+    "02-create-copy": "Create your own copy (leave Include all branches off)",
+    "03-create-develop": "Create a develop branch from main",
+    "04-edit-code": "Change the code on develop in the web editor",
+    "05-commit-feat": "Commit with a type: feat: means the next minor version",
+    "06-open-pr": "Open a pull request from develop to main",
+    "07-bot-merges": "Within a minute the bot writes the release notes and merges",
+    "08-release": "Tag and GitHub Release v0.3.0 are published",
+    "09-changelog": "CHANGELOG.md is written from the commit messages"
+  },
+  "end_title": "Your next release, from a commit message",
+  "end_lines": [
+    "Try it:  github.com/Twin-Fang/project-auto-wizard-example",
+    "Install:  npx project-auto-wizard"
+  ]
+}

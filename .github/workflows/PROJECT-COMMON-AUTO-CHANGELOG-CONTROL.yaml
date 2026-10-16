@@ -31,9 +31,9 @@
 #
 # With version.yml release_automerge: false, step 5 and the wait job are
 # skipped: the PR is renamed to the release-confirm subject and one guidance
-# comment asks the maintainer to merge it with a merge commit. Squash and rebase merges
-# put the [skip ci] of the confirm commit into the merge result, so GitHub skips the push
-# workflows and PROJECT-RELEASE-PUBLISH has to be run manually for them.
+# comment asks the maintainer to merge it (a merge commit is recommended). Squash and rebase
+# merges put the [skip ci] of the confirm commit into the merge result, so GitHub skips the
+# push workflows; PROJECT-RELEASE-PR-MERGED then dispatches PROJECT-RELEASE-PUBLISH (#398).
 #
 # When step 5 is rejected by branch protection (required review or checks), the run
 # fails with the cause and the options, and the PR gets the same rename and a guidance

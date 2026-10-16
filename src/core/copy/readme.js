@@ -81,7 +81,12 @@ export function planVersionSection(targetRoot = ".", lang) {
   return "added";
 }
 
-export function addVersionSectionToReadme(version, targetRoot = ".", lang) {
+// Local date -> "YYYY-MM-DD"
+const toIsoDate = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+// today: install date shown on the version line (injectable for tests)
+export function addVersionSectionToReadme(version, targetRoot = ".", lang, today = new Date()) {
   const status = planVersionSection(targetRoot, lang);
   const p = join(targetRoot, "README.md");
   if (status === "heading-updated") {
@@ -93,12 +98,14 @@ export function addVersionSectionToReadme(version, targetRoot = ".", lang) {
   const content = readFileSync(p, "utf8");
 
   // The appended body starts with "\n---\n..." to leave a blank line between the existing text and the rule.
+  // Same "vX.Y.Z (date)" format the README workflow writes, so the first main push does not add a
+  // date-only commit that only main has (#423)
   const section =
     "\n" +
     "---\n" +
     "\n" +
     "<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->\n" +
-    t("copy.readme.versionHeading", { version }, lang) + "\n" +
+    t("copy.readme.versionHeading", { version }, lang) + ` (${toIsoDate(today)})` + "\n" +
     "\n" +
     t("copy.readme.historyLink", {}, lang) + "\n";
   // Appending directly to a README without a trailing newline puts "---" right after the last line,

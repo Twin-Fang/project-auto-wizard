@@ -118,6 +118,54 @@ maybe("rebase merge: the head commit is the confirm commit, so it is skipped and
   } finally { rmTmp(repo.base); }
 });
 
+// ── PROJECT-RELEASE-PR-MERGED: publishes what the skipped push did not (#398) ─────────────────────
+const MERGED = read("payload/workflows/common/PROJECT-COMMON-RELEASE-PR-MERGED.yaml");
+
+// Runs the workflow's own skip-marker check on a merge result: "dispatch" when it would wake RELEASE-PUBLISH
+function followUp(mergeMessage) {
+  const a = MERGED.indexOf("# >>> merge-skipped-push");
+  const b = MERGED.indexOf("# <<< merge-skipped-push");
+  assert.ok(a > 0 && b > a, "merge-skipped-push markers are missing");
+  const block = MERGED.slice(a, b).split("\n").map((l) => l.replace(/^ {0,10}/, "")).join("\n");
+  const r = spawnSync("bash", ["-c", `m() { echo "$1"; }\n${block}\necho DISPATCH\n`],
+    { encoding: "utf-8", env: { ...ENV, MERGE_MESSAGE: mergeMessage, PR_NUMBER: "5" } });
+  assert.strictEqual(r.status, 0, r.stderr);
+  return r.stdout.includes("DISPATCH") ? "dispatch" : "none";
+}
+
+// Every merge method ends up published exactly once: by the push, or by the follow-up dispatch when the push was skipped
+for (const [method, expected] of [["merge", "none"], ["squash", "dispatch"], ["rebase", "dispatch"]]) {
+  maybe(`${method}: published once (push ${expected === "none" ? "publishes" : "skipped, follow-up dispatches"})`, () => {
+    const repo = makeRepo();
+    try {
+      const head = mergeInto(repo, method);
+      const push = publishes(repo.work, head);
+      const dispatched = followUp(head) === "dispatch";
+      assert.strictEqual(push.published ? 1 : 0, expected === "none" ? 1 : 0);
+      assert.strictEqual(dispatched, expected === "dispatch");
+      assert.strictEqual((push.published ? 1 : 0) + (dispatched ? 1 : 0), 1, "the release must be published exactly once");
+    } finally { rmTmp(repo.base); }
+  });
+}
+
+test("the follow-up dispatches only on a skip marker GitHub honors", () => {
+  assert.strictEqual(followUp("chore(release): v1.2.0 (PR #5) (#5)\n\n* chore(version): confirm v1.2.0 and update release docs [skip ci]"), "dispatch");
+  assert.strictEqual(followUp("chore(version): confirm v1.2.0 [CI SKIP]"), "dispatch");
+  assert.strictEqual(followUp("chore(release): v1.2.0 (PR #5) (#5)"), "none");
+  assert.strictEqual(followUp("Merge pull request #5 from acme/develop\n\nchore(release): v1.2.0 (PR #5)"), "none");
+});
+
+// pull_request_target runs with this repository's token: no PR code, fork guard, minimal permissions
+test("PROJECT-RELEASE-PR-MERGED never touches PR code and keeps a minimal token", () => {
+  assert.match(MERGED, /^on:\n  pull_request_target:\n    types: \[closed\]/m);
+  assert.match(MERGED, /^permissions:\n  actions: write\n  contents: read\n\n/m);
+  assert.ok(MERGED.includes("github.event.pull_request.head.repo.full_name == github.repository"), "fork PRs must be ignored");
+  assert.ok(MERGED.includes("github.event.pull_request.merged == true"));
+  assert.ok(!/head\.(sha|ref)\s*}}/.test(MERGED.split("jobs:")[1].replace(/if: >-[\s\S]*?runs-on/, "")), "must not check out or use the PR head");
+  assert.match(MERGED, /ref: "\{\{MAIN_BRANCH\}\}"/);
+  assert.ok(!/\$\{\{ github\.event\.pull_request\.(title|body|head\.ref)/.test(MERGED.split("run: |")[1] ?? ""), "PR text must not be inlined into the script");
+});
+
 // ── the next release's commit list ──────────────────────────────────────────────────────────────
 function nextCommits(method, { backMerge = false } = {}) {
   const repo = makeRepo();

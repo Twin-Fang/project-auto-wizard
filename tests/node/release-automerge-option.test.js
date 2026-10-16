@@ -148,9 +148,9 @@ test("args: --release-automerge=value fails like the other switches (not as an u
   assert.strictEqual(automerge.replaceAll("release-automerge", "copilot"), copilot);
 });
 
-// Squash and rebase are not merge methods the release flow supports by itself (the merge result carries [skip ci] and the
-// history changes); any line that mentions squash must say so instead of offering it as an equal choice.
-test("guidance never presents squash as a supported merge method", () => {
+// Squash and rebase publish the release too (#398), but they rewrite the history the next release notes are built from;
+// any line that mentions squash must keep recommending a merge commit or say what squash costs.
+test("guidance that mentions squash keeps recommending a merge commit", () => {
   const files = [
     "payload/version.yml.template", "payload/scripts/messages.py", "src/i18n/catalog/en/commands.js",
     "src/i18n/catalog/ko/commands.js", "website/src/content/docs/reference/version-yml.md",

@@ -50,6 +50,8 @@ Placeholders such as `{{MAIN_BRANCH}}` and `{{DEVELOP_BRANCH}}` are replaced wit
 | PR to the release branch (non-release PR) | `PROJECT-COMMON-AI-PR-SUMMARY` comments a summary |
 | Release PR (`develop → main`) | `PROJECT-COMMON-AUTO-CHANGELOG-CONTROL` confirms the version, writes notes and CHANGELOG, automerges |
 | Push to the release branch | `PROJECT-COMMON-RELEASE-PUBLISH` tags and publishes the Release; `PROJECT-COMMON-VERSION-CONTROL` bumps the version if the push did not come from a release PR; `PROJECT-COMMON-README-VERSION-UPDATE` updates the README version line |
+| Release PR merged with squash or rebase (push skipped by `[skip ci]`) | `PROJECT-COMMON-RELEASE-PR-MERGED` dispatches `PROJECT-COMMON-RELEASE-PUBLISH` |
+| Release PR merged with squash or rebase (push skipped by `[skip ci]`) | `PROJECT-COMMON-RELEASE-PR-MERGED` dispatches `PROJECT-COMMON-RELEASE-PUBLISH` |
 | PR / push to the development branch | Type CI (`PROJECT-<TYPE>-CI`) |
 | Push to the release branch | Type deploy workflows (server deploy, store deploy) |
 

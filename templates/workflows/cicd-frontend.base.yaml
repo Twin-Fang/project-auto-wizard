@@ -29,7 +29,7 @@ env:
   # Subdirectory of this project in a monorepo (--paths). Base for the build and Docker context ('.' means the repo root)
   PROJECT_PATH: "."  # @wizard auto:project-path
   DOCKER_IMAGE_PREFIX: "%%IMAGE_PREFIX%%"
-  NODE_VERSION: "20.15.0"
+  NODE_VERSION: "22"
   ENV_FILE_NAME: ".env"
 
   # SSH auth method: "password" (Synology, generic servers) | "key" (AWS EC2, .pem)

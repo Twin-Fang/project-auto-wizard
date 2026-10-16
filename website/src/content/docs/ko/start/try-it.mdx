@@ -1,0 +1,62 @@
+---
+title: 브라우저에서 직접 해 보기
+description: 예제 레포를 복사해 GitHub 웹 화면만으로 실제 릴리스를 만들어 봅니다. 설치할 것은 없습니다.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+[예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)는 릴리스 자동화가 이미 설치된 작은 Node 프로젝트입니다. 자기 계정으로 복사하면 GitHub Actions에서 실제 릴리스가 일어나는 과정을 볼 수 있습니다. 커밋 종류가 다음 버전을 정하고, 릴리스 PR에 노트가 달린 뒤 저절로 머지되고, 태그와 GitHub Release, CHANGELOG가 생깁니다.
+
+아래 과정은 모두 브라우저에서 합니다. 5분 정도 걸리며 Node.js, 로컬 clone, Secret이 필요 없습니다.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="예제 레포를 복사해 GitHub 웹 화면에서 v0.3.0을 릴리스하는 과정" width="880" />
+
+같은 과정을 한국어 자막 영상으로 볼 수 있습니다: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.ko.mp4).
+
+<Aside>
+먼저 보기만 하고 싶다면 예제 레포의 [PR](https://github.com/Twin-Fang/project-auto-wizard-example/pulls?q=is%3Apr), [Actions 실행 기록](https://github.com/Twin-Fang/project-auto-wizard-example/actions), [Releases](https://github.com/Twin-Fang/project-auto-wizard-example/releases)에서 이미 돈 릴리스를 확인할 수 있습니다.
+</Aside>
+
+<Steps>
+
+1. **템플릿 복사.** [예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)에서 **Use this template** > **Create a new repository**를 누릅니다. 소유자는 자기 계정, 이름은 자유, **Public**을 고릅니다. **Include all branches**는 끈 채로 **Create repository**를 누릅니다.
+
+   ✓ 새 레포에 `.github/workflows/`, `version.yml`, 마지막이 `Latest Version : v0.x.y`인 README가 있습니다. 아직 릴리스는 생기지 않습니다.
+
+2. **개발 브랜치 만들기.** 브랜치 메뉴(`main`이라고 표시됨)를 열고 `develop`을 입력한 뒤 **Create branch develop from main**을 고릅니다.
+
+   ✓ 브랜치 메뉴에 `develop`과 `main`이 보입니다.
+
+3. **`develop`에 기능 커밋.** `develop`에서 `src/greet.js`를 열고 연필 아이콘을 눌러 무언가를 바꿉니다(예: `GREETINGS`에 `es: "Hola"` 추가). **Commit changes**를 눌러 메시지를 `feat: greet in Spanish`로 쓰고, **Commit directly to the develop branch**를 그대로 둔 채 커밋합니다.
+
+   ✓ `develop`이 `main`보다 커밋 하나 앞서 있고, 그 커밋 메시지가 `feat:`로 시작합니다.
+
+4. **릴리스 PR 열기.** **Pull requests** > **New pull request**에서 base를 `main`, compare를 `develop`으로 두고 **Create pull request**를 누릅니다.
+
+5. **릴리스되는 과정 보기.** 1분 정도 지나면 PR에서 `PROJECT-AUTO-CHANGELOG-CONTROL`이 실행됩니다. 다음 버전을 확정하고, 릴리스 노트를 댓글로 달고, `CHANGELOG.md`를 갱신한 뒤 PR을 머지합니다. `feat:` 커밋은 minor 버전을 올립니다.
+
+   ✓ PR이 `github-actions[bot]`에 의해 **Merged** 상태가 되고, `[0.3.0] ✨ Features` 같은 댓글이 달립니다.
+
+6. **릴리스 확인.** **Releases**에 노트가 담긴 새 `vX.Y.Z` 릴리스가 있습니다. `CHANGELOG.md`에 항목이 생기고 README 버전 줄도 새 버전을 표시합니다.
+
+</Steps>
+
+<Aside type="caution">
+**커밋 직전에 메시지를 확인하세요.** GitHub가 Copilot 제안으로 메시지를 바꿔 넣을 수 있습니다. 버전은 접두사로 정해지므로 `feat:`가 없으면 patch 릴리스가 됩니다.
+
+**`develop`은 지우지 마세요.** 머지 후 GitHub가 `develop` 브랜치 삭제를 권하는데, 그대로 두어야 다음 릴리스 PR을 열 수 있습니다.
+</Aside>
+
+## 더 해 보기
+
+- `develop`에 `fix:` 커밋을 하고 릴리스 PR을 다시 열면 patch 버전만 올라갑니다.
+- `feat!: rename greet`처럼 `!`를 붙이면 major 버전이 올라갑니다.
+- `develop`의 `version.yml`에서 `release_automerge: false`로 바꾸면 릴리스 PR 제목이 `chore(release): vX.Y.Z`로 바뀌고, 어떤 머지 방식이든 직접 머지하기를 기다립니다.
+- 각 워크플로우가 하는 일은 [릴리스 흐름](../../understand/release-flow/), 자기 프로젝트에 설치하는 방법은 [빠른 시작](../quickstart/)을 보세요.
+
+## 무언가 일어나지 않을 때
+
+- **PR에서 워크플로우가 돌지 않음**: PR이 `develop`에서 `main`으로 가는지, 레포의 **Actions** 탭이 켜져 있는지 확인하세요.
+- **PR을 만들 수 없음("entirely different commit histories")**: **Include all branches**를 켜고 복사한 경우입니다. `develop`을 지우고 `main`에서 다시 만드세요(2단계).
+- **PR이 자동으로 머지되지 않음**: **Actions** 탭에서 실행을 열면 마지막 줄에 머지를 막은 원인(예: 브랜치 보호 규칙)과 바꿀 곳이 나옵니다.
+- **CHANGELOG에 이전 버전도 있음**: 예제 레포의 릴리스 기록이 복사본에 그대로 따라온 것입니다.
