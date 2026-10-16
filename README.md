@@ -123,23 +123,14 @@ With the default `pr-flow` strategy (`develop` → `main`):
 
 ```mermaid
 flowchart LR
-    A[feature PRs] --> B[develop]
-    B --> C[release PR<br/>develop to main]
-    C --> D[next version from commit types<br/>feat: minor, fix: patch, !: major]
-    D --> E[release notes and CHANGELOG]
-    E --> F[automerge]
-    F --> G[tag vX.Y.Z and GitHub Release]
-    G --> H[README version line and deploy workflows]
+    A["feature PRs"] --> B["develop"] --> C["release PR"] --> D["version from commits<br/>notes and CHANGELOG"] --> E["automerge"] --> F["tag and Release"] --> G["README and deploys"]
 ```
 
 With `trunk-based` (the release branch is also the development branch), every push to `main` is a release:
 
 ```mermaid
 flowchart LR
-    A[push to main] --> B[next version from commit types]
-    B --> C[release notes and CHANGELOG]
-    C --> D[tag vX.Y.Z and GitHub Release]
-    D --> E[README version line and deploy workflows]
+    A["push to main"] --> B["version from commits<br/>notes and CHANGELOG"] --> C["tag and Release"] --> D["README and deploys"]
 ```
 
 Release notes are rule-based by default. You can turn on GitHub Copilot (uses your Copilot AI Credits) or point it at any OpenAI-compatible API. If a model is unavailable or fails, it falls back to the rules, so a release is never blocked by the summary step.

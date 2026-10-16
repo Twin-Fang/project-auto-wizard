@@ -122,23 +122,14 @@ your-repo/
 
 ```mermaid
 flowchart LR
-    A[기능 PR] --> B[develop]
-    B --> C[릴리스 PR<br/>develop에서 main으로]
-    C --> D[커밋 타입으로 다음 버전<br/>feat: minor, fix: patch, !: major]
-    D --> E[릴리스 노트와 CHANGELOG]
-    E --> F[자동 머지]
-    F --> G[vX.Y.Z 태그와 GitHub Release]
-    G --> H[README 버전 줄과 배포 워크플로우]
+    A["기능 PR"] --> B["develop"] --> C["릴리스 PR"] --> D["커밋으로 버전 결정<br/>노트와 CHANGELOG"] --> E["자동 머지"] --> F["태그와 Release"] --> G["README와 배포"]
 ```
 
 `trunk-based`(릴리스 브랜치가 곧 개발 브랜치)에서는 `main`에 push할 때마다 릴리스됩니다.
 
 ```mermaid
 flowchart LR
-    A[main에 push] --> B[커밋 타입으로 다음 버전]
-    B --> C[릴리스 노트와 CHANGELOG]
-    C --> D[vX.Y.Z 태그와 GitHub Release]
-    D --> E[README 버전 줄과 배포 워크플로우]
+    A["main에 push"] --> B["커밋으로 버전 결정<br/>노트와 CHANGELOG"] --> C["태그와 Release"] --> D["README와 배포"]
 ```
 
 릴리스 노트는 기본적으로 규칙 기반입니다. GitHub Copilot(Copilot AI Credits 사용)을 켜거나 OpenAI 호환 API를 지정할 수 있습니다. 모델을 쓸 수 없거나 실패하면 규칙 기반으로 돌아가므로, 요약 단계 때문에 릴리스가 막히는 일은 없습니다.

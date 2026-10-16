@@ -122,23 +122,14 @@ your-repo/
 
 ```mermaid
 flowchart LR
-    A[機能 PR] --> B[develop]
-    B --> C[リリース PR<br/>develop から main へ]
-    C --> D[コミットタイプから次のバージョン<br/>feat: minor, fix: patch, !: major]
-    D --> E[リリースノートと CHANGELOG]
-    E --> F[自動マージ]
-    F --> G[vX.Y.Z タグと GitHub Release]
-    G --> H[README のバージョン行とデプロイワークフロー]
+    A["機能 PR"] --> B["develop"] --> C["リリース PR"] --> D["コミットでバージョン決定<br/>ノートと CHANGELOG"] --> E["自動マージ"] --> F["タグと Release"] --> G["README とデプロイ"]
 ```
 
 `trunk-based`（リリースブランチが開発ブランチを兼ねる）では、`main` への push ごとにリリースされます:
 
 ```mermaid
 flowchart LR
-    A[main へ push] --> B[コミットタイプから次のバージョン]
-    B --> C[リリースノートと CHANGELOG]
-    C --> D[vX.Y.Z タグと GitHub Release]
-    D --> E[README のバージョン行とデプロイワークフロー]
+    A["main へ push"] --> B["コミットでバージョン決定<br/>ノートと CHANGELOG"] --> C["タグと Release"] --> D["README とデプロイ"]
 ```
 
 リリースノートはデフォルトでルールベースです。GitHub Copilot（Copilot AI Credits を消費します）を有効にすることも、OpenAI 互換の API を指定することもできます。モデルが使えない場合や失敗した場合はルールベースに戻るため、要約の手順が原因でリリースが止まることはありません。

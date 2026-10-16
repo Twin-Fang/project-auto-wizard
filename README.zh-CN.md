@@ -122,23 +122,14 @@ your-repo/
 
 ```mermaid
 flowchart LR
-    A[功能 PR] --> B[develop]
-    B --> C[发布 PR<br/>develop 到 main]
-    C --> D[根据提交类型决定下一个版本<br/>feat: minor, fix: patch, !: major]
-    D --> E[发布说明和 CHANGELOG]
-    E --> F[自动合并]
-    F --> G[vX.Y.Z 标签和 GitHub Release]
-    G --> H[README 版本行和部署工作流]
+    A["功能 PR"] --> B["develop"] --> C["发布 PR"] --> D["根据提交决定版本<br/>说明和 CHANGELOG"] --> E["自动合并"] --> F["标签和 Release"] --> G["README 和部署"]
 ```
 
 使用 `trunk-based`（发布分支同时也是开发分支）时，每次 push 到 `main` 都是一次发布：
 
 ```mermaid
 flowchart LR
-    A[push 到 main] --> B[根据提交类型决定下一个版本]
-    B --> C[发布说明和 CHANGELOG]
-    C --> D[vX.Y.Z 标签和 GitHub Release]
-    D --> E[README 版本行和部署工作流]
+    A["push 到 main"] --> B["根据提交决定版本<br/>说明和 CHANGELOG"] --> C["标签和 Release"] --> D["README 和部署"]
 ```
 
 发布说明默认基于规则生成。你可以开启 GitHub Copilot（消耗你的 Copilot AI Credits），或者指向任何兼容 OpenAI 的 API。如果模型不可用或调用失败，会回退到规则生成，因此发布不会被摘要步骤卡住。
