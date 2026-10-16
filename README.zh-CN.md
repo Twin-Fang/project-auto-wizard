@@ -8,7 +8,7 @@
 
 它安装的全部内容都是你自己仓库里的普通 GitHub Actions。不需要 API 密钥，也没有托管服务。
 
-[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
+[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [浏览器体验](#try-it) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -29,6 +29,16 @@
 每个新项目在写第一个功能之前，都要先做同样的杂事：决定版本怎么递增，维护 CHANGELOG，撰写发布说明，给发布打标签，再把上一个项目的 CI/CD 工作流复制过来修修改改。这要花几个小时，而且每个仓库最后都会略有不同。
 
 project-auto-wizard 用几个提问一次性完成这些配置。之后只要合并发布 PR，就能完成一次发布。
+
+<a id="try-it"></a>
+
+## 只用浏览器，5 分钟体验
+
+[示例仓库](https://github.com/Twin-Fang/project-auto-wizard-example)已经安装好了。用 **Use this template** 复制它，创建 `develop` 分支，在网页编辑器里提交 `feat: …`，再向 `main` 发起 PR。一分钟内 GitHub Actions 会确定版本、撰写发布说明、合并，并发布标签、GitHub Release 和 CHANGELOG，全部发生在你自己的仓库里。无需安装，也不需要任何 Secret。
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="复制示例仓库并在 GitHub 网页上发布 v0.3.0" width="800">
+
+分步指南（英文）：[Try it in your browser](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
 
 <a id="quickstart"></a>
 

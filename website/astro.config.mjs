@@ -27,7 +27,7 @@ export default defineConfig({
         {
           label: 'Start',
           translations: { ko: '시작하기', 'zh-CN': '开始', ja: 'はじめに' },
-          items: ['start/introduction', 'start/quickstart', 'start/installation'],
+          items: ['start/introduction', 'start/try-it', 'start/quickstart', 'start/installation'],
         },
         {
           label: 'Understand',

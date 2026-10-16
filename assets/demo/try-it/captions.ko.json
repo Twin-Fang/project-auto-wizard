@@ -1,0 +1,20 @@
+{
+  "title": "project-auto-wizard 5분 체험",
+  "subtitle": "브라우저만으로  ·  설치 없음  ·  Secret 없음  ·  실제 GitHub Actions",
+  "steps": {
+    "01-use-template": "예제 레포에서 Use this template을 누릅니다",
+    "02-create-copy": "자기 계정으로 복사합니다 (Include all branches는 끈 채로)",
+    "03-create-develop": "main에서 develop 브랜치를 만듭니다",
+    "04-edit-code": "웹 편집기로 develop의 코드를 고칩니다",
+    "05-commit-feat": "커밋 종류가 버전을 정합니다: feat: 는 다음 minor 버전",
+    "06-open-pr": "develop에서 main으로 PR을 엽니다",
+    "07-bot-merges": "1분 안에 봇이 릴리스 노트를 쓰고 머지합니다",
+    "08-release": "태그와 GitHub Release v0.3.0이 발행됩니다",
+    "09-changelog": "커밋 메시지로 CHANGELOG.md가 작성됩니다"
+  },
+  "end_title": "커밋 메시지가 다음 릴리스가 됩니다",
+  "end_lines": [
+    "직접 해 보기:  github.com/Twin-Fang/project-auto-wizard-example",
+    "설치:  npx project-auto-wizard"
+  ]
+}

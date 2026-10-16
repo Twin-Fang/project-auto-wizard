@@ -1,0 +1,62 @@
+---
+title: Try it in your browser
+description: Copy the example repository and cut a real release from GitHub's web UI, with nothing to install.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) is a small Node project with the release automation already installed. Copy it to your account and watch a real release happen in GitHub Actions: the commit type decides the next version, the release PR gets its notes and merges itself, and a tag, a GitHub Release and the CHANGELOG appear.
+
+Everything below happens in the browser. It takes about five minutes and needs no Node.js, no local clone and no secrets.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="Copying the example repository and releasing v0.3.0 from GitHub's web UI" width="880" />
+
+The same recording as a video: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.mp4).
+
+<Aside>
+Prefer to look before you try? The example repository's [pull requests](https://github.com/Twin-Fang/project-auto-wizard-example/pulls?q=is%3Apr), [Actions runs](https://github.com/Twin-Fang/project-auto-wizard-example/actions) and [Releases](https://github.com/Twin-Fang/project-auto-wizard-example/releases) show releases that already ran.
+</Aside>
+
+<Steps>
+
+1. **Copy the template.** On the [example repository](https://github.com/Twin-Fang/project-auto-wizard-example), click **Use this template** > **Create a new repository**. Choose your account as the owner, any name, and **Public**. Leave **Include all branches** off, then click **Create repository**.
+
+   ✓ The new repository has `.github/workflows/`, `version.yml` and a README ending in `Latest Version : v0.x.y`. No release is created yet.
+
+2. **Create the development branch.** Open the branch menu (it shows `main`), type `develop`, and choose **Create branch develop from main**.
+
+   ✓ The branch menu lists `develop` and `main`.
+
+3. **Commit a feature to `develop`.** On `develop`, open `src/greet.js`, click the pencil icon and change something, for example add `es: "Hola"` to `GREETINGS`. Click **Commit changes**, type the message `feat: greet in Spanish`, keep **Commit directly to the develop branch**, and commit.
+
+   ✓ `develop` is one commit ahead of `main`, and that commit's message starts with `feat:`.
+
+4. **Open the release PR.** Go to **Pull requests** > **New pull request**, set base `main` and compare `develop`, then click **Create pull request**.
+
+5. **Watch it release.** Within about a minute `PROJECT-AUTO-CHANGELOG-CONTROL` runs on the PR: it confirms the next version, posts the release notes as a comment, updates `CHANGELOG.md` and merges the PR. A `feat:` commit raises the minor version.
+
+   ✓ The PR shows **Merged** by `github-actions[bot]` and a comment such as `[0.3.0] ✨ Features`.
+
+6. **Check the release.** Open **Releases**: a new `vX.Y.Z` release carries the notes. `CHANGELOG.md` has the entry and the README version line shows the new version.
+
+</Steps>
+
+<Aside type="caution">
+**Check the commit message before you commit.** GitHub may replace your message with a suggestion from Copilot. The version is decided by the prefix: without `feat:` the release is a patch.
+
+**Keep `develop`.** After the merge, GitHub offers to delete the `develop` branch. Leave it, so you can open the next release PR.
+</Aside>
+
+## Try more
+
+- Commit a `fix:` and open another release PR from `develop`: only the patch version goes up.
+- Commit `feat!: rename greet` (note the `!`): the major version goes up.
+- Set `release_automerge: false` in `version.yml` on `develop`: the release PR is renamed to `chore(release): vX.Y.Z` and waits for you to merge it with any merge method.
+- [Release flow](../../understand/release-flow/) explains each workflow, and [Quickstart](../quickstart/) installs it in your own project.
+
+## If something does not happen
+
+- **No workflow runs on the PR**: check that the PR goes from `develop` to `main` and that the **Actions** tab of the repository is enabled.
+- **The PR cannot be created ("entirely different commit histories")**: the copy was made with **Include all branches** on. Delete `develop` and create it again from `main` (step 2).
+- **The PR is not merged automatically**: open the run in the **Actions** tab; the last lines say what blocked the merge, for example a branch protection rule, and what to change.
+- **The CHANGELOG also lists older versions**: those come from the example repository's own releases, which the copy inherits.

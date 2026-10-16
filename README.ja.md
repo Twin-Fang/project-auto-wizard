@@ -8,7 +8,7 @@
 
 インストールされるのは、すべてあなた自身のリポジトリ内の通常の GitHub Actions です。API キーもホスティングサービスも不要です。
 
-[ドキュメント](https://twin-fang.github.io/project-auto-wizard/ja/) · [クイックスタート](#quickstart) · [変更履歴](CHANGELOG.md)
+[ドキュメント](https://twin-fang.github.io/project-auto-wizard/ja/) · [ブラウザで体験](#try-it) · [クイックスタート](#quickstart) · [変更履歴](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -29,6 +29,16 @@
 新しいプロジェクトでは、最初の機能を作る前に毎回同じ作業が発生します。バージョンの上げ方を決め、CHANGELOG を管理し、リリースノートを書き、リリースにタグを付け、前のプロジェクトから CI/CD ワークフローをコピーして手直しします。数時間かかり、リポジトリごとに少しずつ違うものになります。
 
 project-auto-wizard は、この設定をいくつかの質問で一度に済ませます。その後は、リリース PR をマージするだけでリリースが完了します。
+
+<a id="try-it"></a>
+
+## ブラウザだけで 5 分体験
+
+[サンプルリポジトリ](https://github.com/Twin-Fang/project-auto-wizard-example)にはすでにインストールされています。**Use this template** でコピーし、`develop` ブランチを作り、Web エディタで `feat: …` をコミットして `main` へ PR を開いてください。1 分以内に GitHub Actions がバージョンを確定し、リリースノートを書き、マージして、タグ・GitHub Release・CHANGELOG を作成します。すべて自分のリポジトリで起こり、インストールも Secret も不要です。
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="サンプルリポジトリをコピーし GitHub の Web 画面で v0.3.0 をリリースする様子" width="800">
+
+手順ガイド（英語）：[Try it in your browser](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
 
 <a id="quickstart"></a>
 

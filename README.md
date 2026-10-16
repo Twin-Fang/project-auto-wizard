@@ -8,7 +8,7 @@
 
 Everything it installs is plain GitHub Actions in your own repository. No API keys, no hosted service.
 
-[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
+[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Try it in your browser](#try-it) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -30,6 +30,16 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 Every new project starts with the same chores before the first feature: decide how versions are bumped, keep a CHANGELOG, write release notes, tag releases, and copy CI/CD workflows over from the last project and fix them up. It takes hours, and each repo ends up slightly different.
 
 project-auto-wizard does that setup once, with a few prompts. After that, merging a release PR is all it takes to cut a release.
+
+<a id="try-it"></a>
+
+## Try it in 5 minutes, browser only
+
+The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) already has it installed. Copy it with **Use this template**, create a `develop` branch, commit `feat: …` in the web editor and open a pull request to `main`. Within a minute GitHub Actions confirms the version, writes the release notes, merges, and publishes a tag, a GitHub Release and the CHANGELOG, all in your own repository. No install, no secrets.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="Copying the example repository and releasing v0.3.0 from GitHub's web UI" width="800">
+
+Step-by-step guide with what to check after each step: [Try it in your browser](https://twin-fang.github.io/project-auto-wizard/start/try-it/).
 
 <a id="quickstart"></a>
 
