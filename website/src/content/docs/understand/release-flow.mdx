@@ -67,19 +67,19 @@ If a standing rule on the release branch rejects the merge (for example it requi
 Automerge is on by default. To keep a human in the loop, set `release_automerge: false` in `version.yml` (or reinstall with `--no-release-automerge`). The workflow then skips automerge and the wait-for-merge job, renames the release PR to `chore(release): vX.Y.Z (PR #N)` and leaves one guidance comment.
 
 - Merge after that workflow run has finished, because it confirms the version and renames the PR.
-- Use **Create a merge commit** (recommended). The release gate reads `chore(release):` from the merge commit message, which includes the PR title.
+- Any merge method publishes the release. **Create a merge commit** is recommended, because it keeps the history the next release notes are built from.
 - If the automatic rename fails, the comment tells you which merge message to set so the release is still published.
 
 What each merge method does to the release:
 
 | Merge method | Release published? | Why |
 |---|---|---|
-| Create a merge commit | Yes | The merge commit message carries the renamed PR title (`chore(release): ...`) and no `[skip ci]`. |
-| Squash and merge | Not with the default squash message | With the default message (the commit list is included) the merge commit body contains the `[skip ci]` of the version-confirm commit, so GitHub skips the push workflows. If the repository's squash message default is set to the PR title only, the release is published. The next release notes can list earlier changes again, because the original commits are not part of the release branch history. |
-| Rebase and merge | No, not by itself | The last commit on the release branch is the version-confirm commit (`[skip ci]`), so the push workflows are skipped. The next release notes do not repeat the rebased commits, but only while develop has not merged the release branch back; after that merge they are listed again. |
+| Create a merge commit | Yes | The release gate reads `chore(release):` from the merge commit message, which carries the renamed PR title. |
+| Squash and merge | Yes | With the default message (the commit list is included) the squash commit body carries the `[skip ci]` of the version-confirm commit, so GitHub skips the push workflows; `PROJECT-RELEASE-PR-MERGED` sees the merged release PR and dispatches `PROJECT-RELEASE-PUBLISH`. A title-only squash message is published by the push as usual. The next release notes can list earlier changes again, because the original commits are not part of the release branch history. |
+| Rebase and merge | Yes | The last commit on the release branch is the version-confirm commit (`[skip ci]`), so the push workflows are skipped and `PROJECT-RELEASE-PR-MERGED` dispatches `PROJECT-RELEASE-PUBLISH`. The next release notes do not repeat the rebased commits, but only while develop has not merged the release branch back; after that merge they are listed again. |
 | Merged before the run finished | Extra patch release | The PR is not renamed and the version is not confirmed yet, so the safety-net workflow publishes a patch version of its own. |
 
-If a release PR was rebase-merged, or squash-merged with the default message, publish it by running **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow). It is idempotent, so running it twice is safe.
+The version-confirm commit keeps `[skip ci]`: the bot pushes it to the open release PR, and without the marker GitHub would queue that PR's workflows for approval. `PROJECT-RELEASE-PR-MERGED` listens to `pull_request_target`, which `[skip ci]` does not affect; it never checks out the PR's code, ignores fork PRs, and its token can only read contents and dispatch workflows. The safety-net back-merge commit carries no `[skip ci]`, so a release PR opened right after it still runs its workflows. If a release was still not published, run **PROJECT-RELEASE-PUBLISH** manually on the release branch (Actions > Run workflow). It is idempotent, so running it twice is safe.
 
 Known limits:
 

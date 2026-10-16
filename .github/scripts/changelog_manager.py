@@ -353,6 +353,13 @@ _WIP_RE = re.compile(r'^\[?wip\b', re.IGNORECASE)
 # cause a hard-to-undo major bump.
 # The footer is only visible when body lines are part of the commit list (with subjects only, just the `!` marker counts).
 _BREAKING_FOOTER_RE = re.compile(r'^BREAKING[ -]CHANGE\s*:\s*(.*)$')
+# Version commits the workflows make themselves; the ones left on the development branch carry no [skip ci] (#398)
+_VERSION_BOT_COMMIT_RE = re.compile(r'^chore\(version\): ')
+
+
+def _is_housekeeping_commit(line: str) -> bool:
+    """[skip ci] lines, merge commits and the workflows' own version commits never go into release notes."""
+    return '[skip ci]' in line or line.startswith('Merge ') or bool(_VERSION_BOT_COMMIT_RE.match(line))
 
 
 def _is_breaking(line: str) -> bool:
@@ -375,7 +382,8 @@ def classify_commits(lines: list[str]) -> dict:
     Tier 3: lines matching neither go to the "changes" bucket (free form, Bump... -> deps, WIP -> wip)
     `!` markers and BREAKING CHANGE footers are collected in the "breaking" bucket.
 
-    Excluded (filtered before matching): lines containing [skip ci], lines starting with "Merge ", blank lines.
+    Excluded (filtered before matching): lines containing [skip ci], lines starting with "Merge ",
+    the workflows' own "chore(version): " commits, blank lines.
     """
     classified: dict[str, list[str]] = {key: [] for key in _FALLBACK_BUCKET_KEYS}
 
@@ -383,9 +391,7 @@ def classify_commits(lines: list[str]) -> dict:
         line = raw_line.strip()
         if not line:
             continue
-        if '[skip ci]' in line:
-            continue
-        if line.startswith('Merge '):
+        if _is_housekeeping_commit(line):
             continue
         footer = _BREAKING_FOOTER_RE.match(line)
         if footer:
@@ -480,7 +486,7 @@ def classify_bump_level(lines: list[str]) -> str:
     """
     for raw_line in lines:
         line = raw_line.strip()
-        if not line or '[skip ci]' in line or line.startswith('Merge '):
+        if not line or _is_housekeeping_commit(line):
             continue
         if _is_breaking(line):
             return 'major'

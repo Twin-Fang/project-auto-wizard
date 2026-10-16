@@ -33,6 +33,7 @@ export function makeSrcText(branches, deployStyle = DEFAULT_DEPLOY_STYLE) {
 const TRUNK_BASED_EXCLUDED = new Set([
   "PROJECT-COMMON-VERSION-CONTROL.yaml",
   "PROJECT-COMMON-AUTO-CHANGELOG-CONTROL.yaml",
+  "PROJECT-COMMON-RELEASE-PR-MERGED.yaml",
 ]);
 
 // Deploy values saved in the version.yml deploy block: Map<type, Map<key,value>>.

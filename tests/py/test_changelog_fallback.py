@@ -75,6 +75,14 @@ class TestClassifyCommits(unittest.TestCase):
         out = classify_commits(["chore: bump [skip ci]", "Merge pull request #3"])
         self.assertEqual(sum(len(v) for v in out.values()), 0)
 
+    def test_version_bot_commits_excluded_without_skip_ci(self):
+        # The confirm and safety-net back-merge commits no longer carry [skip ci] (#398, #426)
+        out = classify_commits([
+            "chore(version): confirm v0.2.0 and update release docs",
+            "chore(version): merge v0.2.1 safety-net bump into develop",
+        ])
+        self.assertEqual(sum(len(v) for v in out.values()), 0)
+
     def test_empty_lines_excluded(self):
         out = classify_commits(["", "   ", "feat: add thing"])
         self.assertEqual(sum(len(v) for v in out.values()), 1)
