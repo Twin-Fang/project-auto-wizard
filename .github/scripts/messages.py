@@ -1397,6 +1397,7 @@ EN = {
     # --- wf_version ---
     "wf_version.trunk_skip": "trunk-based mode detected — RELEASE-PUBLISH owns version bumping, skipping",
     "wf_version.confirm_skip": "release-confirm commit detected (chore(release):) — skipping safety-net bump",
+    "wf_version.initial_commit_skip": "first commit of the repository (no parent) — skipping safety-net bump",
     "wf_version.release_merge_skip": "release merge detected (push contains a version.yml change) — skipping safety-net bump",
     "wf_version.direct_push": "direct push to {main_branch} detected — running safety-net version bump",
     "wf_version.read_current_failed": "failed to read current version",
@@ -2695,6 +2696,7 @@ KO = {
     # --- wf_version ---
     "wf_version.trunk_skip": "trunk-based 모드입니다 — 버전 승격은 RELEASE-PUBLISH가 맡으므로 건너뜁니다",
     "wf_version.confirm_skip": "릴리스 확정 커밋(chore(release):)을 감지했습니다 — 안전망 버전 승격을 건너뜁니다",
+    "wf_version.initial_commit_skip": "레포의 첫 커밋(부모 없음)입니다 — 안전망 버전 승격을 건너뜁니다",
     "wf_version.release_merge_skip": "릴리스 병합을 감지했습니다 (push에 version.yml 변경 포함) — 안전망 버전 승격을 건너뜁니다",
     "wf_version.direct_push": "{main_branch}에 직접 push를 감지했습니다 — 안전망 버전 승격을 실행합니다",
     "wf_version.read_current_failed": "현재 버전을 읽지 못했습니다",
