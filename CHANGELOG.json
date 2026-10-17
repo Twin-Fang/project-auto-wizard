@@ -1,15 +1,52 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-10-16T10:13:06Z",
-    "currentVersion": "1.0.0",
+    "lastUpdated": "2026-10-17T16:21:33Z",
+    "currentVersion": "1.0.1",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 37
+    "totalReleases": 38
   },
   "releases": [
+    {
+      "version": "1.0.1",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-10-17",
+      "pr_number": 444,
+      "raw_summary": "### 🐛 Fixes\n- 릴리스 PR 자동 머지가 GitHub 일시 오류로 실패하면 머지 여부를 다시 확인하고 일시 오류로 안내 (#438)\n\n### 📝 Documentation\n- Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — Try it 페이지와 README 4개 언어를 Codespaces 안내형 체험 중심으로 개편, 실제 Codespace 촬영 시연 영상 추가, 데모 영상 합성기 공통화\n\n### ✅ Tests\n- Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — 한글 허용 규칙을 데모 영상 공통 자막 파일(assets/demo/*/captions.ko.json)로 넓힘\n\n### 🔧 Changes\n- main 브랜치의 릴리스 버전 커밋을 develop에 병합\n- npm 발행을 토큰 대신 Trusted Publishing(OIDC)으로 전환 (#435)",
+      "parsed_changes": {
+        "fix": {
+          "title": "🐛 Fixes",
+          "items": [
+            "릴리스 PR 자동 머지가 GitHub 일시 오류로 실패하면 머지 여부를 다시 확인하고 일시 오류로 안내 (#438)"
+          ]
+        },
+        "docs": {
+          "title": "📝 Documentation",
+          "items": [
+            "Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — Try it 페이지와 README 4개 언어를 Codespaces 안내형 체험 중심으로 개편, 실제 Codespace 촬영 시연 영상 추가, 데모 영상 합성기 공통화"
+          ]
+        },
+        "test": {
+          "title": "✅ Tests",
+          "items": [
+            "Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — 한글 허용 규칙을 데모 영상 공통 자막 파일(assets/demo/*/captions.ko.json)로 넓힘"
+          ]
+        },
+        "changes": {
+          "title": "🔧 Changes",
+          "items": [
+            "main 브랜치의 릴리스 버전 커밋을 develop에 병합",
+            "npm 발행을 토큰 대신 Trusted Publishing(OIDC)으로 전환 (#435)"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "1.0.0",
       "project_types": [

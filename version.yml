@@ -25,14 +25,14 @@
 # - basic: version.yml only
 # ===
 
-version: "1.0.0"
-version_code: 68 # app build number
+version: "1.0.1"
+version_code: 69 # app build number
 project_types: ["node"] # first entry is primary
 project_paths: # per-type project folders (relative to repo root)
   node: "." # package.json
 metadata:
-  last_updated: "2026-10-16"
-  last_updated_by: "suhsaechan"
+  last_updated: "2026-10-17"
+  last_updated_by: "Cassiiopeia"
   default_branch: "main"
   integration_date: "2026-07-09"
   template:

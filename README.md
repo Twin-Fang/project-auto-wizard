@@ -21,7 +21,7 @@ Everything it installs is plain GitHub Actions in your own repository. No API ke
 </div>
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v1.0.0 (2026-10-16)
+## Latest Version : v1.0.1 (2026-10-17)
 
 [Full release history](CHANGELOG.md)
 
