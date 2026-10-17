@@ -6,6 +6,8 @@ const REPO = 'https://github.com/Twin-Fang/project-auto-wizard';
 
 // Project Pages are served under /<repo-name>/, so base must match or asset paths break.
 export default defineConfig({
+  // Pages import demo media straight from ../assets/demo (single source), which the dev server must be allowed to serve
+  vite: { server: { fs: { allow: ['..'] } } },
   site: 'https://twin-fang.github.io',
   base: '/project-auto-wizard',
   integrations: [

@@ -1,7 +1,7 @@
 # Try-in-Codespaces demo video
 
 `assets/demo/try-codespaces.mp4`, `try-codespaces.gif` (English) and `try-codespaces.ko.mp4` (Korean captions) show the
-Codespaces part of [Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/): opening
+Codespaces part of [Run it on GitHub, no install](https://twin-fang.github.io/project-auto-wizard/start/try-it/): opening
 [the example repository](https://github.com/Twin-Fang/project-auto-wizard-example) in a Codespace, `npm run try:install`,
 then `npm run try:release` in a copy of the template.
 
@@ -16,7 +16,11 @@ then `npm run try:release` in a copy of the template.
 ```bash
 python3 assets/demo/compose.py try-codespaces en   # assets/demo/try-codespaces.mp4 and .gif
 python3 assets/demo/compose.py try-codespaces ko   # assets/demo/try-codespaces.ko.mp4 (and a GIF, not committed)
+# Poster (title card) shown before the docs site video plays
+ffmpeg -y -ss 1.5 -i assets/demo/try-codespaces.mp4 -frames:v 1 -q:v 4 assets/demo/try-codespaces-poster.jpg
 ```
+
+The docs site imports the MP4 and the poster from here directly (no copy under `website/public/`).
 
 ## Update the screenshots
 

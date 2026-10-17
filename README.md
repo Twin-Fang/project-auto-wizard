@@ -8,7 +8,7 @@
 
 Everything it installs is plain GitHub Actions in your own repository. No API keys, no hosted service.
 
-[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Try it on GitHub](#try-it) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
+[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Run it on GitHub, no install](#try-it) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -35,7 +35,7 @@ It is a setup tool, not a release service. Think of it as a carpenter who builds
 
 <a id="try-it"></a>
 
-## Try it on GitHub, nothing to install
+## Run it on GitHub, no install
 
 Everything runs inside GitHub, explained step by step in English or Korean. No install on your computer, no secrets.
 
@@ -46,7 +46,7 @@ Everything runs inside GitHub, explained step by step in English or Korean. No i
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="Opening the example repository in GitHub Codespaces, running the installer, then releasing v0.4.0 from a copy" width="800">
 
-Step-by-step guide, and the same release with clicks only: [Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/) · [video (MP4)](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.mp4)
+Step-by-step guide with screens, and the same release with clicks only: [Run it on GitHub, no install](https://twin-fang.github.io/project-auto-wizard/start/try-it/) · [video (MP4)](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.mp4)
 
 <a id="quickstart"></a>
 

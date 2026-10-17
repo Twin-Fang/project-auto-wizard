@@ -1,16 +1,19 @@
 ---
-// The demo video lives in public/demo/. The base path is required so it also loads under the Pages sub-path.
+// Autoplaying demo video. Default: the install demo in public/demo/ (base path keeps it working under the Pages sub-path).
+// src/poster: URLs of another video, e.g. imported from assets/demo/ with `?url`
 interface Props {
   label: string;
+  src?: string;
+  poster?: string;
 }
-const { label } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const { label, src = `${base}/demo/install.mp4`, poster = `${base}/demo/install-poster.jpg` } = Astro.props;
 ---
 
 <figure class="demo-video">
   <video
-    src={`${base}/demo/install.mp4`}
-    poster={`${base}/demo/install-poster.jpg`}
+    src={src}
+    poster={poster}
     autoplay
     muted
     loop

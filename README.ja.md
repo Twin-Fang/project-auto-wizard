@@ -8,7 +8,7 @@
 
 インストールされるのは、すべてあなた自身のリポジトリ内の通常の GitHub Actions です。API キーもホスティングサービスも不要です。
 
-[ドキュメント](https://twin-fang.github.io/project-auto-wizard/ja/) · [GitHub で体験](#try-it) · [クイックスタート](#quickstart) · [変更履歴](CHANGELOG.md)
+[ドキュメント](https://twin-fang.github.io/project-auto-wizard/ja/) · [GitHub ですぐ実行](#try-it) · [クイックスタート](#quickstart) · [変更履歴](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -34,7 +34,7 @@ project-auto-wizard は、この設定を一度で済ませます。リポジト
 
 <a id="try-it"></a>
 
-## GitHub ですぐに体験
+## GitHub ですぐ実行（インストール不要）
 
 すべて GitHub の中で動き、各ステップを英語または韓国語で説明します。パソコンへのインストールも Secret も不要です。
 
@@ -45,7 +45,7 @@ project-auto-wizard は、この設定を一度で済ませます。リポジト
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="GitHub Codespaces でサンプルリポジトリを開いてインストーラーを実行し、コピー先で v0.4.0 をリリースする様子" width="800">
 
-手順ガイド（英語）とクリックだけで行う方法：[Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
+手順ガイド（英語）とクリックだけで行う方法：[Run it on GitHub, no install](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
 
 <a id="quickstart"></a>
 
