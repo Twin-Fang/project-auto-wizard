@@ -1,0 +1,93 @@
+---
+// Numbered step cards: a real screenshot and a short line each
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Step {
+  image: ImageMetadata;
+  title: string;
+  text: string;
+  // Point of the screenshot to zoom into (CSS transform-origin), e.g. the terminal output: '80% 60%'
+  focus?: string;
+}
+interface Props {
+  steps: Step[];
+}
+const { steps } = Astro.props;
+---
+
+<ol class="step-cards not-content">
+  {
+    steps.map((step, index) => (
+      <li class="step-cards__card">
+        <a href={step.image.src} class="step-cards__shot" target="_blank" rel="noopener">
+          <Image src={step.image} alt={step.title} widths={[480, 960]} sizes="(min-width: 50rem) 360px, 100vw" class={step.focus ? 'is-zoomed' : undefined} style={step.focus ? `transform-origin: ${step.focus}` : undefined} />
+        </a>
+        <div class="step-cards__body">
+          <span class="step-cards__number">{index + 1}</span>
+          <strong>{step.title}</strong>
+          <p>{step.text}</p>
+        </div>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .step-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1rem;
+    margin-block: 1.25rem;
+    padding: 0;
+    list-style: none;
+  }
+  .step-cards__card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: var(--sl-color-gray-6);
+  }
+  .step-cards__shot {
+    display: block;
+    overflow: hidden;
+    border-bottom: 1px solid var(--sl-color-gray-5);
+  }
+  /* Zoomed cards show the part that matters; the link opens the full screenshot */
+  .step-cards__shot img.is-zoomed {
+    transform: scale(1.7);
+  }
+  .step-cards__shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    object-position: top left;
+  }
+  .step-cards__body {
+    padding: 0.75rem 1rem 1rem;
+  }
+  .step-cards__number {
+    display: inline-grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-inline-end: 0.5rem;
+    border-radius: 50%;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+  }
+  .step-cards__body strong {
+    color: var(--sl-color-white);
+  }
+  .step-cards__body p {
+    margin: 0.4rem 0 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+</style>

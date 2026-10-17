@@ -4,3 +4,25 @@
   max-width: 960px;
   margin-inline: auto;
 }
+
+/* Run-it-on-GitHub page: the two start buttons and the one-line facts under them */
+.try-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.sl-markdown-content .try-actions > *,
+.sl-markdown-content .try-actions p > * {
+  margin: 0;
+}
+/* MDX wraps the buttons in a paragraph; let them sit in the flex row directly */
+.try-actions p {
+  display: contents;
+}
+.try-actions .sl-link-button {
+  font-size: var(--sl-text-lg);
+}
+.sl-markdown-content .try-badges {
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}

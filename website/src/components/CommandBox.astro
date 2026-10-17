@@ -1,0 +1,76 @@
+---
+// One terminal command to paste, with a caption and a copy button
+interface Props {
+  command: string;
+  caption: string;
+  copyLabel: string;
+  copiedLabel: string;
+}
+const { command, caption, copyLabel, copiedLabel } = Astro.props;
+---
+
+<div class="command-box not-content">
+  <p class="command-box__caption">{caption}</p>
+  <div class="command-box__row">
+    <code class="command-box__command"><span aria-hidden="true">$ </span>{command}</code>
+    <button type="button" class="command-box__copy" data-command={command} data-copied={copiedLabel}>{copyLabel}</button>
+  </div>
+</div>
+
+<style>
+  .command-box {
+    margin-block: 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 2px dashed var(--sl-color-accent);
+    border-radius: 0.75rem;
+    background: var(--sl-color-accent-low);
+  }
+  .command-box__caption {
+    margin: 0 0 0.6rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .command-box__row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .command-box__command {
+    flex: 1 1 14rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 0.5rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-lg);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .command-box__copy {
+    padding: 0.6rem 1.1rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+    font-weight: 700;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  // Copy button: write the command to the clipboard and show the "copied" label briefly
+  const FEEDBACK_MILLISECONDS = 1500;
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.command-box__copy')) {
+    const originalLabel = button.textContent;
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.command ?? '');
+        button.textContent = button.dataset.copied ?? originalLabel;
+      } catch {
+        // Clipboard blocked (insecure context, permissions): the command stays selectable as text
+        return;
+      }
+      setTimeout(() => (button.textContent = originalLabel), FEEDBACK_MILLISECONDS);
+    });
+  }
+</script>

@@ -1,7 +1,19 @@
 # Changelog
 
-**Current version:** 1.0.1  
-**Last updated:** 2026-10-17T16:21:33Z  
+**Current version:** 1.0.2  
+**Last updated:** 2026-10-17T21:31:36Z  
+
+---
+
+## [1.0.2] - 2026-10-17
+
+**PR:** #448  
+
+**📝 Documentation**
+- 체험 페이지를 보고, 누르고, 따라 하는 구성으로 개편 — 이름을 GitHub에서 바로 실행해 보기로 바꾸고 큰 시작 버튼, 자동 재생 영상, 명령 복사 상자, 화면 단계 카드로 재구성. 홈 화면 버튼과 README 4개 언어 반영, 영상은 assets/demo 원본을 직접 사용
+
+**🔧 Changes**
+- main 브랜치의 릴리스 버전 커밋을 develop에 병합
 
 ---
 

@@ -2,7 +2,7 @@
 # Docs site (website/) build and GitHub Pages deploy workflow (repo-only — not copied into payload)
 #
 # Behavior:
-# - When website/ changes land on main, builds the Astro Starlight site and deploys it to Pages
+# - When website/ (or the demo media in assets/demo/) changes land on main, builds the Astro Starlight site and deploys it to Pages
 # - Manual redeploy via workflow_dispatch
 #
 # Why it is separate from the release workflows:
@@ -20,6 +20,7 @@ on:
     branches: ["main"]
     paths:
       - "website/**"
+      - "assets/demo/**"
       - ".github/workflows/DOCS-PAGES.yaml"
   workflow_dispatch:
 
