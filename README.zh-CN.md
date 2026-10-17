@@ -8,7 +8,7 @@
 
 它安装的全部内容都是你自己仓库里的普通 GitHub Actions。不需要 API 密钥，也没有托管服务。
 
-[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [浏览器体验](#try-it) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
+[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [在 GitHub 上体验](#try-it) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -34,13 +34,18 @@ project-auto-wizard 一次性完成这些配置。在仓库中运行它并回答
 
 <a id="try-it"></a>
 
-## 只用浏览器，5 分钟体验
+## 在 GitHub 上直接体验
 
-[示例仓库](https://github.com/Twin-Fang/project-auto-wizard-example)已经安装好了。用 **Use this template** 复制它，创建 `develop` 分支，在网页编辑器里提交 `feat: …`，再向 `main` 发起 PR。一分钟内 GitHub Actions 会确定版本、撰写发布说明、合并，并发布标签、GitHub Release 和 CHANGELOG，全部发生在你自己的仓库里。无需安装，也不需要任何 Secret。
+全部在 GitHub 内完成，每一步都会用英文或韩文说明。无需在电脑上安装任何东西，也不需要 Secret。
 
-<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="复制示例仓库并在 GitHub 网页上发布 v0.3.0" width="800">
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Twin-Fang/project-auto-wizard-example?quickstart=1)
 
-分步指南（英文）：[Try it in your browser](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
+1. **运行安装向导（2 分钟）。** 点击按钮，会在[示例仓库](https://github.com/Twin-Fang/project-auto-wizard-example)上打开 Codespace（浏览器里的 VS Code 和终端）。运行 `npm run try:install`，真正的向导会为 Node、Spring 或 Python 示例项目完成安装。
+2. **完成一次真实发布（5 分钟）。** [复制模板](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang)，在你的副本中打开 Codespace（**Code > Codespaces**），运行 `npm run try:release`。它会打开发布 PR，GitHub Actions 会确定版本、撰写发布说明和 CHANGELOG、合并并发布 Release。
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="在 GitHub Codespaces 中打开示例仓库、运行安装向导，再从副本发布 v0.4.0" width="800">
+
+分步指南（英文），以及只用点击完成的方法：[Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
 
 <a id="quickstart"></a>
 

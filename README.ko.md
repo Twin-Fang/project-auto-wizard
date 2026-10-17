@@ -8,7 +8,7 @@
 
 설치되는 것은 전부 내 레포 안의 일반 GitHub Actions입니다. API 키도, 외부 서비스도 필요 없습니다.
 
-[문서](https://twin-fang.github.io/project-auto-wizard/ko/) · [브라우저에서 체험](#try-it) · [빠른 시작](#quickstart) · [변경 기록](CHANGELOG.md)
+[문서](https://twin-fang.github.io/project-auto-wizard/ko/) · [GitHub에서 체험](#try-it) · [빠른 시작](#quickstart) · [변경 기록](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -34,13 +34,18 @@ project-auto-wizard는 이 설정을 한 번에 끝냅니다. 레포에서 실�
 
 <a id="try-it"></a>
 
-## 브라우저만으로 5분 체험
+## GitHub에서 바로 체험
 
-[예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)에 이미 설치되어 있습니다. **Use this template**으로 복사하고, `develop` 브랜치를 만들고, 웹 편집기에서 `feat: …` 커밋을 한 뒤 `main`으로 PR을 여세요. 1분 안에 GitHub Actions가 버전을 확정하고, 릴리스 노트를 쓰고, 머지한 뒤 태그와 GitHub Release, CHANGELOG를 만듭니다. 모두 자기 레포에서 일어나며 설치나 Secret은 필요 없습니다.
+모든 과정이 GitHub 안에서 일어나고, 단계마다 영어 또는 한국어로 설명합니다. 내 컴퓨터에 설치할 것도, Secret도 필요 없습니다.
 
-<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="예제 레포를 복사해 GitHub 웹 화면에서 v0.3.0을 릴리스하는 과정" width="800">
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Twin-Fang/project-auto-wizard-example?quickstart=1)
 
-단계마다 무엇을 확인하면 되는지 담은 가이드: [브라우저에서 직접 해 보기](https://twin-fang.github.io/project-auto-wizard/ko/start/try-it/) · [한국어 자막 영상](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.ko.mp4)
+1. **설치 마법사 실행 (2분).** 버튼을 누르면 [예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)에서 Codespace(브라우저 속 VS Code와 터미널)가 열립니다. `npm run try:install`을 실행하면 진짜 마법사가 Node, Spring, Python 샘플 프로젝트에 설치합니다.
+2. **실제 릴리스 (5분).** [템플릿을 복사](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang)하고 복사본에서 Codespace를 연 뒤(**Code > Codespaces**) `npm run try:release`를 실행합니다. 릴리스 PR을 열면 GitHub Actions가 버전 확정, 릴리스 노트와 CHANGELOG 작성, 머지, Release 발행까지 합니다.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="예제 레포를 GitHub Codespaces로 열어 설치 마법사를 실행하고, 복사본에서 v0.4.0을 릴리스하는 과정" width="800">
+
+단계별 가이드와 클릭만으로 하는 방법: [GitHub에서 직접 해 보기](https://twin-fang.github.io/project-auto-wizard/ko/start/try-it/) · [한국어 자막 영상](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.ko.mp4)
 
 <a id="quickstart"></a>
 
