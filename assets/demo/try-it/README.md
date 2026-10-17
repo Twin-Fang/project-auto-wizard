@@ -1,7 +1,7 @@
 # Try-it demo video
 
 `assets/demo/try-it.mp4`, `try-it.gif` (English) and `try-it.ko.mp4` (Korean captions) show the browser-only flow of
-[Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/) (the "Clicks only" part): copying
+[Run it on GitHub, no install](https://twin-fang.github.io/project-auto-wizard/start/try-it/) (the "No terminal? Clicks only" part): copying
 [the example repository](https://github.com/Twin-Fang/project-auto-wizard-example) and releasing from GitHub's web UI.
 
 | File | Role |

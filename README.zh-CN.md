@@ -8,7 +8,7 @@
 
 它安装的全部内容都是你自己仓库里的普通 GitHub Actions。不需要 API 密钥，也没有托管服务。
 
-[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [在 GitHub 上体验](#try-it) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
+[文档](https://twin-fang.github.io/project-auto-wizard/zh-cn/) · [在 GitHub 上直接运行](#try-it) · [快速开始](#quickstart) · [变更日志](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -34,7 +34,7 @@ project-auto-wizard 一次性完成这些配置。在仓库中运行它并回答
 
 <a id="try-it"></a>
 
-## 在 GitHub 上直接体验
+## 在 GitHub 上直接运行（无需安装）
 
 全部在 GitHub 内完成，每一步都会用英文或韩文说明。无需在电脑上安装任何东西，也不需要 Secret。
 
@@ -45,7 +45,7 @@ project-auto-wizard 一次性完成这些配置。在仓库中运行它并回答
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="在 GitHub Codespaces 中打开示例仓库、运行安装向导，再从副本发布 v0.4.0" width="800">
 
-分步指南（英文），以及只用点击完成的方法：[Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
+分步指南（英文），以及只用点击完成的方法：[Run it on GitHub, no install](https://twin-fang.github.io/project-auto-wizard/start/try-it/)
 
 <a id="quickstart"></a>
 

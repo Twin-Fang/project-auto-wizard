@@ -1,82 +1,89 @@
 ---
-title: Try it on GitHub
-description: Run the real installer and cut a real release inside GitHub, in a Codespace or with clicks only. Nothing to install on your computer.
+title: Run it on GitHub, no install
+description: Open a Codespace from your browser, run the real installer, then cut a real release in your own copy. Nothing to install on your computer, no secrets.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside, LinkButton } from '@astrojs/starlight/components';
+import DemoVideo from '../../../components/DemoVideo.astro';
+import CommandBox from '../../../components/CommandBox.astro';
+import StepCards from '../../../components/StepCards.astro';
+import demoVideo from '../../../../../assets/demo/try-codespaces.mp4?url';
+import demoPoster from '../../../../../assets/demo/try-codespaces-poster.jpg?url';
+import clicksVideo from '../../../../../assets/demo/try-it.mp4?url';
+import clicksPoster from '../../../../../assets/demo/try-it-poster.jpg?url';
+import shotOpenButton from '../../../../../assets/demo/try-codespaces/shots/01-open-button.png';
+import shotTrustFolder from '../../../../../assets/demo/try-codespaces/shots/03-trust-folder.png';
+import shotInstallChoose from '../../../../../assets/demo/try-codespaces/shots/05-install-choose.png';
+import shotInstallResult from '../../../../../assets/demo/try-codespaces/shots/07-install-result.png';
+import shotCopyTemplate from '../../../../../assets/demo/try-codespaces/shots/09-copy-template.png';
+import shotCodespaceOnCopy from '../../../../../assets/demo/try-codespaces/shots/10-codespace-on-copy.png';
+import shotReleaseChoose from '../../../../../assets/demo/try-codespaces/shots/11-release-choose.png';
+import shotReleased from '../../../../../assets/demo/try-codespaces/shots/13-released.png';
+import shotGithubRelease from '../../../../../assets/demo/try-codespaces/shots/15-github-release.png';
 
-The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) is a small Node project with the release automation already installed. You can try both halves of project-auto-wizard without leaving GitHub: the **installer** that sets everything up, and the **release** it automates (the commit type decides the next version, the release PR gets its notes and merges itself, and a tag, a GitHub Release and the CHANGELOG appear).
+Click a button and a ready-made dev machine opens in your browser. Run the real installer in 2 minutes, then watch GitHub Actions cut a real release in your own copy in 5. Every step explains itself.
 
-Nothing is installed on your computer and no secrets are needed. Pick one way:
+<div class="try-actions">
+  <LinkButton href="https://codespaces.new/Twin-Fang/project-auto-wizard-example?quickstart=1" icon="rocket">① 2 min: run the installer</LinkButton>
+  <LinkButton href="#part-2-a-real-release-in-your-repo" variant="secondary" icon="down-arrow">② 5 min: a real release</LinkButton>
+</div>
 
-| | In a Codespace (guided) | Clicks only |
+<p class="try-badges">Free with your GitHub account · No install on your computer · No secrets · Explained in English or Korean</p>
+
+<DemoVideo label="Opening the example repository in GitHub Codespaces, running the installer, then releasing v0.4.0 from a copy" src={demoVideo} poster={demoPoster} />
+
+## What is this?
+
+A [Codespace](https://docs.github.com/codespaces) is a computer GitHub lends you, opened in a browser tab: VS Code with a Linux terminal, already set up with Node.js, git and the `gh` command. The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) adds two commands to it. They run the real project-auto-wizard, not a simulation, and say what they do at every step.
+
+| | ① Run the installer | ② A real release in your repo |
 |---|---|---|
-| What you do | Type two commands in a terminal in your browser | Click through GitHub's web UI |
-| What you see | The real installer, then a real release | A real release |
-| Explained as it runs | Yes, in English or Korean | Follow the steps on this page |
-| Time | about 2 + 5 minutes | about 5 minutes |
+| You see | The wizard installs release automation into a sample Node, Spring or Python project | GitHub Actions turn a commit into a version, release notes, a CHANGELOG entry and a GitHub Release |
+| You need | A GitHub account | A GitHub account and your own copy of the template |
+| Time | about 2 minutes | about 5 minutes |
 
-## In a Codespace (guided)
+## Part 1: run the installer
 
-A [Codespace](https://docs.github.com/codespaces) is VS Code with a Linux terminal, running on GitHub and opened in your browser. The example repository sets it up with Node.js, git and the `gh` command.
+Click **① 2 min: run the installer** at the top of this page, then **Create new codespace**. When the terminal is ready, paste:
 
-<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="Opening the example repository in GitHub Codespaces, running the installer, then releasing v0.4.0 from a copy" width="880" />
+<CommandBox command="npm run try:install" caption="Paste this into the Codespace terminal" copyLabel="Copy" copiedLabel="Copied" />
 
-The same recording as a video: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.mp4).
+<StepCards
+  steps={[
+    { image: shotOpenButton, focus: '0% 80%', title: 'Open the Codespace', text: 'Open in GitHub Codespaces, then Create new codespace. The first start takes about a minute.' },
+    { image: shotTrustFolder, focus: '50% 50%', title: 'Trust the folder', text: 'Click Trust folder and continue. Until you do, the terminal stays off.' },
+    { image: shotInstallChoose, focus: '45% 25%', title: 'Pick a sample', text: 'Choose a language and a Node, Spring or Python sample, then press Enter at each question.' },
+    { image: shotInstallResult, focus: '45% 70%', title: 'See what it installed', text: 'Release workflows, their scripts and version.yml. All in a temporary folder; nothing is pushed.' },
+  ]}
+/>
 
-### Part 1: run the installer
+## Part 2: a real release in your repo
 
-<Steps>
+The release runs in GitHub Actions of a repository you own, so first [copy the template](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang) (your account, any name, **Public**, **Include all branches** off). In your copy click **Code** > **Codespaces** > **Create codespace on main**, trust the folder, and paste:
 
-1. **Open the Codespace.** On the [example repository](https://github.com/Twin-Fang/project-auto-wizard-example), click **Open in GitHub Codespaces**, then **Create new codespace**. It takes about a minute the first time.
+<CommandBox command="npm run try:release" caption="Paste this into the terminal of the Codespace on your copy" copyLabel="Copy" copiedLabel="Copied" />
 
-   ✓ VS Code opens in the browser with `TRY-IT.md`.
+<StepCards
+  steps={[
+    { image: shotCopyTemplate, focus: '50% 25%', title: 'Copy the template', text: 'Your account, any name, Public. Leave Include all branches off.' },
+    { image: shotCodespaceOnCopy, focus: '75% 40%', title: 'Open a Codespace on your copy', text: 'Code > Codespaces > Create codespace on main.' },
+    { image: shotReleaseChoose, focus: '45% 50%', title: 'Choose a change', text: 'It shows the version feat:, fix: and feat!: lead to. It creates develop, commits, pushes and opens the release PR for you.' },
+    { image: shotReleased, focus: '45% 85%', title: 'Watch it release', text: 'GitHub Actions confirm the version, write the notes and CHANGELOG, merge and publish. About 1 to 3 minutes.' },
+    { image: shotGithubRelease, focus: '0% 35%', title: 'Your GitHub Release', text: 'Written from the commit message. Run it again with fix: or feat!: to compare.' },
+  ]}
+/>
 
-2. **Turn on the terminal.** If VS Code asks whether you trust the authors of the files in this folder, click **Trust folder and continue**. Then open the terminal with **Ctrl + `** if it is not open.
+## Questions
 
-   ✓ The terminal shows `npm run try:install` and `npm run try:release`.
+- **Does it cost anything?** A Codespace uses the free monthly quota of your own GitHub account (GitHub Free: 120 core-hours a month, about 60 hours on the default 2-core machine). Without a payment method on your account it stops at the quota and never bills you.
+- **What stays behind?** Part 1 leaves nothing. Part 2 leaves your copy of the template with a few releases. Delete the Codespace at [github.com/codespaces](https://github.com/codespaces) (**...** > **Delete**) and the copy in its **Settings** when you are done.
+- **Can I try it on my own project instead?** Yes: run `npx project-auto-wizard` in the root of your repository. See [Quickstart](../quickstart/).
 
-3. **Run the installer.** Type `npm run try:install` and press **Enter**. Choose a language and a sample project (Node, Spring or Python). Then press **Enter** at each question of the wizard to keep the defaults.
+## No terminal? Clicks only
 
-   ✓ The list of installed files ends with `version.yml` and `README.md`: release workflows under `.github/workflows/` and their scripts under `.github/scripts/`. This happens in a temporary folder; nothing is pushed.
+The same release as Part 2, done by hand in GitHub's web UI.
 
-</Steps>
-
-### Part 2: cut a real release
-
-The release runs in GitHub Actions of a repository you own, so this part uses your copy of the template.
-
-<Steps>
-
-1. **Copy the template.** Open [Create a repository from the template](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang). Choose your account, any name and **Public**. Leave **Include all branches** off, then click **Create repository**.
-
-2. **Open a Codespace on your copy.** In your new repository click **Code** > **Codespaces** > **Create codespace on main**. Trust the folder as in Part 1.
-
-3. **Run the release.** Type `npm run try:release` and press **Enter**. It explains each step as it goes:
-
-   - checks that the Codespace belongs to your copy,
-   - creates `develop` from `main`,
-   - shows the version that `feat:`, `fix:` and `feat!:` would lead to, and lets you choose,
-   - edits `src/greet.js`, commits, pushes and opens the `develop` > `main` release PR,
-   - waits while GitHub Actions confirms the version, writes the release notes and CHANGELOG, merges, and publishes the tag and the Release.
-
-   ✓ It ends with `Released vX.Y.Z` and links to the Release, `CHANGELOG.md` and the README version line.
-
-4. **Compare.** Run `npm run try:release` again and choose another kind of change: `fix:` raises the patch version, `feat!:` the major version.
-
-</Steps>
-
-<Aside>
-**Cost.** A Codespace uses the free monthly quota of your own GitHub account (GitHub Free: 120 core-hours a month, about 60 hours on the default 2-core machine). Without a payment method on your account it stops at the quota and never bills you. When you are done, delete it at [github.com/codespaces](https://github.com/codespaces): **...** > **Delete**.
-</Aside>
-
-## Clicks only
-
-The same release, done by hand in GitHub's web UI.
-
-<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="Copying the example repository and releasing v0.3.0 from GitHub's web UI" width="880" />
-
-The same recording as a video: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.mp4).
+<DemoVideo label="Copying the example repository and releasing v0.3.0 from GitHub's web UI" src={clicksVideo} poster={clicksPoster} />
 
 <Aside>
 Prefer to look before you try? The example repository's [pull requests](https://github.com/Twin-Fang/project-auto-wizard-example/pulls?q=is%3Apr), [Actions runs](https://github.com/Twin-Fang/project-auto-wizard-example/actions) and [Releases](https://github.com/Twin-Fang/project-auto-wizard-example/releases) show releases that already ran.

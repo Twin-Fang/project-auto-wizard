@@ -8,7 +8,7 @@
 
 설치되는 것은 전부 내 레포 안의 일반 GitHub Actions입니다. API 키도, 외부 서비스도 필요 없습니다.
 
-[문서](https://twin-fang.github.io/project-auto-wizard/ko/) · [GitHub에서 체험](#try-it) · [빠른 시작](#quickstart) · [변경 기록](CHANGELOG.md)
+[문서](https://twin-fang.github.io/project-auto-wizard/ko/) · [GitHub에서 바로 실행해 보기](#try-it) · [빠른 시작](#quickstart) · [변경 기록](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -34,7 +34,7 @@ project-auto-wizard는 이 설정을 한 번에 끝냅니다. 레포에서 실�
 
 <a id="try-it"></a>
 
-## GitHub에서 바로 체험
+## GitHub에서 바로 실행해 보기 (설치 없이)
 
 모든 과정이 GitHub 안에서 일어나고, 단계마다 영어 또는 한국어로 설명합니다. 내 컴퓨터에 설치할 것도, Secret도 필요 없습니다.
 
@@ -45,7 +45,7 @@ project-auto-wizard는 이 설정을 한 번에 끝냅니다. 레포에서 실�
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="예제 레포를 GitHub Codespaces로 열어 설치 마법사를 실행하고, 복사본에서 v0.4.0을 릴리스하는 과정" width="800">
 
-단계별 가이드와 클릭만으로 하는 방법: [GitHub에서 직접 해 보기](https://twin-fang.github.io/project-auto-wizard/ko/start/try-it/) · [한국어 자막 영상](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.ko.mp4)
+화면과 함께 보는 단계별 가이드, 클릭만으로 하는 방법: [GitHub에서 바로 실행해 보기](https://twin-fang.github.io/project-auto-wizard/ko/start/try-it/) · [한국어 자막 영상](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.ko.mp4)
 
 <a id="quickstart"></a>
 
