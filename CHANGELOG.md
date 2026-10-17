@@ -1,7 +1,26 @@
 # Changelog
 
-**Current version:** 1.0.0  
-**Last updated:** 2026-10-16T10:13:06Z  
+**Current version:** 1.0.1  
+**Last updated:** 2026-10-17T16:21:33Z  
+
+---
+
+## [1.0.1] - 2026-10-17
+
+**PR:** #444  
+
+**🐛 Fixes**
+- 릴리스 PR 자동 머지가 GitHub 일시 오류로 실패하면 머지 여부를 다시 확인하고 일시 오류로 안내 (#438)
+
+**📝 Documentation**
+- Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — Try it 페이지와 README 4개 언어를 Codespaces 안내형 체험 중심으로 개편, 실제 Codespace 촬영 시연 영상 추가, 데모 영상 합성기 공통화
+
+**✅ Tests**
+- Codespaces 체험: GitHub 안에서 설치 마법사와 실제 릴리스까지 안내 — 한글 허용 규칙을 데모 영상 공통 자막 파일(assets/demo/*/captions.ko.json)로 넓힘
+
+**🔧 Changes**
+- main 브랜치의 릴리스 버전 커밋을 develop에 병합
+- npm 발행을 토큰 대신 Trusted Publishing(OIDC)으로 전환 (#435)
 
 ---
 

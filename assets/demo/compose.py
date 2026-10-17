@@ -1,7 +1,8 @@
-"""Builds the try-it demo video from the screenshots in shots/ and a caption file.
+"""Builds a demo video from the screenshots in assets/demo/<demo>/shots/ and a caption file.
 
-    python3 assets/demo/try-it/compose.py en      # -> assets/demo/try-it.mp4, assets/demo/try-it.gif
-    python3 assets/demo/try-it/compose.py ko      # -> assets/demo/try-it.ko.mp4, assets/demo/try-it.ko.gif
+    python3 assets/demo/compose.py try-it en           # -> assets/demo/try-it.mp4, try-it.gif
+    python3 assets/demo/compose.py try-it ko           # -> assets/demo/try-it.ko.mp4, try-it.ko.gif
+    python3 assets/demo/compose.py try-codespaces en   # -> assets/demo/try-codespaces.mp4, try-codespaces.gif
 
 Each shots/NN-<step>.png becomes one captioned slide (caption from captions.<lang>.json, key <step>), between a
 title card and an end card, joined with crossfades. Needs Pillow and ffmpeg. The font must cover the caption
@@ -15,8 +16,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-HERE = Path(__file__).resolve().parent
-OUT_DIR = HERE.parent
+# Videos land next to the demo folders: assets/demo/<demo>.mp4
+OUT_DIR = Path(__file__).resolve().parent
 
 W, H = 1600, 1000  # video frame
 SHOT_W, SHOT_MAX_H, SHOT_TOP = 1280, 760, 200  # screenshot placement
@@ -78,18 +79,21 @@ def step(shot_path, number, total, caption):
     return img.convert("RGB")
 
 
-def build(lang):
-    captions = json.loads((HERE / f"captions.{lang}.json").read_text(encoding="utf-8"))
-    shots = sorted((HERE / "shots").glob("*.png"))
+def build(demo, lang):
+    demo_dir = OUT_DIR / demo
+    captions = json.loads((demo_dir / f"captions.{lang}.json").read_text(encoding="utf-8"))
+    shots = sorted((demo_dir / "shots").glob("*.png"))
+    # Optional "step_seconds" in the caption file: longer slides for dense screens such as terminals
+    step_seconds = captions.get("step_seconds", STEP_SECONDS)
     slides = [(card(captions["title"], [captions["subtitle"]]), TITLE_SECONDS)]
     for number, shot in enumerate(shots, start=1):
         key = shot.stem
         if key not in captions["steps"]:
             raise SystemExit(f"captions.{lang}.json has no caption for {key}")
-        slides.append((step(shot, number, len(shots), captions["steps"][key]), STEP_SECONDS))
+        slides.append((step(shot, number, len(shots), captions["steps"][key]), step_seconds))
     slides.append((card(captions["end_title"], captions["end_lines"]), END_SECONDS))
 
-    frames = HERE / ".frames" / lang
+    frames = demo_dir / ".frames" / lang
     frames.mkdir(parents=True, exist_ok=True)
     inputs, offset, chain, prev = [], 0.0, [], "[0:v]"
     for i, (img, seconds) in enumerate(slides):
@@ -103,7 +107,7 @@ def build(lang):
     chain.append(f"{prev}fps=30,format=yuv420p[out]")
 
     suffix = "" if lang == "en" else f".{lang}"
-    mp4, gif = OUT_DIR / f"try-it{suffix}.mp4", OUT_DIR / f"try-it{suffix}.gif"
+    mp4, gif = OUT_DIR / f"{demo}{suffix}.mp4", OUT_DIR / f"{demo}{suffix}.gif"
     run = lambda *args: subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
     run(*inputs, "-filter_complex", ";".join(chain), "-map", "[out]", "-c:v", "libx264", "-crf", "22", "-movflags", "+faststart", str(mp4))
     # GIF for places that cannot play video (README): fewer frames and colors keep it small
@@ -112,4 +116,6 @@ def build(lang):
 
 
 if __name__ == "__main__":
-    build(sys.argv[1] if len(sys.argv) > 1 else "en")
+    if len(sys.argv) < 2:
+        raise SystemExit("usage: compose.py <demo folder, e.g. try-it> [lang]")
+    build(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "en")

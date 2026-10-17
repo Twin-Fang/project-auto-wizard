@@ -183,7 +183,7 @@ function enableScript() {
     .replaceAll("{{MAIN_BRANCH}}", "main").replaceAll("{{DEVELOP_BRANCH}}", "develop");
 }
 
-// scenario: { review, state, mergeErr, mergeable, allowMergeCommit }
+// scenario: { review, state, mergeErr, mergeable, allowMergeCommit, mergedFrom }
 function runEnable(scenario = {}) {
   const dir = mkdtempSync(join(tmpdir(), "paw-enable-"));
   try {
@@ -193,7 +193,10 @@ function runEnable(scenario = {}) {
     // gh: every merge attempt is rejected; the PR views answer from the scenario. sleep is a no-op so the backoff does not stall the test.
     writeFileSync(join(dir, "bin/gh"), `#!/bin/bash
 case "$*" in
-  "pr view"*"--json state"*) echo OPEN;;
+  "pr view"*"--json state"*)
+    # FAKE_MERGED_FROM: the n-th state lookup and later answer MERGED (a merge GitHub finished late)
+    n=$(( $(cat "$RUNNER_TEMP/state_calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$RUNNER_TEMP/state_calls"
+    if [ -n "$FAKE_MERGED_FROM" ] && [ "$n" -ge "$FAKE_MERGED_FROM" ]; then echo MERGED; else echo OPEN; fi;;
   "pr view"*"--json mergeable"*) echo "\${FAKE_MERGEABLE:-MERGEABLE}";;
   "pr view"*"--json reviewDecision"*) echo "$FAKE_REVIEW";;
   "pr view"*"--json mergeStateStatus"*) echo "$FAKE_STATE";;
@@ -214,6 +217,7 @@ exit 0
         GITHUB_REPOSITORY: "acme/widgets", PROJECT_AUTO_WIZARD_LANG: "en", RUNNER_TEMP: dir, GITHUB_OUTPUT: outFile,
         FAKE_REVIEW: scenario.review || "", FAKE_STATE: scenario.state || "", FAKE_MERGE_ERR: scenario.mergeErr || "",
         FAKE_MERGEABLE: scenario.mergeable || "MERGEABLE", FAKE_ALLOW_MERGE_COMMIT: scenario.allowMergeCommit || "true",
+        FAKE_MERGED_FROM: scenario.mergedFrom ? String(scenario.mergedFrom) : "",
       },
     });
     return { status: r.status, out: r.stdout + r.stderr, outputs: readFileSync(outFile, "utf8") };
@@ -254,4 +258,30 @@ test("rejected merge caused by a conflict or disabled merge commits is not flagg
   const disabled = runEnable({ allowMergeCommit: "false", review: "REVIEW_REQUIRED", mergeErr: POLICY_ERR });
   assert.strictEqual(disabled.outputs.trim(), "");
   assert.match(disabled.out, /Merge commits are disabled/);
+});
+
+// GitHub's own temporary errors are not a protection rule (#438): seen on a real run as a 504 on the merge call followed by
+// "Merge already in progress" on every retry, with no rule on the branch and the PR mergeable.
+const TRANSIENT_ERR = "non-200 OK status code: 504 Gateway Timeout body: ...\nGraphQL: Merge already in progress (mergePullRequest)";
+
+test("rejected merge with GitHub's temporary errors: the transient cause and a re-run hint, not the protection message", () => {
+  const r = runEnable({ mergeErr: TRANSIENT_ERR, state: "CLEAN" });
+  assert.strictEqual(r.status, 1, r.out);
+  assert.match(r.outputs, /^merge_blocked=transient$/m);
+  assert.match(r.out, /::error::GitHub returned a temporary error/);
+  assert.match(r.out, /Re-run failed jobs/);
+  assert.ok(!/check branch protection rules, required checks, and token permissions/.test(r.out));
+});
+
+test("a protection rule still wins over a temporary error seen on the way", () => {
+  const r = runEnable({ review: "REVIEW_REQUIRED", state: "BLOCKED", mergeErr: TRANSIENT_ERR });
+  assert.match(r.outputs, /^merge_blocked=review$/m);
+});
+
+test("a merge GitHub finishes after its temporary error counts as merged", () => {
+  // the 4 attempts each look up the state once; the 5th lookup (the wait after the loop) sees MERGED
+  const r = runEnable({ mergeErr: TRANSIENT_ERR, mergedFrom: 5 });
+  assert.strictEqual(r.status, 0, r.out);
+  assert.strictEqual(r.outputs.trim(), "");
+  assert.match(r.out, /already merged/i);
 });
