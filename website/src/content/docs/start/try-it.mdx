@@ -1,13 +1,78 @@
 ---
-title: Try it in your browser
-description: Copy the example repository and cut a real release from GitHub's web UI, with nothing to install.
+title: Try it on GitHub
+description: Run the real installer and cut a real release inside GitHub, in a Codespace or with clicks only. Nothing to install on your computer.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) is a small Node project with the release automation already installed. Copy it to your account and watch a real release happen in GitHub Actions: the commit type decides the next version, the release PR gets its notes and merges itself, and a tag, a GitHub Release and the CHANGELOG appear.
+The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) is a small Node project with the release automation already installed. You can try both halves of project-auto-wizard without leaving GitHub: the **installer** that sets everything up, and the **release** it automates (the commit type decides the next version, the release PR gets its notes and merges itself, and a tag, a GitHub Release and the CHANGELOG appear).
 
-Everything below happens in the browser. It takes about five minutes and needs no Node.js, no local clone and no secrets.
+Nothing is installed on your computer and no secrets are needed. Pick one way:
+
+| | In a Codespace (guided) | Clicks only |
+|---|---|---|
+| What you do | Type two commands in a terminal in your browser | Click through GitHub's web UI |
+| What you see | The real installer, then a real release | A real release |
+| Explained as it runs | Yes, in English or Korean | Follow the steps on this page |
+| Time | about 2 + 5 minutes | about 5 minutes |
+
+## In a Codespace (guided)
+
+A [Codespace](https://docs.github.com/codespaces) is VS Code with a Linux terminal, running on GitHub and opened in your browser. The example repository sets it up with Node.js, git and the `gh` command.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="Opening the example repository in GitHub Codespaces, running the installer, then releasing v0.4.0 from a copy" width="880" />
+
+The same recording as a video: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.mp4).
+
+### Part 1: run the installer
+
+<Steps>
+
+1. **Open the Codespace.** On the [example repository](https://github.com/Twin-Fang/project-auto-wizard-example), click **Open in GitHub Codespaces**, then **Create new codespace**. It takes about a minute the first time.
+
+   ✓ VS Code opens in the browser with `TRY-IT.md`.
+
+2. **Turn on the terminal.** If VS Code asks whether you trust the authors of the files in this folder, click **Trust folder and continue**. Then open the terminal with **Ctrl + `** if it is not open.
+
+   ✓ The terminal shows `npm run try:install` and `npm run try:release`.
+
+3. **Run the installer.** Type `npm run try:install` and press **Enter**. Choose a language and a sample project (Node, Spring or Python). Then press **Enter** at each question of the wizard to keep the defaults.
+
+   ✓ The list of installed files ends with `version.yml` and `README.md`: release workflows under `.github/workflows/` and their scripts under `.github/scripts/`. This happens in a temporary folder; nothing is pushed.
+
+</Steps>
+
+### Part 2: cut a real release
+
+The release runs in GitHub Actions of a repository you own, so this part uses your copy of the template.
+
+<Steps>
+
+1. **Copy the template.** Open [Create a repository from the template](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang). Choose your account, any name and **Public**. Leave **Include all branches** off, then click **Create repository**.
+
+2. **Open a Codespace on your copy.** In your new repository click **Code** > **Codespaces** > **Create codespace on main**. Trust the folder as in Part 1.
+
+3. **Run the release.** Type `npm run try:release` and press **Enter**. It explains each step as it goes:
+
+   - checks that the Codespace belongs to your copy,
+   - creates `develop` from `main`,
+   - shows the version that `feat:`, `fix:` and `feat!:` would lead to, and lets you choose,
+   - edits `src/greet.js`, commits, pushes and opens the `develop` > `main` release PR,
+   - waits while GitHub Actions confirms the version, writes the release notes and CHANGELOG, merges, and publishes the tag and the Release.
+
+   ✓ It ends with `Released vX.Y.Z` and links to the Release, `CHANGELOG.md` and the README version line.
+
+4. **Compare.** Run `npm run try:release` again and choose another kind of change: `fix:` raises the patch version, `feat!:` the major version.
+
+</Steps>
+
+<Aside>
+**Cost.** A Codespace uses the free monthly quota of your own GitHub account (GitHub Free: 120 core-hours a month, about 60 hours on the default 2-core machine). Without a payment method on your account it stops at the quota and never bills you. When you are done, delete it at [github.com/codespaces](https://github.com/codespaces): **...** > **Delete**.
+</Aside>
+
+## Clicks only
+
+The same release, done by hand in GitHub's web UI.
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="Copying the example repository and releasing v0.3.0 from GitHub's web UI" width="880" />
 
@@ -56,6 +121,9 @@ Prefer to look before you try? The example repository's [pull requests](https://
 
 ## If something does not happen
 
+- **The terminal stays empty in the Codespace**: VS Code is in Restricted Mode. Click **Restricted Mode** in the status bar (or the banner at the top) and trust the folder.
+- **`npm run try:release` says the Codespace "has no repository of its own yet"**: it was opened with the **Open in GitHub Codespaces** button on the template. Copy the template first (Part 2, step 1) and open the Codespace from your copy.
+- **`npm run try:release` stops with "Nothing finished within the expected time"**: open the **Actions** tab of your copy. A run that is still queued finishes later; a failed run says in its last lines what blocked it.
 - **No workflow runs on the PR**: check that the PR goes from `develop` to `main` and that the **Actions** tab of the repository is enabled.
 - **The PR cannot be created ("entirely different commit histories")**: the copy was made with **Include all branches** on. Delete `develop` and create it again from `main` (step 2).
 - **The PR is not merged automatically**: open the run in the **Actions** tab; the last lines say what blocked the merge, for example a branch protection rule, and what to change.

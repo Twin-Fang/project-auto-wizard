@@ -25,7 +25,7 @@ const FILE_ALLOW = [
   { path: /^website\/src\/content\/docs\/ko\//, why: "ko locale of the docs site" },
   { path: /^CHANGELOG\.(md|json)$/, why: "past release entries" },
   { path: /^tests\/fixtures\//, why: "fixture input data (e.g. Korean text handling)" },
-  { path: /^assets\/demo\/try-it\/captions\.ko\.json$/, why: "Korean captions of the try-it demo video" },
+  { path: /^assets\/demo\/[^/]+\/captions\.ko\.json$/, why: "Korean captions of the demo videos (assets/demo/compose.py)" },
 ];
 
 // Lines of otherwise-English files where Korean is expected; each rule must allow >= 1 line

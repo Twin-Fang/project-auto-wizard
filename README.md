@@ -8,7 +8,7 @@
 
 Everything it installs is plain GitHub Actions in your own repository. No API keys, no hosted service.
 
-[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Try it in your browser](#try-it) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
+[Docs](https://twin-fang.github.io/project-auto-wizard/) · [Try it on GitHub](#try-it) · [Quickstart](#quickstart) · [Changelog](CHANGELOG.md)
 
 [![CI](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml/badge.svg)](https://github.com/Twin-Fang/project-auto-wizard/actions/workflows/CI.yaml)
 [![npm version](https://img.shields.io/npm/v/project-auto-wizard)](https://www.npmjs.com/package/project-auto-wizard)
@@ -35,13 +35,18 @@ It is a setup tool, not a release service. Think of it as a carpenter who builds
 
 <a id="try-it"></a>
 
-## Try it in 5 minutes, browser only
+## Try it on GitHub, nothing to install
 
-The [example repository](https://github.com/Twin-Fang/project-auto-wizard-example) already has it installed. Copy it with **Use this template**, create a `develop` branch, commit `feat: …` in the web editor and open a pull request to `main`. Within a minute GitHub Actions confirms the version, writes the release notes, merges, and publishes a tag, a GitHub Release and the CHANGELOG, all in your own repository. No install, no secrets.
+Everything runs inside GitHub, explained step by step in English or Korean. No install on your computer, no secrets.
 
-<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="Copying the example repository and releasing v0.3.0 from GitHub's web UI" width="800">
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Twin-Fang/project-auto-wizard-example?quickstart=1)
 
-Step-by-step guide with what to check after each step: [Try it in your browser](https://twin-fang.github.io/project-auto-wizard/start/try-it/).
+1. **Run the installer (2 min).** Click the button: a Codespace (VS Code and a terminal in your browser) opens on the [example repository](https://github.com/Twin-Fang/project-auto-wizard-example). Run `npm run try:install` and the real wizard sets up a sample Node, Spring or Python project.
+2. **Cut a real release (5 min).** [Copy the template](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang), open a Codespace on your copy (**Code > Codespaces**) and run `npm run try:release`. It opens the release PR, and GitHub Actions confirms the version, writes the notes and CHANGELOG, merges and publishes the Release.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="Opening the example repository in GitHub Codespaces, running the installer, then releasing v0.4.0 from a copy" width="800">
+
+Step-by-step guide, and the same release with clicks only: [Try it on GitHub](https://twin-fang.github.io/project-auto-wizard/start/try-it/) · [video (MP4)](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.mp4)
 
 <a id="quickstart"></a>
 

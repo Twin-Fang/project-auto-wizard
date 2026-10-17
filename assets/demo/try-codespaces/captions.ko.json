@@ -1,0 +1,27 @@
+{
+  "title": "GitHub Codespaces로 project-auto-wizard 체험",
+  "subtitle": "GitHub 안에서  ·  설치 없음  ·  Secret 없음  ·  단계마다 설명",
+  "step_seconds": 4.0,
+  "steps": {
+    "01-open-button": "예제 레포에서 Open in GitHub Codespaces를 누릅니다",
+    "02-create-codespace": "Codespace를 만듭니다: 브라우저 안의 VS Code와 터미널",
+    "03-trust-folder": "폴더 신뢰 및 계속을 누르면 터미널이 켜집니다",
+    "04-terminal-ready": "터미널에 체험 명령 두 개가 안내됩니다",
+    "05-install-choose": "npm run try:install 입력 후 샘플 프로젝트를 고릅니다",
+    "06-install-wizard": "진짜 설치 마법사가 돕니다. 질문마다 Enter",
+    "07-install-result": "설치된 릴리스 워크플로우 목록이 나옵니다",
+    "08-copy-first": "실제 릴리스는 내 계정의 복사본에서 합니다",
+    "09-copy-template": "템플릿으로 복사: 내 계정, 아무 이름, Public",
+    "10-codespace-on-copy": "복사본에서 Code > Codespaces > Create codespace on main",
+    "11-release-choose": "npm run try:release가 변경 종류별 다음 버전을 보여 줍니다",
+    "12-release-pr": "커밋, push, 릴리스 PR 열기까지 대신 합니다",
+    "13-released": "GitHub Actions가 머지하고 v0.4.0을 발행합니다",
+    "14-bot-notes": "PR에 봇이 릴리스 노트를 달고 머지했습니다",
+    "15-github-release": "커밋 메시지로 쓰인 GitHub Release"
+  },
+  "end_title": "커밋 메시지가 다음 릴리스가 됩니다",
+  "end_lines": [
+    "직접 해 보기:  github.com/Twin-Fang/project-auto-wizard-example",
+    "설치:  npx project-auto-wizard"
+  ]
+}

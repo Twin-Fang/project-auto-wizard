@@ -1,0 +1,27 @@
+{
+  "title": "Try project-auto-wizard in GitHub Codespaces",
+  "subtitle": "Inside GitHub  ·  No install  ·  No secrets  ·  Every step explained",
+  "step_seconds": 4.0,
+  "steps": {
+    "01-open-button": "On the example repository, click Open in GitHub Codespaces",
+    "02-create-codespace": "Create the codespace: VS Code and a terminal in your browser",
+    "03-trust-folder": "Click Trust folder and continue to turn on the terminal",
+    "04-terminal-ready": "The terminal shows the two try commands",
+    "05-install-choose": "npm run try:install, then pick a sample project",
+    "06-install-wizard": "The real wizard runs. Press Enter for each default",
+    "07-install-result": "It lists the release workflows it installed",
+    "08-copy-first": "A real release needs your own copy of the template",
+    "09-copy-template": "Use the template: your account, any name, Public",
+    "10-codespace-on-copy": "In your copy: Code > Codespaces > Create codespace on main",
+    "11-release-choose": "npm run try:release shows the version each change leads to",
+    "12-release-pr": "It commits, pushes and opens the release PR for you",
+    "13-released": "GitHub Actions merges it and publishes v0.4.0",
+    "14-bot-notes": "On the PR, the bot wrote the release notes and merged",
+    "15-github-release": "The GitHub Release, written from the commit message"
+  },
+  "end_title": "Your next release, from a commit message",
+  "end_lines": [
+    "Try it:  github.com/Twin-Fang/project-auto-wizard-example",
+    "Install:  npx project-auto-wizard"
+  ]
+}

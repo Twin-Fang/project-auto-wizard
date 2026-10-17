@@ -2,7 +2,7 @@
 
     python3 assets/social/compose.py      # -> assets/social/social-preview.png (1280x640)
 
-Same look as the try-it demo video (assets/demo/try-it). Needs Pillow. The font must cover Latin text; set
+Same look as the demo videos (assets/demo/compose.py). Needs Pillow. The font must cover Latin text; set
 DEMO_FONT to override the default (Apple SD Gothic Neo on macOS).
 """
 import os

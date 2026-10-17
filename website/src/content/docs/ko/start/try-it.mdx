@@ -1,13 +1,78 @@
 ---
-title: 브라우저에서 직접 해 보기
-description: 예제 레포를 복사해 GitHub 웹 화면만으로 실제 릴리스를 만들어 봅니다. 설치할 것은 없습니다.
+title: GitHub에서 직접 해 보기
+description: GitHub 안에서 진짜 설치 마법사를 돌리고 실제 릴리스까지 만들어 봅니다. Codespace에서 안내를 따라가거나 클릭만으로 할 수 있고, 내 컴퓨터에는 아무것도 설치하지 않습니다.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-[예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)는 릴리스 자동화가 이미 설치된 작은 Node 프로젝트입니다. 자기 계정으로 복사하면 GitHub Actions에서 실제 릴리스가 일어나는 과정을 볼 수 있습니다. 커밋 종류가 다음 버전을 정하고, 릴리스 PR에 노트가 달린 뒤 저절로 머지되고, 태그와 GitHub Release, CHANGELOG가 생깁니다.
+[예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)는 릴리스 자동화가 이미 설치된 작은 Node 프로젝트입니다. GitHub를 떠나지 않고 project-auto-wizard의 두 부분을 모두 체험할 수 있습니다. 모든 것을 설치해 주는 **설치 마법사**, 그리고 그것이 자동화하는 **릴리스**입니다. 릴리스에서는 커밋 종류가 다음 버전을 정하고, 릴리스 PR에 노트가 달린 뒤 저절로 머지되고, 태그와 GitHub Release, CHANGELOG가 생깁니다.
 
-아래 과정은 모두 브라우저에서 합니다. 5분 정도 걸리며 Node.js, 로컬 clone, Secret이 필요 없습니다.
+내 컴퓨터에 설치할 것도, Secret도 필요 없습니다. 둘 중 하나를 고르세요.
+
+| | Codespace에서 (안내형) | 클릭만으로 |
+|---|---|---|
+| 하는 일 | 브라우저 속 터미널에 명령 두 개 입력 | GitHub 웹 화면에서 클릭 |
+| 보는 것 | 진짜 설치 마법사, 그다음 실제 릴리스 | 실제 릴리스 |
+| 진행 중 설명 | 있음 (영어 또는 한국어) | 이 페이지의 단계를 따라감 |
+| 시간 | 약 2분 + 5분 | 약 5분 |
+
+## Codespace에서 (안내형)
+
+[Codespace](https://docs.github.com/ko/codespaces)는 GitHub에서 돌아가는 VS Code와 리눅스 터미널을 브라우저로 여는 기능입니다. 예제 레포가 Node.js, git, `gh` 명령을 미리 준비해 둡니다.
+
+<img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.gif" alt="예제 레포를 GitHub Codespaces로 열어 설치 마법사를 실행하고, 복사본에서 v0.4.0을 릴리스하는 과정" width="880" />
+
+같은 과정을 한국어 자막 영상으로 볼 수 있습니다: [MP4](https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-codespaces.ko.mp4).
+
+### 1부: 설치 마법사 실행
+
+<Steps>
+
+1. **Codespace 열기.** [예제 레포](https://github.com/Twin-Fang/project-auto-wizard-example)에서 **Open in GitHub Codespaces**를 누르고 **Create new codespace**를 누릅니다. 처음에는 1분 정도 걸립니다.
+
+   ✓ 브라우저에 VS Code가 열리고 `TRY-IT.md`가 보입니다.
+
+2. **터미널 켜기.** VS Code가 이 폴더 파일의 작성자를 신뢰하는지 물으면 **폴더 신뢰 및 계속**(Trust folder and continue)을 누릅니다. 터미널이 안 보이면 **Ctrl + `**로 엽니다.
+
+   ✓ 터미널에 `npm run try:install`과 `npm run try:release`가 안내됩니다.
+
+3. **설치 마법사 실행.** `npm run try:install`을 입력하고 **Enter**를 누릅니다. 언어와 샘플 프로젝트(Node, Spring, Python)를 고른 뒤, 마법사의 질문마다 **Enter**를 눌러 기본값으로 진행합니다.
+
+   ✓ 설치된 파일 목록이 `version.yml`, `README.md`로 끝납니다. `.github/workflows/` 아래 릴리스 워크플로우와 `.github/scripts/` 아래 스크립트입니다. 임시 폴더에서 일어나는 일이라 아무것도 push하지 않습니다.
+
+</Steps>
+
+### 2부: 실제 릴리스 만들기
+
+릴리스는 내 레포의 GitHub Actions에서 일어나므로, 이 부분은 템플릿을 복사한 내 레포에서 합니다.
+
+<Steps>
+
+1. **템플릿 복사.** [템플릿으로 레포 만들기](https://github.com/new?template_name=project-auto-wizard-example&template_owner=Twin-Fang)를 엽니다. 내 계정, 아무 이름, **Public**을 고르고 **Include all branches**는 끈 채로 **Create repository**를 누릅니다.
+
+2. **복사본에서 Codespace 열기.** 새 레포에서 **Code** > **Codespaces** > **Create codespace on main**을 누릅니다. 1부처럼 폴더를 신뢰합니다.
+
+3. **릴리스 실행.** `npm run try:release`를 입력하고 **Enter**를 누릅니다. 단계마다 무엇을 하는지 설명하며 진행합니다.
+
+   - 이 Codespace가 내 복사본에 속해 있는지 확인합니다.
+   - `main`에서 `develop`을 만듭니다.
+   - `feat:`, `fix:`, `feat!:` 각각이 어떤 버전이 되는지 보여 주고 고르게 합니다.
+   - `src/greet.js`를 고쳐 커밋, push하고 `develop` > `main` 릴리스 PR을 엽니다.
+   - GitHub Actions가 버전을 확정하고, 릴리스 노트와 CHANGELOG를 쓰고, 머지하고, 태그와 Release를 발행하기를 기다립니다.
+
+   ✓ 마지막에 `vX.Y.Z 릴리스 완료`와 함께 Release, `CHANGELOG.md`, README 버전 줄 링크가 나옵니다.
+
+4. **비교해 보기.** `npm run try:release`를 다시 실행해 다른 종류를 고르세요. `fix:`는 patch 버전을, `feat!:`는 major 버전을 올립니다.
+
+</Steps>
+
+<Aside>
+**비용.** Codespace는 내 GitHub 계정의 월 무료 사용량에서 빠집니다(GitHub Free 기준 월 120 core-hours, 기본 2코어 머신으로 약 60시간). 계정에 결제 수단이 없으면 한도에서 멈추고 요금은 청구되지 않습니다. 다 쓴 뒤에는 [github.com/codespaces](https://github.com/codespaces)에서 **...** > **Delete**로 지웁니다.
+</Aside>
+
+## 클릭만으로
+
+같은 릴리스를 GitHub 웹 화면에서 손으로 해 봅니다.
 
 <img src="https://raw.githubusercontent.com/Twin-Fang/project-auto-wizard/main/assets/demo/try-it.gif" alt="예제 레포를 복사해 GitHub 웹 화면에서 v0.3.0을 릴리스하는 과정" width="880" />
 
@@ -56,6 +121,9 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 ## 무언가 일어나지 않을 때
 
+- **Codespace 터미널이 비어 있음**: VS Code가 제한 모드입니다. 상태 표시줄의 **제한 모드**(또는 위쪽 배너)를 눌러 폴더를 신뢰하세요.
+- **`npm run try:release`가 "아직 내 레포가 없습니다"라고 함**: 템플릿의 **Open in GitHub Codespaces** 버튼으로 연 Codespace입니다. 템플릿을 먼저 복사하고(2부 1단계) 복사본에서 Codespace를 여세요.
+- **`npm run try:release`가 "예상 시간 안에 끝나지 않았습니다"에서 멈춤**: 복사본의 **Actions** 탭을 여세요. 대기 중인 실행은 조금 뒤 끝나고, 실패한 실행은 마지막 줄에 무엇이 막았는지 나옵니다.
 - **PR에서 워크플로우가 돌지 않음**: PR이 `develop`에서 `main`으로 가는지, 레포의 **Actions** 탭이 켜져 있는지 확인하세요.
 - **PR을 만들 수 없음("entirely different commit histories")**: **Include all branches**를 켜고 복사한 경우입니다. `develop`을 지우고 `main`에서 다시 만드세요(2단계).
 - **PR이 자동으로 머지되지 않음**: **Actions** 탭에서 실행을 열면 마지막 줄에 머지를 막은 원인(예: 브랜치 보호 규칙)과 바꿀 곳이 나옵니다.
