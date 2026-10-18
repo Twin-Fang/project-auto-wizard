@@ -1,12 +1,9 @@
-"""Builds a demo video from the screenshots in assets/demo/<demo>/shots/ and a caption file.
+"""Demo video from assets/demo/<demo>/shots/*.png + captions.<lang>.json (title card, one caption per shot, end card)
 
     python3 assets/demo/compose.py try-it en           # -> assets/demo/try-it.mp4, try-it.gif
-    python3 assets/demo/compose.py try-it ko           # -> assets/demo/try-it.ko.mp4, try-it.ko.gif
-    python3 assets/demo/compose.py try-codespaces en   # -> assets/demo/try-codespaces.mp4, try-codespaces.gif
+    python3 assets/demo/compose.py try-codespaces ko   # -> assets/demo/try-codespaces.ko.mp4
 
-Each shots/NN-<step>.png becomes one captioned slide (caption from captions.<lang>.json, key <step>), between a
-title card and an end card, joined with crossfades. Needs Pillow and ffmpeg. The font must cover the caption
-language; set DEMO_FONT to override the default (Apple SD Gothic Neo on macOS).
+Needs Pillow and ffmpeg. DEMO_FONT overrides the font (default Apple SD Gothic Neo, must cover the caption language).
 """
 import json
 import os

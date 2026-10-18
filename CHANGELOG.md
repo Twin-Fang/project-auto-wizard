@@ -1,7 +1,19 @@
 # Changelog
 
-**Current version:** 1.0.2  
-**Last updated:** 2026-10-17T21:31:36Z  
+**Current version:** 1.0.3  
+**Last updated:** 2026-10-18T07:29:21Z  
+
+---
+
+## [1.0.3] - 2026-10-18
+
+**PR:** #452  
+
+**♻️ Refactoring**
+- 체험 스크립트 코드 점검 반영: 이름 정리와 버전 읽기 실패 안내 — 데모 영상 합성기(compose.py) 맨 위 설명을 사용법 중심으로 줄임
+
+**🔧 Changes**
+- main 브랜치의 릴리스 버전 커밋을 develop에 병합
 
 ---
 
