@@ -1,15 +1,39 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-10-17T21:31:36Z",
-    "currentVersion": "1.0.2",
+    "lastUpdated": "2026-10-18T07:29:21Z",
+    "currentVersion": "1.0.3",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 39
+    "totalReleases": 40
   },
   "releases": [
+    {
+      "version": "1.0.3",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-10-18",
+      "pr_number": 452,
+      "raw_summary": "### ♻️ Refactoring\n- 체험 스크립트 코드 점검 반영: 이름 정리와 버전 읽기 실패 안내 — 데모 영상 합성기(compose.py) 맨 위 설명을 사용법 중심으로 줄임\n\n### 🔧 Changes\n- main 브랜치의 릴리스 버전 커밋을 develop에 병합",
+      "parsed_changes": {
+        "refactor": {
+          "title": "♻️ Refactoring",
+          "items": [
+            "체험 스크립트 코드 점검 반영: 이름 정리와 버전 읽기 실패 안내 — 데모 영상 합성기(compose.py) 맨 위 설명을 사용법 중심으로 줄임"
+          ]
+        },
+        "changes": {
+          "title": "🔧 Changes",
+          "items": [
+            "main 브랜치의 릴리스 버전 커밋을 develop에 병합"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "1.0.2",
       "project_types": [
