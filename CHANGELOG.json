@@ -1,15 +1,33 @@
 {
   "versions": [],
   "metadata": {
-    "lastUpdated": "2026-10-18T07:29:21Z",
-    "currentVersion": "1.0.3",
+    "lastUpdated": "2026-11-08T17:02:54Z",
+    "currentVersion": "1.0.4",
     "projectType": "node",
     "projectTypes": [
       "node"
     ],
-    "totalReleases": 40
+    "totalReleases": 41
   },
   "releases": [
+    {
+      "version": "1.0.4",
+      "project_types": [
+        "node"
+      ],
+      "date": "2026-11-08",
+      "pr_number": 455,
+      "raw_summary": "### 🐛 Fixes\n- Play_Store_배포_템플릿의_Ruby_3_4_1_고정으로_ubuntu_26_04에서_setup_ruby_실패 — Play Store 배포 템플릿의 ruby-version을 3.4로 변경",
+      "parsed_changes": {
+        "fix": {
+          "title": "🐛 Fixes",
+          "items": [
+            "Play_Store_배포_템플릿의_Ruby_3_4_1_고정으로_ubuntu_26_04에서_setup_ruby_실패 — Play Store 배포 템플릿의 ruby-version을 3.4로 변경"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "1.0.3",
       "project_types": [
