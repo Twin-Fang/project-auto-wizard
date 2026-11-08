@@ -1,7 +1,16 @@
 # Changelog
 
-**Current version:** 1.0.3  
-**Last updated:** 2026-10-18T07:29:21Z  
+**Current version:** 1.0.4  
+**Last updated:** 2026-11-08T17:02:54Z  
+
+---
+
+## [1.0.4] - 2026-11-08
+
+**PR:** #455  
+
+**🐛 Fixes**
+- Play_Store_배포_템플릿의_Ruby_3_4_1_고정으로_ubuntu_26_04에서_setup_ruby_실패 — Play Store 배포 템플릿의 ruby-version을 3.4로 변경
 
 ---
 
